@@ -11,6 +11,7 @@ ENV = {
     "KEYCLOAK_REALM": "ai-platform",
     "KEYCLOAK_CLIENT_ID": "ai-platform-api",
     "KEYCLOAK_CLIENT_SECRET": "secret",
+    "STORAGE_ROOT": "/data/objects",
 }
 
 

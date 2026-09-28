@@ -32,3 +32,8 @@ def test_missing_object_raises(store):
 def test_unsafe_keys_rejected(store, key):
     with pytest.raises(ValueError):
         store.put(key, b"x")
+
+
+def test_app_exposes_object_store(app):
+    app.state.store.put("probe/x", b"1")
+    assert app.state.store.get("probe/x") == b"1"

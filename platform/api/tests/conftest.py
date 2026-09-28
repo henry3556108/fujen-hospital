@@ -9,6 +9,7 @@ from app.identity import InMemoryIdentityProvider, JwtVerifier
 from app.main import create_app
 from app.models import User
 from app.permissions import AccountType
+from app.storage import LocalObjectStore
 
 ISSUER = "http://test-idp/realms/ai-platform"
 AUDIENCE = "ai-platform"
@@ -39,9 +40,14 @@ def idp():
 
 
 @pytest.fixture
-def app(rsa_key, idp):
+def store(tmp_path):
+    return LocalObjectStore(tmp_path / "objects")
+
+
+@pytest.fixture
+def app(rsa_key, idp, store):
     verifier = JwtVerifier(issuer=ISSUER, audience=AUDIENCE, key_resolver=lambda token: rsa_key.public_key())
-    return create_app(database_url="sqlite://", verifier=verifier, idp=idp)
+    return create_app(database_url="sqlite://", verifier=verifier, idp=idp, store=store)
 
 
 @pytest.fixture

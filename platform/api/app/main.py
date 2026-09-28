@@ -8,7 +8,7 @@ from app.models import Base
 from app.routers import admin, authz_check, me
 
 
-def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None) -> FastAPI:
+def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, store=None) -> FastAPI:
     engine = make_engine(database_url)
     Base.metadata.create_all(engine)
 
@@ -16,6 +16,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None) -> F
     app.state.sessionmaker = make_sessionmaker(engine)
     app.state.verifier = verifier
     app.state.idp = idp
+    app.state.store = store
 
     @app.exception_handler(admin_service.Conflict)
     def _conflict(request: Request, exc: admin_service.Conflict):

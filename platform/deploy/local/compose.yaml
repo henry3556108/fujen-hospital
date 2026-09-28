@@ -45,6 +45,9 @@ services:
       KEYCLOAK_REALM: ai-platform
       KEYCLOAK_CLIENT_ID: ai-platform-api
       KEYCLOAK_CLIENT_SECRET: api-secret-dev
+      STORAGE_ROOT: /data/objects
+    volumes:
+      - objects:/data/objects
     depends_on:
       postgres: {condition: service_healthy}
       keycloak: {condition: service_started}
@@ -59,3 +62,4 @@ services:
 
 volumes:
   pgdata: {}
+  objects: {}

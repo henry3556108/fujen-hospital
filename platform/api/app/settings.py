@@ -12,6 +12,7 @@ class Settings:
     keycloak_realm: str
     keycloak_client_id: str
     keycloak_client_secret: str
+    storage_root: str
 
     @classmethod
     def from_env(cls) -> "Settings":
