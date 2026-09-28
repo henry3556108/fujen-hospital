@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, Query, Request, Respon
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
-from tabular import explore, preprocess
+from tabular import explore, preprocess, stats
 from tabular.errors import TabularError
 
 from app.deps import ProjectContext, client_ip, require_project_permission
@@ -158,3 +158,46 @@ def save_target_feature(dataset_id: int, request: Request, body: dict = Body(...
 @router.get("/datasets/{dataset_id}/target-feature")
 def get_target_feature(ds: TabularDataset = Depends(_dataset), ctx: ProjectContext = Depends(read_access)) -> dict:
     return service.target_feature_out(service.get_target_feature(ctx, ds))
+
+
+# ------------------------------------------------------------------ 醫學統計（TC-B04-07、08）
+# steps 選填：先在資料副本上套用前處理（例如以 onehot 編碼類別欄位）再建模。
+
+class RegressionIn(BaseModel):
+    target: str
+    features: list[str]
+    steps: list[dict] = []
+
+
+class KaplanMeierIn(BaseModel):
+    duration: str
+    event: str
+    group: str | None = None
+    steps: list[dict] = []
+
+
+class CoxIn(BaseModel):
+    duration: str
+    event: str
+    covariates: list[str]
+    steps: list[dict] = []
+
+
+@router.post("/datasets/{dataset_id}/stats/logistic")
+def stats_logistic(body: RegressionIn, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return stats.logistic(preprocess.apply_pipeline(df, body.steps), body.target, body.features)
+
+
+@router.post("/datasets/{dataset_id}/stats/linear")
+def stats_linear(body: RegressionIn, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return stats.linear(preprocess.apply_pipeline(df, body.steps), body.target, body.features)
+
+
+@router.post("/datasets/{dataset_id}/stats/kaplan-meier")
+def stats_kaplan_meier(body: KaplanMeierIn, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return stats.kaplan_meier(preprocess.apply_pipeline(df, body.steps), body.duration, body.event, body.group)
+
+
+@router.post("/datasets/{dataset_id}/stats/cox")
+def stats_cox(body: CoxIn, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return stats.cox(preprocess.apply_pipeline(df, body.steps), body.duration, body.event, body.covariates)
