@@ -7,7 +7,7 @@ import numpy as np
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian
 
-from .common import UID_ROOT, rng, uid, unique_names, write_manifest
+from .common import UID_ROOT, balanced, patients, rng, uid, write_manifest
 
 CT_IMAGE_STORAGE = "1.2.840.10008.5.1.4.1.1.2"
 MR_IMAGE_STORAGE = "1.2.840.10008.5.1.4.1.1.4"
@@ -28,12 +28,6 @@ DESCRIPTIONS = {
 
 # UID "kind" component so study/series/instance/frame UIDs never collide.
 STUDY, SERIES, INSTANCE, FRAME = 1, 2, 3, 4
-
-
-def _balanced(r: np.random.Generator, options: list[str], n: int) -> list[str]:
-    """n values cycling through options, shuffled: every option appears."""
-    values = [options[i % len(options)] for i in range(n)]
-    return [values[int(i)] for i in r.permutation(n)]
 
 
 def _dataset(meta: dict, slice_idx: int, pixels: np.ndarray, seed: int, study_no: int) -> Dataset:
@@ -122,29 +116,28 @@ def generate(out: Path, seed: int = 42, studies: int = 20) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     r = rng(seed, "dicom")
     modalities = ["CT" if i % 2 == 0 else "MR" for i in range(studies)]
-    sexes = _balanced(r, ["M", "F"], studies)
-    names = unique_names(r, studies)
+    roster = patients(seed, studies)
     days = r.choice(366, size=studies, replace=False)
     desc = {}
     for mod in ("CT", "MR"):
         n = modalities.count(mod)
         desc[mod] = (
-            iter(_balanced(r, DESCRIPTIONS[mod]["study"], n)),
-            iter(_balanced(r, DESCRIPTIONS[mod]["series"], n)),
+            iter(balanced(r, DESCRIPTIONS[mod]["study"], n)),
+            iter(balanced(r, DESCRIPTIONS[mod]["series"], n)),
         )
 
     records = []
     for i in range(studies):
         no = i + 1
         mod = modalities[i]
+        pat = roster[i]
         study_date = (dt.date(2024, 1, 1) + dt.timedelta(days=int(days[i]))).strftime("%Y%m%d")
-        birth = dt.date(1940, 1, 1) + dt.timedelta(days=int(r.integers(0, 365 * 60)))
         meta = {
             "accession_number": f"ACC{no:04d}",
-            "patient_id": f"SYN-{seed}-{no:04d}",
-            "patient_name": f"{names[i][0]}^{names[i][1]}",
-            "patient_sex": sexes[i],
-            "patient_birth_date": birth.strftime("%Y%m%d"),
+            "patient_id": pat["patient_id"],
+            "patient_name": f"{pat['family']}^{pat['given']}",
+            "patient_sex": pat["sex"],
+            "patient_birth_date": pat["birth_date"],
             "modality": mod,
             "study_date": study_date,
             "study_description": next(desc[mod][0]),

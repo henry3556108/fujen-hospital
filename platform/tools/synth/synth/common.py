@@ -1,5 +1,6 @@
 """Shared helpers: seeded RNG streams, UID derivation, manifest writing."""
 
+import datetime as dt
 import json
 import zlib
 from pathlib import Path
@@ -30,6 +31,30 @@ def unique_names(r: np.random.Generator, n: int) -> list[tuple[str, str]]:
     pairs = [(last, first) for last in LAST_NAMES for first in FIRST_NAMES]
     idx = r.choice(len(pairs), size=n, replace=False)
     return [pairs[int(i)] for i in idx]
+
+
+def balanced(r: np.random.Generator, options: list, n: int) -> list:
+    """n values cycling through options, shuffled: every option appears."""
+    values = [options[i % len(options)] for i in range(n)]
+    return [values[int(i)] for i in r.permutation(n)]
+
+
+def patients(seed: int, n: int) -> list[dict]:
+    """The shared synthetic patient roster (same people in DICOM and clinical data)."""
+    r = rng(seed, "patients")
+    names = unique_names(r, n)
+    sexes = balanced(r, ["M", "F"], n)
+    births = r.integers(0, 365 * 60, size=n)
+    return [
+        {
+            "patient_id": f"SYN-{seed}-{i + 1:04d}",
+            "family": names[i][0],
+            "given": names[i][1],
+            "sex": sexes[i],
+            "birth_date": (dt.date(1940, 1, 1) + dt.timedelta(days=int(births[i]))).strftime("%Y%m%d"),
+        }
+        for i in range(n)
+    ]
 
 
 def write_json(path: Path, data) -> None:
