@@ -1,0 +1,19 @@
+[project]
+name = "tabular"
+version = "0.1.0"
+description = "Structured-data (tabular) core: validation, exploration, preprocessing, medical statistics"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scikit-learn>=1.5",
+    "statsmodels>=0.14",
+    "lifelines>=0.29",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
