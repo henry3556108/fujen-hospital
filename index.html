@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI 模型開發管理平台｜系統架構導覽</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <h1>AI 模型開發管理平台，系統架構導覽</h1>
+  <p class="sub">依《契約附件冊 R2》與開發時程甘特圖整理：平台由 16 個功能模組組成，分兩次驗收。先看架構圖掌握全貌，再用「使用情境」看每個模組在真實工作裡扮演什麼角色。</p>
+
+  <div class="ruler" aria-label="里程碑">
+    <div class="ms"><span>M0 簽約與開工</span><b>9/21 起</b><span>需求確認、開源元件清單、最低主機規格書</span></div>
+    <div class="ms m1"><span>M1 中期驗收</span><b>10/22（缺陷修復至 10/30）</b><span>7 個模組，於測試環境</span></div>
+    <div class="ms m2"><span>M2 完成驗收與上線</span><b>11/10</b><span>9 個模組，於甲方指定場域正式環境</span></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="arch">系統架構</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="scen">需求與使用情境</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="mods">16 個模組與子功能</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="nfr">共通要求與範圍邊界</button>
+  </div>
+
+  <!-- ARCH -->
+  <section class="panel" id="p-arch">
+    <div class="legend">
+      <span><i style="background:var(--m1)"></i>M1 中期驗收模組</span>
+      <span><i style="background:var(--m2)"></i>M2 完成驗收模組</span>
+      <span>點任一模組看子功能</span>
+    </div>
+    <div class="focusbar" id="focusbar"><span style="color:var(--muted)">依情境標示：</span></div>
+    <div class="arch">
+      <div class="stack" id="stack"></div>
+      <aside class="ext">
+        <h3>外部系統（甲方場域提供）</h3>
+        <p style="font-size:13px;color:var(--muted);margin:0">本案只做介接，對方系統的開通、設定與其端處理時間不列入驗收。</p>
+        <ul>
+          <li><b>DICOM 儀器、影像儲傳系統</b><span>DICOM 查詢與取像，接 B-01</span></li>
+          <li><b>臨床資料來源</b><span>SQL、CSV、HL7 V2、JSON，接 C-03</span></li>
+          <li><b>生理監視器</b><span>即時資料轉 FHIR Observation，接 C-03</span></li>
+          <li><b>身分提供者</b><span>OAuth2、OpenID Connect，接 C-03</span></li>
+          <li><b>Email、通訊軟體</b><span>告警通知，接 C-02</span></li>
+          <li><b>開源模型平台</b><span>需甲方給對外網路與 Token，否則離線預載，接 B-07、D-01</span></li>
+          <li><b>第三方自動標註工具</b><span>NVIDIA Clara 等級，M0 書面確認，接 B-03</span></li>
+        </ul>
+      </aside>
+    </div>
+
+    <h2 style="margin-top:26px">GPU 分配策略：3 張卡分兩種池</h2>
+    <p class="sub">對應 A-02 第 3 項（獨占與共享排程）與 C-01 第 4 項（佇列排程）。</p>
+    <div class="pools">
+      <div class="pool">
+        <h3>獨占池，2 張</h3>
+        <div class="cards"><div class="card">GPU 1</div><div class="card">GPU 2</div></div>
+        <p>依序排隊，一個工作占整張卡。放影像模型訓練、LLM 服務。速度快、互不干擾，但要等。</p>
+      </div>
+      <div class="pool shared">
+        <h3>共享池，1 張</h3>
+        <div class="cards"><div class="card">GPU 3</div></div>
+        <p>時間片共享，同時放多個工作。放即時推論、自動標註、結構式資料訓練、小模型。不用等，但會互相拖慢，記憶體沒有隔離。</p>
+      </div>
+    </div>
+    <div class="note"><b>需對齊的地方：</b>本版為「MIG 移除修訂版」，附件本文 C-01 已無 MIG 驗收項目，但甘特圖仍寫著「GPU 群組、MIG 靜態切分」（10/5–10/16）與「甲方指定場域部署平台、MIG 靜態切分」（10/27–10/29）。建議把甘特圖文字同步改掉，避免被解讀為仍須交付 MIG。</div>
+  </section>
+
+  <!-- SCEN -->
+  <section class="panel" id="p-scen" hidden>
+    <p class="sub">把契約條文換成「誰、為了什麼、做了哪些步驟」。每一步標出負責的模組，最後列出驗收時會被實測的關鍵數字。</p>
+    <div class="scen">
+      <div class="slist" id="slist" role="tablist"></div>
+      <div class="sdetail" id="sdetail"></div>
+    </div>
+  </section>
+
+  <!-- MODS -->
+  <section class="panel" id="p-mods" hidden>
+    <div class="filters" id="filters"></div>
+    <div id="modlist"></div>
+  </section>
+
+  <!-- NFR -->
+  <section class="panel" id="p-nfr" hidden>
+    <div class="req-grid">
+      <div class="box">
+        <h2>通用驗收條件（兩階段都適用）</h2>
+        <div class="tw"><table>
+          <tr><th>瀏覽器</th><td>Windows 版 Chrome、Edge 各抽 10 頁，破版 0 頁、無法操作 0 項</td></tr>
+          <tr><th>效能</th><td>主要頁面首屏平均 5 秒內、最慢 10 秒；管理列表同；介面資料回應平均 3 秒、最慢 8 秒；各測 3 次，第二次載入、有線網路量測。訓練、推論、AI 生成本身的運算時間不算，但選型或配置不當造成的不在此限</td></tr>
+          <tr><th>安全</th><td>未登入進管理頁 10 次成功 0 次；越權 10 次成功 0 次；密碼、Token、金鑰明文出現 0 次；甲方給網域與憑證時全站 HTTPS</td></tr>
+          <tr><th>缺陷</th><td>阻斷級、嚴重級 0 件；一般級至多 10 件。阻斷與嚴重 5 至 10 工作天修復，一般 10 至 15 工作天</td></tr>
+          <tr><th>文件</th><td>各階段交付物缺件 0 件</td></tr>
+        </table></div>
+      </div>
+      <div class="box">
+        <h2>測試資料基線</h2>
+        <h3 style="color:var(--m1)">M1 中期</h3>
+        <ul>
+          <li>帳號 8（Admin 1、User 2、角色 5）、專案 3</li>
+          <li>DICOM 研究 20（Modality 至少 2 種）；NIfTI、ITK、makesense JSON 各 3</li>
+          <li>結構式資料 3 份共 300 筆（每份 10 欄以上）；Accession Number 10 筆；GPU 群組 2</li>
+        </ul>
+        <h3 style="color:var(--m2);margin-top:12px">M2 完成</h3>
+        <ul>
+          <li>影像標註 30（分類、分割、偵測各 10）、自動標註 5 次、訓練 4 次、統計 4 種</li>
+          <li>批次推論 1 次（20 筆以上）、即時推論 10 次、匯出模型 4 檔</li>
+          <li>LLM 對話 20、RAG 文件 6 種格式各 1、Prompt 樣板 6</li>
+          <li>FHIR 資源 3 種各 20、資料接入 4 批、生理監視器 100 筆、工作流 1、知識庫文件 3</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h2>交付物</h2>
+        <h3 style="color:var(--m1)">M1 中期</h3>
+        <ul><li>中期測試紀錄、平台環境與底層庫版本清單、第二期請款量化驗收單</li></ul>
+        <h3 style="color:var(--m2);margin-top:12px">M2 完成</h3>
+        <ul>
+          <li>原始碼 Repo、系統操作說明、部署及還原說明、系統整合測試紀錄</li>
+          <li>自動化測試腳本與測試報告、第三方軟體與模型授權清單、系統架構圖</li>
+          <li>教育訓練教材 2 份、結案分析報告、基本保固維護說明、第三期簽核單</li>
+          <li>正式環境：正式金鑰與帳號設定、管理後台登入、一次完整「上傳到訓練」流程，各 1 筆紀錄</li>
+        </ul>
+      </div>
+      <div class="box">
+        <h2>不在本案範圍</h2>
+        <ul>
+          <li>硬體採購、上架、佈線與保固；機房、網路、防火牆、VPN、IP 配發</li>
+          <li>甲方既有系統（影像儲傳、資料來源、生理監視器）本身的授權、改版與設定</li>
+          <li>醫療判讀、臨床診斷、人體試驗送審、醫材法規查驗</li>
+          <li>外部閉源 LLM 服務帳號與 API 用量；本案 LLM 以本地部署開源模型為之</li>
+          <li>16 個模組以外的新功能、客製報表、既有資料清洗與遷移</li>
+          <li>教育訓練錄影錄音</li>
+        </ul>
+        <p style="font-size:13px;color:var(--muted);margin-top:10px">甲方逾 15 日未提供環境、資料或帳號，乙方須先書面催告，才能主張停工與順延。</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="模組詳細"></aside>
+
+<script src="src/data.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
