@@ -9,6 +9,6 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   resetMockDb();
-  window.localStorage.clear();
+  if (typeof window !== "undefined") window.localStorage.clear();
 });
 afterAll(() => server.close());
