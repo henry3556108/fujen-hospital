@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
-from app.permissions import AccountType
+from app.permissions import DEFAULT_ROLE_PERMISSIONS, AccountType, Permission, Role
 
 
 class Conflict(Exception):
@@ -116,4 +116,47 @@ def reset_password(session: Session, idp: IdentityProvider, *, actor: str, user_
     idp.reset_password(user.idp_subject, new_password)
     record(session, actor=actor, category=AuditCategory.ACCOUNT, action="reset_password",
            target=f"user:{user_id}", source_ip=source_ip)
+    session.commit()
+
+
+def set_membership(session: Session, *, actor: str, project_id: int, user_id: int, role: Role,
+                   permissions: set[Permission] | None = None, source_ip: str | None = None) -> Membership:
+    _get(session, Project, project_id)
+    _get(session, User, user_id)
+    target = f"project:{project_id}/user:{user_id}"
+    chosen = permissions if permissions is not None else DEFAULT_ROLE_PERMISSIONS[role]
+    new_perms = sorted(p.value for p in chosen)
+    membership = session.scalar(
+        select(Membership).where(Membership.user_id == user_id, Membership.project_id == project_id)
+    )
+    if membership is None:
+        membership = Membership(user_id=user_id, project_id=project_id, role=role.value, permissions=new_perms)
+        session.add(membership)
+        record(session, actor=actor, category=AuditCategory.ROLE, action="assign", target=target,
+               source_ip=source_ip, detail={"role": role.value})
+        record(session, actor=actor, category=AuditCategory.PERMISSION, action="grant", target=target,
+               source_ip=source_ip, detail={"permissions": new_perms})
+    else:
+        if membership.role != role.value:
+            record(session, actor=actor, category=AuditCategory.ROLE, action="change", target=target,
+                   source_ip=source_ip, detail={"from": membership.role, "to": role.value})
+            membership.role = role.value
+        if membership.permissions != new_perms:
+            record(session, actor=actor, category=AuditCategory.PERMISSION, action="change", target=target,
+                   source_ip=source_ip, detail={"from": membership.permissions, "to": new_perms})
+            membership.permissions = new_perms
+    session.commit()
+    return membership
+
+
+def remove_membership(session: Session, *, actor: str, project_id: int, user_id: int,
+                      source_ip: str | None = None) -> None:
+    membership = session.scalar(
+        select(Membership).where(Membership.user_id == user_id, Membership.project_id == project_id)
+    )
+    if membership is None:
+        raise NotFound(f"找不到成員資格：使用者 {user_id} 不在專案 {project_id}")
+    session.delete(membership)
+    record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
+           target=f"project:{project_id}/user:{user_id}", source_ip=source_ip, detail={"role": membership.role})
     session.commit()

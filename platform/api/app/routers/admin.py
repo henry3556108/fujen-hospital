@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import admin_service
 from app.deps import client_ip, get_session, require_admin
 from app.models import Project, User
-from app.permissions import AccountType
+from app.permissions import AccountType, Permission, Role
 
 router = APIRouter(prefix="/api/admin")
 
@@ -106,4 +106,28 @@ def reset_password(user_id: int, body: PasswordReset, request: Request, admin: U
                    session: Session = Depends(get_session)) -> Response:
     admin_service.reset_password(session, request.app.state.idp, actor=admin.username, user_id=user_id,
                                  new_password=body.new_password, source_ip=client_ip(request))
+    return Response(status_code=204)
+
+
+class MembershipIn(BaseModel):
+    role: Role
+    permissions: list[Permission] | None = None
+
+
+@router.put("/projects/{project_id}/members/{user_id}")
+def set_member(project_id: int, user_id: int, body: MembershipIn, request: Request,
+               admin: User = Depends(require_admin), session: Session = Depends(get_session)) -> dict:
+    m = admin_service.set_membership(
+        session, actor=admin.username, project_id=project_id, user_id=user_id, role=body.role,
+        permissions=set(body.permissions) if body.permissions is not None else None,
+        source_ip=client_ip(request),
+    )
+    return {"project_id": m.project_id, "user_id": m.user_id, "role": m.role, "permissions": m.permissions}
+
+
+@router.delete("/projects/{project_id}/members/{user_id}", status_code=204)
+def remove_member(project_id: int, user_id: int, request: Request, admin: User = Depends(require_admin),
+                  session: Session = Depends(get_session)) -> Response:
+    admin_service.remove_membership(session, actor=admin.username, project_id=project_id, user_id=user_id,
+                                    source_ip=client_ip(request))
     return Response(status_code=204)
