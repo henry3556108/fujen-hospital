@@ -5,11 +5,14 @@ Test double only. Never deploy to a customer production environment.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
+from collections.abc import Iterator
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
 CHAT_MODEL = "fake-llm-small"
@@ -103,15 +106,42 @@ def list_models() -> dict[str, Any]:
     }
 
 
+def _sse_chunks(
+    completion_id: str, created: int, model: str, content: str, finish_reason: str
+) -> Iterator[str]:
+    def chunk(delta: dict[str, str], finish: str | None) -> str:
+        body = {
+            "id": completion_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+        }
+        return f"data: {json.dumps(body)}\n\n"
+
+    yield chunk({"role": "assistant", "content": ""}, None)
+    for i, word in enumerate(content.split()):
+        yield chunk({"content": word if i == 0 else " " + word}, None)
+    yield chunk({}, finish_reason)
+    yield "data: [DONE]\n\n"
+
+
 @app.post("/v1/chat/completions")
-def chat_completions(req: ChatRequest) -> dict[str, Any]:
+def chat_completions(req: ChatRequest) -> Any:
     content, finish_reason = _answer(req)
+    completion_id = f"chatcmpl-{uuid.uuid4().hex}"
+    created = int(time.time())
+    if req.stream:
+        return StreamingResponse(
+            _sse_chunks(completion_id, created, req.model, content, finish_reason),
+            media_type="text/event-stream",
+        )
     prompt_tokens = sum(_words(m.content or "") for m in req.messages)
     completion_tokens = _words(content)
     return {
-        "id": f"chatcmpl-{uuid.uuid4().hex}",
+        "id": completion_id,
         "object": "chat.completion",
-        "created": int(time.time()),
+        "created": created,
         "model": req.model,
         "choices": [
             {
