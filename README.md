@@ -25,3 +25,10 @@ gen-docs.js         重新產生 docs：node gen-docs.js
 ## 資料來源
 - 附件一第 1 至 11 節、附件二
 - 開發時程甘特圖（1.1 節）
+
+## 平台程式碼
+
+- `platform/`：平台實作（API、網頁、部署、測試工具），各子目錄有自己的 README。
+- `docs/TODO.md`：開發追蹤（待辦、需甲方確認事項、技術債、換機器開發步驟）。
+- `docs/test-cases/acceptance-test-cases.md`：依契約驗收指標整理的測試案例。
+- `docs/superpowers/plans/`：各工作包的實作計畫與路線圖。
