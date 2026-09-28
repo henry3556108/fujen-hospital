@@ -5,7 +5,7 @@ import re
 from collections.abc import Iterable, Sequence
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.audit import AuditCategory, record
@@ -13,7 +13,7 @@ from app.imaging.dicom import DicomInfo, InvalidDicom, parse_dicom
 from app.imaging.formats import InvalidFile, parse_file
 from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingSeries, ImagingStudy,
                                 ImportFileResult, ImportJob)
-from app.imaging.orthanc import OrthancClient, OrthancError
+from app.imaging.orthanc import QUERY_KEYS, OrthancClient, OrthancError
 from app.storage import ObjectStore
 
 DICOM_EXTENSIONS = ("", ".dcm", ".dicom", ".ima")
@@ -132,6 +132,71 @@ def import_dicom(session: Session, orthanc: OrthancClient, *, project_id: int, a
     results = [_import_one_dicom(session, orthanc, project_id, clean_name(n), d) for n, d in files]
     resolve_pairings(session, project_id)
     return _finish_job(session, job, results, actor=actor, source_ip=source_ip)
+
+
+# ---------- Accession 清單 ----------
+
+ACCESSION = re.compile(r"^[A-Za-z0-9._\-]{1,16}$")   # DICOM SH：最多 16 字元；不允許萬用字元與反斜線
+UID = re.compile(r"^[0-9]+(\.[0-9]+)*$")
+
+
+def set_allowlist(session: Session, *, project_id: int, actor: str, accessions: Sequence[str],
+                  source_ip: str | None = None) -> list[str]:
+    wanted = sorted(set(accessions))
+    bad = [a for a in wanted if not ACCESSION.match(a)]
+    if bad:
+        raise HTTPException(422, f"Accession 格式錯誤：{', '.join(bad[:5])}")
+    session.execute(delete(AccessionAllowlist).where(AccessionAllowlist.project_id == project_id))
+    session.add_all(AccessionAllowlist(project_id=project_id, accession_number=a) for a in wanted)
+    record(session, actor=actor, category=AuditCategory.DATASET, action="imaging.set_allowlist",
+           target=f"project:{project_id}", source_ip=source_ip, detail={"count": len(wanted)})
+    session.commit()
+    return wanted
+
+
+# ---------- PACS 查詢取像 ----------
+
+def pacs_query(session: Session, orthanc: OrthancClient, *, project_id: int, query: dict[str, str]) -> list[dict]:
+    unknown = sorted(set(query) - QUERY_KEYS)
+    if unknown:
+        raise HTTPException(422, f"不支援的查詢欄位：{', '.join(unknown)}（可用 {', '.join(sorted(QUERY_KEYS))}）")
+    try:
+        answers = orthanc.pacs_find(query)
+    except OrthancError as exc:
+        raise HTTPException(502, f"PACS 查詢失敗：{exc}")
+    allowed = allowlist(session, project_id)
+    if allowed:
+        answers = [a for a in answers if a.get("AccessionNumber") in allowed]
+    return answers
+
+
+def pacs_retrieve(session: Session, orthanc: OrthancClient, *, project_id: int, actor: str, study_uid: str,
+                  source_ip: str | None = None) -> ImportJob:
+    if not UID.match(study_uid) or len(study_uid) > 64:
+        raise HTTPException(422, "Study Instance UID 格式錯誤")
+    try:
+        found = orthanc.pacs_find({"StudyInstanceUID": study_uid})
+    except OrthancError as exc:
+        raise HTTPException(502, f"PACS 查詢失敗：{exc}")
+    if not found:
+        raise HTTPException(404, f"PACS 找不到研究 {study_uid}")
+    allowed = allowlist(session, project_id)
+    if allowed and found[0].get("AccessionNumber") not in allowed:
+        raise HTTPException(403, "此研究的 Accession 不在本專案清單內")
+    try:
+        orthanc.pacs_move(study_uid)
+        instances = orthanc.study_instances(study_uid)
+    except OrthancError as exc:
+        raise HTTPException(502, f"PACS 取像失敗：{exc}")
+    job = ImportJob(project_id=project_id, kind="pacs", status="running", created_by=actor)
+    session.add(job)
+    results = [_import_one_dicom(session, orthanc, project_id, f"pacs/{study_uid}/{i + 1}", data,
+                                 store_in_orthanc=False) for i, data in enumerate(instances)]
+    if not results:
+        results = [ImportFileResult(filename=f"pacs/{study_uid}", status="failed", reason="取像後平台節點沒有影像")]
+    resolve_pairings(session, project_id)
+    return _finish_job(session, job, results, actor=actor, source_ip=source_ip,
+                       extra={"study_instance_uid": study_uid})
 
 
 # ---------- 研究查詢（5 欄位篩選、Accession 清單） ----------

@@ -1,10 +1,11 @@
 """/api/projects/{project_id}/imaging/*：影像匯入、查詢、Accession 清單、PACS 查詢取像。"""
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from pydantic import BaseModel
 
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.imaging import service
 from app.imaging.orthanc import OrthancClient
-from app.permissions import Permission
+from app.permissions import AccountType, Permission
 
 router = APIRouter(prefix="/api/projects/{project_id}/imaging", tags=["imaging"])
 
@@ -67,6 +68,42 @@ def list_studies(modality: str | None = None, patient_sex: str | None = None, st
                                    study_description=study_description, study_date=study_date,
                                    series_description=series_description)
     return service.studies_to_dicts(ctx.session, studies)
+
+
+class AllowlistBody(BaseModel):
+    accession_numbers: list[str]
+
+
+class RetrieveBody(BaseModel):
+    study_instance_uid: str
+
+
+@router.get("/accession-allowlist")
+def get_allowlist(ctx: ProjectContext = Depends(can_read)) -> dict:
+    return {"accession_numbers": sorted(service.allowlist(ctx.session, ctx.project.id))}
+
+
+@router.put("/accession-allowlist")
+def put_allowlist(body: AllowlistBody, request: Request, ctx: ProjectContext = Depends(can_read)) -> dict:
+    if ctx.user.account_type != AccountType.ADMIN:
+        raise HTTPException(403, "需要 Admin 權限才能設定 Accession 清單")
+    accessions = service.set_allowlist(ctx.session, project_id=ctx.project.id, actor=ctx.user.username,
+                                       accessions=body.accession_numbers, source_ip=client_ip(request))
+    return {"accession_numbers": accessions}
+
+
+@router.post("/pacs/query")
+def pacs_query(query: dict[str, str], ctx: ProjectContext = Depends(can_import),
+               orthanc: OrthancClient = Depends(get_orthanc)) -> list[dict]:
+    return service.pacs_query(ctx.session, orthanc, project_id=ctx.project.id, query=query)
+
+
+@router.post("/pacs/retrieve", status_code=201)
+def pacs_retrieve(body: RetrieveBody, request: Request, ctx: ProjectContext = Depends(can_import),
+                  orthanc: OrthancClient = Depends(get_orthanc)) -> dict:
+    job = service.pacs_retrieve(ctx.session, orthanc, project_id=ctx.project.id, actor=ctx.user.username,
+                                study_uid=body.study_instance_uid, source_ip=client_ip(request))
+    return service.job_to_dict(job)
 
 
 @router.get("/studies/{study_uid}")
