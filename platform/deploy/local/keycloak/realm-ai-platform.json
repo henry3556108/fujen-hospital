@@ -4,6 +4,28 @@
   "accessTokenLifespan": 300,
   "clients": [
     {
+      "clientId": "ai-platform-importer",
+      "description": "批次影像匯入 CLI：device-code 登入；directAccessGrants 只為本機驗收，正式環境關閉",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "platform-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ai-platform",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "ai-platform-web",
       "publicClient": true,
       "standardFlowEnabled": true,

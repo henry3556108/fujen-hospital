@@ -11,4 +11,28 @@ routes:
       type: roundrobin
       nodes:
         "api:8000": 1
+  # WP2：DICOMweb 只經這裡。forward-auth 把原始 URI／方法交給平台 API 檢查
+  # （專案權限、研究在專案內、Accession 清單、canonical-or-deny），通過後改寫到 Orthanc /dicom-web/，
+  # 由 Gateway 換上 Orthanc 的 Basic 認證。唯讀：只開 GET/HEAD。
+  # 注意：proxy-rewrite 在 rewrite 階段、forward-auth 在 access 階段，若用 proxy-rewrite 換 Authorization，
+  # forward-auth 會收到 Basic 而不是使用者的 Bearer；所以換認證放在 access 階段最後的 serverless-post-function。
+  - id: dicomweb
+    uri: /dicomweb/projects/*
+    methods: ["GET", "HEAD"]
+    plugins:
+      forward-auth:
+        uri: http://api:8000/authz/check
+        request_method: GET
+        request_headers: ["Authorization"]
+        upstream_headers: ["X-User"]
+      proxy-rewrite:
+        regex_uri: ["^/dicomweb/projects/[0-9]+/(.*)$", "/dicom-web/$1"]
+      serverless-post-function:
+        phase: access
+        functions:
+          - "return function(conf, ctx) ngx.req.set_header('Authorization', 'Basic Z2F0ZXdheTpvcnRoYW5jLWd3LWRldg==') end"
+    upstream:
+      type: roundrobin
+      nodes:
+        "orthanc:8042": 1
 #END
