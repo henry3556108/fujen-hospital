@@ -30,6 +30,18 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
     model: str
     messages: list[ChatMessage]
+    temperature: float | None = None
+    top_p: float | None = None
+    max_tokens: int | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    stream: bool = False
+
+
+# Request fields that are not sampling parameters and so are not echoed.
+_NOT_ECHOED = {"model", "messages", "stream", "stream_options", "user", "tools", "tool_choice", "response_format"}
+_ECHO_WORDS = 30
+_CONTEXT_CHARS = 60
 
 
 def _words(text: str) -> int:
@@ -43,8 +55,41 @@ def _last_user_message(messages: list[ChatMessage]) -> str:
     return ""
 
 
-def _answer(req: ChatRequest) -> str:
-    return "[fake-llm] " + _last_user_message(req.messages)
+def _params_echo(req: ChatRequest) -> str:
+    sent = req.model_dump(exclude_unset=True)
+    items = sorted(
+        (k, v) for k, v in sent.items()
+        if k not in _NOT_ECHOED and isinstance(v, (int, float, str, bool)) and v is not None
+    )
+    return "params{" + ",".join(f"{k}={v}" for k, v in items) + "}"
+
+
+def _retrieved_context(messages: list[ChatMessage]) -> str | None:
+    """Text following the first line starting with 'Context:' in a system/user message."""
+    for m in messages:
+        if m.role not in ("system", "user") or not m.content:
+            continue
+        lines = m.content.splitlines()
+        for i, line in enumerate(lines):
+            if line.lstrip().startswith("Context:"):
+                rest = [line.lstrip()[len("Context:"):]] + lines[i + 1:]
+                text = " ".join(" ".join(rest).split())
+                return text[:_CONTEXT_CHARS]
+    return None
+
+
+def _answer(req: ChatRequest) -> tuple[str, str]:
+    """Return (content, finish_reason)."""
+    parts = ["[fake-llm]", _params_echo(req)]
+    context = _retrieved_context(req.messages)
+    if context is not None:
+        parts.append(f"context: {context} |")
+    echo = _last_user_message(req.messages).split()[:_ECHO_WORDS]
+    parts.append("echo: " + " ".join(echo))
+    words = " ".join(parts).split()
+    if req.max_tokens is not None and len(words) > req.max_tokens:
+        return " ".join(words[: req.max_tokens]), "length"
+    return " ".join(words), "stop"
 
 
 @app.get("/v1/models")
@@ -60,7 +105,7 @@ def list_models() -> dict[str, Any]:
 
 @app.post("/v1/chat/completions")
 def chat_completions(req: ChatRequest) -> dict[str, Any]:
-    content = _answer(req)
+    content, finish_reason = _answer(req)
     prompt_tokens = sum(_words(m.content or "") for m in req.messages)
     completion_tokens = _words(content)
     return {
@@ -72,7 +117,7 @@ def chat_completions(req: ChatRequest) -> dict[str, Any]:
             {
                 "index": 0,
                 "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
+                "finish_reason": finish_reason,
             }
         ],
         "usage": {
