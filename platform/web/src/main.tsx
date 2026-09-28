@@ -1,9 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { App } from './App';
 import { createAuthAdapter } from './auth/adapter';
+import { applyStoredTheme } from './components/ThemeToggle';
+import './theme/tokens.css';
+import './styles/app.css';
 
 async function bootstrap() {
-  // API 模擬只在 dev server 開啟，production build 會整段移除。
+  applyStoredTheme();
+  // API 模擬只在 dev server 開啟，任何 vite build 都會整段移除。
   if (__DEV_SERVER__ && import.meta.env.VITE_API_MOCK === '1') {
     const { worker } = await import('./mocks/browser');
     await worker.start({ onUnhandledRequest: 'bypass', quiet: true });
@@ -11,7 +17,9 @@ async function bootstrap() {
   const auth = await createAuthAdapter();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <p>{auth.mode}</p>
+      <BrowserRouter>
+        <App auth={auth} apiBase={import.meta.env.VITE_API_BASE ?? ''} />
+      </BrowserRouter>
     </StrictMode>,
   );
 }
