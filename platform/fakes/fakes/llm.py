@@ -14,15 +14,49 @@ import uuid
 from collections.abc import Iterator
 from typing import Any
 
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from fakes import faults
 
 CHAT_MODEL = "fake-llm-small"
 EMBED_MODEL = "fake-embed-small"
 _CREATED = 1_700_000_000
 
 app = FastAPI(title="fake-llm", description="Fake OpenAI-compatible LLM. Test use only.")
+
+_ERROR_TYPES = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    403: "permission_error",
+    404: "not_found_error",
+    429: "rate_limit_error",
+}
+
+
+def openai_error(status: int, message: str, param: str | None = None) -> dict[str, Any]:
+    err_type = _ERROR_TYPES.get(status, "server_error" if status >= 500 else "invalid_request_error")
+    return {"error": {"message": message, "type": err_type, "param": param, "code": status}}
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    first = exc.errors()[0] if exc.errors() else {}
+    loc = [str(p) for p in first.get("loc", ()) if p != "body"]
+    param = ".".join(loc) or None
+    message = f"{param}: {first.get('msg', 'invalid request')}" if param else "invalid request body"
+    return JSONResponse(openai_error(400, message, param), status_code=400)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    return JSONResponse(openai_error(exc.status_code, str(exc.detail)), status_code=exc.status_code)
+
+
+faults.install(app, "FAKE_LLM", openai_error)
 
 
 class ChatMessage(BaseModel):
