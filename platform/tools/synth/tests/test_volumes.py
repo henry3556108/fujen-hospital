@@ -47,6 +47,15 @@ def test_nifti_parse_and_labels_match_images(nifti_out):
         assert np.asarray(img.dataobj).std() > 0
 
 
+def test_nifti_gzip_header_has_no_timestamp(nifti_out):
+    """Same-seed runs a second apart must still be byte-identical."""
+    out, _ = nifti_out
+    for path in out.glob("*.nii.gz"):
+        header = path.read_bytes()[:10]
+        assert header[4:8] == b"\x00\x00\x00\x00", path.name  # MTIME
+        assert header[3] & 0x08 == 0, path.name  # no FNAME field
+
+
 def test_itk_pairs_parse_and_align(itk_out):
     out, manifest = itk_out
     assert manifest["counts"] == {"cases": 3}
