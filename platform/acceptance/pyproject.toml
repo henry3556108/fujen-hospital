@@ -9,3 +9,4 @@ package = false
 
 [tool.pytest.ini_options]
 addopts = "--junitxml=reports/latest/junit.xml"
+markers = ["kind: 需要 kind 叢集 ai-platform（platform/deploy/kind/up.sh），以 platform/api 的環境執行"]

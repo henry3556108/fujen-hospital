@@ -1,0 +1,147 @@
+# Prometheus：抓取平台監控目標，評估 3 條告警規則，送到 Alertmanager。
+# 抓取工作（job）名稱與被監控的 Deployment 同名，TC-C02-01 直接用名稱比對覆蓋率。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/metrics, services, endpoints, pods]
+    verbs: [get, list, watch]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: prometheus }
+subjects:
+  - { kind: ServiceAccount, name: prometheus, namespace: monitoring }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+      evaluation_interval: 10s
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager.monitoring.svc:9093"]
+    rule_files: ["/etc/prometheus/rules.yml"]
+    scrape_configs:
+      - job_name: prometheus
+        static_configs: [{ targets: ["localhost:9090"] }]
+      - job_name: alertmanager
+        static_configs: [{ targets: ["alertmanager.monitoring.svc:9093"] }]
+      - job_name: grafana
+        static_configs: [{ targets: ["grafana.monitoring.svc:3000"] }]
+      - job_name: kube-state-metrics
+        static_configs: [{ targets: ["kube-state-metrics.monitoring.svc:8080"] }]
+      - job_name: kueue-controller-manager
+        scheme: https
+        tls_config: { insecure_skip_verify: true }
+        authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+        static_configs: [{ targets: ["kueue-controller-manager-metrics-service.kueue-system.svc:8443"] }]
+      # 每個節點的 kubelet 與 cAdvisor（節點、Pod、CPU、記憶體指標來源）
+      - job_name: kubelet
+        scheme: https
+        tls_config: { insecure_skip_verify: true }
+        authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+        kubernetes_sd_configs: [{ role: node }]
+        relabel_configs:
+          - { source_labels: [__meta_kubernetes_node_name], target_label: node }
+          - { source_labels: [__meta_kubernetes_node_name], target_label: instance }
+          - { source_labels: [__meta_kubernetes_node_label_platform_pool], target_label: pool }
+      - job_name: cadvisor
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        tls_config: { insecure_skip_verify: true }
+        authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
+        kubernetes_sd_configs: [{ role: node }]
+        relabel_configs:
+          - { source_labels: [__meta_kubernetes_node_name], target_label: node }
+          - { source_labels: [__meta_kubernetes_node_name], target_label: instance }
+          - { source_labels: [__meta_kubernetes_node_label_platform_pool], target_label: pool }
+  rules.yml: |
+    groups:
+      - name: platform
+        rules:
+          - alert: PlatformJobFailed
+            expr: kube_job_status_failed{namespace="platform-jobs"} > 0
+            labels: { severity: warning }
+            annotations:
+              summary: "平台工作 {{ $labels.job_name }} 失敗"
+          - alert: NodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 10s
+            # 條件短暫消失再出現會被 Alertmanager 視為新事件而重寄；維持 1 分鐘吸收節點心跳抖動
+            keep_firing_for: 1m
+            labels: { severity: critical }
+            annotations:
+              summary: "節點 {{ $labels.node }} 未就緒"
+          - alert: HighPodCpu
+            expr: sum by (namespace, pod, node) (rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[1m])) > 0.8
+            for: 20s
+            keep_firing_for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "{{ $labels.namespace }}/{{ $labels.pod }} CPU 使用率超過 0.8 核"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prometheus }
+  template:
+    metadata:
+      labels: { app: prometheus }
+      annotations:
+        # 設定變更時手動 rollout restart；這裡只記錄版本
+        platform/config-version: "1"
+    spec:
+      serviceAccountName: prometheus
+      nodeSelector: { platform/pool: cpu-web }
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.15.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=6h
+            - --web.enable-lifecycle
+          ports: [{ name: http, containerPort: 9090 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: data, mountPath: /prometheus }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - { name: config, configMap: { name: prometheus-config } }
+        - { name: data, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: prometheus }
+  ports: [{ name: http, port: 9090, targetPort: 9090, nodePort: 30090 }]

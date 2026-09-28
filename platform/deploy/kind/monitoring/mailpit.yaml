@@ -1,0 +1,36 @@
+# 本機收信工具：Alertmanager 的告警信都寄到這裡，測試用 Mailpit API 查收件數。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mailpit }
+  template:
+    metadata:
+      labels: { app: mailpit }
+    spec:
+      nodeSelector: { platform/pool: cpu-web }
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.31.3
+          ports:
+            - { name: smtp, containerPort: 1025 }
+            - { name: http, containerPort: 8025 }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: mailpit }
+  ports:
+    - { name: smtp, port: 1025, targetPort: 1025 }
+    - { name: http, port: 8025, targetPort: 8025, nodePort: 30825 }

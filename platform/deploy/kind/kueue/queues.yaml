@@ -1,0 +1,104 @@
+# Kueue 佇列：每個節點池一個 ResourceFlavor（對應 platform/pool 標籤）、一個 ClusterQueue、namespace platform-jobs 內同名 LocalQueue。
+# StrictFIFO：排頭放不下時後面的工作不插隊，確保照提交順序執行（TC-C01-05、TC-C01-08）。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-jobs
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: gpu-exclusive
+spec:
+  nodeLabels:
+    platform/pool: gpu-exclusive
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: gpu-shared
+spec:
+  nodeLabels:
+    platform/pool: gpu-shared
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: cpu-data
+spec:
+  nodeLabels:
+    platform/pool: cpu-data
+---
+# 獨占池：2 張 GPU，一件工作一張卡（影像訓練、LLM serving）
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: gpu-exclusive
+spec:
+  namespaceSelector: {}
+  queueingStrategy: StrictFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-exclusive
+          resources:
+            - { name: cpu, nominalQuota: "2" }
+            - { name: memory, nominalQuota: 2Gi }
+            - { name: nvidia.com/gpu, nominalQuota: "2" }
+---
+# 共享池：1 張 GPU × 時間片 4 份（推論、自動標註、結構式訓練、小模型）；份數由平台的共享排程設定調整
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: gpu-shared
+spec:
+  namespaceSelector: {}
+  queueingStrategy: StrictFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: gpu-shared
+          resources:
+            - { name: cpu, nominalQuota: "2" }
+            - { name: memory, nominalQuota: 2Gi }
+            - { name: nvidia.com/gpu, nominalQuota: "4" }
+---
+# 資料清洗（CPU）
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: cpu-data
+spec:
+  namespaceSelector: {}
+  queueingStrategy: StrictFIFO
+  resourceGroups:
+    - coveredResources: ["cpu", "memory"]
+      flavors:
+        - name: cpu-data
+          resources:
+            - { name: cpu, nominalQuota: "2" }
+            - { name: memory, nominalQuota: 2Gi }
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: gpu-exclusive
+  namespace: platform-jobs
+spec:
+  clusterQueue: gpu-exclusive
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: gpu-shared
+  namespace: platform-jobs
+spec:
+  clusterQueue: gpu-shared
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: cpu-data
+  namespace: platform-jobs
+spec:
+  clusterQueue: cpu-data
