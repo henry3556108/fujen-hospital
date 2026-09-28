@@ -125,3 +125,41 @@ def delete_group(name: str, request: Request, admin: User = Depends(require_admi
     with _errors():
         service.delete_group(session, actor=admin.username, name=name, source_ip=client_ip(request))
     return Response(status_code=204)
+
+
+# ---------- 叢集（Admin） ----------
+
+class SharedSettingsIn(BaseModel):
+    time_slice_replicas: int = Field(ge=1, le=16)
+    job_timeout_minutes: int = Field(ge=1, le=1440)
+
+
+@router.get("/api/admin/cluster/nodes")
+def list_nodes(admin: User = Depends(require_admin), backend: JobBackend = Depends(get_backend)) -> list[dict]:
+    try:
+        nodes = backend.nodes()
+    except Exception as exc:
+        raise HTTPException(503, f"無法讀取叢集節點：{exc}")
+    return [service.node_out(n) for n in sorted(nodes, key=lambda n: n.name)]
+
+
+@router.get("/api/admin/cluster/gpu-dashboard")
+def gpu_dashboard(admin: User = Depends(require_admin), backend: JobBackend = Depends(get_backend)) -> list[dict]:
+    try:
+        return service.gpu_dashboard(backend)
+    except Exception as exc:
+        raise HTTPException(503, f"無法讀取 GPU 配置：{exc}")
+
+
+@router.get("/api/admin/cluster/shared-scheduling")
+def get_shared_settings(admin: User = Depends(require_admin), session: Session = Depends(sched_session)) -> dict:
+    return service.settings_out(service.ensure_defaults(session))
+
+
+@router.put("/api/admin/cluster/shared-scheduling")
+def put_shared_settings(body: SharedSettingsIn, request: Request, admin: User = Depends(require_admin),
+                        session: Session = Depends(sched_session), backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        s = service.update_shared_settings(session, backend, actor=admin.username, source_ip=client_ip(request),
+                                           **body.model_dump())
+    return service.settings_out(s)

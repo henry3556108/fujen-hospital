@@ -106,6 +106,52 @@ def delete_group(session: Session, *, actor: str, name: str, source_ip: str | No
     session.commit()
 
 
+# ---------- 叢集 ----------
+
+def node_out(n) -> dict:
+    return {"name": n.name, "pool": n.pool, "ready": n.ready, "gpu_capacity": n.gpu_capacity,
+            "gpu_allocatable": n.gpu_allocatable, "gpu_physical": n.gpu_physical}
+
+
+def _int_label(labels: dict, key: str) -> int | None:
+    value = labels.get(key)
+    return int(value) if value and value.isdigit() else None
+
+
+def gpu_dashboard(backend: JobBackend) -> list[dict]:
+    """GPU Dashboard 只讀 Job 標籤（Mac 上沒有 DCGM），甲方環境同一張表再加上 DCGM 使用率。"""
+    rows = [
+        {"node": a.node, "gpu_index": a.gpu_index, "slot": a.slot, "k8s_name": a.job_name,
+         "project_id": _int_label(a.labels, "platform/project-id"),
+         "job_id": _int_label(a.labels, "platform/job-id"),
+         "training_id": _int_label(a.labels, "platform/training-id"),
+         "user": a.labels.get("platform/user")}
+        for a in backend.allocations()
+    ]
+    return sorted(rows, key=lambda r: (r["node"], r["gpu_index"], r["slot"]))
+
+
+def settings_out(s: SharedSchedulingSettings) -> dict:
+    return {"time_slice_replicas": s.time_slice_replicas, "job_timeout_minutes": s.job_timeout_minutes}
+
+
+def update_shared_settings(session: Session, backend: JobBackend, *, actor: str, time_slice_replicas: int,
+                           job_timeout_minutes: int, source_ip: str | None) -> SharedSchedulingSettings:
+    settings = ensure_defaults(session)
+    settings.time_slice_replicas = time_slice_replicas
+    settings.job_timeout_minutes = job_timeout_minutes
+    record(session, actor=actor, category=AuditCategory.PROJECT, action="shared_scheduling.update",
+           target="shared_scheduling", source_ip=source_ip, detail=settings_out(settings))
+    session.flush()
+    try:
+        backend.configure_shared(time_slice_replicas)
+    except Exception as exc:
+        session.rollback()
+        raise Unavailable(f"無法套用共享排程設定到叢集：{exc}")
+    session.commit()
+    return settings
+
+
 # ---------- 工作 ----------
 
 # 工作種類 → 是否用 GPU；GPU 工作走專案綁定群組的池，CPU 工作走固定的池
