@@ -41,6 +41,12 @@ def numeric_series(df: pd.DataFrame, column: str, allow_bool: bool = True) -> pd
     """
     require_columns(df, [column])
     series = df[column]
+    if series.notna().sum() == 0:
+        raise TabularError(
+            f"欄位「{column}」全部是空值，無法進行分析",
+            code="column_all_empty",
+            detail={"column": column},
+        )
     kind = column_kind(series)
     if kind == "boolean" and allow_bool:
         series = series.astype("float64")
@@ -50,14 +56,7 @@ def numeric_series(df: pd.DataFrame, column: str, allow_bool: bool = True) -> pd
             code="column_not_numeric",
             detail={"column": column},
         )
-    series = series.astype("float64")
-    if series.notna().sum() == 0:
-        raise TabularError(
-            f"欄位「{column}」全部是空值，無法進行分析",
-            code="column_all_empty",
-            detail={"column": column},
-        )
-    return series
+    return series.astype("float64")
 
 
 def numeric_frame(df: pd.DataFrame, columns: Iterable[str]) -> pd.DataFrame:

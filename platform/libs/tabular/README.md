@@ -1,0 +1,91 @@
+# tabular — 結構式資料核心函式庫
+
+供平台 FastAPI 後端呼叫的結構式（表格）資料核心。所有公開函式回傳純 JSON 可序列化的 dict / list（無 numpy 型別、無 NaN，缺值一律為 `None`）；可預期的輸入錯誤一律拋出 `tabular.errors.TabularError`（繁體中文訊息，`to_dict()` 供 API 轉成 4xx 回應）。
+
+```bash
+uv sync && uv run pytest
+```
+
+## 模組
+
+| 模組 | 功能 | 對應驗收案例 |
+|---|---|---|
+| `tabular.schema` | 欄位結構定義（int / float / str / category / date / bool；required、min、max、allowed、unique），可由 dict / JSON 載入 | TC-B01-10 |
+| `tabular.validate` | `validate_csv` 驗證報告、`load_clean_csv` 取得乾淨資料；逐列攔截欄位數錯誤、型別、範圍、允許值、必填、重複值；缺必要欄位與空檔為檔案層級錯誤，未知欄位為警告 | TC-B01-10 |
+| `tabular.explore` | `describe`、`histogram`、`value_counts`、`preview`（可指定可見欄位）、`column_info`、`correlation`、`scatter` | TC-B04-01、TC-B04-02、TC-B04-05、TC-B04-08 |
+| `tabular.preprocess` | 前處理方法註冊表 `catalogue()` 與 `apply_pipeline(df, steps)` | TC-B04-04、TC-B04-06 |
+
+## 前處理方法清單（共 66 種）
+
+<!-- catalogue:start -->
+| ID | 名稱 | 類別 | 適用欄位型別 |
+|---|---|---|---|
+| `impute_mean` | 平均數補值 | 缺值處理 | numeric |
+| `impute_median` | 中位數補值 | 缺值處理 | numeric |
+| `impute_most_frequent` | 眾數補值 | 缺值處理 | any |
+| `impute_constant` | 固定值補值 | 缺值處理 | any |
+| `impute_knn` | K 近鄰補值 | 缺值處理 | numeric |
+| `impute_ffill` | 向前填補 | 缺值處理 | any |
+| `impute_bfill` | 向後填補 | 缺值處理 | any |
+| `impute_interpolate` | 線性內插補值 | 缺值處理 | numeric |
+| `drop_missing_rows` | 刪除含缺值的列 | 缺值處理 | any |
+| `drop_columns_missing_ratio` | 刪除缺值比例過高的欄位 | 缺值處理 | any |
+| `add_missing_indicator` | 新增缺值指示欄 | 缺值處理 | any |
+| `scale_standard` | 標準化（Z 分數） | 縮放與數值轉換 | numeric |
+| `scale_minmax` | 最小最大值縮放 | 縮放與數值轉換 | numeric |
+| `scale_maxabs` | 最大絕對值縮放 | 縮放與數值轉換 | numeric |
+| `scale_robust` | 穩健縮放（中位數與四分位距） | 縮放與數值轉換 | numeric |
+| `normalize_l1` | 列向量 L1 正規化 | 縮放與數值轉換 | numeric |
+| `normalize_l2` | 列向量 L2 正規化 | 縮放與數值轉換 | numeric |
+| `normalize_max` | 列向量最大值正規化 | 縮放與數值轉換 | numeric |
+| `quantile_uniform` | 分位數轉換（均勻分布） | 縮放與數值轉換 | numeric |
+| `quantile_normal` | 分位數轉換（常態分布） | 縮放與數值轉換 | numeric |
+| `power_yeo_johnson` | Yeo-Johnson 冪轉換 | 縮放與數值轉換 | numeric |
+| `power_box_cox` | Box-Cox 冪轉換 | 縮放與數值轉換 | numeric |
+| `log1p` | log(1+x) 轉換 | 縮放與數值轉換 | numeric |
+| `log` | 自然對數轉換 | 縮放與數值轉換 | numeric |
+| `log10` | 常用對數（log10）轉換 | 縮放與數值轉換 | numeric |
+| `sqrt` | 平方根轉換 | 縮放與數值轉換 | numeric |
+| `square` | 平方轉換 | 縮放與數值轉換 | numeric |
+| `reciprocal` | 倒數轉換 | 縮放與數值轉換 | numeric |
+| `scale_zscore_clip` | 標準化後截斷 | 縮放與數值轉換 | numeric |
+| `clip_values` | 指定範圍截斷 | 縮放與數值轉換 | numeric |
+| `onehot` | One-Hot 編碼 | 類別編碼 | categorical, text, boolean |
+| `ordinal` | 順序編碼 | 類別編碼 | categorical, text, boolean |
+| `label` | 標籤編碼 | 類別編碼 | categorical, text, boolean |
+| `frequency` | 頻率編碼 | 類別編碼 | categorical, text, boolean |
+| `count` | 計數編碼 | 類別編碼 | categorical, text, boolean |
+| `binary_map` | 二元對應（指定陽性值為 1） | 類別編碼 | any |
+| `kbins_uniform` | 等寬分箱 | 離散化 | numeric |
+| `kbins_quantile` | 等頻（分位數）分箱 | 離散化 | numeric |
+| `kbins_kmeans` | K-Means 分箱 | 離散化 | numeric |
+| `binarize` | 二值化（大於門檻為 1） | 離散化 | numeric |
+| `iqr_clip` | IQR 截斷離群值 | 離群值處理 | numeric |
+| `iqr_remove` | IQR 刪除離群列 | 離群值處理 | numeric |
+| `zscore_clip` | Z 分數截斷離群值 | 離群值處理 | numeric |
+| `zscore_remove` | Z 分數刪除離群列 | 離群值處理 | numeric |
+| `winsorize_1` | 縮尾處理（1% / 99%） | 離群值處理 | numeric |
+| `winsorize_5` | 縮尾處理（5% / 95%） | 離群值處理 | numeric |
+| `polynomial_2` | 二次多項式特徵 | 特徵工程 | numeric |
+| `interaction_terms` | 交互作用項 | 特徵工程 | numeric |
+| `pca` | 主成分分析（PCA） | 特徵工程 | numeric |
+| `drop_duplicate_rows` | 刪除重複列 | 資料清理 | any |
+| `drop_constant_columns` | 刪除常數欄位 | 資料清理 | any |
+| `strip_text` | 去除前後空白 | 資料清理 | categorical, text |
+| `lower_text` | 轉小寫 | 資料清理 | categorical, text |
+| `upper_text` | 轉大寫 | 資料清理 | categorical, text |
+| `replace_value` | 取代特定值 | 資料清理 | any |
+| `to_numeric` | 轉為數值（無法轉換者設為缺值） | 資料清理 | any |
+| `to_datetime` | 轉為日期時間（無法轉換者設為缺值） | 資料清理 | any |
+| `extract_year` | 擷取年份 | 資料清理 | datetime, text, categorical |
+| `extract_month` | 擷取月份 | 資料清理 | datetime, text, categorical |
+| `extract_day` | 擷取日 | 資料清理 | datetime, text, categorical |
+| `extract_weekday` | 擷取星期（週一為 0） | 資料清理 | datetime, text, categorical |
+| `rename_columns` | 重新命名欄位 | 資料清理 | any |
+| `drop_columns` | 刪除欄位 | 資料清理 | any |
+| `select_columns` | 只保留指定欄位 | 資料清理 | any |
+| `cast_type` | 轉換資料型別 | 資料清理 | any |
+| `round` | 四捨五入 | 資料清理 | numeric |
+<!-- catalogue:end -->
+
+每種方法的參數以 JSON Schema 定義，請由 `catalogue()` 取得。`numeric` 型別的方法亦接受布林欄位；欄位清單留空時自動套用到所有適用欄位。
