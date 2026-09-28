@@ -13,7 +13,13 @@ uv sync && uv run pytest
 | `tabular.schema` | 欄位結構定義（int / float / str / category / date / bool；required、min、max、allowed、unique），可由 dict / JSON 載入 | TC-B01-10 |
 | `tabular.validate` | `validate_csv` 驗證報告、`load_clean_csv` 取得乾淨資料；逐列攔截欄位數錯誤、型別、範圍、允許值、必填、重複值；缺必要欄位與空檔為檔案層級錯誤，未知欄位為警告 | TC-B01-10 |
 | `tabular.explore` | `describe`、`histogram`、`value_counts`、`preview`（可指定可見欄位）、`column_info`、`correlation`、`scatter` | TC-B04-01、TC-B04-02、TC-B04-05、TC-B04-08 |
-| `tabular.preprocess` | 前處理方法註冊表 `catalogue()` 與 `apply_pipeline(df, steps)` | TC-B04-04、TC-B04-06 |
+| `tabular.preprocess` | 前處理方法註冊表 `catalogue()`、`validate_steps` 與 `apply_pipeline(df, steps)` | TC-B04-04、TC-B04-06 |
+| `tabular.modeling_config` | `TargetFeatureConfig(target, features, steps)`，`to_dict` / `from_dict` 往返一致，檢查 Target 不在 Features、欄位存在 | TC-B04-03 |
+| `tabular.stats` | `logistic`（係數、勝算比與 95% CI、AIC、pseudo-R²、ROC）、`linear`（係數、CI、R²、調整 R²、殘差對預測值）、`kaplan_meier`（各組存活曲線、中位存活時間、分組時 log-rank 檢定）、`cox`（HR、CI、p、concordance、森林圖與基準存活曲線）；與 statsmodels / lifelines 直接計算差異 < 1e-9 | TC-B04-07、TC-B04-08 |
+
+欄位型別防護（TC-B04-08）：文字、類別、日期或全空欄位送入數值分析（直方圖、相關、散佈圖、四種統計、數值前處理）時，一律回 `TabularError`（如「欄位「diagnosis」不是數值欄位，無法進行數值分析」），不會拋出原始例外。
+
+設計取捨：前處理步驟為無狀態（在傳入的資料上 fit + transform）；統計模型對用到的欄位做整列刪除缺值並回報 `n_dropped`；類別特徵需先以 `onehot` 等步驟編碼。測試資料 `tests/fixtures/patients.csv`（100 列，由 `tests/fixtures/generate.py` 以固定亂數種子產生），Cox 另以 lifelines 內建 `load_rossi` 驗證。
 
 ## 前處理方法清單（共 66 種）
 
