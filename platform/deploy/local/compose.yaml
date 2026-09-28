@@ -29,7 +29,7 @@ services:
       KC_HEALTH_ENABLED: "true"
     volumes:
       - ./keycloak/realm-ai-platform.json:/opt/keycloak/data/import/realm-ai-platform.json:ro
-    ports: ["8080:8080"]
+    ports: ["${KEYCLOAK_HOST_PORT:-8080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
 
@@ -48,20 +48,62 @@ services:
       KEYCLOAK_CLIENT_ID: ai-platform-api
       KEYCLOAK_CLIENT_SECRET: api-secret-dev
       STORAGE_ROOT: /data/objects
+      # WP2：影像節點與物件儲存（本機測試值）
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT: minio:9000
+      S3_ACCESS_KEY: minio-dev
+      S3_SECRET_KEY: minio-dev-secret
+      S3_BUCKET: platform
+      ORTHANC_URL: http://orthanc:8042
+      ORTHANC_USERNAME: platform-api
+      ORTHANC_PASSWORD: orthanc-api-dev
+      ORTHANC_PACS_MODALITY: pacs
     volumes:
       - objects:/data/objects
     depends_on:
       postgres: {condition: service_healthy}
       keycloak: {condition: service_started}
+      orthanc: {condition: service_started}
+      minio: {condition: service_started}
 
   apisix:
     image: apache/apisix:3.11.0-debian
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
-    ports: ["9080:9080"]
-    depends_on: [api]
+    ports: ["${GATEWAY_HOST_PORT:-9080}:9080"]
+    depends_on: [api, orthanc]
+
+  # 平台自己的 DICOM 節點（DICOMweb 外掛）。不對主機開放：DICOMweb 只能經 Gateway 的 /dicomweb/projects/{pid}/
+  orthanc:
+    image: jodogne/orthanc-plugins:1.13.0
+    platform: linux/amd64
+    volumes:
+      - ./orthanc/platform:/etc/orthanc:ro
+      - orthanc-db:/var/lib/orthanc/db
+
+  # 模擬醫院 PACS：平台節點以 C-FIND／C-MOVE 向它查詢取像。REST 只綁 127.0.0.1，給驗收測試放入研究
+  orthanc-pacs:
+    image: jodogne/orthanc-plugins:1.13.0
+    platform: linux/amd64
+    volumes:
+      - ./orthanc/pacs:/etc/orthanc:ro
+      - orthanc-pacs-db:/var/lib/orthanc/db
+    ports: ["127.0.0.1:${PACS_HTTP_PORT:-8043}:8042"]
+
+  # S3 相容物件儲存（NIfTI／ITK／標註檔）。不對主機開放
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: minio-dev
+      MINIO_ROOT_PASSWORD: minio-dev-secret
+    volumes:
+      - minio-data:/data
 
 volumes:
   pgdata: {}
   objects: {}
+  orthanc-db: {}
+  orthanc-pacs-db: {}
+  minio-data: {}
