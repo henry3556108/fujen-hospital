@@ -86,8 +86,8 @@ data:
           - alert: NodeNotReady
             expr: kube_node_status_condition{condition="Ready",status="true"} == 0
             for: 10s
-            # 條件短暫消失再出現會被 Alertmanager 視為新事件而重寄；維持 5 分鐘避免抖動造成重複告警
-            keep_firing_for: 5m
+            # 條件短暫消失再出現會被 Alertmanager 視為新事件而重寄；維持 1 分鐘吸收節點心跳抖動
+            keep_firing_for: 1m
             labels: { severity: critical }
             annotations:
               summary: "節點 {{ $labels.node }} 未就緒"

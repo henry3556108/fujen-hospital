@@ -138,13 +138,20 @@ def mails_about(alertname: str, marker: str) -> list[dict]:
     return [m for m in mails() if alertname in m["Subject"] and marker in m["Subject"]]
 
 
+def node_alert_active(node: str) -> bool:
+    alerts = httpx.get(f"{ALERTMANAGER}/api/v2/alerts", timeout=10).json()
+    return any(a["labels"]["alertname"] == "NodeNotReady" and a["labels"].get("node") == node for a in alerts)
+
+
 def test_tc_c02_04_alerts_delivered_once_each(kube, tmp_path):
     from kubernetes.client import V1Container, V1ObjectMeta, V1Pod, V1PodSpec, V1ResourceRequirements
 
     clear_jobs(kube)
+    shared_node = kube.core.list_node(label_selector="platform/pool=gpu-shared").items[0].metadata.name
+    # 上一輪的節點告警（keep_firing_for）還在時，這一輪的事件會被視為同一件而不重寄，先等它結束
+    wait_for(lambda: not node_alert_active(shared_node), timeout=240, interval=5, message="上一輪的節點告警未結束")
     httpx.delete(f"{MAILPIT}/api/v1/messages", timeout=10).raise_for_status()
     platform = build_platform(tmp_path / "platform.db", kube)
-    shared_node = kube.core.list_node(label_selector="platform/pool=gpu-shared").items[0].metadata.name
     burner = f"cpu-burner-{time.time_ns() % 100000}"
     try:
         # 事件 1：平台工作失敗
@@ -160,8 +167,10 @@ def test_tc_c02_04_alerts_delivered_once_each(kube, tmp_path):
         # 事件 3：節點失聯（暫停 gpu-shared 節點容器，kubelet 停止回報）
         subprocess.run(["docker", "pause", shared_node], check=True)
         expected = {"PlatformJobFailed": failed["k8s_name"], "HighPodCpu": burner, "NodeNotReady": shared_node}
-        wait_for(lambda: all(mails_about(a, m) for a, m in expected.items()), timeout=240, interval=5,
-                 message=f"Mailpit 沒有收齊 3 類告警：{[m['Subject'] for m in mails()]}")
+        try:
+            wait_for(lambda: all(mails_about(a, m) for a, m in expected.items()), timeout=240, interval=5)
+        except AssertionError:
+            raise AssertionError(f"Mailpit 沒有收齊 3 類告警：{[m['Subject'] for m in mails()]}")
         # 告警持續中，再等超過 group_interval（1 分鐘）＋評估週期：同一告警不可重寄
         firing = {a["labels"]["alertname"] for a in httpx.get(f"{ALERTMANAGER}/api/v2/alerts", timeout=10).json()}
         assert set(expected) <= firing
@@ -175,3 +184,4 @@ def test_tc_c02_04_alerts_delivered_once_each(kube, tmp_path):
                              for c in kube.core.read_node(shared_node).status.conditions),
                  timeout=180, interval=3, message="暫停的節點沒有恢復")
         clear_jobs(kube)
+        wait_for(lambda: not node_alert_active(shared_node), timeout=240, interval=5, message="節點告警沒有解除")

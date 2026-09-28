@@ -107,3 +107,15 @@ Kueue：每個池一個 ResourceFlavor（nodeLabels 對應池）、一個 Cluste
 - Dashboard 的 GPU index：Mac 上依開始時間推算，甲方以 device plugin／DCGM 的 pod→GPU 對應為準。
 - 獨占卡上「真的沒有其他行程」（`nvidia-smi`）；時間片實際效能。
 - 所有時間與數量指標（Mac* 案例）需在甲方重跑。
+
+## 結果（2026-09-28）
+
+- 平台 API 單元測試：`174 passed, 1 skipped`（其中排程 85）。
+- kind 叢集測試：`15 passed in 444.50s`（TC-A02-05～07、TC-C01-01～08、TC-C02-01～04），跑完已刪除叢集。
+- 叢集測試抓到的問題：`HighPodCpu` 在 0.8 核上下抖動時，Alertmanager 把「解除後再觸發」當新事件重寄（TC-C02-04 收到 2 封）→ 規則加 `keep_firing_for`。
+- 裁定：
+  - GPU 群組與共享排程設定的稽核類別用 `project`（8 類固定）。
+  - 共享池工作套用執行時限（`job_timeout_minutes`），獨占池不設限。
+  - Kueue 以秒級建立時間排序，同秒提交可能平手亂序 → 後端對同一佇列的相鄰提交保持 ≥1.05 秒間隔。
+  - 狀態同步錯過短暫的 running 時補記 running；後端回報倒退（如 Kueue 驅逐後重新排隊）時保留原狀態並寫入訊息；叢集中找不到工作記為 failed。
+  - 首次使用排程時建立種子基線的 2 個 GPU 群組；之後刪除不會自動加回。
