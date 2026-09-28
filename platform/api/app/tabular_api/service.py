@@ -2,16 +2,20 @@
 import io
 import json
 import os
+from collections import OrderedDict
+from threading import Lock
 
+import pandas as pd
 from fastapi import HTTPException
+from sqlalchemy import delete, select
 from tabular.errors import TabularError
 from tabular.schema import Schema
-from tabular.validate import validate_and_load
+from tabular.validate import load_clean_csv, validate_and_load
 
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
 from app.storage import ObjectStore
-from app.tabular_api.models import TabularDataset
+from app.tabular_api.models import TabularDataset, TabularTargetFeature
 
 DEFAULT_MAX_UPLOAD_MB = 50
 
@@ -90,3 +94,66 @@ def create_dataset(ctx: ProjectContext, store: ObjectStore, *, raw: bytes, schem
 def _delete_objects(store: ObjectStore, prefix: str) -> None:
     for key in store.list(prefix):
         store.delete(key)
+
+
+def list_datasets(ctx: ProjectContext) -> list[TabularDataset]:
+    return list(ctx.session.scalars(
+        select(TabularDataset).where(TabularDataset.project_id == ctx.project.id).order_by(TabularDataset.id)))
+
+
+def get_dataset(ctx: ProjectContext, dataset_id: int) -> TabularDataset:
+    ds = ctx.session.get(TabularDataset, dataset_id)
+    if ds is None or ds.project_id != ctx.project.id:
+        raise HTTPException(404, f"找不到資料集 {dataset_id}")
+    return ds
+
+
+def get_report(store: ObjectStore, ds: TabularDataset) -> dict:
+    return json.loads(store.get(dataset_prefix(ds.project_id, ds.id) + "report.json"))
+
+
+def delete_dataset(ctx: ProjectContext, store: ObjectStore, frames: "FrameCache", ds: TabularDataset,
+                   source_ip: str | None) -> None:
+    session = ctx.session
+    session.execute(delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id == ds.id))
+    session.delete(ds)
+    record(session, actor=ctx.user.username, category=AuditCategory.DATASET, action="tabular_delete",
+           target=f"tabular_dataset:{ds.id}", source_ip=source_ip,
+           detail={"project_id": ds.project_id, "name": ds.name, "total_rows": ds.total_rows,
+                   "valid_rows": ds.valid_rows, "rejected_rows": ds.rejected_rows})
+    session.commit()
+    frames.evict(ds.object_key)
+    _delete_objects(store, dataset_prefix(ds.project_id, ds.id))
+
+
+class FrameCache:
+    """以資料集結構定義重新載入乾淨檔（型別與上傳時一致）。資料集不可修改，所以以 object_key 為鍵快取。"""
+
+    def __init__(self, store: ObjectStore, size: int = 8):
+        self.store, self.size = store, size
+        self._items: OrderedDict[str, pd.DataFrame] = OrderedDict()
+        self._lock = Lock()
+
+    def load(self, ds: TabularDataset) -> pd.DataFrame:
+        with self._lock:
+            if ds.object_key in self._items:
+                self._items.move_to_end(ds.object_key)
+                return self._items[ds.object_key]
+        frame = load_clean_csv(io.BytesIO(self.store.get(ds.object_key)), Schema.from_dict(ds.schema))
+        with self._lock:
+            self._items[ds.object_key] = frame
+            while len(self._items) > self.size:
+                self._items.popitem(last=False)
+        return frame
+
+    def evict(self, key: str) -> None:
+        with self._lock:
+            self._items.pop(key, None)
+
+
+def frame_cache(state) -> FrameCache:
+    """每個 app 一份快取；換了 store（測試）就重建。"""
+    cache = getattr(state, "tabular_frames", None)
+    if cache is None or cache.store is not state.store:
+        cache = state.tabular_frames = FrameCache(state.store)
+    return cache
