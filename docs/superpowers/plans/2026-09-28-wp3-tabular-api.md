@@ -67,15 +67,15 @@ platform/acceptance/test_tc_b01_10.py, test_tc_b04.py
 
 ## Tasks
 
-- [ ] **Task 1: 函式庫可安裝、API 加相依** — 函式庫加 hatchling，函式庫 199 測試仍過；`uv add --editable ../libs/tabular`；測試：`test_tabular_library_importable`。
-- [ ] **Task 2: 上傳與驗證（TC-B01-10）** — models、upload、`TabularError`→422、413、稽核。
-- [ ] **Task 3: 資料集清單／查詢／刪除／報告** — 跨專案 404、刪除清物件、稽核。
-- [ ] **Task 4: 探索（TC-B04-01、02、05、08）**
-- [ ] **Task 5: 前處理清單與預覽（TC-B04-04、06）**
-- [ ] **Task 6: Target／Feature 設定（TC-B04-03）** — training 權限、稽核。
-- [ ] **Task 7: 四種統計（TC-B04-07、08）**
-- [ ] **Task 8: Docker 映像含函式庫** — `docker compose build api`。
-- [ ] **Task 9: 經 Gateway 的驗收測試** — `platform/acceptance/test_tc_b01_10.py`、`test_tc_b04.py`。
+- [x] **Task 1: 函式庫可安裝、API 加相依** — 函式庫加 hatchling，函式庫 199 測試仍過；`uv add --editable ../libs/tabular`；測試：`test_tabular_library_importable`。
+- [x] **Task 2: 上傳與驗證（TC-B01-10）** — models、upload、`TabularError`→422、413、稽核。
+- [x] **Task 3: 資料集清單／查詢／刪除／報告** — 跨專案 404、刪除清物件、稽核。
+- [x] **Task 4: 探索（TC-B04-01、02、05、08）**
+- [x] **Task 5: 前處理清單與預覽（TC-B04-04、06）**
+- [x] **Task 6: Target／Feature 設定（TC-B04-03）** — training 權限、稽核。
+- [x] **Task 7: 四種統計（TC-B04-07、08）**
+- [x] **Task 8: Docker 映像含函式庫** — `docker compose build api`。
+- [x] **Task 9: 經 Gateway 的驗收測試** — `platform/acceptance/test_tc_b01_10.py`、`test_tc_b04.py`。
 
 ## 測試對照
 
@@ -92,6 +92,19 @@ platform/acceptance/test_tc_b01_10.py, test_tc_b04.py
 | TC-B04-08 | `test_tc_b04_08_text_and_empty_columns_give_clear_422` | `test_tc_b04_08_text_column_is_422` |
 
 另有權限、稽核、413、跨專案 404、壞結構定義 422 等測試。
+
+## 經 Gateway 驗收的執行方式
+
+需先以含 WP3 的映像重建並重啟 API（整合者執行；共用環境不要在開發分支上自行重啟）：
+
+```bash
+cd platform/deploy/local
+docker compose build api && docker compose up -d api
+docker compose exec -T api /app/.venv/bin/python -m app.seed      # 若需要重建種子
+cd ../../acceptance && uv run pytest -q test_tc_b01_10.py test_tc_b04.py
+```
+
+測試會暫時把 pi01（PI）與 vw01（Viewer）加入 `P2-tabular`，結束時移除成員資格與上傳的資料集，可重複執行。映像未更新前，這些案例會因 404 失敗（預期）。
 
 ## 需與甲方確認的決定
 
