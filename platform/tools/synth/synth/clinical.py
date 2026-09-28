@@ -62,6 +62,11 @@ def generate(out: Path, seed: int = 42) -> dict:
     invalid_name = "adt_a01_missing_pid3.hl7"
     (out / "invalid" / invalid_name).write_bytes(
         _hl7(f"MSG{seed}-INV1", admits[0].strftime("%Y%m%d%H%M%S"), roster[0], "", "VN9999", 999))
+    bad_code_name = "adt_a01_bad_sex_code.hl7"
+    bad_sex = {**roster[1], "sex": "Q"}  # Q 不在 HL7 table 0001（F/M/O/U/A/N）
+    (out / "invalid" / bad_code_name).write_bytes(
+        _hl7(f"MSG{seed}-INV2", admits[1].strftime("%Y%m%d%H%M%S"), bad_sex,
+             f"{roster[1]['patient_id']}^^^SYNTH^MR", "VN9998", 998))
 
     labs = []
     for i, pat in enumerate(roster):
@@ -119,10 +124,12 @@ def generate(out: Path, seed: int = 42) -> dict:
         "kind": "clinical",
         "seed": seed,
         "counts": {"patients": COUNT, "hl7_messages": COUNT, "lab_results": COUNT,
-                   "sql_patients": COUNT, "encounters": COUNT, "invalid_hl7": 1},
+                   "sql_patients": COUNT, "encounters": COUNT, "invalid_hl7": 2},
         "patients": [{"patient_id": p["patient_id"], "sex": p["sex"]} for p in roster],
         "files": {"hl7": hl7_files, "labs": "labs.json", "sql": "patients.sql",
                   "encounters": "encounters.csv"},
         "invalid": [{"file": f"invalid/{invalid_name}", "test_case": "TC-C03-13",
-                     "reason": "PID-3 (patient identifier list) is empty"}],
+                     "reason": "PID-3 (patient identifier list) is empty"},
+                    {"file": f"invalid/{bad_code_name}", "test_case": "TC-C03-13",
+                     "reason": "PID-8 administrative sex 'Q' is not in HL7 table 0001"}],
     })

@@ -27,7 +27,7 @@ def segments(path):
 def test_counts(generated):
     _, manifest = generated
     assert manifest["counts"] == {"patients": 20, "hl7_messages": 20, "lab_results": 20,
-                                  "sql_patients": 20, "encounters": 20, "invalid_hl7": 1}
+                                  "sql_patients": 20, "encounters": 20, "invalid_hl7": 2}
 
 
 def test_hl7_adt_a01_messages(generated):
@@ -52,17 +52,25 @@ def test_hl7_adt_a01_messages(generated):
     assert pids == [p["patient_id"] for p in manifest["patients"]]
 
 
-def test_invalid_hl7_missing_pid3(generated):
+def test_invalid_hl7_messages(generated):
+    """TC-C03-13：缺必填欄位（PID-3）與錯誤代碼（PID-8 不在 HL7 table 0001）各一則，其餘結構正常。"""
     out, manifest = generated
     files = sorted((out / "invalid").glob("*.hl7"))
-    assert len(files) == 1
-    seg, _ = segments(files[0])
+    assert len(files) == 2
+    by_name = {e["file"]: e for e in manifest["invalid"]}
+    assert set(by_name) == {f"invalid/{f.name}" for f in files}
+
+    missing = out / "invalid" / "adt_a01_missing_pid3.hl7"
+    seg, _ = segments(missing)
     assert seg["MSH"][8].startswith("ADT^A01")
-    assert seg["PID"][3] == ""
-    assert seg["PID"][5]  # otherwise well-formed
-    entry = manifest["invalid"][0]
-    assert entry["file"] == f"invalid/{files[0].name}"
-    assert entry["test_case"] == "TC-C03-13" and "PID-3" in entry["reason"]
+    assert seg["PID"][3] == "" and seg["PID"][5]
+    assert "PID-3" in by_name["invalid/adt_a01_missing_pid3.hl7"]["reason"]
+
+    bad_code = out / "invalid" / "adt_a01_bad_sex_code.hl7"
+    seg, _ = segments(bad_code)
+    assert seg["PID"][3] and seg["PID"][8] not in {"F", "M", "O", "U", "A", "N"}
+    assert "PID-8" in by_name["invalid/adt_a01_bad_sex_code.hl7"]["reason"]
+    assert all(e["test_case"] == "TC-C03-13" for e in manifest["invalid"])
 
 
 def test_labs_json(generated):
