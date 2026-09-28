@@ -1,12 +1,14 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.identity import Identity, TokenError
-from app.models import User
-from app.permissions import AccountType
+from app.authz import effective_permissions
+from app.models import Project, User
+from app.permissions import AccountType, Permission
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -43,3 +45,27 @@ def require_admin(user: User = Depends(current_user)) -> User:
     if user.account_type != AccountType.ADMIN:
         raise HTTPException(403, "需要 Admin 權限")
     return user
+
+
+@dataclass(frozen=True)
+class ProjectContext:
+    user: User
+    project: Project
+    session: Session
+
+
+def require_project_permission(permission: Permission) -> Callable[..., ProjectContext]:
+    """專案範圍 API 的共用檢查：路徑需含 {project_id}。
+    非 Admin 查不存在的專案一律回 403（不透露專案是否存在）；Admin 回 404。"""
+
+    def dependency(project_id: int, user: User = Depends(current_user),
+                   session: Session = Depends(get_session)) -> ProjectContext:
+        project = session.get(Project, project_id)
+        if user.account_type == AccountType.ADMIN and project is None:
+            raise HTTPException(404, f"找不到專案 {project_id}")
+        if project is None or permission not in effective_permissions(session, user, project_id):
+            raise HTTPException(403, {"code": "forbidden", "permission": permission.value,
+                                      "message": f"你沒有 {permission.value} 權限"})
+        return ProjectContext(user=user, project=project, session=session)
+
+    return dependency
