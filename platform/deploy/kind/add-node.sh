@@ -11,7 +11,7 @@ CONTEXT="kind-$CLUSTER"
 k() { kubectl --context "$CONTEXT" "$@"; }
 
 IMAGE=$(docker inspect "$CLUSTER-control-plane" --format '{{.Config.Image}}')
-echo "== 啟動節點容器 $NAME（$IMAGE）"
+echo "== 啟動節點容器 ${NAME}（${IMAGE}）"
 docker run -d --name "$NAME" --hostname "$NAME" --network kind --privileged \
   --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt label=disable \
   --tmpfs /run --tmpfs /tmp --volume /var --volume /lib/modules:/lib/modules:ro \

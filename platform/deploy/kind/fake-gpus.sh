@@ -16,6 +16,6 @@ for pool in gpu-exclusive gpu-shared; do
       -p "[{\"op\":\"add\",\"path\":\"/status/capacity/nvidia.com~1gpu\",\"value\":\"$count\"}]" >/dev/null
     # 只有會用 GPU 的工作（帶 toleration）可以排上 GPU 節點；監控等服務不會佔用
     k taint node "$node" nvidia.com/gpu=present:NoSchedule --overwrite >/dev/null
-    echo "  $node（$pool）：nvidia.com/gpu=$count（實體 $physical 張）"
+    echo "  ${node}（${pool}）：nvidia.com/gpu=${count}（實體 ${physical} 張）"
   done
 done
