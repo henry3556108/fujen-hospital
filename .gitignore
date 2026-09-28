@@ -5,3 +5,4 @@ __pycache__/
 platform/acceptance/reports/
 .env
 .superpowers/
+.claude/worktrees/
