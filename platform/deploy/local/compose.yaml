@@ -1,0 +1,61 @@
+name: ai-platform
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform-dev
+      POSTGRES_DB: platform
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform"]
+      interval: 5s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: kcadmin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: kcadmin-dev
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: platform
+      KC_DB_PASSWORD: platform-dev
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm-ai-platform.json:/opt/keycloak/data/import/realm-ai-platform.json:ro
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    build: ../../api
+    restart: on-failure
+    environment:
+      DATABASE_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
+      OIDC_ISSUER: http://localhost:8080/realms/ai-platform
+      OIDC_AUDIENCE: ai-platform
+      OIDC_JWKS_URL: http://keycloak:8080/realms/ai-platform/protocol/openid-connect/certs
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ai-platform
+      KEYCLOAK_CLIENT_ID: ai-platform-api
+      KEYCLOAK_CLIENT_SECRET: api-secret-dev
+    depends_on:
+      postgres: {condition: service_healthy}
+      keycloak: {condition: service_started}
+
+  apisix:
+    image: apache/apisix:3.11.0-debian
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports: ["9080:9080"]
+    depends_on: [api]
+
+volumes:
+  pgdata: {}

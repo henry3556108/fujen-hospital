@@ -1,0 +1,14 @@
+routes:
+  - id: platform-api
+    uri: /api/*
+    plugins:
+      cors:
+        allow_origins: "http://localhost:5173"
+        allow_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        allow_headers: "Authorization,Content-Type"
+        max_age: 600
+    upstream:
+      type: roundrobin
+      nodes:
+        "api:8000": 1
+#END

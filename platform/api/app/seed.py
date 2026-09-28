@@ -61,3 +61,14 @@ def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: s
         _fresh_user(session, idp, actor, username)
 
     return {"projects": list(projects), "users": [admin_username] + [u for u, _ in P1_MEMBERS] + OUTSIDERS}
+
+
+if __name__ == "__main__":
+    import json
+    import os
+
+    from app.asgi import app, idp
+
+    with app.state.sessionmaker() as s:
+        print(json.dumps(reset_and_seed(s, idp, admin_username=os.environ.get("SEED_ADMIN", "admin01")),
+                         ensure_ascii=False, indent=2))

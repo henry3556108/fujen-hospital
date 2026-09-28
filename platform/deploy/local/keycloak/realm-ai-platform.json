@@ -1,0 +1,48 @@
+{
+  "realm": "ai-platform",
+  "enabled": true,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "ai-platform-web",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:5173/*"},
+      "protocolMappers": [
+        {
+          "name": "platform-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {"included.custom.audience": "ai-platform", "access.token.claim": "true", "id.token.claim": "false"}
+        }
+      ]
+    },
+    {
+      "clientId": "ai-platform-api",
+      "publicClient": false,
+      "secret": "api-secret-dev",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "admin01",
+      "enabled": true,
+      "email": "admin01@example.test",
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "Dev",
+      "credentials": [{"type": "password", "value": "Admin01-dev!", "temporary": false}]
+    },
+    {
+      "username": "service-account-ai-platform-api",
+      "enabled": true,
+      "serviceAccountClientId": "ai-platform-api",
+      "clientRoles": {"realm-management": ["manage-users", "view-users"]}
+    }
+  ]
+}
