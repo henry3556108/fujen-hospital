@@ -70,3 +70,11 @@ platform/web/
 3. **後端缺少「列出專案成員」API**（`GET /api/admin/projects/{id}/members`）：成員頁目前只能「指定專案＋帳號」設定角色／權限，並列出本次操作過的成員；無法顯示既有成員。需請 WP1a 補 API。
 4. 共享排程設定頁（TC-A02-07）等 WP4 API，目前只放骨架頁。
 5. 使用者沒有任何專案時：只顯示「尚未加入任何專案」，入口全隱藏（admin 除外）。
+6. **Gateway CORS**：瀏覽器由 `http://localhost:5173` 呼叫 `http://localhost:9080/api/*` 屬跨來源，Gateway 需允許此 origin 與 `Authorization` header（交給 Docker 堆疊負責人）。
+
+## 實作時的技術決定
+
+- test 登入與 MSW 以編譯期常數 `__DEV_SERVER__`（`vite.config.ts`：`command === 'serve'`）把關，而非 `import.meta.env.DEV`：後者受 `NODE_ENV` 影響，在 `NODE_ENV=test` 下執行 `vite build` 時會是 true（測試實際抓到過）。
+- MSW service worker 由 dev server 中介層提供，不放 `public/`，因此不會進入正式打包。
+- 入口可見規則與直接網址阻擋共用 `checkAccess()`，以「目前選取專案」的權限判斷。
+- Node 25 內建 `localStorage` 與 jsdom 衝突，Vitest 以 `--no-experimental-webstorage` 執行。
