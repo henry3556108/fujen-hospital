@@ -72,7 +72,12 @@ def _commit_after_idp(session: Session, idp_call) -> None:
 
 
 def _admin_count(session: Session) -> int:
-    return session.scalar(select(func.count()).select_from(User).where(User.account_type == AccountType.ADMIN))
+    """鎖住所有 Admin 列再計數：兩個交易同時降級／刪除 Admin 時，後到的會等前一個 commit 後重新計算，
+    避免兩邊都看到 2 而把 Admin 降到 0（PostgreSQL READ COMMITTED 下的競態）。"""
+    admin_ids = session.scalars(
+        select(User.id).where(User.account_type == AccountType.ADMIN).with_for_update()
+    ).all()
+    return len(admin_ids)
 
 
 def create_user(session: Session, idp: IdentityProvider, *, actor: str, username: str, password: str,
