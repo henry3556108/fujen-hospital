@@ -34,7 +34,9 @@ services:
       postgres: {condition: service_healthy}
 
   api:
-    build: ../../api
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
     restart: on-failure
     environment:
       DATABASE_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
