@@ -32,14 +32,17 @@ def _fresh_user(session: Session, idp: IdentityProvider, actor: str, username: s
 
 
 def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: str) -> dict:
+    subject = idp.find_subject(admin_username)
+    if subject is None:
+        raise RuntimeError(f"身分提供者中找不到 {admin_username}")
     admin = session.scalar(select(User).where(User.username == admin_username))
     if admin is None:
-        subject = idp.find_subject(admin_username)
-        if subject is None:
-            raise RuntimeError(f"身分提供者中找不到 {admin_username}")
         admin = User(username=admin_username, account_type=AccountType.ADMIN.value, idp_subject=subject)
         session.add(admin)
-        session.commit()
+    else:
+        admin.idp_subject = subject  # 身分提供者重建後 subject 會變，以它為準
+        admin.account_type = AccountType.ADMIN.value
+    session.commit()
 
     session.execute(delete(Membership))
     for user in session.scalars(select(User).where(User.id != admin.id)).all():

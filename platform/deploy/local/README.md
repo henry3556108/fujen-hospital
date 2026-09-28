@@ -54,6 +54,14 @@ Keycloak 的 `KC_HOSTNAME` 固定為 `http://localhost:8080`，所以 token 的 
 
 ## 已知狀況
 
+- Keycloak 只在**第一次**啟動時匯入 `realm-ai-platform.json`，之後設定存在 PostgreSQL。改了 realm 檔（例如新增 client）要重新匯入：
+  ```bash
+  docker compose stop keycloak
+  docker compose exec -T postgres psql -U platform -d platform -c "DROP DATABASE keycloak;" -c "CREATE DATABASE keycloak;"
+  docker compose start keycloak
+  docker compose exec -T api /app/.venv/bin/python -m app.seed   # 重建種子，會自動同步 admin01 的新 subject
+  ```
+
 - 若 `docker pull` 卡住不動，通常是 Docker Desktop 的憑證工具在等 macOS 鑰匙圈授權。可以按下鑰匙圈視窗的「允許」，或暫時用不含 `credsStore` 的設定檔下載公開映像：
   `DOCKER_CONFIG=<含 {"auths":{}} 的資料夾> DOCKER_HOST=unix://$HOME/.docker/run/docker.sock docker compose pull`
 - `realm-ai-platform.json` 的 `directAccessGrantsEnabled` 只為本機驗收腳本取 token，正式環境必須關閉。
