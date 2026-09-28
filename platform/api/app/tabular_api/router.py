@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
+import pandas as pd
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from tabular import explore
@@ -75,3 +76,42 @@ def delete_dataset(request: Request, ds: TabularDataset = Depends(_dataset),
                    frames: service.FrameCache = Depends(_frames)) -> Response:
     service.delete_dataset(ctx, request.app.state.store, frames, ds, client_ip(request))
     return Response(status_code=204)
+
+
+# ------------------------------------------------------------------ 探索（TC-B04-01、02、05、08）
+
+def _frame(ds: TabularDataset = Depends(_dataset), frames: service.FrameCache = Depends(_frames)) -> pd.DataFrame:
+    return frames.load(ds)
+
+
+@router.get("/datasets/{dataset_id}/describe")
+def describe(df: pd.DataFrame = Depends(_frame)) -> dict:
+    return explore.describe(df)
+
+
+@router.get("/datasets/{dataset_id}/histogram")
+def histogram(column: str, bins: int = 10, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return explore.histogram(df, column, bins)
+
+
+@router.get("/datasets/{dataset_id}/value-counts")
+def value_counts(column: str, limit: int = 50, df: pd.DataFrame = Depends(_frame)) -> dict:
+    return explore.value_counts(df, column, limit)
+
+
+@router.get("/datasets/{dataset_id}/preview")
+def preview(offset: int = 0, limit: int = 50, columns: list[str] | None = Query(None),
+            df: pd.DataFrame = Depends(_frame)) -> dict:
+    """columns 可重複，代表目前可見（未隱藏）的欄位；省略為全部欄位。"""
+    return explore.preview(df, offset, limit, columns)
+
+
+@router.get("/datasets/{dataset_id}/correlation")
+def correlation(columns: list[str] | None = Query(None), method: str = "pearson",
+                df: pd.DataFrame = Depends(_frame)) -> dict:
+    return explore.correlation(df, columns, method)
+
+
+@router.get("/datasets/{dataset_id}/scatter")
+def scatter(x: str, y: str, limit: int = Query(5000, ge=1, le=20000), df: pd.DataFrame = Depends(_frame)) -> dict:
+    return explore.scatter(df, x, y, limit)
