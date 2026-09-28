@@ -1,0 +1,11 @@
+[project]
+name = "ai-platform-acceptance"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["pytest>=8", "httpx>=0.27"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "--junitxml=reports/latest/junit.xml"

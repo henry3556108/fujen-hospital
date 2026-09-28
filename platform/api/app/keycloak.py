@@ -25,7 +25,10 @@ class KeycloakIdentityProvider:
         return f"{self.base}/admin/realms/{self.realm}/users"
 
     def create_user(self, username: str, password: str) -> str:
-        body = {"username": username, "enabled": True,
+        # Keycloak 26 的 user profile 預設要求 email 與姓名，缺了會「Account is not fully set up」無法登入。
+        # 平台不管理 email，使用保留網域 .invalid 的佔位值。
+        body = {"username": username, "enabled": True, "firstName": username, "lastName": "-",
+                "email": f"{username}@users.invalid", "emailVerified": True,
                 "credentials": [{"type": "password", "value": password, "temporary": False}]}
         response = httpx.post(self._users_url(), json=body, headers=self._headers(), timeout=10)
         if response.status_code == 409:
