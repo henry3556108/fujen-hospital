@@ -34,6 +34,21 @@ def upload_dicom(request: Request, files: list[UploadFile] = File(...),
     return service.job_to_dict(job)
 
 
+@router.post("/files", status_code=201)
+def upload_files(request: Request, files: list[UploadFile] = File(...),
+                 ctx: ProjectContext = Depends(can_import)) -> dict:
+    """NIfTI（.nii/.nii.gz）、ITK（.mha）、makesense（COCO .json）；存物件儲存並配對。"""
+    items = _read_all(files)
+    job = service.import_files(ctx.session, request.app.state.store, project_id=ctx.project.id,
+                               actor=ctx.user.username, files=items, source_ip=client_ip(request))
+    return service.job_to_dict(job)
+
+
+@router.get("/files")
+def list_files(ctx: ProjectContext = Depends(can_read)) -> list[dict]:
+    return service.list_files(ctx.session, ctx.project.id)
+
+
 @router.get("/jobs")
 def list_jobs(ctx: ProjectContext = Depends(can_read)) -> list[dict]:
     return [service.job_to_dict(j, with_files=False) for j in service.list_jobs(ctx.session, ctx.project.id)]
