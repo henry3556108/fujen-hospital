@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 
 from fakes import faults
+from fakes.cli import serve
 
 SHAPE = (64, 64)  # (height, width) of the fake 2D slice
 LABELS = {"background": 0, "lung": 1, "nodule": 2}
@@ -112,3 +113,11 @@ def infer(model: str, image: str = Query(..., min_length=1)) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found")
     result = _segmentation(image) if MODELS[model]["type"] == "segmentation" else _detection(image)
     return {"model": model, "image": image, **result}
+
+
+def main(argv: list[str] | None = None) -> None:
+    serve(app, "autolabel", 8102, argv)
+
+
+if __name__ == "__main__":
+    main()

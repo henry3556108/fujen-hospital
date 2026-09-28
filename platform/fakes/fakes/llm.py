@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from fakes import faults
+from fakes.cli import serve
 
 CHAT_MODEL = "fake-llm-small"
 EMBED_MODEL = "fake-embed-small"
@@ -238,3 +239,11 @@ def chat_completions(req: ChatRequest) -> Any:
             "total_tokens": prompt_tokens + completion_tokens,
         },
     }
+
+
+def main(argv: list[str] | None = None) -> None:
+    serve(app, "llm", 8101, argv)
+
+
+if __name__ == "__main__":
+    main()
