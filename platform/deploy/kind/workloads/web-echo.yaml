@@ -1,0 +1,38 @@
+# 代表「網頁請求」的服務：只排在 cpu-web 節點，回應自己的 Pod 名稱（TC-C01-06 用來確認落點）。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-echo
+  namespace: platform-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: web-echo }
+  template:
+    metadata:
+      labels: { app: web-echo }
+    spec:
+      nodeSelector: { platform/pool: cpu-web }
+      terminationGracePeriodSeconds: 1
+      containers:
+        - name: web
+          image: busybox:1.36
+          command: ["sh", "-c", "mkdir -p /www && hostname > /www/index.html && exec httpd -f -p 8080 -h /www"]
+          ports: [{ containerPort: 8080, name: http }]
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-echo
+  namespace: platform-web
+spec:
+  selector: { app: web-echo }
+  ports: [{ name: http, port: 80, targetPort: 8080 }]

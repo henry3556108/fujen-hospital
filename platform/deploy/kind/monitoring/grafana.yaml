@@ -1,0 +1,123 @@
+# Grafana：Prometheus 資料來源與一個預設儀表板（叢集與假 GPU 配置）。
+# 帳密只用於本機開發（與 compose 堆疊的開發用密碼同性質），甲方環境改由 Keycloak OIDC 登入。
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+stringData:
+  user: admin
+  password: Grafana-dev-01!
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        url: http://prometheus.monitoring.svc:9090
+        isDefault: true
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: platform
+        folder: 平台
+        type: file
+        allowUiUpdates: true
+        options: { path: /var/lib/grafana/dashboards }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  platform-cluster.json: |
+    {
+      "uid": "platform-cluster",
+      "title": "平台叢集總覽",
+      "refresh": "30s",
+      "time": { "from": "now-30m", "to": "now" },
+      "schemaVersion": 39,
+      "panels": [
+        {
+          "id": 1, "type": "timeseries", "title": "各節點池 CPU 使用（核）",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "refId": "A", "expr": "sum by (pool) (rate(container_cpu_usage_seconds_total{id=\"/\"}[1m]))", "legendFormat": "{{pool}}" }]
+        },
+        {
+          "id": 2, "type": "stat", "title": "假 GPU 已配置／可用份數",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            { "refId": "A", "expr": "sum(kube_pod_container_resource_requests{resource=\"nvidia_com_gpu\"} * on (namespace, pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1))", "legendFormat": "已配置" },
+            { "refId": "B", "expr": "sum(kube_node_status_allocatable{resource=\"nvidia_com_gpu\"})", "legendFormat": "可用" }
+          ]
+        },
+        {
+          "id": 3, "type": "table", "title": "執行中的 GPU 工作（依 Job 標籤）",
+          "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [{ "refId": "A", "format": "table", "instant": true,
+            "expr": "kube_pod_labels{namespace=\"platform-jobs\"} * on (namespace, pod) group_left(node) kube_pod_info * on (namespace, pod) group_left() (kube_pod_status_phase{phase=\"Running\"} == 1)" }]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      nodeSelector: { platform/pool: cpu-web }
+      containers:
+        - name: grafana
+          image: grafana/grafana:13.2.2
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom: { secretKeyRef: { name: grafana-admin, key: user } }
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: grafana-admin, key: password } }
+            - { name: GF_ANALYTICS_REPORTING_ENABLED, value: "false" }
+            - { name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false" }
+            - { name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES, value: "false" }
+            - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }
+            - { name: GF_NEWS_NEWS_FEED_ENABLED, value: "false" }
+          ports: [{ name: http, containerPort: 3000 }]
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+          volumeMounts:
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasources.yaml, subPath: datasources.yaml }
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml, subPath: dashboards.yaml }
+            - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - { name: provisioning, configMap: { name: grafana-provisioning } }
+        - { name: dashboards, configMap: { name: grafana-dashboards } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: grafana }
+  ports: [{ name: http, port: 3000, targetPort: 3000, nodePort: 30030 }]

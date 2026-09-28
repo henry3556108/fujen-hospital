@@ -1,0 +1,70 @@
+# Alertmanager：告警寄到 Mailpit。重複抑制：
+# - 同一告警群組只在第一次寄出，之後 repeat_interval（4 小時）內不再重寄；不寄「已解除」通知。
+# - 節點未就緒時，抑制同一節點上的 warning 告警（避免一個根因洗版）。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: mailpit.monitoring.svc:1025
+      smtp_from: alertmanager@ai-platform.local
+      smtp_require_tls: false
+    route:
+      receiver: ops-mail
+      group_by: [alertname, namespace, job_name, node, pod]
+      group_wait: 5s
+      group_interval: 1m
+      repeat_interval: 4h
+    receivers:
+      - name: ops-mail
+        email_configs:
+          - to: ops@ai-platform.local
+            send_resolved: false
+    inhibit_rules:
+      - source_matchers: [alertname = NodeNotReady]
+        target_matchers: [severity = warning]
+        equal: [node]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: alertmanager }
+  template:
+    metadata:
+      labels: { app: alertmanager }
+    spec:
+      nodeSelector: { platform/pool: cpu-web }
+      containers:
+        - name: alertmanager
+          image: quay.io/prometheus/alertmanager:v0.34.1
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports: [{ name: http, containerPort: 9093 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/alertmanager }
+            - { name: data, mountPath: /alertmanager }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+      volumes:
+        - { name: config, configMap: { name: alertmanager-config } }
+        - { name: data, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector: { app: alertmanager }
+  ports: [{ name: http, port: 9093, targetPort: 9093, nodePort: 30093 }]

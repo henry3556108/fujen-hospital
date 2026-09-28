@@ -1,0 +1,35 @@
+# Mac 開發機的多節點叢集：1 個 control-plane + 4 個 worker（各代表一個節點池）。
+# GPU 是假的：up.sh 以 node status patch 宣告 nvidia.com/gpu（fake-gpus.sh）。
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ai-platform
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    kubeadmConfigPatches:
+      - |
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: ClusterConfiguration
+        controllerManager:
+          extraArgs:
+            # 節點失聯 20 秒就標為 NotReady（預設 50 秒），讓 TC-C02-04 的節點告警能在測試時間內觸發
+            - name: node-monitor-grace-period
+              value: "20s"
+    # 監控相關的 NodePort 對外（只綁 127.0.0.1，避開 compose 堆疊的 8080／9080 等埠）
+    extraPortMappings:
+      - { containerPort: 30090, hostPort: 39090, listenAddress: "127.0.0.1" }  # Prometheus
+      - { containerPort: 30093, hostPort: 39093, listenAddress: "127.0.0.1" }  # Alertmanager
+      - { containerPort: 30030, hostPort: 33000, listenAddress: "127.0.0.1" }  # Grafana
+      - { containerPort: 30825, hostPort: 38025, listenAddress: "127.0.0.1" }  # Mailpit 網頁與 API
+  - role: worker
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    labels: { platform/pool: cpu-web }
+  - role: worker
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    labels: { platform/pool: cpu-data }
+  - role: worker
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    labels: { platform/pool: gpu-exclusive, platform/gpu-physical: "2" }
+  - role: worker
+    image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+    labels: { platform/pool: gpu-shared, platform/gpu-physical: "1" }
