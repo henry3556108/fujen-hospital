@@ -12,6 +12,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "pydicom>=3.0.2",
     "minio>=7.2.20",
+    "python-multipart>=0.0.32",
 ]
 
 [dependency-groups]

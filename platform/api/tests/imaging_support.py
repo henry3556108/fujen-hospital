@@ -4,8 +4,12 @@ import io
 import json
 import struct
 
+import pytest
 from pydicom.dataset import Dataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian
+
+from app.imaging.orthanc import InMemoryOrthanc
+from app.models import Membership, Project
 
 ROOT = "1.2.826.0.1.3680043.10.9999.77."
 CT = "1.2.840.10008.5.1.4.1.1.2"
@@ -106,3 +110,38 @@ def make_makesense(no: int) -> bytes:
                     "iscrowd": 0, "segmentation": []} for s in range(1, SLICES + 1)]
     return json.dumps({"images": images, "annotations": annotations,
                        "categories": [{"id": 1, "name": "nodule"}]}).encode()
+
+
+# ---- fixtures：測試模組以 `from imaging_support import orthanc, project, member` 匯入 ----
+
+@pytest.fixture
+def orthanc(app):
+    o = InMemoryOrthanc(pacs=[make_dicom(no, s) for no in STUDIES for s in range(1, SLICES + 1)])
+    app.state.orthanc = o
+    return o
+
+
+@pytest.fixture
+def project(session):
+    def _make(name="P1"):
+        p = Project(name=name)
+        session.add(p)
+        session.commit()
+        return p
+    return _make
+
+
+@pytest.fixture
+def member(add_user, session):
+    """建立帳號並加入專案；回傳 headers。"""
+    def _make(username, project, permissions=("project", "labeling")):
+        user, headers = add_user(username)
+        session.add(Membership(user_id=user.id, project_id=project.id, role="custom", permissions=list(permissions)))
+        session.commit()
+        return headers
+    return _make
+
+
+def upload(client, headers, pid, files, kind="dicom"):
+    return client.post(f"/api/projects/{pid}/imaging/{kind}", headers=headers,
+                       files=[("files", (name, data)) for name, data in files])
