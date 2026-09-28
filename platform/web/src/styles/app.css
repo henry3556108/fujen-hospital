@@ -613,22 +613,34 @@ tr:last-child td {
   margin-top: 1rem;
 }
 
-/* ---------- Dialog ---------- */
-dialog.dialog {
-  border: 1px solid var(--color-border-default);
-  border-radius: 8px;
-  padding: 1.25rem;
-  background: var(--dialog-bg);
-  color: var(--color-text-primary);
-  width: min(28rem, calc(100vw - 2rem));
+/* ---------- Confirm dialog ---------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
 }
 
-dialog.dialog::backdrop {
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
   background: var(--dialog-backdrop);
   opacity: 0.6;
 }
 
-.dialog__actions {
+.modal__panel {
+  position: relative;
+  width: min(28rem, 100%);
+  padding: 1.25rem;
+  border: 1px solid var(--color-border-default);
+  border-radius: 8px;
+  background: var(--dialog-bg);
+  color: var(--color-text-primary);
+}
+
+.modal__actions {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
