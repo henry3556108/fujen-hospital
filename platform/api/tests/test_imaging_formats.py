@@ -41,6 +41,10 @@ def test_makesense_image_refs():
     ("m.json", b"{not json", "JSON"),
     ("m.json", json.dumps({"images": []}).encode(), "makesense"),
     ("m.json", json.dumps({"images": [{"id": 1}], "annotations": [], "categories": []}).encode(), "makesense"),
+    ("m.json", json.dumps({"images": [{"id": [1], "file_name": "a"}], "annotations": [],
+                           "categories": []}).encode(), "makesense"),
+    ("m.json", json.dumps({"images": [{"id": 1, "file_name": "a"}], "annotations": ["x"],
+                           "categories": []}).encode(), "makesense"),
 ])
 def test_tc_b01_05_bad_files_rejected_with_reason(name, data, reason):
     with pytest.raises(InvalidFile, match=reason):

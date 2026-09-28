@@ -122,12 +122,16 @@ def _makesense(data: bytes) -> dict:
         raise InvalidFile("不是 makesense（COCO）格式：需要 images、annotations、categories")
     ids = {}
     for img in doc["images"]:
-        if not isinstance(img, dict) or not isinstance(img.get("file_name"), str) or "id" not in img:
+        if (not isinstance(img, dict) or not isinstance(img.get("file_name"), str)
+                or not isinstance(img.get("id"), (int, str))):
             raise InvalidFile("makesense images 每筆需要 id 與 file_name")
         ids[img["id"]] = img["file_name"]
     for ann in doc["annotations"]:
-        bbox = ann.get("bbox") if isinstance(ann, dict) else None
-        if ann.get("image_id") not in ids or not (isinstance(bbox, list) and len(bbox) == 4):
+        if not isinstance(ann, dict):
+            raise InvalidFile("makesense annotations 每筆必須是物件")
+        bbox, image_id = ann.get("bbox"), ann.get("image_id")
+        if (not isinstance(image_id, (int, str)) or image_id not in ids
+                or not (isinstance(bbox, list) and len(bbox) == 4)):
             raise InvalidFile("makesense annotations 需要對應的 image_id 與 4 個數字的 bbox")
     if not ids:
         raise InvalidFile("makesense 檔案沒有任何 images")
