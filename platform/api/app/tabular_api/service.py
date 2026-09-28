@@ -9,6 +9,8 @@ import pandas as pd
 from fastapi import HTTPException
 from sqlalchemy import delete, select
 from tabular.errors import TabularError
+from tabular.modeling_config import TargetFeatureConfig
+from tabular.preprocess import apply_pipeline
 from tabular.schema import Schema
 from tabular.validate import load_clean_csv, validate_and_load
 
@@ -124,6 +126,38 @@ def delete_dataset(ctx: ProjectContext, store: ObjectStore, frames: "FrameCache"
     session.commit()
     frames.evict(ds.object_key)
     _delete_objects(store, dataset_prefix(ds.project_id, ds.id))
+
+
+def save_target_feature(ctx: ProjectContext, frames: "FrameCache", ds: TabularDataset, data: dict,
+                        source_ip: str | None) -> TabularTargetFeature:
+    """正規化設定、套用前處理步驟後確認 target／features 都存在，再覆寫這個資料集的設定。"""
+    config = TargetFeatureConfig.from_dict(data)
+    config.validate_against(apply_pipeline(frames.load(ds), config.steps).columns)
+    session = ctx.session
+    row = session.scalar(select(TabularTargetFeature).where(TabularTargetFeature.dataset_id == ds.id))
+    if row is None:
+        row = TabularTargetFeature(dataset_id=ds.id, config={}, updated_by="")
+        session.add(row)
+    row.config, row.updated_by = config.to_dict(), ctx.user.username
+    record(session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="target_feature_save",
+           target=f"tabular_dataset:{ds.id}", source_ip=source_ip,
+           detail={"project_id": ds.project_id, "target": config.target, "features": config.features,
+                   "steps": [s["id"] for s in config.steps], "total_rows": ds.total_rows,
+                   "valid_rows": ds.valid_rows, "rejected_rows": ds.rejected_rows})
+    session.commit()
+    return row
+
+
+def get_target_feature(ctx: ProjectContext, ds: TabularDataset) -> TabularTargetFeature:
+    row = ctx.session.scalar(select(TabularTargetFeature).where(TabularTargetFeature.dataset_id == ds.id))
+    if row is None:
+        raise HTTPException(404, f"資料集 {ds.id} 尚未設定 Target 與 Feature")
+    return row
+
+
+def target_feature_out(row: TabularTargetFeature) -> dict:
+    return {"dataset_id": row.dataset_id, "config": row.config, "updated_by": row.updated_by,
+            "updated_at": row.updated_at.isoformat()}
 
 
 class FrameCache:

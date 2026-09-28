@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 import pandas as pd
-from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
@@ -138,3 +138,23 @@ def pipeline_preview(body: PipelinePreviewIn, df: pd.DataFrame = Depends(_frame)
     out = preprocess.apply_pipeline(df, body.steps)
     return {"row_count": int(len(out)), "columns": explore.column_info(out),
             "preview": explore.preview(out, body.offset, body.limit, body.columns)}
+
+
+# ------------------------------------------------------------------ Target／Feature 設定（TC-B04-03）
+
+training_access = require_project_permission(Permission.TRAINING)
+
+
+@router.put("/datasets/{dataset_id}/target-feature")
+def save_target_feature(dataset_id: int, request: Request, body: dict = Body(...),
+                        ctx: ProjectContext = Depends(training_access),
+                        frames: service.FrameCache = Depends(_frames)) -> dict:
+    """body 為 TargetFeatureConfig：{target, features, steps?}；回傳正規化後（補上預設參數）的設定。"""
+    ds = service.get_dataset(ctx, dataset_id)
+    row = service.save_target_feature(ctx, frames, ds, body, client_ip(request))
+    return service.target_feature_out(row)
+
+
+@router.get("/datasets/{dataset_id}/target-feature")
+def get_target_feature(ds: TabularDataset = Depends(_dataset), ctx: ProjectContext = Depends(read_access)) -> dict:
+    return service.target_feature_out(service.get_target_feature(ctx, ds))
