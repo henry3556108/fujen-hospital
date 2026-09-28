@@ -4,7 +4,8 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
-from tabular import explore
+from pydantic import BaseModel
+from tabular import explore, preprocess
 from tabular.errors import TabularError
 
 from app.deps import ProjectContext, client_ip, require_project_permission
@@ -115,3 +116,25 @@ def correlation(columns: list[str] | None = Query(None), method: str = "pearson"
 @router.get("/datasets/{dataset_id}/scatter")
 def scatter(x: str, y: str, limit: int = Query(5000, ge=1, le=20000), df: pd.DataFrame = Depends(_frame)) -> dict:
     return explore.scatter(df, x, y, limit)
+
+
+# ------------------------------------------------------------------ 前處理（TC-B04-04、06）
+
+class PipelinePreviewIn(BaseModel):
+    steps: list[dict] = []
+    offset: int = 0
+    limit: int = 50
+    columns: list[str] | None = None
+
+
+@router.get("/preprocessing/catalogue")
+def preprocessing_catalogue(ctx: ProjectContext = Depends(read_access)) -> list[dict]:
+    return preprocess.catalogue()
+
+
+@router.post("/datasets/{dataset_id}/preprocess/preview")
+def pipeline_preview(body: PipelinePreviewIn, df: pd.DataFrame = Depends(_frame)) -> dict:
+    """在資料副本上套用步驟後預覽；不改動已儲存的資料集。"""
+    out = preprocess.apply_pipeline(df, body.steps)
+    return {"row_count": int(len(out)), "columns": explore.column_info(out),
+            "preview": explore.preview(out, body.offset, body.limit, body.columns)}
