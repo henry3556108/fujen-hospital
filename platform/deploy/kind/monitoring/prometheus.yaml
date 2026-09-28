@@ -86,12 +86,15 @@ data:
           - alert: NodeNotReady
             expr: kube_node_status_condition{condition="Ready",status="true"} == 0
             for: 10s
+            # 條件短暫消失再出現會被 Alertmanager 視為新事件而重寄；維持 5 分鐘避免抖動造成重複告警
+            keep_firing_for: 5m
             labels: { severity: critical }
             annotations:
               summary: "節點 {{ $labels.node }} 未就緒"
           - alert: HighPodCpu
             expr: sum by (namespace, pod, node) (rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[1m])) > 0.8
             for: 20s
+            keep_firing_for: 5m
             labels: { severity: warning }
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} CPU 使用率超過 0.8 核"

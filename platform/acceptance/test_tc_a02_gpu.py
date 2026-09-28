@@ -53,3 +53,21 @@ def test_tc_a02_06_shared_three_jobs(platform, kube):
     for job in jobs:
         (pod,) = pods_of(kube, job["k8s_name"])
         assert node_pool(kube, pod.spec.node_name) == "gpu-shared"
+
+
+def test_tc_a02_07_shared_settings_reload_and_apply_to_cluster(platform, kube):
+    """設定頁本身由 playwright 驗；這裡驗 API 重新載入一致，且份數真的套用到節點與 Kueue 配額。"""
+    admin = platform.as_("admin01")
+    url = "/api/admin/cluster/shared-scheduling"
+    try:
+        for replicas, timeout in [(2, 30), (3, 90), (4, 60)]:
+            body = {"time_slice_replicas": replicas, "job_timeout_minutes": timeout}
+            assert platform.client.put(url, headers=admin, json=body).status_code == 200
+            assert platform.client.get(url, headers=admin).json() == body
+            node = kube.core.list_node(label_selector="platform/pool=gpu-shared").items[0]
+            assert node.status.capacity["nvidia.com/gpu"] == str(replicas)
+            cq = kube.custom.get_cluster_custom_object("kueue.x-k8s.io", "v1beta2", "clusterqueues", "gpu-shared")
+            quota = {r["name"]: r["nominalQuota"] for r in cq["spec"]["resourceGroups"][0]["flavors"][0]["resources"]}
+            assert quota["nvidia.com/gpu"] == str(replicas)
+    finally:
+        platform.client.put(url, headers=admin, json={"time_slice_replicas": 4, "job_timeout_minutes": 60})

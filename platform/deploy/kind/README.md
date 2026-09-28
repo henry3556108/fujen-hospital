@@ -66,7 +66,8 @@ kind 不支援擴充既有叢集，所以 `add-node.sh` 用與 kind worker 相�
   | `HighPodCpu` | 單一 Pod CPU 使用超過 0.8 核持續 20 秒 |
 
 - 重複抑制（`monitoring/alertmanager.yaml`）：同一告警群組只寄一次，`repeat_interval` 4 小時內不重寄、不寄「已解除」；
-  節點未就緒時抑制同節點上的 warning。
+  節點未就緒時抑制同節點上的 warning。`NodeNotReady`、`HighPodCpu` 另設 `keep_firing_for: 5m`：條件短暫低於門檻再回來
+  （例如 CPU 在 0.8 核上下抖動）不會被 Alertmanager 當成新事件重寄。
 - Grafana 預設儀表板「平台叢集總覽」：各池 CPU、假 GPU 已配置／可用份數、執行中 GPU 工作（依 Job 標籤）。
 
 ## 叢集測試

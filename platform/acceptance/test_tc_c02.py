@@ -22,6 +22,12 @@ def kube():
         httpx.get(f"{PROMETHEUS}/-/ready", timeout=3).raise_for_status()
     except httpx.HTTPError as exc:
         pytest.skip(f"監控堆疊連不上：{exc}")
+
+    def scraped_once():
+        active = httpx.get(f"{PROMETHEUS}/api/v1/targets", params={"state": "active"}, timeout=10).json()
+        return all(t["health"] != "unknown" for t in active["data"]["activeTargets"])
+
+    wait_for(scraped_once, timeout=90, interval=3, message="Prometheus 還沒抓過所有目標")
     return k
 
 
