@@ -1,0 +1,16 @@
+{
+  "columns": [
+    {"name": "patient_id", "type": "int", "required": true, "unique": true, "min": 1},
+    {"name": "age", "type": "int", "required": true, "min": 0, "max": 120},
+    {"name": "sex", "type": "category", "required": true, "allowed": ["M", "F"]},
+    {"name": "bmi", "type": "float", "required": false, "min": 10, "max": 60},
+    {"name": "smoker", "type": "bool", "required": true},
+    {"name": "cholesterol", "type": "float", "required": true, "min": 50, "max": 500},
+    {"name": "admit_date", "type": "date", "required": true, "min": "2020-01-01", "max": "2030-12-31"},
+    {"name": "diagnosis", "type": "str", "required": true},
+    {"name": "outcome", "type": "int", "required": true, "allowed": [0, 1]},
+    {"name": "time", "type": "float", "required": true, "min": 0},
+    {"name": "event", "type": "int", "required": true, "allowed": [0, 1]},
+    {"name": "group", "type": "category", "required": true, "allowed": ["A", "B"]}
+  ]
+}
