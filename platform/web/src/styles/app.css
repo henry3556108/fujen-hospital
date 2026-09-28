@@ -273,7 +273,7 @@ fieldset {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 1rem;
-  align-items: end;
+  align-items: start;
 }
 
 /* ---------- Alerts：顏色 + Icon + 文字標題 ---------- */
@@ -595,6 +595,13 @@ th {
   background: var(--color-bg-subtle);
 }
 
+tbody th {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+tr:last-child th,
 tr:last-child td {
   border-bottom: none;
 }
