@@ -5,7 +5,10 @@ Test double only. Never deploy to a customer production environment.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
+import re
 import time
 import uuid
 from collections.abc import Iterator
@@ -124,6 +127,51 @@ def _sse_chunks(
         yield chunk({"content": word if i == 0 else " " + word}, None)
     yield chunk({}, finish_reason)
     yield "data: [DONE]\n\n"
+
+
+EMBED_DIM = 384
+_TOKEN_RE = re.compile(r"\w+")
+
+
+class EmbeddingRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    model: str
+    input: str | list[str]
+
+
+def _embed(text: str) -> list[float]:
+    """Feature-hashed bag of unigrams + bigrams, L2-normalised.
+
+    Texts sharing words share hashed buckets, so their cosine similarity is higher.
+    """
+    tokens = _TOKEN_RE.findall(text.lower())
+    features = [(t, 1.0) for t in tokens]
+    features += [(f"{a} {b}", 0.5) for a, b in zip(tokens, tokens[1:])]
+    if not features:
+        features = [("<empty>", 1.0)]
+    vec = [0.0] * EMBED_DIM
+    for feature, weight in features:
+        digest = hashlib.sha256(feature.encode()).digest()
+        index = int.from_bytes(digest[:4], "big") % EMBED_DIM
+        sign = 1.0 if digest[4] & 1 else -1.0
+        vec[index] += sign * weight
+    norm = math.sqrt(sum(x * x for x in vec)) or 1.0
+    return [x / norm for x in vec]
+
+
+@app.post("/v1/embeddings")
+def embeddings(req: EmbeddingRequest) -> dict[str, Any]:
+    inputs = [req.input] if isinstance(req.input, str) else req.input
+    tokens = sum(_words(t) for t in inputs)
+    return {
+        "object": "list",
+        "model": req.model,
+        "data": [
+            {"object": "embedding", "index": i, "embedding": _embed(t)}
+            for i, t in enumerate(inputs)
+        ],
+        "usage": {"prompt_tokens": tokens, "total_tokens": tokens},
+    }
 
 
 @app.post("/v1/chat/completions")
