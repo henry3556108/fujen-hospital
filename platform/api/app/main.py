@@ -6,6 +6,7 @@ from app import admin_service
 from app.db import make_engine, make_sessionmaker
 from app.models import Base
 from app.routers import admin, authz_check, me
+from app.tabular_api.router import router as tabular_router
 
 
 def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, store=None) -> FastAPI:
@@ -34,6 +35,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(me.router)
     app.include_router(admin.router)
     app.include_router(authz_check.router)
+    app.include_router(tabular_router)
 
     @app.get("/healthz")
     def healthz() -> dict:

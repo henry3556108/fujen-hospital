@@ -1,0 +1,10 @@
+# 用於 build context = platform/ 的 api/Dockerfile：只送入 API 與 tabular 函式庫
+*
+!api/pyproject.toml
+!api/uv.lock
+!api/app
+!libs/tabular
+libs/tabular/.venv
+libs/tabular/tests
+**/__pycache__
+**/.pytest_cache
