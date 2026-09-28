@@ -12,3 +12,9 @@ def app():
 @pytest.fixture
 def client(app):
     return TestClient(app)
+
+
+@pytest.fixture
+def session(app):
+    with app.state.sessionmaker() as s:
+        yield s
