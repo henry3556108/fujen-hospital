@@ -115,6 +115,15 @@ class MembershipIn(BaseModel):
     permissions: list[Permission] | None = None
 
 
+@router.get("/projects/{project_id}/members")
+def list_members(project_id: int, admin: User = Depends(require_admin),
+                 session: Session = Depends(get_session)) -> list[dict]:
+    return [
+        {"user_id": u.id, "username": u.username, "role": m.role, "permissions": sorted(m.permissions)}
+        for u, m in admin_service.list_members(session, project_id=project_id)
+    ]
+
+
 @router.put("/projects/{project_id}/members/{user_id}")
 def set_member(project_id: int, user_id: int, body: MembershipIn, request: Request,
                admin: User = Depends(require_admin), session: Session = Depends(get_session)) -> dict:

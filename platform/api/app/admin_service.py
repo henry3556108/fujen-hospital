@@ -170,3 +170,12 @@ def remove_membership(session: Session, *, actor: str, project_id: int, user_id:
     record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
            target=f"project:{project_id}/user:{user_id}", source_ip=source_ip, detail={"role": membership.role})
     session.commit()
+
+
+def list_members(session: Session, *, project_id: int) -> list[tuple[User, Membership]]:
+    _get(session, Project, project_id)
+    rows = session.execute(
+        select(User, Membership).join(Membership, Membership.user_id == User.id)
+        .where(Membership.project_id == project_id).order_by(User.username)
+    )
+    return [(u, m) for u, m in rows]

@@ -63,3 +63,25 @@ def test_admin_me_lists_all_projects_with_all_permissions(client, add_user, sess
     me = client.get("/api/me", headers=admin).json()
     assert me["projects"][0]["role"] is None
     assert me["projects"][0]["permissions"] == ["coding", "labeling", "prediction", "project", "training"]
+
+
+def test_list_project_members(client, add_user, session):
+    admin, project = _setup(client, add_user, session)
+    md, _ = add_user("md01")
+    vw, _ = add_user("vw01")
+    client.put(f"/api/admin/projects/{project.id}/members/{md.id}", headers=admin, json={"role": "medical_doctor"})
+    client.put(f"/api/admin/projects/{project.id}/members/{vw.id}", headers=admin, json={"role": "viewer"})
+    response = client.get(f"/api/admin/projects/{project.id}/members", headers=admin)
+    assert response.status_code == 200
+    assert response.json() == [
+        {"user_id": md.id, "username": "md01", "role": "medical_doctor", "permissions": ["labeling", "prediction", "project"]},
+        {"user_id": vw.id, "username": "vw01", "role": "viewer", "permissions": ["prediction", "project"]},
+    ]
+
+
+def test_list_members_requires_admin_and_existing_project(client, add_user, session):
+    admin, project = _setup(client, add_user, session)
+    _, pi = add_user("pi01")
+    assert client.get(f"/api/admin/projects/{project.id}/members", headers=pi).status_code == 403
+    missing = client.get("/api/admin/projects/999/members", headers=admin)
+    assert missing.status_code == 404 and "找不到" in missing.json()["detail"]
