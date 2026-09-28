@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.audit import AuditCategory, record
+from app.authz import DicomwebTarget
 from app.imaging.dicom import DicomInfo, InvalidDicom, parse_dicom
 from app.imaging.formats import InvalidFile, parse_file
 from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingSeries, ImagingStudy,
@@ -249,6 +250,22 @@ def find_accessible_study(session: Session, project_id: int, study_uid: str) -> 
     if allowed and study.accession_number not in allowed:
         return None
     return study
+
+
+def dicomweb_allowed(session: Session, target: DicomwebTarget) -> bool:
+    study = find_accessible_study(session, target.project_id, target.study_uid)
+    if study is None:
+        return False
+    if target.series_uid is None:
+        return True
+    series = session.scalar(select(ImagingSeries).where(ImagingSeries.study_id == study.id,
+                                                        ImagingSeries.series_instance_uid == target.series_uid))
+    if series is None:
+        return False
+    if target.instance_uid is None:
+        return True
+    return session.scalar(select(ImagingInstance.id).where(
+        ImagingInstance.series_id == series.id, ImagingInstance.sop_instance_uid == target.instance_uid)) is not None
 
 
 def _instance_counts(session: Session, series_ids: Iterable[int]) -> dict[int, int]:

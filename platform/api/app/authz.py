@@ -1,6 +1,7 @@
 import posixpath
 import re
-from urllib.parse import unquote
+from dataclasses import dataclass
+from urllib.parse import parse_qsl, unquote
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -50,6 +51,56 @@ def _canonical(path: str) -> str | None:
     if posixpath.normpath(decoded) != decoded or decoded.startswith("//"):
         return None
     return decoded
+
+
+@dataclass(frozen=True)
+class DicomwebTarget:
+    """DICOMweb 請求指向的專案與研究（series／instance 若路徑有帶）。所需權限固定為 Project。"""
+    project_id: int
+    study_uid: str
+    series_uid: str | None
+    instance_uid: str | None
+
+
+_UID = r"[0-9]+(?:\.[0-9]+)*"
+_DICOMWEB = re.compile(
+    rf"^/dicomweb/projects/(?P<pid>\d+)/studies/(?P<study>{_UID})"
+    rf"(?:/(?:metadata|rendered|thumbnail|series|instances)"
+    rf"|/series/(?P<series>{_UID})"
+    rf"(?:/(?:metadata|rendered|thumbnail|instances)"
+    rf"|/instances/(?P<instance>{_UID})"
+    rf"(?:/(?:metadata|rendered|thumbnail|frames/\d+(?:,\d+)*(?:/rendered)?|bulk(?:/[0-9A-Fa-f]{{8}}|/\d+)+))?"
+    rf")?)?$"
+)
+_DICOMWEB_SEARCH = re.compile(r"^/dicomweb/projects/(?P<pid>\d+)/studies$")
+_SEARCH_EXTRA_KEYS = {"includefield", "limit", "offset"}
+_UID_ONLY = re.compile(rf"^{_UID}$")
+
+
+def match_dicomweb(uri: str) -> DicomwebTarget | None:
+    """`/dicomweb/projects/{pid}/...` 的原始 URI（含查詢字串）→ 目標研究；不是允許的形式一律 None。
+
+    研究層級以下的路徑只接受固定的 DICOMweb 子資源。研究列表搜尋（QIDO /studies）會列出節點上所有研究，
+    所以只允許 `?StudyInstanceUID=<單一 UID>`：不接受 UID 清單（, 或 \\）、萬用字元、重複鍵或以標籤碼寫的同義鍵。
+    查詢字串不可含 %、;、\\、NUL，避免 Gateway 與 Orthanc 解碼不一致。"""
+    path, _, query = uri.partition("?")
+    normalized = _canonical(path)
+    if normalized is None or any(c in query for c in _FORBIDDEN_CHARS + ("#",)):
+        return None
+    m = _DICOMWEB.match(normalized)
+    if m:
+        return DicomwebTarget(int(m["pid"]), m["study"], m["series"], m["instance"])
+    m = _DICOMWEB_SEARCH.match(normalized)
+    if not m:
+        return None
+    pairs = parse_qsl(query, keep_blank_values=True)
+    keys = [k for k, _ in pairs]
+    uids = [v for k, v in pairs if k == "StudyInstanceUID"]
+    if len(uids) != 1 or not _UID_ONLY.match(uids[0]) or len(set(keys)) != len(keys):
+        return None
+    if any(k not in _SEARCH_EXTRA_KEYS | {"StudyInstanceUID"} for k in keys):
+        return None
+    return DicomwebTarget(int(m["pid"]), uids[0], None, None)
 
 
 def match_rule(path: str) -> tuple[int, Permission] | None:
