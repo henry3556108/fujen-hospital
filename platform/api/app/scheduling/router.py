@@ -1,14 +1,17 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.deps import client_ip, get_session, require_admin
+from app.deps import ProjectContext, client_ip, get_session, require_admin, require_project_permission
 from app.models import User
+from app.permissions import Permission
 from app.scheduling import service
+from app.scheduling.backend import JobBackend, backend_from_env
 from app.scheduling.models import GpuGroup
 
 router = APIRouter()
@@ -26,6 +29,57 @@ def sched_session(session: Session = Depends(get_session)) -> Session:
     with _errors():
         service.ensure_defaults(session)
     return session
+
+
+def get_backend(request: Request) -> JobBackend:
+    backend = getattr(request.app.state, "job_backend", None)
+    if backend is None:
+        backend = backend_from_env()
+        if backend is None:
+            raise HTTPException(503, "排程服務尚未設定（JOB_BACKEND）")
+        request.app.state.job_backend = backend
+    return backend
+
+
+# ---------- 專案工作（需 training 權限） ----------
+
+class JobIn(BaseModel):
+    kind: Literal["training", "data-cleaning"] = "training"
+    duration_seconds: int = Field(default=30, ge=1, le=3600)
+    fail: bool = False
+    memory_mb: int = Field(default=16, ge=1, le=256)
+
+
+@router.post("/api/projects/{project_id}/jobs", status_code=201)
+def submit_job(body: JobIn, request: Request, ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+               backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.submit_job(ctx.session, backend, project=ctx.project, actor=ctx.user.username,
+                                 source_ip=client_ip(request), **body.model_dump())
+    return service.job_out(job)
+
+
+@router.get("/api/projects/{project_id}/jobs")
+def list_jobs(ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+              backend: JobBackend = Depends(get_backend)) -> list[dict]:
+    return [service.job_out(j) for j in service.list_jobs(ctx.session, backend, ctx.project.id)]
+
+
+@router.get("/api/projects/{project_id}/jobs/{job_id}")
+def get_job(job_id: int, ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+            backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        return service.job_out(service.refresh_job(ctx.session, backend, ctx.project.id, job_id))
+
+
+@router.post("/api/projects/{project_id}/jobs/{job_id}/cancel")
+def cancel_job(job_id: int, request: Request,
+               ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+               backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.cancel_job(ctx.session, backend, project_id=ctx.project.id, job_id=job_id,
+                                 actor=ctx.user.username, source_ip=client_ip(request))
+    return service.job_out(job)
 
 
 # ---------- GPU 群組（Admin） ----------

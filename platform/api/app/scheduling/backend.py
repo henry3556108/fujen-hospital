@@ -3,6 +3,7 @@
 - FakeJobBackend：記憶體版、時間由測試推進，語意與 Kueue 設定相同（StrictFIFO、獨占一卡一件、共享池時間片）。
 - KubernetesJobBackend（kube.py）：建立 Kueue 管理的 Kubernetes Job。
 """
+import os
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -58,6 +59,17 @@ class JobBackend(Protocol):
     def nodes(self) -> list[NodeInfo]: ...
     def allocations(self) -> list[Allocation]: ...
     def configure_shared(self, replicas: int) -> None: ...
+
+
+def backend_from_env() -> JobBackend | None:
+    """依 JOB_BACKEND 建立後端：kubernetes（kind／甲方叢集）或 fake（前端開發用）；未設定回 None。"""
+    kind = os.environ.get("JOB_BACKEND", "").strip().lower()
+    if kind == "kubernetes":
+        from app.scheduling.kube import KubernetesJobBackend
+        return KubernetesJobBackend.from_env()
+    if kind == "fake":
+        return FakeJobBackend()
+    return None
 
 
 def slot_position(slot: int, physical: int, capacity: int) -> tuple[int, int]:
