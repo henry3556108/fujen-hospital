@@ -1,0 +1,304 @@
+/*
+ * 色彩 Token（依 ~/.claude/guidelines/color-system.md）
+ * 品牌感受：可信任、冷靜、精確、專業（醫療 AI 平台）。
+ * 色票方法：中性色 + 單一品牌主色（§4.1），狀態色另立。
+ *
+ * 第 1 層 Primitive：--primitive-<色相>-<色階>，只描述顏色本身，只有這一層可以寫色碼。
+ * 第 2 層 Semantic：--color-*，描述用途；Light / Dark 各自對應到不同 Primitive。
+ * 第 3 層 Component：--button-* / --input-* / --nav-* ...，描述元件與狀態，只引用 Semantic。
+ *
+ * 角色：
+ *   Primary   藍綠  主要 CTA、選中、連結、Focus ring（克制使用）
+ *   Secondary 中性  次要按鈕（外框）、一般操作
+ *   Accent    紫    只用於「M2 預告」標籤，不可用於操作或狀態
+ *   Neutral   冷灰  背景、卡片、文字、邊框（畫面 70–85%）
+ *   Success   綠 / Warning 琥珀 / Error 紅 / Info 靛藍：一律搭配 Icon 與文字
+ */
+
+:root {
+  /* ---------- Primitive ---------- */
+  --primitive-white: #ffffff;
+  --primitive-neutral-50: #f6f8fa;
+  --primitive-neutral-100: #eef1f4;
+  --primitive-neutral-200: #dde2e8;
+  --primitive-neutral-300: #c3cbd4;
+  --primitive-neutral-400: #8d98a5;
+  --primitive-neutral-500: #6b7684;
+  --primitive-neutral-600: #535e6b;
+  --primitive-neutral-700: #3b4450;
+  --primitive-neutral-800: #262d36;
+  --primitive-neutral-850: #1e242c;
+  --primitive-neutral-900: #171c22;
+  --primitive-neutral-950: #0f1318;
+
+  --primitive-brand-50: #eaf5fb;
+  --primitive-brand-100: #d2e9f6;
+  --primitive-brand-200: #a6d2ec;
+  --primitive-brand-300: #6fb4dc;
+  --primitive-brand-400: #3993c6;
+  --primitive-brand-500: #1a78ad;
+  --primitive-brand-600: #11628f;
+  --primitive-brand-700: #0e5073;
+  --primitive-brand-800: #0d405c;
+  --primitive-brand-900: #0b3248;
+  --primitive-brand-950: #071f2e;
+
+  --primitive-green-50: #ecf8f0;
+  --primitive-green-300: #7cc896;
+  --primitive-green-400: #4fae70;
+  --primitive-green-600: #237a43;
+  --primitive-green-700: #1c6337;
+  --primitive-green-950: #0b2415;
+
+  --primitive-amber-50: #fdf6e7;
+  --primitive-amber-300: #efbc55;
+  --primitive-amber-400: #d99c1f;
+  --primitive-amber-600: #946405;
+  --primitive-amber-700: #7a5306;
+  --primitive-amber-950: #2a1d03;
+
+  --primitive-red-50: #fdefee;
+  --primitive-red-300: #f09a92;
+  --primitive-red-400: #e0685e;
+  --primitive-red-600: #b3352b;
+  --primitive-red-700: #922a22;
+  --primitive-red-800: #74211b;
+  --primitive-red-950: #2c0c09;
+
+  --primitive-indigo-50: #eef0fb;
+  --primitive-indigo-300: #9ba6e6;
+  --primitive-indigo-400: #7382d6;
+  --primitive-indigo-600: #3f4ea8;
+  --primitive-indigo-700: #333f88;
+  --primitive-indigo-950: #141a3a;
+
+  --primitive-violet-50: #f4eefb;
+  --primitive-violet-300: #c5a6ea;
+  --primitive-violet-700: #5f3596;
+  --primitive-violet-950: #22123a;
+
+  /* ---------- Semantic（Light） ---------- */
+  --color-bg-page: var(--primitive-neutral-50);
+  --color-bg-surface: var(--primitive-white);
+  --color-bg-raised: var(--primitive-white);
+  --color-bg-subtle: var(--primitive-neutral-100);
+  --color-bg-hover: var(--primitive-neutral-100);
+  --color-bg-pressed: var(--primitive-neutral-200);
+  --color-bg-selected: var(--primitive-brand-50);
+  --color-bg-disabled: var(--primitive-neutral-100);
+  --color-bg-backdrop: var(--primitive-neutral-900);
+
+  --color-text-primary: var(--primitive-neutral-900);
+  --color-text-secondary: var(--primitive-neutral-700);
+  --color-text-muted: var(--primitive-neutral-600);
+  --color-text-disabled: var(--primitive-neutral-500);
+  --color-text-link: var(--primitive-brand-600);
+  --color-text-selected: var(--primitive-brand-800);
+  --color-text-on-action: var(--primitive-white);
+  --color-text-on-danger: var(--primitive-white);
+
+  --color-border-default: var(--primitive-neutral-200);
+  --color-border-strong: var(--primitive-neutral-500);
+  --color-border-selected: var(--primitive-brand-600);
+  --color-border-disabled: var(--primitive-neutral-300);
+  --color-focus-ring: var(--primitive-brand-600);
+
+  --color-action-primary: var(--primitive-brand-600);
+  --color-action-primary-hover: var(--primitive-brand-700);
+  --color-action-primary-pressed: var(--primitive-brand-800);
+  --color-action-danger: var(--primitive-red-600);
+  --color-action-danger-hover: var(--primitive-red-700);
+  --color-action-danger-pressed: var(--primitive-red-800);
+
+  --color-accent-bg: var(--primitive-violet-50);
+  --color-accent-text: var(--primitive-violet-700);
+
+  --color-status-success-bg: var(--primitive-green-50);
+  --color-status-success-border: var(--primitive-green-600);
+  --color-status-success-icon: var(--primitive-green-600);
+  --color-status-success-text: var(--primitive-green-700);
+  --color-status-warning-bg: var(--primitive-amber-50);
+  --color-status-warning-border: var(--primitive-amber-600);
+  --color-status-warning-icon: var(--primitive-amber-600);
+  --color-status-warning-text: var(--primitive-amber-700);
+  --color-status-error-bg: var(--primitive-red-50);
+  --color-status-error-border: var(--primitive-red-600);
+  --color-status-error-icon: var(--primitive-red-600);
+  --color-status-error-text: var(--primitive-red-700);
+  --color-status-info-bg: var(--primitive-indigo-50);
+  --color-status-info-border: var(--primitive-indigo-600);
+  --color-status-info-icon: var(--primitive-indigo-600);
+  --color-status-info-text: var(--primitive-indigo-700);
+
+  /* ---------- Component ---------- */
+  --focus-ring-color: var(--color-focus-ring);
+
+  --button-primary-bg: var(--color-action-primary);
+  --button-primary-bg-hover: var(--color-action-primary-hover);
+  --button-primary-bg-pressed: var(--color-action-primary-pressed);
+  --button-primary-text: var(--color-text-on-action);
+  --button-secondary-bg: var(--color-bg-surface);
+  --button-secondary-bg-hover: var(--color-bg-hover);
+  --button-secondary-bg-pressed: var(--color-bg-pressed);
+  --button-secondary-border: var(--color-border-strong);
+  --button-secondary-text: var(--color-text-primary);
+  --button-danger-bg: var(--color-action-danger);
+  --button-danger-bg-hover: var(--color-action-danger-hover);
+  --button-danger-bg-pressed: var(--color-action-danger-pressed);
+  --button-danger-text: var(--color-text-on-danger);
+  --button-disabled-bg: var(--color-bg-disabled);
+  --button-disabled-border: var(--color-border-disabled);
+  --button-disabled-text: var(--color-text-disabled);
+
+  --input-bg: var(--color-bg-surface);
+  --input-border: var(--color-border-strong);
+  --input-border-hover: var(--color-text-secondary);
+  --input-border-focus: var(--color-focus-ring);
+  --input-border-error: var(--color-status-error-border);
+  --input-text: var(--color-text-primary);
+  --input-disabled-bg: var(--color-bg-disabled);
+  --input-disabled-text: var(--color-text-disabled);
+
+  --checkbox-accent: var(--color-action-primary);
+
+  --nav-bg: var(--color-bg-surface);
+  --nav-item-text: var(--color-text-secondary);
+  --nav-item-bg-hover: var(--color-bg-hover);
+  --nav-item-bg-pressed: var(--color-bg-pressed);
+  --nav-item-bg-selected: var(--color-bg-selected);
+  --nav-item-text-selected: var(--color-text-selected);
+  --nav-item-indicator-selected: var(--color-border-selected);
+
+  --card-bg: var(--color-bg-surface);
+  --card-border: var(--color-border-default);
+  --card-border-hover: var(--color-border-strong);
+
+  --dialog-bg: var(--color-bg-raised);
+  --dialog-backdrop: var(--color-bg-backdrop);
+
+  --badge-m2-bg: var(--color-accent-bg);
+  --badge-m2-text: var(--color-accent-text);
+
+  --alert-success-bg: var(--color-status-success-bg);
+  --alert-success-border: var(--color-status-success-border);
+  --alert-success-icon: var(--color-status-success-icon);
+  --alert-success-text: var(--color-status-success-text);
+  --alert-warning-bg: var(--color-status-warning-bg);
+  --alert-warning-border: var(--color-status-warning-border);
+  --alert-warning-icon: var(--color-status-warning-icon);
+  --alert-warning-text: var(--color-status-warning-text);
+  --alert-error-bg: var(--color-status-error-bg);
+  --alert-error-border: var(--color-status-error-border);
+  --alert-error-icon: var(--color-status-error-icon);
+  --alert-error-text: var(--color-status-error-text);
+  --alert-info-bg: var(--color-status-info-bg);
+  --alert-info-border: var(--color-status-info-border);
+  --alert-info-icon: var(--color-status-info-icon);
+  --alert-info-text: var(--color-status-info-text);
+
+  color-scheme: light;
+}
+
+/* ---------- Semantic（Dark）：跟隨系統，除非使用者手動選了 light ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-page: var(--primitive-neutral-950);
+    --color-bg-surface: var(--primitive-neutral-900);
+    --color-bg-raised: var(--primitive-neutral-850);
+    --color-bg-subtle: var(--primitive-neutral-850);
+    --color-bg-hover: var(--primitive-neutral-800);
+    --color-bg-pressed: var(--primitive-neutral-700);
+    --color-bg-selected: var(--primitive-brand-950);
+    --color-bg-disabled: var(--primitive-neutral-850);
+    --color-bg-backdrop: var(--primitive-neutral-950);
+    --color-text-primary: var(--primitive-neutral-50);
+    --color-text-secondary: var(--primitive-neutral-200);
+    --color-text-muted: var(--primitive-neutral-300);
+    --color-text-disabled: var(--primitive-neutral-400);
+    --color-text-link: var(--primitive-brand-300);
+    --color-text-selected: var(--primitive-brand-100);
+    --color-text-on-action: var(--primitive-neutral-950);
+    --color-text-on-danger: var(--primitive-neutral-950);
+    --color-border-default: var(--primitive-neutral-700);
+    --color-border-strong: var(--primitive-neutral-400);
+    --color-border-selected: var(--primitive-brand-300);
+    --color-border-disabled: var(--primitive-neutral-700);
+    --color-focus-ring: var(--primitive-brand-300);
+    --color-action-primary: var(--primitive-brand-300);
+    --color-action-primary-hover: var(--primitive-brand-200);
+    --color-action-primary-pressed: var(--primitive-brand-400);
+    --color-action-danger: var(--primitive-red-300);
+    --color-action-danger-hover: var(--primitive-red-50);
+    --color-action-danger-pressed: var(--primitive-red-400);
+    --color-accent-bg: var(--primitive-violet-950);
+    --color-accent-text: var(--primitive-violet-300);
+    --color-status-success-bg: var(--primitive-green-950);
+    --color-status-success-border: var(--primitive-green-400);
+    --color-status-success-icon: var(--primitive-green-300);
+    --color-status-success-text: var(--primitive-green-300);
+    --color-status-warning-bg: var(--primitive-amber-950);
+    --color-status-warning-border: var(--primitive-amber-400);
+    --color-status-warning-icon: var(--primitive-amber-300);
+    --color-status-warning-text: var(--primitive-amber-300);
+    --color-status-error-bg: var(--primitive-red-950);
+    --color-status-error-border: var(--primitive-red-400);
+    --color-status-error-icon: var(--primitive-red-300);
+    --color-status-error-text: var(--primitive-red-300);
+    --color-status-info-bg: var(--primitive-indigo-950);
+    --color-status-info-border: var(--primitive-indigo-400);
+    --color-status-info-icon: var(--primitive-indigo-300);
+    --color-status-info-text: var(--primitive-indigo-300);
+    color-scheme: dark;
+  }
+}
+
+/* ---------- Semantic（Dark）：手動切換；內容必須與上方 @media 區塊相同（有測試檢查） ---------- */
+:root[data-theme="dark"] {
+  --color-bg-page: var(--primitive-neutral-950);
+  --color-bg-surface: var(--primitive-neutral-900);
+  --color-bg-raised: var(--primitive-neutral-850);
+  --color-bg-subtle: var(--primitive-neutral-850);
+  --color-bg-hover: var(--primitive-neutral-800);
+  --color-bg-pressed: var(--primitive-neutral-700);
+  --color-bg-selected: var(--primitive-brand-950);
+  --color-bg-disabled: var(--primitive-neutral-850);
+  --color-bg-backdrop: var(--primitive-neutral-950);
+  --color-text-primary: var(--primitive-neutral-50);
+  --color-text-secondary: var(--primitive-neutral-200);
+  --color-text-muted: var(--primitive-neutral-300);
+  --color-text-disabled: var(--primitive-neutral-400);
+  --color-text-link: var(--primitive-brand-300);
+  --color-text-selected: var(--primitive-brand-100);
+  --color-text-on-action: var(--primitive-neutral-950);
+  --color-text-on-danger: var(--primitive-neutral-950);
+  --color-border-default: var(--primitive-neutral-700);
+  --color-border-strong: var(--primitive-neutral-400);
+  --color-border-selected: var(--primitive-brand-300);
+  --color-border-disabled: var(--primitive-neutral-700);
+  --color-focus-ring: var(--primitive-brand-300);
+  --color-action-primary: var(--primitive-brand-300);
+  --color-action-primary-hover: var(--primitive-brand-200);
+  --color-action-primary-pressed: var(--primitive-brand-400);
+  --color-action-danger: var(--primitive-red-300);
+  --color-action-danger-hover: var(--primitive-red-50);
+  --color-action-danger-pressed: var(--primitive-red-400);
+  --color-accent-bg: var(--primitive-violet-950);
+  --color-accent-text: var(--primitive-violet-300);
+  --color-status-success-bg: var(--primitive-green-950);
+  --color-status-success-border: var(--primitive-green-400);
+  --color-status-success-icon: var(--primitive-green-300);
+  --color-status-success-text: var(--primitive-green-300);
+  --color-status-warning-bg: var(--primitive-amber-950);
+  --color-status-warning-border: var(--primitive-amber-400);
+  --color-status-warning-icon: var(--primitive-amber-300);
+  --color-status-warning-text: var(--primitive-amber-300);
+  --color-status-error-bg: var(--primitive-red-950);
+  --color-status-error-border: var(--primitive-red-400);
+  --color-status-error-icon: var(--primitive-red-300);
+  --color-status-error-text: var(--primitive-red-300);
+  --color-status-info-bg: var(--primitive-indigo-950);
+  --color-status-info-border: var(--primitive-indigo-400);
+  --color-status-info-icon: var(--primitive-indigo-300);
+  --color-status-info-text: var(--primitive-indigo-300);
+  color-scheme: dark;
+}
