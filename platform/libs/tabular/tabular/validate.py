@@ -81,6 +81,8 @@ def _parse(spec: ColumnSpec, text: str) -> Any:
     else:  # str, category
         value = text
 
+    if spec.pattern is not None and not re.fullmatch(spec.pattern, text):
+        raise _CellError(f"「{text}」格式不符（應符合 {spec.pattern}）")
     if spec.allowed is not None and value not in spec.allowed and text not in [str(a) for a in spec.allowed]:
         allowed = "、".join(str(a) for a in spec.allowed)
         raise _CellError(f"「{text}」不在允許值（{allowed}）之內")

@@ -17,6 +17,7 @@ Non-required columns may be absent from the file and may contain empty values.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -35,6 +36,7 @@ class ColumnSpec:
     max: Any = None
     allowed: list[Any] | None = None
     unique: bool = False
+    pattern: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ColumnSpec":
@@ -59,6 +61,12 @@ class ColumnSpec:
         allowed = data.get("allowed")
         if allowed is not None and not isinstance(allowed, list):
             raise TabularError(f"欄位「{name}」的 allowed 必須是清單", code="schema_invalid")
+        pattern = data.get("pattern")
+        if pattern is not None:
+            try:
+                re.compile(pattern)
+            except (re.error, TypeError):
+                raise TabularError(f"欄位「{name}」的 pattern 不是合法的正規表示式", code="schema_invalid") from None
         return cls(
             name=name,
             type=ctype,
@@ -67,6 +75,7 @@ class ColumnSpec:
             max=hi,
             allowed=list(allowed) if allowed is not None else None,
             unique=bool(data.get("unique", False)),
+            pattern=pattern,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,6 +87,7 @@ class ColumnSpec:
             "max": self.max,
             "allowed": self.allowed,
             "unique": self.unique,
+            "pattern": self.pattern,
         }
 
 

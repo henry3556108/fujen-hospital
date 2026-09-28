@@ -15,18 +15,18 @@ BAD_PER_REASON = 2
 SCHEMA = {
     "description": "Column rules for the platform CSV validator (TC-B01-10).",
     "columns": [
-        {"name": "patient_id", "type": "string", "required": True, "unique": True, "pattern": r"^P\d{5}$"},
-        {"name": "age", "type": "integer", "required": True, "min": 18, "max": 100},
+        {"name": "patient_id", "type": "str", "required": True, "unique": True, "pattern": r"^P\d{5}$"},
+        {"name": "age", "type": "int", "required": True, "min": 18, "max": 100},
         {"name": "sex", "type": "category", "required": True, "allowed": ["M", "F"]},
-        {"name": "bmi", "type": "number", "required": False, "min": 12, "max": 60},
-        {"name": "sbp", "type": "integer", "required": True, "min": 70, "max": 250},
-        {"name": "dbp", "type": "integer", "required": True, "min": 40, "max": 150},
-        {"name": "glucose", "type": "number", "required": False, "min": 40, "max": 500},
+        {"name": "bmi", "type": "float", "required": False, "min": 12, "max": 60},
+        {"name": "sbp", "type": "int", "required": True, "min": 70, "max": 250},
+        {"name": "dbp", "type": "int", "required": True, "min": 40, "max": 150},
+        {"name": "glucose", "type": "float", "required": False, "min": 40, "max": 500},
         {"name": "smoker", "type": "category", "required": True, "allowed": ["never", "former", "current"]},
-        {"name": "diagnosis", "type": "integer", "required": True, "min": 0, "max": 1},
-        {"name": "time_to_event", "type": "integer", "required": True, "min": 1, "max": 3650},
-        {"name": "event", "type": "integer", "required": True, "min": 0, "max": 1},
-        {"name": "study_accession", "type": "string", "required": False, "pattern": r"^ACC\d{4}$"},
+        {"name": "diagnosis", "type": "int", "required": True, "min": 0, "max": 1},
+        {"name": "time_to_event", "type": "int", "required": True, "min": 1, "max": 3650},
+        {"name": "event", "type": "int", "required": True, "min": 0, "max": 1},
+        {"name": "study_accession", "type": "str", "required": False, "pattern": r"^ACC\d{4}$"},
     ],
 }
 COLUMNS = [c["name"] for c in SCHEMA["columns"]]

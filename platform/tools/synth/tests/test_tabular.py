@@ -25,12 +25,12 @@ def check(schema: dict, rows: list[dict]) -> dict[int, set[str]]:
                     bad.add("missing_required")
                 continue
             kind = col["type"]
-            if kind == "integer":
+            if kind == "int":
                 if not re.fullmatch(r"-?\d+", raw):
                     bad.add("wrong_type")
                     continue
                 value = int(raw)
-            elif kind == "number":
+            elif kind == "float":
                 try:
                     value = float(raw)
                 except ValueError:
@@ -87,7 +87,7 @@ def test_schema_describes_every_column(generated):
     header, _ = read_csv(out / manifest["clean_files"][0])
     assert [c["name"] for c in schema["columns"]] == header
     for col in schema["columns"]:
-        assert col["type"] in {"string", "integer", "number", "category"}
+        assert col["type"] in {"str", "int", "float", "category"}
         assert isinstance(col["required"], bool)
     assert any(c.get("unique") for c in schema["columns"])
 
