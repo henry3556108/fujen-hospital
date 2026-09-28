@@ -1,6 +1,6 @@
 # 本機整合環境（Docker Compose）
 
-PostgreSQL、Keycloak、APISIX Gateway、平台 API。平台 API 不對主機開放連接埠，只能經 Gateway（`http://localhost:9080`）存取。
+PostgreSQL、Keycloak、APISIX Gateway、平台 API、Orthanc（平台節點＋模擬 PACS）、MinIO。平台 API、平台 Orthanc、MinIO 不對主機開放連接埠，只能經 Gateway（`http://localhost:9080`）存取。
 
 ## 啟動
 
@@ -20,12 +20,44 @@ cd platform/web && VITE_API_BASE=http://localhost:9080 VITE_AUTH_MODE=oidc npm r
 cd platform/web && npm run test:e2e:real                          # 真的 Keycloak 登入
 ```
 
+## 影像服務（WP2）
+
+| 服務 | 用途 | 主機連接埠 |
+|---|---|---|
+| `orthanc` | 平台自己的 DICOM 節點（AET `PLATFORM`，只載入 DICOMweb 外掛）。REST 需要 Basic 認證 | 無；DICOMweb 只能經 Gateway |
+| `orthanc-pacs` | 模擬醫院 PACS（AET `PACS`）。平台節點以 C-FIND／C-MOVE 查詢取像 | `127.0.0.1:${PACS_HTTP_PORT:-8043}`（只給驗收測試放入研究） |
+| `minio` | S3 相容物件儲存（NIfTI、ITK、標註檔）；API 以 `STORAGE_BACKEND=s3` 使用 | 無 |
+
+- Orthanc 映像 `jodogne/orthanc-plugins` 只有 amd64，在 Apple Silicon 以模擬執行（啟動約 5 秒，足夠測試用）。設定在 `orthanc/platform/`、`orthanc/pacs/`。
+- DICOMweb 路由：`/dicomweb/projects/{pid}/studies/{StudyInstanceUID}/...` → APISIX `forward-auth` 呼叫 `api:8000/authz/check`（專案權限、研究在專案內、Accession 清單、series／instance 屬於該研究、非正規路徑一律拒絕、只允許 GET/HEAD）→ 改寫成 Orthanc `/dicom-web/...`，由 Gateway 換上 Orthanc 認證。研究列表搜尋只接受 `/studies?StudyInstanceUID=<單一 UID>`。
+- 批次匯入 CLI（`platform/tools/importer`）使用 Keycloak client `ai-platform-importer`（device-code；本機驗收可用帳密）：
+
+```bash
+cd platform/tools/importer
+uv run python -m importer login                                   # device-code；或 --username ra01 --password-stdin
+uv run python -m importer upload --project P1-lung-ct --exclude manifest.json ../synth/out/dicom
+```
+
+- 驗收：`cd platform/acceptance && PACS_URL=http://127.0.0.1:8043 uv run pytest -q test_tc_b01.py`（未設定 `SYNTH_DIR` 時會自動產生合成資料；設定 `COMPOSE_PROJECT=ai-platform` 會另外查稽核表）。
+
+## 與共用環境並行啟動第二套
+
+主機連接埠可用環境變數改掉，搭配不同的 compose 專案名稱：
+
+```bash
+KEYCLOAK_HOST_PORT=18080 GATEWAY_HOST_PORT=19080 PACS_HTTP_PORT=18043 docker compose -p ai-platform-wp2 up -d --build
+cd platform/acceptance && GATEWAY_URL=http://localhost:19080 KEYCLOAK_URL=http://localhost:18080 PACS_URL=http://127.0.0.1:18043 uv run pytest -q
+docker compose -p ai-platform-wp2 down -v
+```
+
+Keycloak 的 `KC_HOSTNAME` 固定為 `http://localhost:8080`，所以 token 的 issuer 不隨主機連接埠改變，API 驗證不受影響；只有 device-code 畫面顯示的網址仍是 8080。
+
 ## 已知狀況
 
 - 若 `docker pull` 卡住不動，通常是 Docker Desktop 的憑證工具在等 macOS 鑰匙圈授權。可以按下鑰匙圈視窗的「允許」，或暫時用不含 `credsStore` 的設定檔下載公開映像：
   `DOCKER_CONFIG=<含 {"auths":{}} 的資料夾> DOCKER_HOST=unix://$HOME/.docker/run/docker.sock docker compose pull`
 - `realm-ai-platform.json` 的 `directAccessGrantsEnabled` 只為本機驗收腳本取 token，正式環境必須關閉。
-- 所有密碼都是本機測試值，不可用於甲方環境。
+- 所有密碼都是本機測試值，不可用於甲方環境（含 Orthanc 帳號、MinIO root 金鑰、`apisix.yaml` 內的 Orthanc Basic 認證）。
 
 ## 停止
 
