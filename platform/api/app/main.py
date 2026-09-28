@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from app import admin_service
 from app.db import make_engine, make_sessionmaker
 from app.models import Base
-from app.routers import me
+from app.routers import admin, me
 
 
 def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None) -> FastAPI:
@@ -14,7 +16,16 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None) -> F
     app.state.verifier = verifier
     app.state.idp = idp
 
+    @app.exception_handler(admin_service.Conflict)
+    def _conflict(request: Request, exc: admin_service.Conflict):
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.exception_handler(admin_service.NotFound)
+    def _not_found(request: Request, exc: admin_service.NotFound):
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
+
     app.include_router(me.router)
+    app.include_router(admin.router)
 
     @app.get("/healthz")
     def healthz() -> dict:
