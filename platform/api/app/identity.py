@@ -31,6 +31,8 @@ class JwtVerifier:
                 token, key, algorithms=["RS256"], audience=self.audience, issuer=self.issuer,
                 options={"require": ["exp", "iss", "sub", "aud"]},
             )
+            if claims.get("typ") != "Bearer":  # Keycloak 的 ID token、refresh token 不能當 access token 用
+                raise TokenError("不是 access token")
         except Exception as exc:  # PyJWT 與取公鑰的錯誤一律視為無效 token
             raise TokenError(str(exc)) from exc
         return Identity(subject=claims["sub"], username=claims.get("preferred_username", claims["sub"]))

@@ -21,12 +21,14 @@ def rsa_key():
 
 @pytest.fixture
 def make_token(rsa_key):
-    def _make(sub, username=None, *, expires_in=300, issuer=ISSUER, audience=AUDIENCE, key=None):
+    def _make(sub, username=None, *, expires_in=300, issuer=ISSUER, audience=AUDIENCE, key=None, typ="Bearer"):
         now = int(time.time())
         claims = {
             "sub": sub, "preferred_username": username or sub,
             "iss": issuer, "aud": audience, "iat": now, "exp": now + expires_in,
         }
+        if typ is not None:
+            claims["typ"] = typ
         return jwt.encode(claims, key or rsa_key, algorithm="RS256")
     return _make
 

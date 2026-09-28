@@ -59,6 +59,18 @@ def delete_project(session: Session, *, actor: str, project_id: int, source_ip: 
     session.commit()
 
 
+def _commit_after_idp(session: Session, idp_call) -> None:
+    """先把資料庫變更（含稽核）flush 成功，再呼叫身分提供者，最後 commit。
+    資料庫這側先失敗時，身分提供者完全不會被動到。"""
+    try:
+        session.flush()
+        idp_call()
+    except Exception:
+        session.rollback()
+        raise
+    session.commit()
+
+
 def _admin_count(session: Session) -> int:
     return session.scalar(select(func.count()).select_from(User).where(User.account_type == AccountType.ADMIN))
 
@@ -102,21 +114,19 @@ def delete_user(session: Session, idp: IdentityProvider, *, actor_user: User, us
         raise Conflict("不能刪除自己的帳號")
     if user.account_type == AccountType.ADMIN and _admin_count(session) <= 1:
         raise Conflict("至少要保留 1 個 Admin")
-    idp.delete_user(user.idp_subject)
     session.execute(delete(Membership).where(Membership.user_id == user_id))
     session.delete(user)
     record(session, actor=actor_user.username, category=AuditCategory.ACCOUNT, action="delete",
            target=f"user:{user_id}", source_ip=source_ip, detail={"username": user.username})
-    session.commit()
+    _commit_after_idp(session, lambda: idp.delete_user(user.idp_subject))
 
 
 def reset_password(session: Session, idp: IdentityProvider, *, actor: str, user_id: int, new_password: str,
                    source_ip: str | None = None) -> None:
     user = _get(session, User, user_id)
-    idp.reset_password(user.idp_subject, new_password)
     record(session, actor=actor, category=AuditCategory.ACCOUNT, action="reset_password",
            target=f"user:{user_id}", source_ip=source_ip)
-    session.commit()
+    _commit_after_idp(session, lambda: idp.reset_password(user.idp_subject, new_password))
 
 
 def set_membership(session: Session, *, actor: str, project_id: int, user_id: int, role: Role,

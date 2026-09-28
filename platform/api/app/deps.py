@@ -15,9 +15,10 @@ def get_session(request: Request) -> Iterator[Session]:
 
 
 def client_ip(request: Request) -> str | None:
+    # Gateway 會把它看到的來源附加在最右邊；左邊的值是用戶端自己帶的，不可信。
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else None
 
 

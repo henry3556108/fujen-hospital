@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from app import admin_service
 from app.db import make_engine, make_sessionmaker
@@ -23,6 +24,11 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None) -> F
     @app.exception_handler(admin_service.NotFound)
     def _not_found(request: Request, exc: admin_service.NotFound):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(IntegrityError)
+    def _integrity(request: Request, exc: IntegrityError):
+        # 事前檢查擋不住併發的重複名稱，由資料庫唯一鍵兜底
+        return JSONResponse(status_code=409, content={"detail": "資料重複，請改用其他名稱"})
 
     app.include_router(me.router)
     app.include_router(admin.router)

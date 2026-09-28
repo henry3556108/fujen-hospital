@@ -38,15 +38,25 @@ _RULES: list[tuple[re.Pattern, Permission]] = [
 ]
 
 
-def _normalize(path: str) -> str:
-    # 不用 urlsplit：它會把 "//api/..." 的 "api" 當成主機名稱。
+_FORBIDDEN_CHARS = ("%", ";", "\\", "\x00")
+
+
+def _canonical(path: str) -> str | None:
+    """回傳正規路徑；只要路徑不是正規形式（多次編碼、;、\\、NUL、. 或 .. 區段、//）就回 None。
+    Gateway 轉送的是原始路徑，若這裡「正規化後放行」，上游解讀不同就會被繞過，所以一律拒絕。"""
     decoded = unquote(path.split("?", 1)[0])
-    return posixpath.normpath("/" + decoded.lstrip("/"))
+    if any(c in decoded for c in _FORBIDDEN_CHARS):
+        return None
+    if posixpath.normpath(decoded) != decoded or decoded.startswith("//"):
+        return None
+    return decoded
 
 
 def match_rule(path: str) -> tuple[int, Permission] | None:
     """由 Gateway 轉來的原始路徑決定專案與所需權限；比對不到就回 None（呼叫端預設拒絕）。"""
-    normalized = _normalize(path)
+    normalized = _canonical(path)
+    if normalized is None:
+        return None
     for pattern, permission in _RULES:
         m = pattern.match(normalized)
         if m:

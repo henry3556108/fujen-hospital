@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,14 +12,15 @@ router = APIRouter(prefix="/api/admin")
 
 
 class ProjectIn(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     description: str = ""
     gpu_group: str | None = None
 
 
 class ProjectPatch(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    # name、description 省略代表不改；明確給 null 會被拒絕（欄位不可為空）。gpu_group 可設為 null 表示解除綁定。
+    name: str = Field(default=None, min_length=1)
+    description: str = Field(default=None)
     gpu_group: str | None = None
 
 
@@ -55,8 +56,8 @@ def delete_project(project_id: int, request: Request, admin: User = Depends(requ
 
 
 class UserIn(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
     account_type: AccountType
 
 
@@ -65,7 +66,7 @@ class UserPatch(BaseModel):
 
 
 class PasswordReset(BaseModel):
-    new_password: str
+    new_password: str = Field(min_length=1)
 
 
 def user_out(u: User) -> dict:
