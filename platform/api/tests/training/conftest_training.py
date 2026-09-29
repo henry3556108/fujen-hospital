@@ -231,3 +231,20 @@ def start(client, headers, pid, body, executor="fake") -> dict:
     setting = ok(client.post(f"/api/projects/{pid}/training/settings", headers=headers, json=body), 201)
     return ok(client.post(f"/api/projects/{pid}/training/settings/{setting['id']}/runs", headers=headers,
                           json={"executor": executor}), 201)
+
+
+def run_container(client, backend, headers, run: dict, workdir: Path) -> dict:
+    """用真正的 Job 進入點（trainer.runner）執行：TestClient 本身就是 httpx.Client。
+    結構式範本與 fake-trainer 只需要平台 API 環境裡已有的套件，所以這裡是真的訓練。"""
+    from trainer.runner import JobIO, run_job
+
+    env = job_env(backend, run)
+    path = "/api/job-io/runs/" + env["JOB_IO_URL"].rsplit("/api/job-io/runs/", 1)[1]
+    code = run_job(JobIO(client, path, env["JOB_IO_TOKEN"]), workdir)
+    if code != 0:                      # 容器以非 0 結束 → 排程把工作記為失敗
+        from dataclasses import replace
+
+        job = next(j for j in backend._jobs.values() if dict(j.spec.env).get("RUN_ID") == str(run["id"]))
+        job.spec = replace(job.spec, fail=True)
+    backend.advance(60)
+    return ok(client.get(f"/api/projects/{run['project_id']}/training/runs/{run['id']}", headers=headers))
