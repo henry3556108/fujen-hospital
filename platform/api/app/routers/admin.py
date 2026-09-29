@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import admin_service
+from app import admin_service, project_cleanup
 from app.deps import client_ip, get_session, require_admin
 from app.models import Project, User
 from app.permissions import AccountType, Permission, Role, split_permissions
@@ -51,7 +51,12 @@ def update_project(project_id: int, body: ProjectPatch, request: Request, admin:
 @router.delete("/projects/{project_id}", status_code=204)
 def delete_project(project_id: int, request: Request, admin: User = Depends(require_admin),
                    session: Session = Depends(get_session)) -> Response:
-    admin_service.delete_project(session, actor=admin.username, project_id=project_id, source_ip=client_ip(request))
+    state = request.app.state
+    admin_service.delete_project(session, actor=admin.username, project_id=project_id, source_ip=client_ip(request),
+                                 store=state.store, orthanc=getattr(state, "orthanc", None))
+    frames = getattr(state, "tabular_frames", None)
+    if frames is not None:  # 專案的 DataFrame 快取一併清掉
+        frames.evict_prefix(project_cleanup.project_prefix(project_id))
     return Response(status_code=204)
 
 

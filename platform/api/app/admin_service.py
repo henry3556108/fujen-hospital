@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit
+from app import audit, project_cleanup
 from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
@@ -66,14 +66,19 @@ def _revoke_memberships(session: Session, condition, *, actor: str, reason: str,
     session.flush()
 
 
-def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None) -> None:
+def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None,
+                   store=None, orthanc=None) -> None:
+    """刪除專案與它的索引；commit 之後才清 Orthanc 影像與物件儲存檔案（失敗可重試，見 app.project_cleanup）。"""
     project = _get(session, Project, project_id)
+    name = project.name
     _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
                         source_ip=source_ip)
-    session.delete(project)
+    project_cleanup.stage(session, project_id)
+    session.delete(session.get(Project, project_id))
     record(session, actor=actor, category=AuditCategory.PROJECT, action="delete",
-           target=f"project:{project_id}", source_ip=source_ip, detail={"name": project.name})
+           target=f"project:{project_id}", source_ip=source_ip, detail={"name": name})
     session.commit()
+    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip)
 
 
 def _commit_after_idp(session: Session, idp_call) -> None:
