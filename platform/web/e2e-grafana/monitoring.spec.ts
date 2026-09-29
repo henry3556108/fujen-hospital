@@ -68,7 +68,10 @@ test('TC-C02-03 客製儀表板：2 種視覺效果，在網頁改更新頻率�
     await page.getByTestId('data-testid ButtonSelect option 1m').click();
     await expect(picker).toHaveAttribute('aria-label', /1 minute/);
     await page.getByTestId('data-testid Save dashboard button').click();
-    await page.getByTestId('Dashboard settings Save Dashboard Modal Save refresh checkbox').check();
+    // 原生 checkbox 透明度為 0、由樣式元件蓋住，改點它所在的 label 文字；後面以 API 驗證真的存成 1m
+    const saveRefresh = page.getByTestId('Dashboard settings Save Dashboard Modal Save refresh checkbox');
+    await page.getByText('Update default refresh value').click();
+    await expect(saveRefresh).toBeChecked();
     await page.getByTestId('data-testid Save dashboard drawer button').click();
     await expect(page.getByTestId('data-testid Save dashboard drawer button')).toHaveCount(0, { timeout: 15_000 });
 
@@ -84,6 +87,8 @@ test('TC-C02-03 客製儀表板：2 種視覺效果，在網頁改更新頻率�
       panels.map((p) => [p.type, p.title]),
     );
   } finally {
-    await page.request.delete(`${GRAFANA}/api/dashboards/uid/${uid}`);
+    // 用獨立的 Basic 認證請求清掉測試儀表板；沿用瀏覽器工作階段刪除時，頁面開著會讓請求卡住直到逾時
+    const auth = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString('base64')}`;
+    await request.delete(`${GRAFANA}/api/dashboards/uid/${uid}`, { headers: { Authorization: auth }, timeout: 10_000 });
   }
 });
