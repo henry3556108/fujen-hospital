@@ -64,3 +64,71 @@ def test_invalid_account_type_is_422(client, add_user):
     response = client.post("/api/admin/users", headers=admin,
                            json={"username": "x", "password": "Init-Passw0rd!", "account_type": "root"})
     assert response.status_code == 422
+
+
+def test_create_user_compensation_failure_keeps_original_error(client, add_user, idp, session, monkeypatch, caplog):
+    """資料庫寫入失敗、補償（刪除身分提供者帳號）也失敗時：往外拋的是原本的錯誤，補償失敗另外留下紀錄。"""
+    import logging
+
+    import pytest
+
+    from app import admin_service
+
+    _, admin = add_user("admin01", AccountType.ADMIN)
+
+    class DatabaseDown(Exception):
+        pass
+
+    def failing_record(*args, **kwargs):
+        raise DatabaseDown("資料庫寫入失敗")
+
+    def failing_delete(subject):
+        raise RuntimeError("idp down")
+
+    monkeypatch.setattr(admin_service, "record", failing_record)
+    monkeypatch.setattr(idp, "delete_user", failing_delete)
+
+    with caplog.at_level(logging.ERROR, logger="app.admin_service"), pytest.raises(DatabaseDown) as raised:
+        client.post("/api/admin/users", headers=admin,
+                    json={"username": "orphan01", "password": "Init-Passw0rd!", "account_type": "user"})
+
+    subject = idp.find_subject("orphan01")
+    assert subject is not None                                   # 孤兒帳號還在身分提供者裡
+    assert any("補償失敗" in r.getMessage() and subject in r.getMessage() for r in caplog.records)
+    assert any("補償" in note for note in getattr(raised.value, "__notes__", []))
+
+    monkeypatch.undo()
+    session.expire_all()
+    failed = session.scalars(select(AuditLog).where(AuditLog.action == "create.compensation_failed")).all()
+    assert [(e.category, e.result, e.actor, e.detail["username"], e.detail["idp_subject"]) for e in failed] == [
+        ("account", "failed", "admin01", "orphan01", subject)]
+    assert client.get("/api/admin/users", headers=admin).json() == [
+        {"id": 1, "username": "admin01", "account_type": "admin"}]   # 資料庫沒有留下半筆帳號
+
+
+def test_create_user_compensation_success_leaves_no_trace(client, add_user, idp, session, monkeypatch):
+    import pytest
+
+    from app import admin_service
+
+    _, admin = add_user("admin01", AccountType.ADMIN)
+
+    def failing_record(*args, **kwargs):
+        raise RuntimeError("資料庫寫入失敗")
+    monkeypatch.setattr(admin_service, "record", failing_record)
+    with pytest.raises(RuntimeError, match="資料庫寫入失敗"):
+        client.post("/api/admin/users", headers=admin,
+                    json={"username": "u1", "password": "Init-Passw0rd!", "account_type": "user"})
+    assert idp.find_subject("u1") is None
+
+
+def test_deleted_user_old_token_gets_401(client, add_user):
+    """回歸：經 API 刪除帳號後，仍在有效期內的舊 token 不能再用。"""
+    _, admin = add_user("admin01", AccountType.ADMIN)
+    ra, ra_headers = add_user("ra01")
+    assert client.get("/api/me", headers=ra_headers).status_code == 200
+    assert client.delete(f"/api/admin/users/{ra.id}", headers=admin).status_code == 204
+    for path in ("/api/me", "/api/admin/users", "/api/projects/1/imaging/studies"):
+        response = client.get(path, headers=ra_headers)
+        assert response.status_code == 401, path
+        assert response.json()["detail"] == "帳號不存在或已停用"

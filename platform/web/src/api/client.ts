@@ -30,11 +30,22 @@ const FIELD_LABELS: Record<string, string> = {
   account_type: '帳號類型',
   role: '角色',
   permissions: '權限',
+  time_slice_replicas: '時間片份數',
+  job_timeout_minutes: '工作時限（分鐘）',
+  duration_seconds: '執行秒數',
+  memory_mb: '記憶體（MB）',
+  gpu_count: 'GPU 數量',
+  pool: 'GPU 池',
+  mode: '模式',
+  accession_numbers: 'Accession 清單',
+  study_instance_uid: 'Study Instance UID',
 };
 
 function validationMessage(type: string | undefined, msg: string | undefined): string {
   if (type === 'string_too_short' || type === 'missing') return '不可空白';
   if (type === 'enum' || type === 'literal_error') return '值不在允許清單中';
+  if (type === 'greater_than_equal' || type === 'less_than_equal') return '數值超出允許範圍';
+  if (type === 'int_parsing' || type === 'int_type') return '必須是整數';
   return msg ?? '格式不正確';
 }
 
@@ -83,6 +94,20 @@ export interface ApiClient {
   patch<T>(path: string, body?: unknown): Promise<T>;
   put<T>(path: string, body?: unknown): Promise<T>;
   delete<T = void>(path: string): Promise<T>;
+  /** multipart/form-data 上傳（檔案）；Content-Type 由瀏覽器帶 boundary。 */
+  postForm<T>(path: string, form: FormData): Promise<T>;
+}
+
+/** 組查詢字串：略過 undefined／null／空字串；陣列展開成重複參數。 */
+export function withQuery(path: string, params: Record<string, string | number | string[] | null | undefined>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    if (Array.isArray(v)) v.forEach((x) => q.append(k, x));
+    else q.append(k, String(v));
+  }
+  const text = q.toString();
+  return text ? `${path}?${text}` : path;
 }
 
 export function createApiClient(opts: ApiClientOptions): ApiClient {
@@ -91,10 +116,15 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = await opts.getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
     let res: Response;
     try {
-      res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+      res = await fetch(url, {
+        method,
+        headers,
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+      });
     } catch {
       throw new ApiError(0, '無法連線到伺服器，請確認網路或稍後再試');
     }
@@ -119,5 +149,6 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     patch: (p, b) => request('PATCH', p, b),
     put: (p, b) => request('PUT', p, b),
     delete: (p) => request('DELETE', p),
+    postForm: (p, f) => request('POST', p, f),
   };
 }

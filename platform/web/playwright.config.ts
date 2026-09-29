@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 import { EDGE_MISSING, edgeInstalled } from './e2e/edge';
 
 // 瀏覽器測試：Vite dev server + MSW 模擬 API + test 登入模式（不需要 Docker、Keycloak）。
-// 使用 5199 port，避免與開發者手動開的 5173 衝突。
-const PORT = 5199;
+// 預設 5199 port，避免與開發者手動開的 5173 衝突；多個 worktree 同時跑時用 PW_PORT 換埠。
+const PORT = Number(process.env.PW_PORT ?? 5199);
 
 // 只在主程序印一次，讓執行者知道 msedge 的測試為何被略過
 if (!process.env.TEST_WORKER_INDEX && !edgeInstalled()) console.warn(`⚠ ${EDGE_MISSING}`);

@@ -11,8 +11,15 @@ import { AccessDenied, HomePage, ModulePlaceholder, NotFoundPage } from './pages
 import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
-import { SchedulingPlaceholder } from './pages/admin/SchedulingPlaceholder';
 import { FhirRoutes } from './pages/fhir/FhirLayout';
+import { LabelingPage } from './pages/labeling/LabelingPage';
+import { WorkbenchPage } from './pages/labeling/WorkbenchPage';
+import { AutoLabelPage } from './pages/labeling/AutoLabelPage';
+import { LlmRoutes } from './pages/llm/LlmRoutes';
+import { DataRoutes } from './pages/data/DataRoutes';
+import { SchedulingRoutes } from './pages/scheduling/SchedulingRoutes';
+import { JobsPage } from './pages/scheduling/JobsPage';
+import { TrainingLanding } from './pages/scheduling/TrainingLanding';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -86,10 +93,26 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route
-              path="admin/scheduling"
+              path="admin/scheduling/*"
               element={
                 <EntryGuard entry={adminEntry}>
-                  <SchedulingPlaceholder />
+                  <SchedulingRoutes />
+                </EntryGuard>
+              }
+            />
+            <Route
+              path="data/*"
+              element={
+                <EntryGuard entry={entryByKey('data')!}>
+                  <DataRoutes />
+                </EntryGuard>
+              }
+            />
+            <Route
+              path="training/jobs"
+              element={
+                <EntryGuard entry={entryByKey('training')!}>
+                  <JobsPage />
                 </EntryGuard>
               }
             />
@@ -115,13 +138,18 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
                 </EntryGuard>
               }
             />
+            {/* WP5a 影像標註 */}
+            <Route path="labeling" element={<EntryGuard entry={entryByKey('labeling')!}><LabelingPage /></EntryGuard>} />
+            <Route path="labeling/studies/:studyUid" element={<EntryGuard entry={entryByKey('labeling')!}><WorkbenchPage /></EntryGuard>} />
+            <Route path="auto-labeling" element={<EntryGuard entry={entryByKey('auto-labeling')!}><AutoLabelPage /></EntryGuard>} />
+            <Route path="llm/*" element={<EntryGuard entry={entryByKey('llm')!}><LlmRoutes /></EntryGuard>} />
             {ENTRIES.filter((e) => e.placeholder).map((e) => (
               <Route
                 key={e.key}
                 path={e.path.slice(1)}
                 element={
                   <EntryGuard entry={e}>
-                    <ModulePlaceholder entry={e} />
+                    {e.key === 'training' ? <TrainingLanding entry={e} /> : <ModulePlaceholder entry={e} />}
                   </EntryGuard>
                 }
               />

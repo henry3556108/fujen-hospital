@@ -1,0 +1,67 @@
+{
+  "file": "bad.csv",
+  "index_base": 0,
+  "index_note": "row = 0-based data row index, header excluded",
+  "rows": [
+    {
+      "column": "sbp",
+      "reason": "missing_required",
+      "row": 7,
+      "value": ""
+    },
+    {
+      "column": "patient_id",
+      "reason": "duplicate_id",
+      "row": 10,
+      "value": "P90001"
+    },
+    {
+      "column": "sbp",
+      "reason": "wrong_type",
+      "row": 12,
+      "value": "12O"
+    },
+    {
+      "column": "sex",
+      "reason": "unknown_category",
+      "row": 13,
+      "value": "unknown"
+    },
+    {
+      "column": "bmi",
+      "reason": "out_of_range",
+      "row": 14,
+      "value": "95.0"
+    },
+    {
+      "column": "age",
+      "reason": "out_of_range",
+      "row": 15,
+      "value": "150"
+    },
+    {
+      "column": "smoker",
+      "reason": "unknown_category",
+      "row": 17,
+      "value": "sometimes"
+    },
+    {
+      "column": "sbp",
+      "reason": "missing_required",
+      "row": 25,
+      "value": ""
+    },
+    {
+      "column": "age",
+      "reason": "wrong_type",
+      "row": 28,
+      "value": "forty"
+    },
+    {
+      "column": "patient_id",
+      "reason": "duplicate_id",
+      "row": 29,
+      "value": "P90001"
+    }
+  ]
+}

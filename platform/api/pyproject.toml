@@ -16,14 +16,21 @@ dependencies = [
     "python-multipart>=0.0.32",
     "kubernetes>=31",
     "fhir-resources>=8",
+    "langgraph>=0.2",
+    "pypdf>=5",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "httpx2>=2.13.1",
+    "pytest>=8",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# TestClient 要用 httpx2；若退回 httpx，Starlette 的棄用警告直接當成錯誤
+filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]
 
 [tool.uv.sources]
 tabular = { path = "../libs/tabular", editable = true }

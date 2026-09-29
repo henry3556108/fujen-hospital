@@ -98,6 +98,8 @@ spec:
             - { name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES, value: "false" }
             - { name: GF_PLUGINS_PREINSTALL_DISABLED, value: "true" }
             - { name: GF_NEWS_NEWS_FEED_ENABLED, value: "false" }
+            # Go 的 GC 不知道容器上限，會一路長到被 OOMKilled；給它軟上限讓它提早回收
+            - { name: GOMEMLIMIT, value: "450MiB" }
           ports: [{ name: http, containerPort: 3000 }]
           readinessProbe:
             httpGet: { path: /api/health, port: 3000 }
@@ -107,7 +109,7 @@ spec:
             - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
           resources:
             requests: { cpu: 20m, memory: 96Mi }
-            limits: { memory: 384Mi }
+            limits: { memory: 768Mi }   # 閒置約 300 MB；瀏覽器登入與存檔時會衝高，384Mi／640Mi 都被 OOMKilled 過
       volumes:
         - { name: provisioning, configMap: { name: grafana-provisioning } }
         - { name: dashboards, configMap: { name: grafana-dashboards } }

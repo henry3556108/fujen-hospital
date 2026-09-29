@@ -1,0 +1,91 @@
+name,version,type,licences
+ai-platform-api,0.1.0,python,（本平台未安裝，授權未讀取）
+aiohappyeyeballs,2.7.1,python,Python Software Foundation License
+aiohttp,3.14.3,python,Apache-2.0 AND MIT
+aiosignal,1.4.0,python,Apache Software License
+annotated-doc,0.0.5,python,MIT
+annotated-types,0.8.0,python,MIT
+anyio,4.15.1,python,MIT
+argon2-cffi,25.1.0,python,MIT
+argon2-cffi-bindings,26.1.0,python,MIT
+attrs,26.1.0,python,MIT
+autograd,1.9.1,python,MIT
+autograd-gamma,0.5.0,python,MIT License
+certifi,2026.7.22,python,Mozilla Public License 2.0 (MPL 2.0)
+cffi,2.1.1,python,MIT-0
+charset-normalizer,3.5.1,python,MIT
+click,8.5.0,python,BSD-3-Clause
+cloudpickle,3.1.2,python,BSD License
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+contourpy,1.4.0,python,BSD-3-Clause
+cryptography,50.0.1,python,Apache-2.0 OR BSD-3-Clause
+cycler,0.12.1,python,BSD License
+durationpy,0.11,python,MIT
+fastapi,0.141.1,python,MIT
+fonttools,4.66.0,python,MIT
+formulaic,1.2.2,python,MIT
+frozenlist,1.8.0,python,Apache-2.0
+h11,0.16.0,python,MIT License
+httpcore,1.0.9,python,BSD-3-Clause
+httpcore2,2.13.1,python,BSD-3-Clause
+httptools,0.8.0,python,MIT
+httpx,0.28.1,python,BSD License
+httpx2,2.13.1,python,BSD-3-Clause
+httpx2-jsfetch,1.0,python,（本平台未安裝，授權未讀取）
+idna,3.20,python,BSD-3-Clause
+iniconfig,2.3.0,python,MIT
+interface-meta,2.0.1,python,MIT
+joblib,1.6.0,python,BSD-3-Clause
+kiwisolver,1.5.1,python,BSD License
+kubernetes,36.0.3,python,Apache Software License
+lifelines,0.30.3,python,MIT License
+matplotlib,3.11.2,python,Python Software Foundation License
+minio,7.2.20,python,Apache Software License
+multidict,6.9.1,python,Apache License 2.0
+narwhals,2.26.0,python,MIT
+numpy,2.5.3,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+oauthlib,4.0.0,python,BSD-3-Clause
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pandas,2.3.3,python,BSD License
+patsy,1.0.3,python,BSD License
+pillow,12.3.0,python,MIT-CMU
+pluggy,1.6.0,python,MIT License
+propcache,0.5.4,python,Apache-2.0
+psycopg,3.3.6,python,LGPL-3.0-only
+psycopg-binary,3.3.6,python,LGPL-3.0-only
+pycparser,3.0,python,BSD-3-Clause
+pycryptodome,3.23.0,python,BSD License; Public Domain
+pydantic,2.13.5,python,MIT
+pydantic-core,2.46.5,python,MIT
+pydicom,3.0.2,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pyjwt,2.15.0,python,MIT
+pyparsing,3.3.3,python,MIT
+pytest,9.1.1,python,MIT
+python-dateutil,2.9.0.post0,python,Apache Software License; BSD License
+python-dotenv,1.2.3,python,BSD-3-Clause
+python-multipart,0.0.32,python,Apache-2.0
+pytz,2026.4,python,MIT License
+pyyaml,6.0.3,python,MIT License
+requests,2.34.2,python,Apache Software License
+requests-oauthlib,2.0.0,python,BSD License
+scikit-learn,1.9.1,python,BSD-3-Clause
+scipy,1.18.1,python,BSD License
+six,1.17.0,python,MIT License
+sqlalchemy,2.1.1,python,MIT
+starlette,1.7.0,python,BSD-3-Clause
+statsmodels,0.15.0,python,BSD-3-Clause
+tabular,0.1.0,python,
+threadpoolctl,3.7.0,python,BSD-3-Clause
+truststore,0.10.4,python,MIT
+typing-extensions,4.16.0,python,PSF-2.0
+typing-inspection,0.4.4,python,MIT
+tzdata,2026.4,python,Apache-2.0
+urllib3,2.8.0,python,MIT
+uvicorn,0.54.0,python,BSD-3-Clause
+uvloop,0.22.1,python,Apache Software License; MIT License
+watchfiles,1.3.0,python,MIT License
+websocket-client,1.9.2,python,Apache-2.0
+websockets,17.1,python,BSD-3-Clause
+wrapt,2.5.0,python,BSD-2-Clause
+yarl,1.25.1,python,Apache-2.0

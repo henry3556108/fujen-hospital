@@ -1,7 +1,8 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app import admin_service
+from app import admin_service, project_cleanup
+from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
 from app.permissions import AccountType, Role
@@ -31,7 +32,8 @@ def _fresh_user(session: Session, idp: IdentityProvider, actor: str, username: s
                                      password=DEV_PASSWORD, account_type=AccountType.USER)
 
 
-def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: str) -> dict:
+def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: str, store=None,
+                   orthanc=None) -> dict:
     subject = idp.find_subject(admin_username)
     if subject is None:
         raise RuntimeError(f"身分提供者中找不到 {admin_username}")
@@ -44,12 +46,22 @@ def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: s
         admin.account_type = AccountType.ADMIN.value
     session.commit()
 
+    others = session.scalars(select(User).where(User.id != admin.id)).all()
+    removed = {"users": len(others),
+               "projects": session.scalar(select(func.count()).select_from(Project)),
+               "memberships": session.scalar(select(func.count()).select_from(Membership))}
     session.execute(delete(Membership))
-    for user in session.scalars(select(User).where(User.id != admin.id)).all():
+    for user in others:
         idp.delete_user(user.idp_subject)
         session.delete(user)
+    for project_id in session.scalars(select(Project.id)).all():
+        project_cleanup.stage(session, project_id)   # 索引列與待清理清單；外部資料在 commit 後才清
     session.execute(delete(Project))
+    # 稽核表不清；重設本身記 1 筆（管理設定歸 project 類），與清除同一個交易
+    record(session, actor=admin.username, category=AuditCategory.PROJECT, action="seed.reset",
+           target="baseline", detail={"removed": removed})
     session.commit()
+    project_cleanup.run_pending(session, store, orthanc, actor=admin.username)
 
     actor = admin.username
     projects = {
@@ -73,5 +85,6 @@ if __name__ == "__main__":
     from app.asgi import app, idp
 
     with app.state.sessionmaker() as s:
-        print(json.dumps(reset_and_seed(s, idp, admin_username=os.environ.get("SEED_ADMIN", "admin01")),
+        print(json.dumps(reset_and_seed(s, idp, admin_username=os.environ.get("SEED_ADMIN", "admin01"),
+                                        store=app.state.store, orthanc=getattr(app.state, "orthanc", None)),
                          ensure_ascii=False, indent=2))

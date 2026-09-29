@@ -30,13 +30,13 @@ const perm = (permission: Permission): EntryRule => ({ kind: 'permission', permi
 
 export const ENTRIES: readonly Entry[] = [
   { key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '專案、帳號與成員權限', rule: { kind: 'admin' }, placeholder: false },
-  { key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '醫療影像與結構式資料匯入', rule: perm('project'), placeholder: true },
-  { key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '影像標註平台', rule: perm('labeling'), placeholder: true },
-  { key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '自動標註整合', rule: perm('labeling'), placeholder: true },
+  { key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '醫療影像與結構式資料匯入', rule: perm('project'), placeholder: false },
+  { key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '影像標註平台', rule: perm('labeling'), placeholder: false },
+  { key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '自動標註整合', rule: perm('labeling'), placeholder: false },
   { key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '自動訓練與模型匯出', rule: perm('training'), placeholder: true },
   { key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '模型部署', rule: perm('prediction'), placeholder: true },
   { key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '推論服務', rule: perm('prediction'), placeholder: true },
-  { key: 'llm', label: 'LLM No-code 開發', path: '/llm', moduleCode: 'B-07／B-08', description: 'LLM、RAG 與工作流', rule: perm('coding'), placeholder: true },
+  { key: 'llm', label: 'LLM No-code 開發', path: '/llm', moduleCode: 'B-07／B-08', description: 'LLM、RAG 與工作流', rule: perm('coding'), placeholder: false },
 ];
 
 export type AccessResult = { allowed: true } | { allowed: false; reason: string };

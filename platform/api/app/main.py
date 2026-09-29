@@ -2,10 +2,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app import admin_service
+from app import admin_service, scanning
 from app.db import make_engine, make_sessionmaker
 from app.fhir import router as fhir_router
 from app.imaging.router import router as imaging_router
+from app.labeling.router import router as labeling_router
+from app.llm.router import router as llm_router
 from app.models import Base
 from app.routers import admin, authz_check, me
 from app.tabular_api.router import router as tabular_router
@@ -21,6 +23,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.state.verifier = verifier
     app.state.idp = idp
     app.state.store = store
+    scanning.install(app)  # 掃毒：app.state.scanner、物件儲存寫入前掃描、錯誤回應
 
     @app.exception_handler(admin_service.Conflict)
     def _conflict(request: Request, exc: admin_service.Conflict):
@@ -42,6 +45,8 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(imaging_router)
     app.include_router(scheduling.router)
     app.include_router(fhir_router)
+    app.include_router(labeling_router)
+    app.include_router(llm_router)
 
     @app.get("/healthz")
     def healthz() -> dict:

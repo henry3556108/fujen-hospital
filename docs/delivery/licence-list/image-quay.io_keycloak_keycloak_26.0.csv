@@ -1,0 +1,484 @@
+name,version,type,licences
+HdrHistogram,2.2.2,java-archive,"http://creativecommons.org/publicdomain/zero/1.0/, https://opensource.org/licenses/BSD-2-Clause"
+LatencyUtils,2.0.3,java-archive,"Public Domain, per Creative Commons CC0"
+aesh,2.8.2,java-archive,"Apache License, Version 2.0"
+agroal-api,2.5,java-archive,Apache-2.0
+agroal-narayana,2.5,java-archive,Apache-2.0
+agroal-pool,2.5,java-archive,Apache-2.0
+alternatives,1.24-1.el9_5.1,rpm,GPL-2.0-only
+angus-activation,2.0.2,java-archive,BSD-3-Clause
+angus-core,2.0.3,java-archive,
+angus-mail,2.0.3,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html, http://www.eclipse.org/org/do"
+antlr4-runtime,4.13.0,java-archive,https://www.antlr.org/license.html
+arc,3.15.1,java-archive,Apache License 2.0
+arc-processor,3.15.1,java-archive,Apache License 2.0
+arjuna,7.0.2.Final,java-archive,
+asm,9.7,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+asm-analysis,9.7,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+asm-commons,9.7,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+asm-tree,9.7,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+asm-util,9.7,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+basesystem,11-13.el9,rpm,Public Domain
+bash,5.1.8-9.el9,rpm,GPLv3+
+bcpkix-jdk18on,1.78.1,java-archive,
+bcprov-jdk18on,1.78.1,java-archive,
+bcutil-jdk18on,1.78.1,java-archive,
+byte-buddy,1.14.18,java-archive,Apache-2.0
+ca-certificates,2024.2.69_v8.0.303-91.4.el9_4,rpm,MIT AND GPL-2.0-or-later
+caffeine,3.1.5,java-archive,Apache-2.0
+cdi,7.0.2.Final,java-archive,
+classmate,1.7.0,java-archive,Apache-2.0
+common,7.0.2.Final,java-archive,
+commons-codec,1.17.1,java-archive,
+commons-codec,1.17.1,java-archive,Apache-2.0
+commons-collections4,4.4,java-archive,Apache-2.0
+commons-io,2.16.1,java-archive,Apache-2.0
+commons-lang3,3.14.0,java-archive,Apache-2.0
+commons-logging-jboss-logging,1.0.0.Final,java-archive,Apache License 2.0
+core,3.4.0,java-archive,"""The Apache Software License, Version 2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+coreutils-single,8.32-36.el9,rpm,GPLv3+
+crypto-policies,20240828-2.git626aa59.el9_5,rpm,LGPL-2.1-or-later
+crypto-policies-scripts,20240828-2.git626aa59.el9_5,rpm,LGPL-2.1-or-later
+error_prone_annotations,2.30.0,java-archive,"""Apache 2.0"";link=""http://www.apache.org/licenses/LICENSE-2.0.txt"""
+filesystem,3.16-5.el9,rpm,Public Domain
+findutils,1:4.8.0-7.el9,rpm,GPLv3+
+freemarker,2.3.32,java-archive,"Apache License, Version 2.0; see: http://www.apache.org/licenses/LICENSE-2.0.txt"
+gizmo,1.8.0,java-archive,"The Apache Software License, Version 2.0"
+glibc,2.34-125.el9_5.1,rpm,LGPLv2+ and LGPLv2+ with exceptions and GPLv2+ and GPLv2+ with exceptions and BSD and Inner-Net and ISC and Public Domai
+glibc-common,2.34-125.el9_5.1,rpm,LGPLv2+ and LGPLv2+ with exceptions and GPLv2+ and GPLv2+ with exceptions and BSD and Inner-Net and ISC and Public Domai
+glibc-langpack-en,2.34-125.el9_5.1,rpm,LGPLv2+ and LGPLv2+ with exceptions and GPLv2+ and GPLv2+ with exceptions and BSD and Inner-Net and ISC and Public Domai
+grep,3.6-5.el9,rpm,GPLv3+
+grpc-api,1.65.1,java-archive,
+grpc-context,1.65.1,java-archive,
+grpc-core,1.65.1,java-archive,
+grpc-netty,1.65.1,java-archive,
+grpc-protobuf,1.65.1,java-archive,
+grpc-protobuf-lite,1.65.1,java-archive,
+grpc-stub,1.65.1,java-archive,
+grpc-util,1.65.1,java-archive,
+gson,2.11.0,java-archive,"""Apache-2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+guava,33.2.1-jre,java-archive,Apache-2.0
+h2,2.3.230,java-archive,https://h2database.com/html/license.html
+hibernate-commons-annotations,7.0.1.Final,java-archive,
+hibernate-core,6.6.0.Final,java-archive,
+hibernate-graalvm,6.6.0.Final,java-archive,
+httpclient,4.5.14,java-archive,
+httpclient,4.5.14,java-archive,Apache-2.0
+httpcore,4.4.16,java-archive,
+httpcore,4.4.16,java-archive,Apache-2.0
+imap,2.0.3,java-archive,
+infinispan-api,15.0.11.Final,java-archive,sha256:71ef729b98f5b87cdd3e540e4c3b5289e027506ed3f787fca2aa5488ef50e158
+infinispan-cachestore-remote,15.0.11.Final,java-archive,sha256:c3fc3d79ff27fa3501af46e07242fa336703e4f42db35a1aa8531ac4587cafaa
+infinispan-client-hotrod,15.0.11.Final,java-archive,sha256:447c013de234449601d10c328b01339787e7641839af11e949ec9c7b648b1bae
+infinispan-commons,15.0.11.Final,java-archive,sha256:aa310d715015dce62a678b02cbed4c9588920131fcbb2914e0f145df069087e8
+infinispan-core,15.0.11.Final,java-archive,sha256:db44da7949e0cb7df65d050d86f27f1447e1fac31e06a8a6c920547427e3d4c7
+infinispan-multimap,15.0.11.Final,java-archive,sha256:22bb548a323865d66b0ceca8c2b0ea2b806c274cc026314cd47817be26a67f25
+infinispan-query-dsl,15.0.11.Final,java-archive,sha256:83f4863da5689c226115d960efcf295e25a033b615eab3303a6b40db0864c969
+infinispan-remote-query-client,15.0.11.Final,java-archive,sha256:24f1648adf5d37c8f93ff9a71860002938fa297d2077080a6766b8b2d552e327
+istack-commons-runtime,3.0.10,java-archive,BSD-3-Clause
+jackson-annotations,2.17.2,java-archive,Apache-2.0
+jackson-core,2.17.2,java-archive,Apache-2.0
+jackson-core,2.17.2,java-archive,"The Apache Software License, Version 2.0"
+jackson-databind,2.17.2,java-archive,Apache-2.0
+jackson-databind,2.17.2,java-archive,"The Apache Software License, Version 2.0"
+jackson-dataformat-cbor,2.17.2,java-archive,Apache-2.0
+jackson-dataformat-yaml,2.17.2,java-archive,Apache-2.0
+jackson-datatype-jdk8,2.17.2,java-archive,
+jackson-datatype-jdk8,2.17.2,java-archive,Apache-2.0
+jackson-datatype-jsr310,2.17.2,java-archive,
+jackson-datatype-jsr310,2.17.2,java-archive,Apache-2.0
+jackson-module-parameter-names,2.17.2,java-archive,Apache-2.0
+jakarta.activation-api,2.1.3,java-archive,BSD-3-Clause
+jakarta.activation-api,2.1.3,java-archive,EDL 1.0
+jakarta.annotation-api,3.0.0,java-archive,"https://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.el-api,5.0.1,java-archive,"https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt, https://www.gnu.org/software/classpath/license.html"
+jakarta.enterprise.cdi-api,4.1.0,java-archive,Apache-2.0
+jakarta.enterprise.lang-model,4.1.0,java-archive,https://apache.org/licenses/LICENSE-2.0.txt
+jakarta.inject-api,2.0.1,java-archive,Apache-2.0
+jakarta.interceptor-api,2.2.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.json-api,2.1.3,java-archive,"https://projects.eclipse.org/license/epl-2.0, https://projects.eclipse.org/license/secondary-gpl-2.0-cp"
+jakarta.mail-api,2.1.1,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html, http://www.eclipse.org/org/do"
+jakarta.persistence-api,3.1.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, http://www.eclipse.org/org/documents/edl-v10.php"
+jakarta.resource-api,2.1.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.servlet-api,6.0.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.transaction-api,2.0.1,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.validation-api,3.0.2,java-archive,Apache-2.0
+jakarta.ws.rs-api,3.1.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.xml.bind-api,4.0.2,java-archive,BSD-3-Clause
+jakarta.xml.soap-api,3.0.0,java-archive,BSD-3-Clause
+jandex,3.2.2,java-archive,Apache-2.0
+jansi,2.4.0,java-archive,Apache-2.0
+java-21-openjdk-headless,1:21.0.6.0.7-1.el9,rpm,ASL 1.1 and ASL 2.0 and BSD and BSD with advertising and GPL+ and GPLv2 and GPLv2 with exceptions and IJG and LGPLv2+ an
+java10-shim,20240325.1,java-archive,
+java8-shim,20240325.1,java-archive,
+javapackages-filesystem,6.0.0-7.el9_5,rpm,BSD
+javase,3.4.0,java-archive,
+jaxb-api,2.3.1,java-archive,"https://oss.oracle.com/licenses/CDDL+GPL-1.1, https://oss.oracle.com/licenses/CDDL+GPL-1.1"
+jaxb-core,4.0.5,java-archive,BSD-3-Clause
+jaxb-runtime,4.0.5,java-archive,BSD-3-Clause
+jboss-invocation,2.0.0.Final,java-archive,Apache License 2.0
+jboss-logging,3.6.0.Final,java-archive,Apache License 2.0
+jboss-logging,3.6.0.Final,java-archive,https://repository.jboss.org/licenses/apache-2.0.txt
+jboss-logging-annotations,3.0.1.Final,java-archive,Apache License 2.0
+jboss-logmanager,3.0.6.Final,java-archive,Apache License 2.0
+jboss-threads,3.6.1.Final,java-archive,Apache-2.0
+jboss-transaction-spi,8.0.0.Final,java-archive,
+jctools-core,4.0.5,java-archive,"Apache License, Version 2.0"
+jctools-core,4.0.5,java-archive,Apache-2.0
+jdbc,7.0.2.Final,java-archive,
+jgroups,5.3.10.Final,java-archive,Apache-2.0
+jms,7.0.2.Final,java-archive,
+jna,5.8.0,java-archive,Apache-2.0; LGPL-2.1-only
+jna-platform,5.8.0,java-archive,Apache-2.0; LGPL-2.1-only
+jrt-fs,21.0.6,java-archive,
+jsr305,3.0.2,java-archive,Apache-2.0
+jta,7.0.2.Final,java-archive,
+jts-core,1.19.0,java-archive,"https://github.com/locationtech/jts/blob/master/LICENSE_EPLv2.txt, https://github.com/locationtech/jts/blob/master/LICEN"
+kerby-asn1,2.0.3,java-archive,Apache-2.0
+keycloak-account-ui,26.0.8,java-archive,
+keycloak-admin-cli,26.0.8,java-archive,Apache-2.0; BSD-3-Clause
+keycloak-admin-ui,26.0.8,java-archive,
+keycloak-authz-policy-common,26.0.8,java-archive,
+keycloak-common,26.0.8,java-archive,
+keycloak-config-api,26.0.8,java-archive,
+keycloak-core,26.0.8,java-archive,
+keycloak-crypto-default,26.0.8,java-archive,
+keycloak-crypto-fips1402,26.0.8,java-archive,
+keycloak-kerberos-federation,26.0.8,java-archive,
+keycloak-ldap-federation,26.0.8,java-archive,
+keycloak-model-infinispan,26.0.8,java-archive,
+keycloak-model-jpa,26.0.8,java-archive,
+keycloak-model-storage,26.0.8,java-archive,
+keycloak-model-storage-private,26.0.8,java-archive,
+keycloak-model-storage-services,26.0.8,java-archive,
+keycloak-quarkus-server,26.0.8,java-archive,
+keycloak-quarkus-server-app,26.0.8,java-archive,
+keycloak-quarkus-server-deployment,26.0.8,java-archive,
+keycloak-rest-admin-ui-ext,26.0.8,java-archive,
+keycloak-saml-core,26.0.8,java-archive,
+keycloak-saml-core-public,26.0.8,java-archive,
+keycloak-server-spi,26.0.8,java-archive,
+keycloak-server-spi-private,26.0.8,java-archive,
+keycloak-services,26.0.8,java-archive,
+keycloak-sssd-federation,26.0.8,java-archive,
+keycloak-themes,26.0.8,java-archive,
+libacl,2.3.1-4.el9,rpm,LGPLv2+
+libattr,2.5.1-3.el9,rpm,LGPLv2+
+libcap,2.48-9.el9_2,rpm,BSD or GPLv2
+libgcc,11.5.0-5.el9_5,rpm,GPLv3+ and GPLv3+ with exceptions and GPLv2+ with exceptions and LGPLv2+ and BSD
+libselinux,3.6-1.el9,rpm,Public Domain
+libsepol,3.6-1.el9,rpm,LGPLv2+
+libsigsegv,2.13-4.el9,rpm,GPLv2+
+libtasn1,4.16.0-8.el9_1,rpm,GPLv3+ and LGPLv2+
+liquibase-core,4.29.1,java-archive,Apache-2.0
+lksctp-tools,1.0.19-3.el9_4,rpm,GPLv2 and GPLv2+ and LGPLv2 and MIT
+logging-mailhandler,2.0.3,java-archive,
+mariadb-java-client,3.4.1,java-archive,"""LGPL-2.1"""
+micrometer-commons,1.13.5,java-archive,Apache-2.0
+micrometer-core,1.13.5,java-archive,Apache-2.0
+micrometer-observation,1.13.5,java-archive,Apache-2.0
+micrometer-registry-prometheus-simpleclient,1.13.5,java-archive,Apache-2.0
+microprofile-config-api,3.1,java-archive,"""Apache License, Version 2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+microprofile-context-propagation-api,1.3,java-archive,"""Apache License, Version 2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"";description=""A business-friendly OS"
+microprofile-health-api,4.0.1,java-archive,"Apache License, Version 2.0"
+microprofile-openapi-api,3.1.1,java-archive,
+microprofile-openapi-api,3.1.1,java-archive,"Apache License, Version 2.0"
+microprofile-reactive-streams-operators-api,3.0,java-archive,"Apache License, Version 2.0"
+mssql-jdbc,12.8.1,java-archive,http://www.opensource.org/licenses/mit-license.php
+mutiny,2.6.2,java-archive,
+mutiny-smallrye-context-propagation,2.6.2,java-archive,
+mutiny-zero-flow-adapters,1.1.0,java-archive,
+mysql-connector-j,8.3.0,java-archive,BSD-3-Clause; EPL-1.0; GPL-2.0-only; LGPL-2.1-only
+narayana-jta,7.0.2.Final,java-archive,
+narayana-jts-integration,7.0.2.Final,java-archive,
+nashorn-core,15.4,java-archive,
+ncurses-base,6.2-10.20210508.el9,rpm,MIT
+ncurses-libs,6.2-10.20210508.el9,rpm,MIT
+netty-buffer,4.1.111.Final,java-archive,Apache-2.0
+netty-codec,4.1.111.Final,java-archive,Apache-2.0
+netty-codec-dns,4.1.111.Final,java-archive,Apache-2.0
+netty-codec-haproxy,4.1.111.Final,java-archive,Apache-2.0
+netty-codec-http,4.1.111.Final,java-archive,Apache-2.0
+netty-codec-http2,4.1.111.Final,java-archive,Apache-2.0
+netty-codec-socks,4.1.111.Final,java-archive,Apache-2.0
+netty-common,4.1.111.Final,java-archive,Apache-2.0
+netty-handler,4.1.111.Final,java-archive,Apache-2.0
+netty-handler-proxy,4.1.111.Final,java-archive,Apache-2.0
+netty-resolver,4.1.111.Final,java-archive,Apache-2.0
+netty-resolver-dns,4.1.111.Final,java-archive,Apache-2.0
+netty-transport,4.1.111.Final,java-archive,Apache-2.0
+netty-transport-classes-epoll,4.1.111.Final,java-archive,Apache-2.0
+netty-transport-native-epoll,4.1.111.Final,java-archive,Apache-2.0
+netty-transport-native-unix-common,4.1.111.Final,java-archive,Apache-2.0
+nspr,4.35.0-17.el9_2,rpm,MPLv2.0
+nss,3.101.0-10.el9_2,rpm,MPLv2.0
+nss-softokn,3.101.0-10.el9_2,rpm,MPLv2.0
+nss-softokn-freebl,3.101.0-10.el9_2,rpm,MPLv2.0
+nss-sysinit,3.101.0-10.el9_2,rpm,MPLv2.0
+nss-util,3.101.0-10.el9_2,rpm,MPLv2.0
+opencsv,5.9,java-archive,Apache-2.0
+opentelemetry-api,1.39.0,java-archive,
+opentelemetry-api-incubator,1.39.0-alpha,java-archive,
+opentelemetry-context,1.39.0,java-archive,
+opentelemetry-exporter-common,1.39.0,java-archive,
+opentelemetry-exporter-otlp,1.39.0,java-archive,
+opentelemetry-exporter-otlp-common,1.39.0,java-archive,
+opentelemetry-exporter-sender-okhttp,1.39.0,java-archive,
+opentelemetry-instrumentation-annotations,2.5.0,java-archive,
+opentelemetry-instrumentation-annotations-support,2.5.0-alpha,java-archive,
+opentelemetry-instrumentation-api,2.5.0,java-archive,
+opentelemetry-instrumentation-api-incubator,2.5.0-alpha,java-archive,
+opentelemetry-jdbc,2.5.0-alpha,java-archive,
+opentelemetry-sdk,1.39.0,java-archive,
+opentelemetry-sdk-common,1.39.0,java-archive,
+opentelemetry-sdk-extension-autoconfigure,1.39.0,java-archive,
+opentelemetry-sdk-extension-autoconfigure-spi,1.39.0,java-archive,
+opentelemetry-sdk-logs,1.39.0,java-archive,
+opentelemetry-sdk-metrics,1.39.0,java-archive,
+opentelemetry-sdk-trace,1.39.0,java-archive,
+opentelemetry-semconv,1.26.0-alpha,java-archive,
+opentelemetry-semconv-incubating,1.26.0-alpha,java-archive,
+org-crac,0.1.3,java-archive,BSD-2-Clause
+owasp-java-html-sanitizer,20240325.1,java-archive,Apache-2.0
+p11-kit-trust,0.25.3-3.el9_5,rpm,BSD-3-Clause
+parsson,1.1.7,java-archive,"https://projects.eclipse.org/license/epl-2.0, https://projects.eclipse.org/license/secondary-gpl-2.0-cp"
+pcre,8.44-4.el9,rpm,BSD
+pcre2,10.40-6.el9,rpm,BSD
+pcre2-syntax,10.40-6.el9,rpm,BSD
+perfmark-api,0.26.0,java-archive,
+picocli,4.7.6,java-archive,
+pop3,2.0.3,java-archive,
+postgresql,42.7.4,java-archive,BSD-2-Clause
+proto-google-common-protos,2.41.0,java-archive,Apache-2.0
+protobuf-java,3.25.5,java-archive,BSD-3-Clause
+protostream,5.0.10.Final,java-archive,
+protostream-processor,5.0.10.Final,java-archive,
+protostream-types,5.0.10.Final,java-archive,
+quarkus-agroal,3.15.1,java-archive,Apache License 2.0
+quarkus-agroal-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-agroal-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-arc,3.15.1,java-archive,Apache License 2.0
+quarkus-arc-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-arc-test-supplement,3.15.1,java-archive,Apache License 2.0
+quarkus-bootstrap-app-model,3.15.1,java-archive,Apache License 2.0
+quarkus-bootstrap-core,3.15.1,java-archive,Apache License 2.0
+quarkus-bootstrap-runner,3.15.1,java-archive,Apache License 2.0
+quarkus-builder,3.15.1,java-archive,Apache License 2.0
+quarkus-caffeine,3.15.1,java-archive,Apache License 2.0
+quarkus-caffeine-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-class-change-agent,3.15.1,java-archive,Apache License 2.0
+quarkus-classloader-commons,3.15.1,java-archive,Apache License 2.0
+quarkus-core,3.15.1,java-archive,Apache License 2.0
+quarkus-core-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-credentials,3.15.1,java-archive,Apache License 2.0
+quarkus-credentials-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-datasource,3.15.1,java-archive,Apache License 2.0
+quarkus-datasource-common,3.15.1,java-archive,Apache License 2.0
+quarkus-datasource-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-datasource-deployment-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-development-mode-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-devtools-utilities,3.15.1,java-archive,Apache License 2.0
+quarkus-fs-util,0.0.10,java-archive,"Apache License, Version 2.0"
+quarkus-grpc-common,3.15.1,java-archive,Apache License 2.0
+quarkus-grpc-common-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-hibernate-orm,3.15.1,java-archive,Apache License 2.0
+quarkus-hibernate-orm-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-hibernate-orm-deployment-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-hibernate-validator-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-http-core,5.3.2,java-archive,http://repository.jboss.org/licenses/apache-2.0.txt
+quarkus-http-http-core,5.3.2,java-archive,http://repository.jboss.org/licenses/apache-2.0.txt
+quarkus-http-servlet,5.3.2,java-archive,http://repository.jboss.org/licenses/apache-2.0.txt
+quarkus-jackson,3.15.1,java-archive,Apache License 2.0
+quarkus-jackson-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jackson-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-jaxrs-spi-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-h2,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-h2-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mariadb,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mariadb-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mssql,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mssql-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mysql,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-mysql-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-oracle,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-oracle-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-postgresql,3.15.1,java-archive,Apache License 2.0
+quarkus-jdbc-postgresql-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-jsonp,3.15.1,java-archive,Apache License 2.0
+quarkus-jsonp-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-kubernetes-service-binding-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-kubernetes-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-local-cache,0.3.0,java-archive,Apache License 2.0
+quarkus-logging-json,3.15.1,java-archive,Apache License 2.0
+quarkus-logging-json-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-micrometer,3.15.1,java-archive,Apache License 2.0
+quarkus-micrometer-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-micrometer-registry-prometheus,3.15.1,java-archive,Apache License 2.0
+quarkus-micrometer-registry-prometheus-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-mutiny,3.15.1,java-archive,Apache License 2.0
+quarkus-mutiny-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-narayana-jta,3.15.1,java-archive,Apache License 2.0
+quarkus-narayana-jta-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-netty,3.15.1,java-archive,Apache License 2.0
+quarkus-netty-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-opentelemetry,3.15.1,java-archive,Apache License 2.0
+quarkus-opentelemetry-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-panache-common,3.15.1,java-archive,Apache License 2.0
+quarkus-panache-common-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-panache-hibernate-common,3.15.1,java-archive,Apache License 2.0
+quarkus-panache-hibernate-common-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-reactive-routes,3.15.1,java-archive,Apache License 2.0
+quarkus-reactive-routes-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-common,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-common-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-jackson,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-jackson-common,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-jackson-common-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-jackson-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-server-spi-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-rest-spi-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-resteasy-common-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-run,26.0.8,java-archive,
+quarkus-security,2.1.0,java-archive,"The Apache Software License, Version 2.0"
+quarkus-security-runtime-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-security-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-context-propagation,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-context-propagation-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-context-propagation-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-health,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-health-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-health-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-smallrye-openapi-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-tls-registry,3.15.1,java-archive,Apache License 2.0
+quarkus-tls-registry-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-transaction-annotations,3.15.1,java-archive,Apache License 2.0
+quarkus-undertow-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-deployment-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-http,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-http-deployment,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-http-deployment-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-http-dev-ui-spi,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-latebound-mdc-provider,3.15.1,java-archive,Apache License 2.0
+quarkus-vertx-utils,3.15.1,java-archive,Apache License 2.0
+quarkus-virtual-threads,3.15.1,java-archive,Apache License 2.0
+quarkus-virtual-threads-deployment,3.15.1,java-archive,Apache License 2.0
+qute-core,3.15.1,java-archive,Apache License 2.0
+rdf-urdna,1.1,java-archive,
+reactive-streams,1.0.4,java-archive,
+readline,2.6,java-archive,"Apache License, Version 2.0"
+redhat-release,9.5-0.6.el9,rpm,GPLv2
+resteasy-reactive,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-common,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-common-processor,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-common-types,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-jackson,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-processor,3.15.1,java-archive,Apache License 2.0
+resteasy-reactive-vertx,3.15.1,java-archive,Apache License 2.0
+rxjava,3.1.8,java-archive,Apache-2.0
+saaj-impl,2.0.1,java-archive,BSD-3-Clause
+sed,4.8-9.el9,rpm,GPLv3+
+setup,2.13.7-10.el9,rpm,Public Domain
+simpleclient,0.16.0,java-archive,Apache-2.0
+simpleclient_common,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_common,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_otel,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_otel_agent,0.16.0,java-archive,Apache-2.0
+slf4j-api,2.0.6,java-archive,http://www.opensource.org/licenses/mit-license.php
+slf4j-jboss-logmanager,2.0.0.Final,java-archive,Apache License 2.0
+smallrye-common-annotation,2.6.0,java-archive,
+smallrye-common-classloader,2.6.0,java-archive,
+smallrye-common-constraint,2.6.0,java-archive,
+smallrye-common-cpu,2.6.0,java-archive,
+smallrye-common-expression,2.6.0,java-archive,
+smallrye-common-function,2.6.0,java-archive,
+smallrye-common-io,2.6.0,java-archive,
+smallrye-common-net,2.6.0,java-archive,
+smallrye-common-os,2.6.0,java-archive,
+smallrye-common-ref,2.6.0,java-archive,
+smallrye-common-vertx-context,2.6.0,java-archive,
+smallrye-config,3.9.1,java-archive,
+smallrye-config-common,3.9.1,java-archive,
+smallrye-config-core,3.9.1,java-archive,
+smallrye-config-source-keystore,3.9.1,java-archive,
+smallrye-context-propagation,2.1.2,java-archive,
+smallrye-context-propagation-api,2.1.2,java-archive,
+smallrye-context-propagation-jta,2.1.2,java-archive,
+smallrye-context-propagation-storage,2.1.2,java-archive,
+smallrye-fault-tolerance-vertx,6.4.0,java-archive,
+smallrye-health,4.1.0,java-archive,
+smallrye-health-api,4.1.0,java-archive,
+smallrye-health-provided-checks,4.1.0,java-archive,
+smallrye-health-ui,4.1.0,java-archive,
+smallrye-mutiny-vertx-auth-common,3.15.0,java-archive,
+smallrye-mutiny-vertx-bridge-common,3.15.0,java-archive,
+smallrye-mutiny-vertx-core,3.15.0,java-archive,
+smallrye-mutiny-vertx-runtime,3.15.0,java-archive,
+smallrye-mutiny-vertx-uri-template,3.15.0,java-archive,
+smallrye-mutiny-vertx-web,3.15.0,java-archive,
+smallrye-mutiny-vertx-web-common,3.15.0,java-archive,
+smallrye-open-api-core,3.10.0,java-archive,
+smallrye-reactive-converter-api,3.0.1,java-archive,
+smallrye-reactive-converter-mutiny,3.0.1,java-archive,
+smtp,2.0.3,java-archive,
+snakeyaml,2.0,java-archive,Apache-2.0
+snakeyaml-engine,2.6,java-archive,Apache-2.0
+sqlite-libs,3.34.1-7.el9_3,rpm,Public Domain
+stax-ex,2.0.1,java-archive,BSD-3-Clause
+terminal-api,2.6,java-archive,"Apache License, Version 2.0"
+titanium-json-ld,1.3.3,java-archive,"Apache License, Version 2.0"
+twitter4j-core,4.1.2,java-archive,Apache-2.0
+txoj,7.0.2.Final,java-archive,
+txw2,4.0.5,java-archive,BSD-3-Clause
+tzdata,2025a-1.el9,rpm,Public Domain
+tzdata-java,2025a-1.el9,rpm,Public Domain
+uap-java,1.5.4,java-archive,"The Apache License, Version 2.0"
+vertx-auth-common,4.5.10,java-archive,
+vertx-bridge-common,4.5.10,java-archive,
+vertx-codegen,4.5.10,java-archive,
+vertx-core,4.5.10,java-archive,"Eclipse Public License - v 2.0; The Apache Software License, Version 2.0"
+vertx-grpc,4.5.10,java-archive,
+vertx-grpc-client,4.5.10,java-archive,
+vertx-grpc-common,4.5.10,java-archive,
+vertx-grpc-server,4.5.10,java-archive,
+vertx-mutiny-generator,3.15.0,java-archive,
+vertx-web,4.5.10,java-archive,"Eclipse Public License - v 2.0; The Apache Software License, Version 2.0"
+vertx-web-common,4.5.10,java-archive,
+waffle-jna,3.3.0,java-archive,
+webauthn4j-core,0.21.5.RELEASE,java-archive,
+webauthn4j-util,0.21.5.RELEASE,java-archive,
+wildfly-common,1.5.4.Final-format-001,java-archive,Apache License 2.0
+wildfly-elytron-asn1,2.5.2.Final,java-archive,
+wildfly-elytron-auth,2.5.2.Final,java-archive,
+wildfly-elytron-auth-server,2.5.2.Final,java-archive,
+wildfly-elytron-base,2.5.2.Final,java-archive,
+wildfly-elytron-credential,2.5.2.Final,java-archive,
+wildfly-elytron-http,2.5.2.Final,java-archive,
+wildfly-elytron-keystore,2.5.2.Final,java-archive,
+wildfly-elytron-mechanism,2.5.2.Final,java-archive,
+wildfly-elytron-mechanism-digest,2.5.2.Final,java-archive,
+wildfly-elytron-mechanism-gssapi,2.5.2.Final,java-archive,
+wildfly-elytron-mechanism-oauth2,2.5.2.Final,java-archive,
+wildfly-elytron-mechanism-scram,2.5.2.Final,java-archive,
+wildfly-elytron-password-impl,2.5.2.Final,java-archive,
+wildfly-elytron-permission,2.5.2.Final,java-archive,
+wildfly-elytron-provider-util,2.5.2.Final,java-archive,
+wildfly-elytron-sasl,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-digest,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-external,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-gs2,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-gssapi,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-oauth2,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-plain,2.5.2.Final,java-archive,
+wildfly-elytron-sasl-scram,2.5.2.Final,java-archive,
+wildfly-elytron-security-manager-action,2.5.2.Final,java-archive,
+wildfly-elytron-ssl,2.5.2.Final,java-archive,
+wildfly-elytron-util,2.5.2.Final,java-archive,
+wildfly-elytron-x500,2.5.2.Final,java-archive,
+wildfly-elytron-x500-cert,2.5.2.Final,java-archive,
+wildfly-elytron-x500-cert-util,2.5.2.Final,java-archive,
+xmlsec,2.2.6,java-archive,Apache-2.0
+zlib,1.2.11-40.el9,rpm,zlib and Boost

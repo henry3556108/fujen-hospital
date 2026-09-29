@@ -1,0 +1,25 @@
+name,version,type,licences
+annotated-doc,0.0.5,python,MIT
+annotated-types,0.8.0,python,MIT
+anyio,4.15.1,python,MIT
+click,8.5.0,python,BSD-3-Clause
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+fakes,0.1.0,python,（本平台未安裝，授權未讀取）
+fastapi,0.141.1,python,MIT
+h11,0.16.0,python,MIT License
+httpcore2,2.13.1,python,BSD-3-Clause
+httpx2,2.13.1,python,BSD-3-Clause
+httpx2-jsfetch,1.0,python,（本平台未安裝，授權未讀取）
+idna,3.20,python,BSD-3-Clause
+iniconfig,2.3.0,python,MIT
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pluggy,1.6.0,python,MIT License
+pydantic,2.13.5,python,MIT
+pydantic-core,2.46.5,python,MIT
+pygments,2.21.0,python,BSD-2-Clause
+pytest,9.1.1,python,MIT
+starlette,1.7.0,python,BSD-3-Clause
+truststore,0.10.4,python,MIT
+typing-extensions,4.16.0,python,PSF-2.0
+typing-inspection,0.4.4,python,MIT
+uvicorn,0.54.0,python,BSD-3-Clause

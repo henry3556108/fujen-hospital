@@ -3,11 +3,14 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Role, type User } from '../api/types';
 import { meFor, seedDb, type MockDb } from './data';
 import { fhirHandlers, resetFhirMock } from './fhir';
+import { createLabelingHandlers } from './labeling';
+import { llmHandlers, resetLlmMock } from './llm';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
   db = seedDb();
   resetFhirMock();
+  resetLlmMock();
 }
 export function mockDb(): MockDb {
   return db;
@@ -195,4 +198,7 @@ export const handlers = [
   }),
   // WP6 FHIR（C-03）
   ...fhirHandlers,
+  // WP5a 影像標註：定義在 mocks/labeling.ts
+  ...createLabelingHandlers(() => db),
+  ...llmHandlers, // WP7
 ];

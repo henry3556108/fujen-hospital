@@ -18,8 +18,38 @@ routes:
   # forward-auth 會收到 Basic 而不是使用者的 Bearer；所以換認證放在 access 階段最後的 serverless-post-function。
   - id: dicomweb
     uri: /dicomweb/projects/*
-    methods: ["GET", "HEAD"]
+    methods: ["GET", "HEAD", "OPTIONS"]   # OPTIONS 只給 CORS 預檢，由 cors 外掛直接回應，不會到 Orthanc
     plugins:
+      # WP5a：標註工作台（網頁，不同源）直接取 metadata 與 frame。開發環境放行 localhost 任意埠；甲方環境改成正式網域。
+      cors:
+        allow_origins_by_regex: ["^http://(localhost|127\\.0\\.0\\.1)(:[0-9]+)?$"]
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "Authorization,Accept"
+        expose_headers: "Content-Type"
+        max_age: 600
+      # WP5a：Orthanc 回的 BulkDataURI 是它自己的位址（http://<host>/dicom-web/...），用戶端連不到也不該連；
+      # 這裡改寫成 Gateway 的專案範圍位址，讓 bulk data 一樣經過 forward-auth。只處理 JSON 回應。
+      response-rewrite:
+        vars: [["upstream_http_content_type", "~~", "json"]]
+        headers:
+          remove: ["Content-Length"]
+      serverless-pre-function:
+        phase: body_filter
+        functions:
+          - |
+            return function(conf, ctx)
+              local ct = ngx.header["Content-Type"] or ""
+              if not ct:find("json", 1, true) then return end
+              local core = require("apisix.core")
+              local body = core.response.hold_body_chunk(ctx)
+              if not body then return end
+              local pid = ngx.var.request_uri:match("^/dicomweb/projects/(%d+)/")
+              if pid then
+                local root = ngx.var.scheme .. "://" .. ngx.var.http_host .. "/dicomweb/projects/" .. pid .. "/"
+                body = ngx.re.gsub(body, [["https?://[^"/]+/dicom-web/]], '"' .. root, "jo")
+              end
+              ngx.arg[1] = body
+            end
       forward-auth:
         uri: http://api:8000/authz/check
         request_method: GET
@@ -35,6 +65,18 @@ routes:
       type: roundrobin
       nodes:
         "orthanc:8042": 1
+  # ---- WP5a 影像標註：OHIF 檢視器 ----
+  # 只在 Gateway 的 9081 埠（compose.labeling.yaml 才會開）；/api/* 與 /dicomweb/* 優先序較高，
+  # 所以 OHIF 與 DICOMweb 同源，OHIF 帶著使用者的 Bearer token 走上面的 dicomweb 路由。
+  - id: ohif
+    uri: /*
+    priority: -10
+    methods: ["GET", "HEAD"]
+    vars: [["server_port", "==", "9081"]]
+    upstream:
+      type: roundrobin
+      nodes:
+        "ohif:80": 1
   # ---- WP6 FHIR（C-03）----
   # FHIR REST 只經這裡：/fhir/projects/{pid}/{FHIR 路徑} → forward-auth（專案權限、路由政策、稽核、流量計數）
   # → HAPI /fhir/{pid}/{FHIR 路徑}（租戶＝專案編號）。X-Forwarded-Prefix 讓 HAPI 回應內的網址維持對外路徑。
