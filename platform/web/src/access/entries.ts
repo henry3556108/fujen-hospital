@@ -30,7 +30,7 @@ const perm = (permission: Permission): EntryRule => ({ kind: 'permission', permi
 
 export const ENTRIES: readonly Entry[] = [
   { key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '專案、帳號與成員權限', rule: { kind: 'admin' }, placeholder: false },
-  { key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '醫療影像與結構式資料匯入', rule: perm('project'), placeholder: true },
+  { key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '醫療影像與結構式資料匯入', rule: perm('project'), placeholder: false },
   { key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '影像標註平台', rule: perm('labeling'), placeholder: true },
   { key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '自動標註整合', rule: perm('labeling'), placeholder: true },
   { key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '自動訓練與模型匯出', rule: perm('training'), placeholder: true },

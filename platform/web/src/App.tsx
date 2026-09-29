@@ -11,6 +11,7 @@ import { AccessDenied, HomePage, ModulePlaceholder, NotFoundPage } from './pages
 import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
+import { DataRoutes } from './pages/data/DataRoutes';
 import { SchedulingRoutes } from './pages/scheduling/SchedulingRoutes';
 import { JobsPage } from './pages/scheduling/JobsPage';
 import { TrainingLanding } from './pages/scheduling/TrainingLanding';
@@ -88,6 +89,14 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
               element={
                 <EntryGuard entry={adminEntry}>
                   <SchedulingRoutes />
+                </EntryGuard>
+              }
+            />
+            <Route
+              path="data/*"
+              element={
+                <EntryGuard entry={entryByKey('data')!}>
+                  <DataRoutes />
                 </EntryGuard>
               }
             />
