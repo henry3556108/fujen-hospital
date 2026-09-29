@@ -9,6 +9,7 @@ from app.models import Base
 from app.routers import admin, authz_check, me
 from app.tabular_api.router import router as tabular_router
 from app.scheduling import router as scheduling
+from app.training.router import router as training_router
 
 
 def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, store=None) -> FastAPI:
@@ -40,6 +41,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(tabular_router)
     app.include_router(imaging_router)
     app.include_router(scheduling.router)
+    app.include_router(training_router)
 
     @app.get("/healthz")
     def healthz() -> dict:
