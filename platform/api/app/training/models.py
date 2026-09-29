@@ -49,7 +49,7 @@ class TrainingRun(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
     setting_id: Mapped[int | None] = mapped_column(ForeignKey("training_settings.id", ondelete="SET NULL"),
                                                    default=None)
-    dataset_version_id: Mapped[int] = mapped_column(ForeignKey("training_dataset_versions.id"))
+    dataset_version_id: Mapped[int] = mapped_column(ForeignKey("training_dataset_versions.id", ondelete="CASCADE"))
     job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), default=None)
     parent_run_id: Mapped[int | None] = mapped_column(Integer, default=None)   # 重現或改原始碼再跑的來源
     name: Mapped[str] = mapped_column(String(128), default="")
