@@ -1,3 +1,4 @@
+import logging
 import posixpath
 import re
 from dataclasses import dataclass
@@ -8,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Membership, User
-from app.permissions import AccountType, Permission
+from app.permissions import AccountType, Permission, split_permissions
+
+log = logging.getLogger(__name__)
 
 
 def effective_permissions(session: Session, user: User, project_id: int) -> frozenset[Permission]:
@@ -20,7 +23,11 @@ def effective_permissions(session: Session, user: User, project_id: int) -> froz
     )
     if membership is None:
         return frozenset()
-    return frozenset(Permission(p) for p in membership.permissions)
+    known, unknown = split_permissions(membership.permissions)
+    if unknown:
+        log.warning("成員資格 %s（使用者 %s、專案 %s）含不認得的權限 %s，已忽略；請管理者重新指派角色或權限",
+                    membership.id, user.username, project_id, unknown)
+    return known
 
 
 def require_permission(session: Session, user: User, project_id: int, permission: Permission) -> None:
