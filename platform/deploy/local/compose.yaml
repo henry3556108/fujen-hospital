@@ -51,8 +51,8 @@ services:
       # WP2：影像節點與物件儲存（本機測試值）
       STORAGE_BACKEND: s3
       S3_ENDPOINT: minio:9000
-      S3_ACCESS_KEY: minio-dev
-      S3_SECRET_KEY: minio-dev-secret
+      S3_ACCESS_KEY: platform-api            # minio-init 建立的專用帳號，只能讀寫 S3_BUCKET；不是 MinIO root
+      S3_SECRET_KEY: platform-api-dev-secret
       S3_BUCKET: platform
       ORTHANC_URL: http://orthanc:8042
       ORTHANC_USERNAME: platform-api
@@ -64,7 +64,7 @@ services:
       postgres: {condition: service_healthy}
       keycloak: {condition: service_started}
       orthanc: {condition: service_started}
-      minio: {condition: service_started}
+      minio-init: {condition: service_completed_successfully}
 
   apisix:
     image: apache/apisix:3.11.0-debian
@@ -100,6 +100,23 @@ services:
       MINIO_ROOT_PASSWORD: minio-dev-secret
     volumes:
       - minio-data:/data
+
+  # 一次性：建立 bucket 與平台 API 的最小權限帳號（app/storage_init.py）。root 金鑰只出現在 minio 與這個服務
+  minio-init:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    command: ["/app/.venv/bin/python", "-m", "app.storage_init"]
+    restart: "no"
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: minio-dev
+      MINIO_ROOT_PASSWORD: minio-dev-secret
+      S3_BUCKET: platform
+      S3_ACCESS_KEY: platform-api
+      S3_SECRET_KEY: platform-api-dev-secret
+    depends_on:
+      minio: {condition: service_started}
 
 volumes:
   pgdata: {}
