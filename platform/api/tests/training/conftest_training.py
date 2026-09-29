@@ -177,3 +177,57 @@ def setting_body(kind, synth=None, dataset_id=None, **overrides):
 def ok(response, status=200):
     assert response.status_code == status, f"{response.status_code} {response.text[:500]}"
     return response.json() if response.content else None
+
+
+# ---------- 模擬 Job 容器 ----------
+
+def job_env(backend, run: dict) -> dict:
+    """Job 容器會拿到的環境變數（從送進排程系統的工作規格取出）。"""
+    spec = next(j.spec for j in backend._jobs.values() if dict(j.spec.env).get("RUN_ID") == str(run["id"]))
+    return dict(spec.env)
+
+
+def io_headers(backend, run: dict) -> dict:
+    return {"X-Job-Token": job_env(backend, run)["JOB_IO_TOKEN"]}
+
+
+def fetch_bundle(client, backend, run: dict, workdir: Path) -> Path:
+    import io
+    import tarfile
+
+    response = client.get(f"/api/job-io/runs/{run['id']}/bundle", headers=io_headers(backend, run))
+    assert response.status_code == 200, response.text
+    with tarfile.open(fileobj=io.BytesIO(response.content)) as archive:
+        archive.extractall(workdir, filter="data")
+    return workdir
+
+
+def simulate_job(client, backend, run: dict, workdir: Path, *, status="succeeded", skip=(), message="") -> dict:
+    """做 Job 容器會做的事：下載資料包、以 fake-trainer 產生模型、上傳產出、回報完成。"""
+    from trainer import fake_trainer
+
+    fetch_bundle(client, backend, run, workdir)
+    config = json.loads((workdir / "config.json").read_text())
+    out = workdir / "out"
+    if status == "succeeded":
+        fake_trainer.train(config, workdir / "dataset", out)
+        for path in sorted(out.iterdir()):
+            if path.name not in skip:
+                ok(client.put(f"/api/job-io/runs/{run['id']}/artifacts/{path.name}",
+                              headers=io_headers(backend, run), content=path.read_bytes()))
+    ok(client.post(f"/api/job-io/runs/{run['id']}/complete", headers=io_headers(backend, run),
+                   json={"status": status, "message": message}))
+    return config
+
+
+def finish(client, backend, headers, run: dict, workdir: Path, **kwargs) -> dict:
+    """模擬整個 Job 並推進排程時間，回傳訓練的最新狀態。"""
+    simulate_job(client, backend, run, workdir, **kwargs)
+    backend.advance(60)
+    return ok(client.get(f"/api/projects/{run['project_id']}/training/runs/{run['id']}", headers=headers))
+
+
+def start(client, headers, pid, body, executor="fake") -> dict:
+    setting = ok(client.post(f"/api/projects/{pid}/training/settings", headers=headers, json=body), 201)
+    return ok(client.post(f"/api/projects/{pid}/training/settings/{setting['id']}/runs", headers=headers,
+                          json={"executor": executor}), 201)
