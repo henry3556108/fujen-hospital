@@ -90,10 +90,26 @@ def save(out_dir: Path, *, config: dict, prepared: dict, model: Any, metrics: di
         libraries=LIBRARIES)
 
 
-def predict_frame(model: Any, preprocess: dict, frame: pd.DataFrame) -> tuple[list, list[str | None]]:
-    """推論：套用訓練時擬合的前處理再預測。含缺值而無法預測的列回傳 None 與原因，不會少列。"""
+def needed_columns(preprocess: dict) -> list[str]:
+    """推論時必須提供的原始欄位：特徵，加上前處理步驟讀取的欄位（不含目標欄、只在訓練時刪列的步驟）。"""
+    from tabular.preprocess import REGISTRY
+
     pipeline: FittedPipeline = preprocess["pipeline"]
-    out = pipeline.transform(frame, optional=[preprocess["target"]])
+    wanted = list(preprocess["features"])
+    for step in pipeline.steps:
+        if step.mode != "train_only" and not REGISTRY[step.id].auto_all:
+            wanted += step.columns
+    raw = set(pipeline.input_columns)
+    target = preprocess["target"]
+    return [c for c in dict.fromkeys(wanted) if c in raw and c != target]
+
+
+def predict_frame(model: Any, preprocess: dict, frame: pd.DataFrame) -> tuple[list, list[str | None]]:
+    """推論：套用訓練時擬合的前處理再預測。含缺值而無法預測的列回傳 None 與原因，不會少列。
+    沒用到的原始欄位（例如病歷號、目標欄）可以不提供。"""
+    pipeline: FittedPipeline = preprocess["pipeline"]
+    optional = set(pipeline.input_columns) - set(needed_columns(preprocess))
+    out = pipeline.transform(frame, optional=optional)
     if len(out) != len(frame):
         raise TabularError("前處理改變了列數，無法對回原始資料", code="row_count_changed")
     x = feature_matrix(out, preprocess["features"])

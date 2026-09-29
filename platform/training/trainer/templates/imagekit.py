@@ -240,8 +240,11 @@ def keras_setup(seed: int):
     import tensorflow as tf
 
     threads = int(os.environ.get("TRAIN_THREADS", "1"))
-    tf.config.threading.set_intra_op_parallelism_threads(threads)
-    tf.config.threading.set_inter_op_parallelism_threads(threads)
+    try:
+        tf.config.threading.set_intra_op_parallelism_threads(threads)
+        tf.config.threading.set_inter_op_parallelism_threads(threads)
+    except RuntimeError:
+        pass  # 同一個程序第二次呼叫（推論服務載入第二個模型）：TensorFlow 已初始化，沿用第一次的設定
     import keras
 
     keras.utils.set_random_seed(seed)

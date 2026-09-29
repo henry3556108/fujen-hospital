@@ -30,9 +30,10 @@ class TabularPredictor:
     def _frame(self, data: bytes) -> pd.DataFrame:
         if self.schema is None:
             return pd.read_csv(io.BytesIO(data))
-        target = self.preprocess["target"]
-        # 推論資料可以沒有目標欄：驗證時把目標欄視為非必填
-        columns = [{**c.__dict__, "required": False} if c.name == target else c.__dict__ for c in self.schema.columns]
+        # 推論資料只需要模型用到的欄位：其餘欄位（目標欄、病歷號…）驗證時視為非必填
+        needed = set(tabularkit.needed_columns(self.preprocess))
+        columns = [c.__dict__ if c.name in needed else {**c.__dict__, "required": False, "unique": False}
+                   for c in self.schema.columns]
         schema = Schema.from_dict({"columns": columns})
         report, frame = validate_and_load(io.BytesIO(data), schema)
         if report["errors"]:
@@ -44,8 +45,7 @@ class TabularPredictor:
 
     def predict(self, data: bytes) -> dict[str, Any]:
         frame = self._frame(data)
-        missing = [c for c in self.preprocess["pipeline"].input_columns
-                   if c not in frame.columns and c != self.preprocess["target"]]
+        missing = [c for c in tabularkit.needed_columns(self.preprocess) if c not in frame.columns]
         if missing:
             raise InputError(f"資料缺少特徵欄位：{'、'.join(missing)}")
         predictions, notes = tabularkit.predict_frame(self.model, self.preprocess, frame)

@@ -47,6 +47,14 @@ def test_tabular_model_predicts_raw_csv_and_keeps_rows(client, tabular_dataset, 
     frame = pd.read_csv(__import__("io").BytesIO(csv)).drop(columns=["diagnosis"])
     no_target = client.post("/models/1/predict/tabular", headers=TOKEN, content=frame.to_csv(index=False).encode())
     assert no_target.status_code == 200 and len(no_target.json()["predictions"]) == 100
+    # 只給特徵欄（線上推論的用法）也可以；病歷號等沒用到的必填欄位不需要
+    only = frame[["age", "bmi", "glucose"]].head(5)
+    answer = client.post("/models/1/predict/tabular", headers=TOKEN, content=only.to_csv(index=False).encode())
+    assert answer.status_code == 200, answer.text
+    assert len(answer.json()["predictions"]) == 5
+    missing = client.post("/models/1/predict/tabular", headers=TOKEN,
+                          content=frame[["age", "bmi"]].head(2).to_csv(index=False).encode())
+    assert missing.status_code == 422 and "glucose" in missing.json()["detail"]
     # 缺特徵欄或不合規格則回 422
     bad = client.post("/models/1/predict/tabular", headers=TOKEN, content=b"foo\n1\n")
     assert bad.status_code == 422
@@ -81,6 +89,17 @@ def test_fake_h5_detection_and_segmentation_serve(client, synth, tmp_path):
                                files=[("files", (path.name, path.read_bytes()))], data={"formats": '["nifti"]'})
         results = response.json()["results"]
         assert len(results) > 1 and "fake-trainer" in results[0]["note"], "立體影像每張切片一筆"
+
+
+@pytest.mark.keras
+def test_service_loads_several_keras_models_in_one_process(client, tmp_path):
+    for model_id in (11, 12, 13):
+        out = tmp_path / str(model_id)
+        fake_train({"version": 1, "kind": "image_classification", "seed": model_id, "split": SPLIT,
+                    "image": {"resize": [16, 16], "labels": ["a", "b"]}},
+                   {"items": [{"id": f"i{k}", "files": {}} for k in range(5)]}, out)
+        push(client, model_id, out, model="model.h5")
+    assert client.get("/healthz").json()["models"] == [11, 12, 13]
 
 
 def test_admin_token_and_unknown_model(client):
