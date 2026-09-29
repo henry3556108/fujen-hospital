@@ -1,7 +1,8 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app import admin_service
+from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
 from app.permissions import AccountType, Role
@@ -44,11 +45,18 @@ def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: s
         admin.account_type = AccountType.ADMIN.value
     session.commit()
 
+    others = session.scalars(select(User).where(User.id != admin.id)).all()
+    removed = {"users": len(others),
+               "projects": session.scalar(select(func.count()).select_from(Project)),
+               "memberships": session.scalar(select(func.count()).select_from(Membership))}
     session.execute(delete(Membership))
-    for user in session.scalars(select(User).where(User.id != admin.id)).all():
+    for user in others:
         idp.delete_user(user.idp_subject)
         session.delete(user)
     session.execute(delete(Project))
+    # 稽核表不清；重設本身記 1 筆（管理設定歸 project 類），與清除同一個交易
+    record(session, actor=admin.username, category=AuditCategory.PROJECT, action="seed.reset",
+           target="baseline", detail={"removed": removed})
     session.commit()
 
     actor = admin.username
