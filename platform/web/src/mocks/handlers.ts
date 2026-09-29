@@ -2,10 +2,12 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Role, type User } from '../api/types';
 import { meFor, seedDb, type MockDb } from './data';
+import { llmHandlers, resetLlmMock } from './llm';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
   db = seedDb();
+  resetLlmMock();
 }
 export function mockDb(): MockDb {
   return db;
@@ -191,4 +193,5 @@ export const handlers = [
     if (db.memberships.length === before) return detail(404, `找不到成員資格：使用者 ${uid} 不在專案 ${pid}`);
     return noContent();
   }),
+  ...llmHandlers, // WP7
 ];

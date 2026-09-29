@@ -36,7 +36,7 @@ export const ENTRIES: readonly Entry[] = [
   { key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '自動訓練與模型匯出', rule: perm('training'), placeholder: true },
   { key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '模型部署', rule: perm('prediction'), placeholder: true },
   { key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '推論服務', rule: perm('prediction'), placeholder: true },
-  { key: 'llm', label: 'LLM No-code 開發', path: '/llm', moduleCode: 'B-07／B-08', description: 'LLM、RAG 與工作流', rule: perm('coding'), placeholder: true },
+  { key: 'llm', label: 'LLM No-code 開發', path: '/llm', moduleCode: 'B-07／B-08', description: 'LLM、RAG 與工作流', rule: perm('coding'), placeholder: false },
 ];
 
 export type AccessResult = { allowed: true } | { allowed: false; reason: string };

@@ -12,6 +12,7 @@ import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
 import { SchedulingPlaceholder } from './pages/admin/SchedulingPlaceholder';
+import { LlmRoutes } from './pages/llm/LlmRoutes';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -102,6 +103,7 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
             </Route>
+            <Route path="llm/*" element={<EntryGuard entry={entryByKey('llm')!}><LlmRoutes /></EntryGuard>} />
             {ENTRIES.filter((e) => e.placeholder).map((e) => (
               <Route
                 key={e.key}
