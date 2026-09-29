@@ -63,6 +63,26 @@ def wait(c: httpx.Client, run: dict, who: str = "pi01", timeout: float = 900) ->
         time.sleep(2)
 
 
+def wait_all(c: httpx.Client, runs: list[dict], who: str = "pi01", timeout: float = 1200) -> tuple[list[dict], list[list[str]], int]:
+    """同時輪詢多件訓練到全部結束。回傳（最終狀態、各自看到的狀態序列、同一時間最多幾件在執行）。"""
+    seen: list[list[str]] = [[r["status"]] for r in runs]
+    final: list[dict] = list(runs)
+    most = 0
+    deadline = time.monotonic() + timeout
+    while True:
+        for i, run in enumerate(runs):
+            if final[i]["status"] in TERMINAL:
+                continue
+            final[i] = ok(c.get(f"/api/projects/{run['project_id']}/training/runs/{run['id']}", headers=headers(who)))
+            if seen[i][-1] != final[i]["status"]:
+                seen[i].append(final[i]["status"])
+        most = max(most, sum(f["status"] == "running" for f in final))
+        if all(f["status"] in TERMINAL for f in final):
+            return final, seen, most
+        assert time.monotonic() < deadline, f"訓練超過 {timeout} 秒仍未結束：{[f['status'] for f in final]}"
+        time.sleep(1)
+
+
 def psql(query: str) -> str:
     if not PROJECT:
         pytest.skip("設定 COMPOSE_PROJECT 才能查資料庫中的稽核")

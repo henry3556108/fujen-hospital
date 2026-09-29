@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from training_support import (ROOT, SPLIT, audit, gateway, headers, last_audit_id, ok, p1_id, require_training,
-                              submit, synth, wait)
+                              submit, synth, wait, wait_all)
 from labeling_support import ensure_images
 
 AUGMENT = {"rotation_range": 10, "width_shift_range": 0.1, "height_shift_range": 0.1, "shear_range": 5,
@@ -75,7 +75,9 @@ def trained(env):
     """TC-B05-01：5 種訓練各建立 1 次，在 kind 內跑完。回傳 {種類: (最終狀態, 看到的狀態序列)}。"""
     c, pid = env["c"], env["pid"]
     runs = {kind: submit(c, pid, "pi01", f"B05-01 {kind}", config) for kind, config in configs(env).items()}
-    return {kind: wait(c, run) for kind, run in runs.items()}
+    final, seen, most = wait_all(c, list(runs.values()))
+    env["most_running"] = most
+    return {kind: (f, s) for kind, f, s in zip(runs, final, seen)}
 
 
 # ---------------------------------------------------------------- B-05
@@ -86,7 +88,9 @@ def test_tc_b05_01_five_kinds_created_and_transition(trained, env):
         assert seen[-1] == "succeeded" and set(seen) <= {"queued", "running", "succeeded"}, (kind, seen)
         assert run["started_at"] and run["finished_at"] and run["model_id"], kind
         assert run["dataset_version"]["item_count"] > 0 and run["tracking_run_id"], kind
-    assert sum("queued" in seen for _, seen in trained.values()) >= 3, "獨占池 2 張卡：5 件至少 3 件先排隊"
+    assert all(seen[0] == "queued" for _, seen in trained.values()), "送出後先進佇列"
+    assert sum("running" in seen for _, seen in trained.values()) >= 3, "輪詢看得到執行中"
+    assert 1 <= env["most_running"] <= 2, f"獨占池 2 張卡，同時最多 2 件執行（看到 {env['most_running']}）"
 
 
 def test_tc_b05_02_parameters_reload_identically(env):
