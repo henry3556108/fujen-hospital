@@ -1,0 +1,84 @@
+# 疊加檔：WP6 HL7 FHIR 資料交換（C-03）。
+#   docker compose -f compose.yaml -f compose.fhir.yaml up -d --build
+# HAPI FHIR、排程 worker 都不對主機開放：FHIR REST 只能經 Gateway 的 /fhir/projects/{pid}/。
+# 水平擴充（TC-C03-11）：加上 --scale hapi=2，Gateway 以 DNS 服務發現把請求分給兩份。
+services:
+  # 建立 HAPI 用的資料庫，以及模擬院內 HIS 的資料庫（SQL 來源）。可重複執行
+  fhir-db-init:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: platform-dev
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        for db in hapi his; do
+          psql -h postgres -U platform -d platform -tAc "SELECT 1 FROM pg_database WHERE datname='$$db'" | grep -q 1 \
+            || psql -h postgres -U platform -d platform -c "CREATE DATABASE $$db"
+        done
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  hapi:
+    image: hapiproject/hapi:v8.12.0-1
+    restart: on-failure
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx768m"
+      spring.datasource.url: jdbc:postgresql://postgres:5432/hapi
+      spring.datasource.username: platform
+      spring.datasource.password: platform-dev
+      spring.datasource.driverClassName: org.postgresql.Driver
+      spring.jpa.properties.hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+      spring.jpa.properties.hibernate.search.enabled: "false"
+      hapi.fhir.fhir_version: R4
+      # URL 式多租戶：/fhir/{租戶}/...，租戶＝平台專案編號；參照不可跨租戶
+      hapi.fhir.partitioning.allow_references_across_partitions: "false"
+      # 分割區編號納入資料表主鍵：不同租戶可以各自有相同識別碼的資源（條件式寫入的唯一性以租戶為範圍）
+      hapi.fhir.partitioning.database_partition_mode_enabled: "true"
+      hapi.fhir.partitioning.default_partition_id: "0"
+      # 依 Gateway 帶來的 X-Forwarded-* 產生回應內的網址，不洩漏內部位址
+      hapi.fhir.use_apache_address_strategy: "true"
+      hapi.fhir.reuse_cached_search_results_millis: "0"
+      # 寫入前以 FHIR Validator 檢查（含經 Gateway 直接寫入的資源）；有 error 就整筆拒絕
+      hapi.fhir.validation.requests_enabled: "true"
+      hapi.fhir.validation.responses_enabled: "false"
+      hapi.fhir.cr.enabled: "false"
+      hapi.fhir.mdm_enabled: "false"
+      hapi.fhir.subscription.resthook_enabled: "false"
+    depends_on:
+      fhir-db-init: {condition: service_completed_successfully}
+
+  api:
+    environment:
+      FHIR_URL: http://hapi:8080/fhir
+      FHIR_TIMEOUT_SECONDS: "60"
+      FHIR_ALERT_THRESHOLD: "120"
+      ALERT_SMTP_HOST: mailpit
+      ALERT_SMTP_PORT: "1025"
+      ALERT_EMAIL_FROM: ai-platform@localhost
+      ALERT_EMAIL_TO: ops@ai-platform.test
+      GATEWAY_ROUTES_FILE: /etc/platform/gateway/apisix.yaml
+    volumes:
+      - ./apisix/apisix.yaml:/etc/platform/gateway/apisix.yaml:ro
+
+  # 排程 worker：與 api 同一個映像，輪詢到期的排程並執行
+  fhir-worker:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    command: ["/app/.venv/bin/python", "-m", "app.fhir.worker"]
+    restart: on-failure
+    environment:
+      DATABASE_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
+      FHIR_URL: http://hapi:8080/fhir
+      FHIR_TIMEOUT_SECONDS: "60"
+      FHIR_WORKER_POLL_SECONDS: "5"
+    depends_on:
+      postgres: {condition: service_healthy}
+      api: {condition: service_started}
+
+  # 告警信收件匣（開發用）。網頁與 API 只綁 127.0.0.1
+  mailpit:
+    image: axllent/mailpit:v1.22
+    ports: ["127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"]

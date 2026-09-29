@@ -14,7 +14,8 @@ import httpx
 
 from app.fhir.resources import validate as validate_resource
 
-_CONDITION = re.compile(r"^(?P<type>[A-Za-z]+)\?identifier=(?P<system>[^|&]+)\|(?P<value>[^&]+)$")
+_CONDITION = re.compile(r"^(?P<type>[A-Za-z]+)\?identifier=(?P<system>[^|&]+)\|(?P<value>[^&]+)"
+                        r"(?:&_tag=(?P<tag_system>[^|&]+)\|(?P<tag_code>[^&]+))?$")
 
 
 class FhirError(Exception):
@@ -42,6 +43,15 @@ class FhirClient(Protocol):
 def parse_condition(url: str) -> tuple[str, str, str] | None:
     m = _CONDITION.match(url)
     return (m["type"], m["system"], m["value"]) if m else None
+
+
+def _condition_tag(url: str) -> tuple[str, str] | None:
+    m = _CONDITION.match(url)
+    return (m["tag_system"], m["tag_code"]) if m and m["tag_system"] else None
+
+
+def _has_tag(resource: dict, tag: tuple[str, str]) -> bool:
+    return any((t.get("system"), t.get("code")) == tag for t in (resource.get("meta") or {}).get("tag") or [])
 
 
 def _matches_identifier(resource: dict, system: str, value: str) -> bool:
@@ -110,7 +120,10 @@ class InMemoryFhir:
             if request["url"] in seen:
                 raise FhirError(f"entry[{index}] 與同一個 Transaction 內的其他 entry 條件相同", 400)
             seen.add(request["url"])
-            issues = validate_resource(resource)
+            tag = _condition_tag(request["url"])
+            if tag is not None and not _has_tag(resource, tag):
+                raise FhirError(f"entry[{index}] 資源沒有條件裡的標籤 {tag[0]}|{tag[1]}", 400)
+            issues = validate_resource({k: v for k, v in resource.items() if k != "meta"})
             if issues:
                 raise FhirError(f"entry[{index}] 驗證不通過：{'；'.join(issues)}", 422)
             kind, system, value = condition
@@ -125,7 +138,7 @@ class InMemoryFhir:
                 rid, status, version = str(next_id), "201 Created", 1
                 next_id += 1
             resource["id"] = rid
-            resource["meta"] = {"versionId": str(version)}
+            resource["meta"] = {**(resource.get("meta") or {}), "versionId": str(version)}
             bucket[rid] = resource
             touched.append(resource)
             results.append({"status": status, "location": f"{kind}/{rid}/_history/{version}"})
@@ -135,7 +148,9 @@ class InMemoryFhir:
             if condition is None:
                 return reference
             kind, system, value = condition
-            found = [rid for rid, r in work.get(kind, {}).items() if _matches_identifier(r, system, value)]
+            tag = _condition_tag(reference)
+            found = [rid for rid, r in work.get(kind, {}).items()
+                     if _matches_identifier(r, system, value) and (tag is None or _has_tag(r, tag))]
             if len(found) != 1:
                 raise FhirError(f"條件式參照 {reference} 找不到唯一的資源", 404)
             return f"{kind}/{found[0]}"

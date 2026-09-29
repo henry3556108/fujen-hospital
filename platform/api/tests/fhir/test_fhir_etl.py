@@ -214,5 +214,20 @@ def test_build_bundle_keeps_last_of_duplicates():
     rules = BUILTIN["sql-patient"]["mapping"]
     base = {"patient_id": "A", "given_name": "X", "sex": "M", "birth_date": "1990-01-01"}
     mapped = apply(rules, {**base, "family_name": "OLD"}) + apply(rules, {**base, "family_name": "NEW"})
-    bundle = etl.build_bundle(mapped)
-    assert len(bundle["entry"]) == 1 and bundle["entry"][0]["resource"]["name"][0]["family"] == "NEW"
+    bundle = etl.build_bundle(mapped, 7)
+    [entry] = bundle["entry"]
+    assert entry["resource"]["name"][0]["family"] == "NEW"
+    assert entry["resource"]["meta"] == {"tag": [{"system": "urn:ai-platform:tenant", "code": "7"}]}
+    assert entry["request"]["url"] == "Patient?identifier=urn:ai-platform:mrn|A&_tag=urn:ai-platform:tenant|7"
+
+
+def test_build_bundle_tags_conditional_references_and_sets_full_urls():
+    from app.fhir.mapping import apply
+    [enc] = apply(BUILTIN["csv-encounter"]["mapping"], {"encounter_id": "E1", "patient_id": "A", "class": "IMP",
+                                                        "start": "2024-01-01T10:00:00", "status": "finished"})
+    [entry] = etl.build_bundle([enc], 3)["entry"]
+    assert entry["resource"]["subject"]["reference"] == \
+        "Patient?identifier=urn:ai-platform:mrn|A&_tag=urn:ai-platform:tenant|3"
+    assert entry["fullUrl"].startswith("urn:uuid:")
+    assert etl.build_bundle([enc], 3)["entry"][0]["fullUrl"] == entry["fullUrl"]
+    assert enc.resource["subject"]["reference"] == "Patient?identifier=urn:ai-platform:mrn|A"   # 不改原資源

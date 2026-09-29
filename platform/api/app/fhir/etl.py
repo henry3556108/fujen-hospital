@@ -3,6 +3,7 @@
 不論成功、資料不合格（rejected）或寫入失敗（failed），都留下一筆 FhirRun 與一筆 data_exchange 稽核，
 兩者在同一個資料庫交易內。寫入 FHIR 伺服器只有一次呼叫（整批），所以不會有寫到一半的狀態。
 """
+import uuid
 from collections import Counter
 from datetime import datetime
 
@@ -10,27 +11,52 @@ from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
 from app.fhir import hl7v2, mapping as mapping_engine
-from app.fhir.client import FhirClient, FhirError, FhirUnavailable
+from app.fhir.client import FhirClient, FhirError, FhirUnavailable, parse_condition
 from app.fhir.mapping import BUILTIN, Mapped, RecordRejected
 from app.fhir.models import FhirMapping, FhirRun, FhirSource
 from app.fhir.resources import validate
 from app.fhir.sources import SourceError, read_records
 from app.models import Project, utcnow
 
+TENANT_TAG_SYSTEM = "urn:ai-platform:tenant"
 MAX_ERRORS = 50          # FhirRun.errors 最多保留幾筆原因
 MAX_VITALS_BATCH = 500   # 一次請求最多幾筆監視器讀數
 VITAL_FIELDS = ("device_id", "patient_id", "sequence", "timestamp", "heart_rate", "spo2", "resp_rate")
 
 
-def build_bundle(mapped: list[Mapped]) -> dict:
-    """同一批內相同條件（同一識別碼）的資源只留最後一筆：來源若重複列出同一個病人，以後者為準。"""
+def tenant_tag(tenant: int) -> dict:
+    return {"system": TENANT_TAG_SYSTEM, "code": str(tenant)}
+
+
+def build_bundle(mapped: list[Mapped], tenant: int) -> dict:
+    """同一批內相同條件（同一識別碼）的資源只留最後一筆：來源若重複列出同一個病人，以後者為準。
+
+    每個資源帶租戶標籤，條件式寫入的網址也帶 `_tag=租戶`。HAPI 把條件式寫入的網址記在一張不分租戶的表
+    （HFJ_RES_SEARCH_URL，partition -1）並要求唯一，只用識別碼當條件時，兩個租戶有同一位病人就會互撞。
+    """
     latest: dict[str, Mapped] = {}
     for item in mapped:
         latest.pop(item.condition, None)
         latest[item.condition] = item
-    return {"resourceType": "Bundle", "type": "transaction", "entry": [
-        {"resource": item.resource, "request": {"method": "PUT", "url": condition}}
-        for condition, item in latest.items()]}
+    tag = tenant_tag(tenant)
+    suffix = f"&_tag={TENANT_TAG_SYSTEM}|{tenant}"
+
+    def tagged(node):
+        # 條件式參照也要帶同樣的標籤：HAPI 以網址比對同一個 Bundle 內將要建立的資源
+        if isinstance(node, dict):
+            return {k: (v + suffix if k == "reference" and isinstance(v, str) and parse_condition(v) else tagged(v))
+                    for k, v in node.items()}
+        if isinstance(node, list):
+            return [tagged(v) for v in node]
+        return node
+
+    entries = []
+    for condition, item in latest.items():
+        resource = {**tagged(item.resource), "meta": {"tag": [tag]}}
+        full_url = f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, f'{tenant}/{condition}')}"
+        entries.append({"fullUrl": full_url, "resource": resource, "request": {
+            "method": "PUT", "url": f"{condition}&_tag={TENANT_TAG_SYSTEM}|{tenant}"}})
+    return {"resourceType": "Bundle", "type": "transaction", "entry": entries}
 
 
 def map_records(rules: dict, records: list[dict]) -> tuple[list[Mapped], list[dict]]:
@@ -71,7 +97,7 @@ def _finish(session: Session, run: FhirRun, *, status: str, action: str, target:
 
 def _write(session: Session, client: FhirClient, run: FhirRun, mapped: list[Mapped], *, action: str, target: str,
            source_ip: str | None, now, detail: dict | None = None) -> FhirRun:
-    bundle = build_bundle(mapped)
+    bundle = build_bundle(mapped, run.project_id)
     try:
         client.ensure_tenant(run.project_id)
         client.transaction(run.project_id, bundle)

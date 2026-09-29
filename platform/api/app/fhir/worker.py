@@ -10,7 +10,6 @@ import threading
 from app.db import make_engine, make_sessionmaker
 from app.fhir import scheduler
 from app.fhir.client import fhir_from_env
-from app.models import Base
 
 log = logging.getLogger("fhir.worker")
 
@@ -21,10 +20,9 @@ def main() -> int:
     if client is None or not os.environ.get("DATABASE_URL"):
         log.error("缺少環境變數 FHIR_URL 或 DATABASE_URL")
         return 2
-    import app.main  # noqa: F401  載入所有資料表定義
-    engine = make_engine(os.environ["DATABASE_URL"])
-    Base.metadata.create_all(engine)
-    make_session = make_sessionmaker(engine)
+    import app.main  # noqa: F401  載入所有資料表定義（外鍵指向的表要先註冊）
+    # 資料表由平台 API 啟動時建立；worker 不建表，避免兩邊同時建表互撞。表還沒建好時下一輪再試
+    make_session = make_sessionmaker(make_engine(os.environ["DATABASE_URL"]))
     poll = float(os.environ.get("FHIR_WORKER_POLL_SECONDS", "5"))
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
