@@ -12,7 +12,8 @@ services:
       - clamav-db:/var/lib/clamav
       - ./clamav/clamd.conf:/etc/clamav/clamd.conf:ro
     healthcheck:
-      test: ["CMD", "clamdcheck.sh"]
+      # 映像內建的 clamdcheck.sh 連 localhost，在這裡會解析成 IPv6 而連不上；clamd 只聽 IPv4，所以直接連 127.0.0.1
+      test: ["CMD-SHELL", "[ \"$$(echo PING | nc 127.0.0.1 3310)\" = PONG ]"]
       interval: 15s
       timeout: 10s
       retries: 40
