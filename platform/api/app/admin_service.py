@@ -1,10 +1,16 @@
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import audit
 from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
 from app.permissions import DEFAULT_ROLE_PERMISSIONS, AccountType, Permission, Role
+
+
+log = logging.getLogger(__name__)
 
 
 class Conflict(Exception):
@@ -103,11 +109,32 @@ def create_user(session: Session, idp: IdentityProvider, *, actor: str, username
         record(session, actor=actor, category=AuditCategory.ACCOUNT, action="create", target=f"user:{user.id}",
                source_ip=source_ip, detail={"username": username, "account_type": account_type.value})
         session.commit()
-    except Exception:
+    except Exception as original:
         session.rollback()
-        idp.delete_user(subject)  # 補償：資料庫失敗時不留下孤兒帳號
-        raise
+        try:
+            idp.delete_user(subject)  # 補償：資料庫失敗時不留下孤兒帳號
+        except Exception as compensation:
+            _report_orphan(session, original, compensation, actor=actor, username=username, subject=subject,
+                           source_ip=source_ip)
+        raise  # 一律拋原本的錯誤；補償失敗不可以蓋掉它
     return user
+
+
+def _report_orphan(session: Session, original: Exception, compensation: Exception, *, actor: str, username: str,
+                   subject: str, source_ip: str | None) -> None:
+    """補償失敗：身分提供者留下了平台不認得的帳號。寫 log 與 1 筆稽核，讓管理者找得到並手動清掉。"""
+    log.error("建立帳號 %s 失敗後補償失敗，身分提供者留下孤兒帳號 subject=%s：%s: %s（原本的錯誤：%s: %s）",
+              username, subject, type(compensation).__name__, compensation, type(original).__name__, original)
+    original.add_note(f"補償也失敗：身分提供者的帳號 {subject} 未刪除（{type(compensation).__name__}）")
+    try:
+        audit.record(session, actor=actor, category=AuditCategory.ACCOUNT, action="create.compensation_failed",
+                     target=f"idp:{subject}", result="failed", source_ip=source_ip,
+                     detail={"username": username, "idp_subject": subject,
+                             "error": type(original).__name__, "compensation_error": type(compensation).__name__})
+        session.commit()
+    except Exception:  # 資料庫仍然不通：至少 log 已經留下
+        session.rollback()
+        log.exception("補償失敗的稽核也寫不進去（帳號 %s，subject=%s）", username, subject)
 
 
 def update_user(session: Session, *, actor: str, user_id: int, account_type: AccountType,
