@@ -8,6 +8,7 @@
 依檔案順序執行：前面情境建立的專案、影像、資料集，後面情境會接著用。
 """
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -203,14 +204,153 @@ def test_scenario_04_training_job_queues_onto_gpu(world):
     assert [a.category for a in world.audit(since=mark)].count("training") >= 1
 
 
-def test_scenario_04_no_code_training_templates(world):
-    pending("WP5", "訓練設定、5 種範本、資料凍結、fake-trainer、匯出 H5／pkl 與原始碼（TC-B05）")
+def run_job(world, run: dict, tmp: Path, headers: dict | None = None) -> dict:
+    """做 Job 容器做的事：以真正的進入點 trainer.runner 下載資料包、訓練、上傳產出（TestClient 就是 httpx 用戶端）。"""
+    from dataclasses import replace
+
+    from trainer.runner import JobIO, run_job as runner
+
+    job = next(j for j in world.backend._jobs.values() if dict(j.spec.env).get("RUN_ID") == str(run["id"]))
+    env = dict(job.spec.env)
+    # 容器只拿到這一次訓練的編號、I/O 位址與一次性 token
+    assert set(env) == {"RUN_ID", "JOB_IO_URL", "JOB_IO_TOKEN", "TRAIN_THREADS"}
+    path = "/api/job-io/runs/" + env["JOB_IO_URL"].rsplit("/api/job-io/runs/", 1)[1]
+    if runner(JobIO(world.client, path, env["JOB_IO_TOKEN"]), tmp) != 0:
+        job.spec = replace(job.spec, fail=True)
+    world.backend.advance(120)
+    return ok(world.client.get(f"/api/projects/{run['project_id']}/training/runs/{run['id']}",
+                               headers=headers or world.headers("pi01")))
+
+
+def train(world, pid: int, headers: dict, name: str, config: dict, tmp: Path, executor: str = "fake") -> dict:
+    c = world.client
+    setting = ok(c.post(f"/api/projects/{pid}/training/settings", headers=headers,
+                        json={"name": name, "config": config}), 201)
+    assert ok(c.get(f"/api/projects/{pid}/training/settings/{setting['id']}", headers=headers)) == setting
+    run = ok(c.post(f"/api/projects/{pid}/training/settings/{setting['id']}/runs", headers=headers,
+                    json={"executor": executor}), 201)
+    done = run_job(world, run, tmp / name, headers)
+    assert done["status"] == "succeeded", done["message"]
+    return done
+
+
+def test_scenario_04_no_code_training_templates(world, tmp_path):
+    """選訓練種類、影像範圍、Label、Resize、切分、6 項增強，送出；匯出模型與原始碼，改參數再跑（B-05）。"""
+    import io
+    import zipfile
+
+    from app.training.inference import FakeInferenceBackend
+    from app.training.tracking import InMemoryTracker
+
+    world.app.state.tracker = InMemoryTracker()
+    world.app.state.inference_backend = FakeInferenceBackend()
+    c, ra, pi, p1 = world.client, world.headers("ra01"), world.headers("pi01"), world.ids["p1"]
+    mark = world.last_audit_id()
+    catalogue = ok(c.get(f"/api/projects/{p1}/training/catalogue", headers=ra))
+    assert len(catalogue["kinds"]) == 5 and len(catalogue["augmentation"]) == 7   # 6 項，位移分長寬
+
+    augment = {"rotation_range": 10, "width_shift_range": 0.1, "height_shift_range": 0.1, "shear_range": 5,
+               "zoom_range": 0.1, "horizontal_flip": True, "vertical_flip": False}
+    split = {"train": 0.6, "validation": 0.2, "test": 0.2}
+    # 1–3. 三種影像訓練，標註來源各不同：平台上的標註（情境 3 的 CSV 分類）、makesense、NIfTI 病例
+    labels = sorted({a["payload"]["label"] for a in ok(c.get(f"/api/projects/{p1}/labels/annotations", headers=pi,
+                                                             params={"kind": "classification"}))
+                     if a["payload"]["label"].startswith("dx-")})
+    runs = {
+        "classification": train(world, p1, ra, "分類", {
+            "kind": "image_classification", "source": {"type": "dicom", "studies": "all",
+                                                       "label_source": {"provider": "annotations"}},
+            "image": {"resize": [32, 32], "labels": labels}, "augmentation": augment, "split": split, "seed": 7},
+            tmp_path),
+        "detection": train(world, p1, ra, "偵測", {
+            "kind": "image_detection", "source": {"type": "dicom", "studies": "all",
+                                                  "label_source": {"provider": "makesense"}},
+            "image": {"resize": [32, 32], "labels": ["nodule", "organ"]}, "augmentation": augment,
+            "split": split, "seed": 7}, tmp_path),
+        "segmentation": train(world, p1, ra, "分割", {
+            "kind": "image_segmentation", "source": {"type": "files", "format": "nifti", "cases": "all"},
+            "image": {"resize": [32, 32], "labels": ["class_1", "class_2"]}, "augmentation": augment,
+            "split": split, "seed": 7}, tmp_path),
+    }
+    for kind, run in runs.items():
+        assert run["config"]["augmentation"] == augment and run["dataset_version"]["item_count"] > 0
+        model = ok(c.get(f"/api/projects/{p1}/models/{run['model_id']}", headers=pi))
+        assert model["format"] == "h5"
+    assert runs["classification"]["dataset_version"]["summary"]["label_names"] == labels
+
+    # 4. 匯出 H5
+    h5 = c.get(f"/api/projects/{p1}/models/{runs['detection']['model_id']}/download", headers=ra)
+    assert h5.status_code == 200 and h5.content[:8] == b"\x89HDF\r\n\x1a\n"
+
+    # 同資料、設定、種子重跑：指標與模型相同
+    again = run_job(world, ok(c.post(f"/api/projects/{p1}/training/runs/{runs['segmentation']['id']}/rerun",
+                                     headers=ra), 201), tmp_path / "rerun")
+    assert again["metrics"] == runs["segmentation"]["metrics"]
+    assert again["artifacts"]["model.h5"]["sha256"] == runs["segmentation"]["artifacts"]["model.h5"]["sha256"]
+
+    # 5. 匯出原始碼（需 coding：Research Assistant 不行，PI 可以），改參數後在平台再跑
+    assert c.get(f"/api/projects/{p1}/training/runs/{runs['classification']['id']}/source", headers=ra).status_code == 403
+    source = c.get(f"/api/projects/{p1}/training/runs/{runs['classification']['id']}/source", headers=pi)
+    files = {n: zipfile.ZipFile(io.BytesIO(source.content)).read(n)
+             for n in zipfile.ZipFile(io.BytesIO(source.content)).namelist()}
+    config = json.loads(files["config.json"])
+    config["hyperparameters"]["epochs"] = 1
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, body in (files | {"config.json": json.dumps(config).encode()}).items():
+            archive.writestr(name, body)
+    child = ok(c.post(f"/api/projects/{p1}/training/runs/{runs['classification']['id']}/source-runs", headers=pi,
+                      files={"file": ("src.zip", buffer.getvalue(), "application/zip")}), 201)
+    assert child["config"]["hyperparameters"]["epochs"] == 1 and child["executor"] == "source"
+    # 修改後的原始碼真的在 Job 進入點執行（Keras 範本；平台 API 的環境沒有 TensorFlow，所以明確失敗並留下紀錄）
+    done = run_job(world, child, tmp_path / "source")
+    assert done["status"] in ("succeeded", "failed")
+    if done["status"] == "failed":
+        assert "tensorflow" in done["message"].lower() or "keras" in done["message"].lower(), done["message"]
+
+    # 權限與稽核：Medical Doctor、Viewer 不能訓練
+    for username in ("md01", "vw01"):
+        assert c.get(f"/api/projects/{p1}/training/settings", headers=world.headers(username)).status_code == 403
+    actions = {a.action for a in world.audit("training", since=mark)}
+    assert {"training_setting.create", "training.submit", "training.finish", "training.rerun",
+            "training.export_source", "training.run_source", "model.download"} <= actions
+    world.ids["image_model"] = runs["classification"]["model_id"]
 
 
 # ---------------------------------------------------------------- 情境 5：部署模型給別人用
 
 def test_scenario_05_deploy_and_infer(world):
-    pending("WP5", "MLflow、批次推論、部署為線上服務與授權呼叫（TC-B06）")
+    """批次推論、檢視結果、部署為線上服務並設定可用帳號、授權帳號即時推論、查歷史並下載（B-06）。"""
+    c, pi, md, p1 = world.client, world.headers("pi01"), world.headers("md01"), world.ids["p1"]
+    model_id = world.ids["image_model"]
+    base = f"/api/projects/{p1}/models/{model_id}"
+    mark = world.last_audit_id()
+
+    # 1–2. 批次推論（全部凍結資料）與上傳推論，影像顯示分類結果
+    batch = ok(c.post(f"{base}/inference/batch", headers=pi, json={"subset": "all"}), 201)
+    assert batch["count"] > 0 and all(r["label"] for r in batch["result"]["results"])
+    dicoms = sorted((world.synth / "dicom").rglob("*.dcm"))[:3]
+    upload = ok(c.post(f"{base}/inference/upload", headers=pi,
+                       files=[("files", (p.name, p.read_bytes())) for p in dicoms]), 201)
+    assert upload["count"] == 3
+
+    # 3. 部署為線上服務，只開放給 md01
+    deployment = ok(c.post(f"/api/projects/{p1}/deployments", headers=pi,
+                           json={"model_id": model_id, "name": "s0-image", "allowed_users": ["md01"]}), 201)
+    # 4. 授權帳號即時推論；其他帳號被拒
+    answer = ok(c.post(deployment["endpoint"], headers=md, files=[("files", (dicoms[0].name, dicoms[0].read_bytes()))]))
+    assert len(answer["results"]) == 1
+    for username in ("vw01", "user01", "pi01"):
+        assert c.post(deployment["endpoint"], headers=world.headers(username),
+                      files=[("files", ("a.dcm", dicoms[0].read_bytes()))]).status_code == 403
+
+    history = ok(c.get(f"{base}/inference", headers=pi))
+    assert [h["mode"] for h in history] == ["online", "upload", "batch"]
+    download = c.get(f"/api/projects/{p1}/inference/{history[-1]['id']}/download", headers=pi)
+    assert download.status_code == 200 and json.loads(download.content)["results"]
+    audit = world.audit("inference", since=mark)
+    assert {"inference.batch", "inference.upload", "deployment.create", "inference.online"} <= {a.action for a in audit}
+    assert sum(a.result == "denied" for a in audit) == 3
 
 
 # ---------------------------------------------------------------- 情境 6：分析結構式臨床資料
@@ -261,8 +401,42 @@ def test_scenario_06_tabular_analysis(world):
     assert {"dataset", "training"} <= {a.category for a in world.audit(since=mark)}
 
 
-def test_scenario_06_train_on_tabular(world):
-    pending("WP5", "以同份資料訓練分類或迴歸模型並匯出 pkl（TC-B05）")
+def test_scenario_06_train_on_tabular(world, tmp_path):
+    """以同份資料訓練分類與迴歸模型（真的 scikit-learn 範本），匯出 pkl 在平台外載入，批次推論新增預測欄（B-05、B-06）。"""
+    import csv
+    import io
+    import pickle
+
+    import pandas as pd
+
+    c, ra, p2 = world.client, world.headers("ra01"), world.project_id("P2-tabular")
+    dataset = ok(c.get(f"/api/projects/{p2}/tabular/datasets", headers=ra))[0]
+    split = {"train": 0.6, "validation": 0.2, "test": 0.2}
+    steps = [{"id": "impute_mean", "columns": ["glucose"]}, {"id": "scale_standard", "columns": ["age", "bmi"]}]
+    source = {"type": "tabular", "dataset_id": dataset["id"]}
+    classifier = train(world, p2, ra, "診斷分類", {
+        "kind": "tabular_classification", "source": source, "split": split, "seed": 1,
+        "tabular": {"target": "diagnosis", "features": ["age", "bmi", "glucose", "sbp"], "steps": steps,
+                    "algorithm": "random_forest"}, "hyperparameters": {"n_estimators": 10}}, tmp_path, "template")
+    regressor = train(world, p2, ra, "血壓迴歸", {
+        "kind": "tabular_regression", "source": source, "split": split, "seed": 1,
+        "tabular": {"target": "sbp", "features": ["age", "bmi", "glucose"], "steps": steps,
+                    "algorithm": "linear_regression"}}, tmp_path, "template")
+    assert classifier["metrics"]["rows"]["test"] == 20 and "r2" in regressor["metrics"]["test"]
+
+    # 匯出 pkl，在平台外（只用 scikit-learn 與 pandas）載入並預測
+    for run in (classifier, regressor):
+        model = pickle.loads(c.get(f"/api/projects/{p2}/models/{run['model_id']}/download", headers=ra).content)
+        rows = pd.DataFrame([[0.0] * len(model.feature_names_in_)] * 3, columns=model.feature_names_in_)
+        assert len(model.predict(rows)) == 3
+
+    # 批次推論測試資料 20 筆，每一列都新增預測欄
+    out = ok(c.post(f"/api/projects/{p2}/models/{classifier['model_id']}/inference/batch", headers=ra,
+                    json={"subset": "test"}), 201)
+    data = c.get(f"/api/projects/{p2}/inference/{out['id']}/download", headers=ra).content.decode()
+    rows = list(csv.DictReader(io.StringIO(data)))
+    assert len(rows) == 20 and all(r["prediction"] or r["prediction_note"] for r in rows)
+    assert "diagnosis" not in rows[0]
 
 
 # ---------------------------------------------------------------- 情境 7：建一個院內知識問答
@@ -334,7 +508,7 @@ def test_scenario_10_audit_trail(world):
     # 每筆稽核都帶齊：誰、何時、類別、動作、對象、結果
     assert rows and all(r.actor and r.at and r.category and r.action and r.target and r.result for r in rows)
     # 8 類稽核中，目前已實作的工作包應已產生的類別
-    assert {"account", "role", "project", "dataset", "training"} <= {r.category for r in rows}
+    assert {"account", "role", "project", "dataset", "training", "inference"} <= {r.category for r in rows}
     # 沒有任何可以改或刪稽核的 API
     paths = [(m, r.path) for r in world.app.routes for m in getattr(r, "methods", ()) if "audit" in r.path]
     assert not [p for p in paths if p[0] in {"PUT", "PATCH", "DELETE", "POST"}], paths

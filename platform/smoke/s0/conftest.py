@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 PLATFORM = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(PLATFORM / "api"), str(PLATFORM / "fakes")]
+sys.path[:0] = [str(PLATFORM / "api"), str(PLATFORM / "fakes"), str(PLATFORM / "training")]
 
 from app.identity import InMemoryIdentityProvider, JwtVerifier  # noqa: E402
 from app.imaging.orthanc import InMemoryOrthanc  # noqa: E402
