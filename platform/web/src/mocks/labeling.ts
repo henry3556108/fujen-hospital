@@ -379,6 +379,7 @@ const LABEL_ALIASES = ['diagnosis', 'label', '診斷', '診斷結果'];
 // ---------- handlers ----------
 
 const API = '*/api/projects/:pid';
+const mockSettings = new Map<number, string>();
 const LABELS = `${API}/labels`;
 const WADO = '*/dicomweb/projects/:pid/studies/:study';
 const now = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -665,26 +666,34 @@ const labelingHandlers = [
     return json({ run, annotation }, 201);
   }),
 
-  // ---- 標註後直接訓練：沿用排程的工作 API（WP4）；訓練型態與參數由 WP5b 擴充 ----
-  // 只接標註頁送來的（帶 training_type）；其他工作交給 mocks/scheduling.ts 的排程模擬（回傳 undefined 即交給下一個 handler）
-  http.post(`${API}/jobs`, async ({ request, params }) => {
-    const peek = await bodyOf(request.clone());
-    if (typeof peek.training_type !== 'string') return undefined;
+  // ---- 標註後直接訓練：WP5b 的訓練 API（存設定、送出訓練） ----
+  // 設定只在記憶體裡：送出訓練時用來記下訓練型態
+  http.post(`${API}/training/settings`, async ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'training');
     if (ctx instanceof Response) return ctx;
-    const b = peek;
+    const b = await bodyOf(request);
+    const config = (b.config ?? {}) as { kind?: string; image?: { labels?: string[] } };
+    const labels = config.image?.labels ?? [];
+    if (config.kind === 'image_classification' && labels.length < 2) return detail(422, '影像分類至少需要 2 種 Label');
+    const id = mockSettings.size + 1;
+    mockSettings.set(id, String(config.kind ?? ''));
+    return json({ id, project_id: ctx.projectId, name: b.name, kind: config.kind, config }, 201);
+  }),
+  http.post(`${API}/training/settings/:sid/runs`, async ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
     const s = load();
     const job: MockJob = {
       id: s.nextJobId++,
       project_id: ctx.projectId,
       user: ctx.username,
-      kind: typeof b.kind === 'string' ? b.kind : 'training',
+      kind: 'training',
       status: 'queued',
-      training_type: typeof b.training_type === 'string' ? b.training_type : undefined,
+      training_type: mockSettings.get(Number(params.sid))?.replace(/^image_/, ''),
     };
     s.jobs.push(job);
     save();
-    return json({ ...job, gpu_group: 'gpu-exclusive', queue: 'gpu-exclusive', k8s_name: `job-${job.id}-mock`, message: '' }, 201);
+    return json({ ...job, kind: mockSettings.get(Number(params.sid)), setting_id: Number(params.sid), executor: 'template' }, 201);
   }),
 
   // ---- 合成的專案範圍 DICOMweb ----

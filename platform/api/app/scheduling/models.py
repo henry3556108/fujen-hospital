@@ -19,7 +19,9 @@ class GpuGroup(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    # 刪除專案時一併刪除工作列（與影像、結構式、訓練資料一致）。稽核紀錄另存，不受影響。
+    # 叢集中仍在執行的 Kubernetes Job 不會因此停止，見 WP5b 計畫的裁定。
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     user: Mapped[str] = mapped_column(String(64))
     kind: Mapped[str] = mapped_column(String(32))
     gpu_group: Mapped[str | None] = mapped_column(String(64), default=None)

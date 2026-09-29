@@ -215,3 +215,38 @@ def test_backend_from_env(monkeypatch):
     assert type(backend_from_env()).__name__ == "FakeJobBackend"
     monkeypatch.delenv("JOB_BACKEND")
     assert backend_from_env() is None
+
+
+# ---------- WP5b：真實工作（映像＋指令） ----------
+
+def workload_spec(**kw):
+    return gpu_spec(image="platform-trainer:dev", command=("python", "-m", "trainer.runner"), memory_mb=1024,
+                    env=(("JOB_IO_TOKEN", "t"), ("JOB_IO_URL", "http://api:8000"), ("RUN_ID", "7")), **kw)
+
+
+def test_tc_b05_05_workload_manifest_runs_image_and_command_without_credentials():
+    m = build_job_manifest(workload_spec(), namespace="platform-jobs", image="busybox:1.36")
+    pod = m["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    assert container["image"] == "platform-trainer:dev" and container["command"] == ["python", "-m", "trainer.runner"]
+    assert container["imagePullPolicy"] == "IfNotPresent"
+    # 容器拿到的環境變數只有提交者列舉的三個
+    assert {e["name"] for e in container["env"]} == {"JOB_IO_TOKEN", "JOB_IO_URL", "RUN_ID"}
+    assert all("valueFrom" not in e for e in container["env"]) and "envFrom" not in container
+    # 不掛 ServiceAccount token、不注入叢集服務位址、沒有 Secret／ConfigMap／hostPath 掛載
+    assert pod["automountServiceAccountToken"] is False and pod["enableServiceLinks"] is False
+    assert "serviceAccountName" not in pod
+    assert pod["volumes"] == [{"name": "work", "emptyDir": {}}]
+    assert pod["securityContext"]["runAsNonRoot"] is True
+    assert container["securityContext"] == {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}
+
+
+def test_workload_manifest_keeps_kueue_queue_labels_gpu_and_deadline():
+    m = build_job_manifest(workload_spec(timeout_seconds=90), namespace="platform-jobs", image="busybox:1.36")
+    pod = m["spec"]["template"]["spec"]
+    assert m["metadata"]["labels"]["kueue.x-k8s.io/queue-name"] == "gpu-exclusive" and m["spec"]["suspend"] is True
+    assert m["spec"]["template"]["metadata"]["labels"] == LABELS
+    assert pod["nodeSelector"] == {"platform/pool": "gpu-exclusive"}
+    assert pod["containers"][0]["resources"]["limits"] == {"memory": "1024Mi", "nvidia.com/gpu": "1"}
+    assert {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"} in pod["tolerations"]
+    assert m["spec"]["activeDeadlineSeconds"] == 90 and m["spec"]["backoffLimit"] == 0

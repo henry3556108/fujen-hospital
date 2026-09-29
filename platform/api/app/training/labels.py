@@ -1,0 +1,171 @@
+"""標註來源。資料凍結時向 LabelProvider 取得每張影像的 Label、方框、遮罩。
+
+內建三種：
+- annotations  影像標註平台（WP5a）存的標註：分類（影像層級優先，否則用研究層級）、偵測框、分割遮罩。
+- makesense    匯入的 makesense（COCO）標註：方框與類別；分類 Label 取該影像面積最大的方框的類別。
+- inline       訓練設定內直接給「研究、Accession 或 SOP → Label」的對照（分類用）。
+
+其他工作包（例如影像標註平台）可以註冊自己的來源：
+
+    from app.training.labels import providers
+    providers(app.state)["annotations"] = MyProvider()
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.imaging.models import ImagingFile
+from app.imaging.service import _match_sop
+from app.storage import ObjectNotFound, ObjectStore
+from app.training.config import ConfigError
+
+
+@dataclass(frozen=True)
+class InstanceRef:
+    sop_instance_uid: str
+    study_instance_uid: str
+    accession_number: str
+    source_path: str
+
+
+@dataclass
+class ItemLabels:
+    label: str | None = None
+    boxes: list[dict[str, Any]] = field(default_factory=list)     # {"label": str, "bbox": [x, y, 寬, 高]}
+    mask: tuple[bytes, str] | None = None                         # (檔案內容, 格式)
+
+
+class LabelProvider(Protocol):
+    def labels(self, session: Session, store: ObjectStore, project_id: int, instances: list[InstanceRef],
+               options: dict[str, Any]) -> tuple[dict[str, ItemLabels], list[str]]:
+        """回傳（SOP Instance UID → 標註, Label 名稱清單）。沒有標註的影像不放進結果。"""
+
+
+def _largest(boxes: list[dict]) -> str:
+    return sorted(boxes, key=lambda b: (-b["bbox"][2] * b["bbox"][3], b["label"], b["bbox"]))[0]["label"]
+
+
+class MakesenseLabels:
+    def labels(self, session, store, project_id, instances, options):
+        sources = [(i.source_path, i.sop_instance_uid) for i in instances]
+        wanted = {i.sop_instance_uid for i in instances}
+        out: dict[str, ItemLabels] = {}
+        names: list[str] = []
+        files = session.scalars(select(ImagingFile).where(
+            ImagingFile.project_id == project_id, ImagingFile.format == "makesense").order_by(ImagingFile.id)).all()
+        for file in files:
+            try:
+                coco = json.loads(store.get(file.object_key))
+            except (ObjectNotFound, ValueError):
+                continue
+            categories = {c["id"]: str(c["name"]) for c in coco.get("categories", [])}
+            for name in categories.values():
+                if name not in names:
+                    names.append(name)
+            by_image: dict[Any, list[dict]] = {}
+            for a in coco.get("annotations", []):
+                if a.get("category_id") in categories and len(a.get("bbox") or []) == 4:
+                    by_image.setdefault(a["image_id"], []).append(
+                        {"label": categories[a["category_id"]], "bbox": [float(v) for v in a["bbox"]]})
+            for image in coco.get("images", []):
+                sops = _match_sop(sources, str(image.get("file_name", "")))
+                boxes = by_image.get(image.get("id"))
+                if len(sops) == 1 and sops[0] in wanted and boxes:
+                    item = out.setdefault(sops[0], ItemLabels())
+                    item.boxes.extend(boxes)
+        for item in out.values():
+            item.boxes.sort(key=lambda b: (b["label"], b["bbox"]))
+            item.label = _largest(item.boxes)
+        return out, names
+
+
+class InlineLabels:
+    def labels(self, session, store, project_id, instances, options):
+        key = {"study": "study_instance_uid", "accession": "accession_number", "sop": "sop_instance_uid"}[options["by"]]
+        values = options["values"]
+        out = {i.sop_instance_uid: ItemLabels(label=values[getattr(i, key)])
+               for i in instances if getattr(i, key) in values}
+        return out, sorted(set(values.values()))
+
+
+class AnnotationLabels:
+    """影像標註平台的標註。同一張影像有多筆同種標註時取最後修改的一筆。
+
+    分割遮罩依訓練設定的 Label 順序重新編號（第 1 個 Label＝1，其餘＝背景 0），存成 .npy。
+    """
+
+    def labels(self, session, store, project_id, instances, options):
+        import io
+
+        import numpy as np
+
+        from app.labeling.models import Annotation
+        from app.labeling.payloads import mask_from_rle
+
+        kind = options.get("kind", "classification")
+        wanted = options.get("wanted_labels") or []
+        sops = {i.sop_instance_uid for i in instances}
+        studies = {i.study_instance_uid for i in instances}
+        rows = session.scalars(select(Annotation).where(
+            Annotation.project_id == project_id, Annotation.kind == kind,
+            Annotation.study_instance_uid.in_(studies)).order_by(Annotation.updated_at, Annotation.id)).all()
+        by_sop = {r.sop_instance_uid: r for r in rows if r.sop_instance_uid in sops}    # 後面的覆蓋前面的
+        by_study = {r.study_instance_uid: r for r in rows if r.sop_instance_uid is None}
+        out: dict[str, ItemLabels] = {}
+        names: list[str] = []
+
+        def seen(name: str) -> None:
+            if name not in names:
+                names.append(name)
+
+        for ref in instances:
+            row = by_sop.get(ref.sop_instance_uid)
+            if kind == "classification":
+                row = row or by_study.get(ref.study_instance_uid)
+                if row is not None:
+                    seen(row.payload["label"])
+                    out[ref.sop_instance_uid] = ItemLabels(label=row.payload["label"])
+            elif kind == "detection" and row is not None:
+                boxes = [{"label": b["label"], "bbox": [float(b["box"][0]), float(b["box"][1]),
+                                                        float(b["box"][2] - b["box"][0]),
+                                                        float(b["box"][3] - b["box"][1])]}
+                         for b in row.payload["boxes"]]
+                for b in boxes:
+                    seen(b["label"])
+                out[ref.sop_instance_uid] = ItemLabels(boxes=sorted(boxes, key=lambda b: (b["label"], b["bbox"])))
+            elif kind == "segmentation" and row is not None:
+                payload = row.payload
+                for name in payload["label_names"]:
+                    if name != "background":
+                        seen(name)
+                order = wanted or [n for n in names]
+                remap = np.zeros(256, dtype="int32")
+                for name, value in payload["label_names"].items():
+                    if name in order:
+                        remap[value] = order.index(name) + 1
+                height, width = payload["shape"]
+                mask = remap[np.asarray(mask_from_rle(payload["rle"]), dtype="int32")].reshape(height, width)
+                buffer = io.BytesIO()
+                np.save(buffer, mask.astype("int32"), allow_pickle=False)
+                out[ref.sop_instance_uid] = ItemLabels(mask=(buffer.getvalue(), "npy"))
+        return out, names
+
+
+def providers(state) -> dict[str, LabelProvider]:
+    registry = getattr(state, "label_providers", None)
+    if registry is None:
+        registry = state.label_providers = {"annotations": AnnotationLabels(), "makesense": MakesenseLabels(),
+                                            "inline": InlineLabels()}
+    return registry
+
+
+def get_provider(state, name: str) -> LabelProvider:
+    registry = providers(state)
+    if name not in registry:
+        raise ConfigError(f"找不到標註來源「{name}」（可用：{'、'.join(registry)}）")
+    return registry[name]

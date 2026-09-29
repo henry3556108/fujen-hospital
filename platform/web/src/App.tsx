@@ -11,6 +11,7 @@ import { AccessDenied, HomePage, ModulePlaceholder, NotFoundPage } from './pages
 import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
+import { InferencePage } from './pages/inference/InferencePage';
 import { LabelingPage } from './pages/labeling/LabelingPage';
 import { WorkbenchPage } from './pages/labeling/WorkbenchPage';
 import { AutoLabelPage } from './pages/labeling/AutoLabelPage';
@@ -129,6 +130,8 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
             <Route path="labeling" element={<EntryGuard entry={entryByKey('labeling')!}><LabelingPage /></EntryGuard>} />
             <Route path="labeling/studies/:studyUid" element={<EntryGuard entry={entryByKey('labeling')!}><WorkbenchPage /></EntryGuard>} />
             <Route path="auto-labeling" element={<EntryGuard entry={entryByKey('auto-labeling')!}><AutoLabelPage /></EntryGuard>} />
+            {/* WP5b 推論服務管理 */}
+            <Route path="inference" element={<EntryGuard entry={entryByKey('inference')!}><InferencePage /></EntryGuard>} />
             <Route path="llm/*" element={<EntryGuard entry={entryByKey('llm')!}><LlmRoutes /></EntryGuard>} />
             {ENTRIES.filter((e) => e.placeholder).map((e) => (
               <Route

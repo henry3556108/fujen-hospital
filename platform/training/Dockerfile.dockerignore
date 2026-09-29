@@ -1,0 +1,11 @@
+# 用於 build context = platform/ 的 training/Dockerfile：只送入 trainer 專案與 tabular 函式庫
+*
+!training/pyproject.toml
+!training/uv.lock
+!training/README.md
+!training/trainer
+!libs/tabular
+libs/tabular/.venv
+libs/tabular/tests
+**/__pycache__
+**/.pytest_cache

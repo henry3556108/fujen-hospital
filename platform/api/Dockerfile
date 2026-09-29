@@ -8,6 +8,9 @@ COPY libs/tabular /libs/tabular
 COPY api/pyproject.toml api/uv.lock ./
 RUN uv sync --frozen --no-dev --no-editable
 COPY api/app ./app
+# WP5b：匯出訓練原始碼時打包的範本
+COPY training/trainer/templates /app/training-templates
+ENV TRAINING_TEMPLATES_DIR=/app/training-templates
 RUN useradd --uid 10001 --no-create-home app && mkdir -p /data/objects && chown app /data/objects
 USER app
 CMD ["/app/.venv/bin/uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

@@ -8,3 +8,6 @@ libs/tabular/.venv
 libs/tabular/tests
 **/__pycache__
 **/.pytest_cache
+# WP5b：匯出訓練原始碼時打包的範本
+!training/trainer/templates
+training/trainer/templates/__pycache__

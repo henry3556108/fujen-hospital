@@ -95,3 +95,25 @@ uv sync && uv run pytest
 <!-- catalogue:end -->
 
 每種方法的參數以 JSON Schema 定義，請由 `catalogue()` 取得。`numeric` 型別的方法亦接受布林欄位；欄位清單留空時自動套用到所有適用欄位。
+
+## 訓練用：在訓練資料上擬合、套用到其他資料
+
+`apply_pipeline` 每一步都用收到的資料自己擬合，適合探索單一資料集。訓練模型時統計量只能來自訓練切分，否則測試資料的資訊會洩漏進模型。
+
+```python
+from tabular.fitted import fit_pipeline
+
+fitted, train_out = fit_pipeline(train_df, steps)      # 在訓練資料上擬合
+test_out = fitted.transform(test_df)                    # 套用到驗證、測試資料
+rows_out = fitted.transform(upload_df, optional=["target"])   # 推論資料可以沒有目標欄
+```
+
+66 種方法各屬一種模式（`tabular.fitted.STEP_MODES`）：
+
+| 模式 | 行為 | 例子 |
+|---|---|---|
+| `stateless` | 不涉及統計量，各資料各自套用 | 對數轉換、固定值補值、型別轉換 |
+| `fitted` | 統計量在訓練資料上取得並保存 | 平均數補值、縮放、One-Hot、分箱、離群值界線、PCA |
+| `train_only` | 會刪除列；只在擬合時執行，`transform` 不刪列 | 刪除含缺值的列、刪除重複列、IQR／Z 分數刪除離群列 |
+
+在訓練資料上，`fit_pipeline` 的結果與 `apply_pipeline` 完全相同。訓練資料沒出現過的類別：One-Hot 全為 0、頻率與計數編碼為 0、順序與標籤編碼為空值。

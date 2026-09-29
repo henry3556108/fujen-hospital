@@ -34,21 +34,32 @@ export interface TrainingJob {
 }
 
 /**
- * 標註後直接訓練（TC-B02-06）。目前沿用排程的工作 API（WP4）；
- * 訓練型態與參數由 WP5b 的訓練 API 接手後，只需要改這一個函式。
+ * 標註後直接訓練（TC-B02-06）：走 WP5b 的訓練 API。
+ * 先存一份訓練設定（資料來源＝本專案的標註），再以範本送出訓練；平台會凍結當下的標註與影像，
+ * 之後改標註不影響這次訓練。回傳的是訓練（training run），進度在「建模管理」查看。
  */
-export function createTrainingJob(api: ApiClient, projectId: number, request: TrainingRequest): Promise<TrainingJob> {
-  return api.post<TrainingJob>(`/api/projects/${projectId}/jobs`, {
-    kind: 'training',
-    duration_seconds: 30,
-    training_type: request.trainingType,
-    labels: request.labels,
-    resize: request.resize,
-    validation_split: request.validationSplit,
-    test_split: request.testSplit,
-    seed: request.seed,
-    annotation_source: 'labeling',
-  });
+export function trainingSetting(request: TrainingRequest, name: string) {
+  const validation = request.validationSplit;
+  const test = request.testSplit;
+  return {
+    name,
+    config: {
+      kind: `image_${request.trainingType}`,
+      source: { type: 'dicom', studies: 'all', label_source: { provider: 'annotations' } },
+      image: { resize: [request.resize, request.resize], labels: request.labels },
+      // 以整數百分比計算，避免 0.7 + 0.2 + 0.1 這類浮點誤差讓伺服器判為總和不等於 1
+      split: { train: (100 - Math.round(validation * 100) - Math.round(test * 100)) / 100, validation, test },
+      seed: request.seed,
+    },
+  };
+}
+
+export async function createTrainingJob(api: ApiClient, projectId: number, request: TrainingRequest): Promise<TrainingJob> {
+  const root = `/api/projects/${projectId}/training`;
+  const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const name = `標註頁訓練 ${stamp} ${Math.random().toString(36).slice(2, 6)}`;
+  const setting = await api.post<{ id: number }>(`${root}/settings`, trainingSetting(request, name));
+  return api.post<TrainingJob>(`${root}/settings/${setting.id}/runs`, { executor: 'template' });
 }
 
 export interface AnnotationFilter {

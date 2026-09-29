@@ -1,0 +1,9 @@
+# build context 是 platform/：不要把各子專案的虛擬環境、node_modules、測試產出送進 Docker
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/test-results
+**/reports
+web/dist
+deploy/local/kubeconfig.kind

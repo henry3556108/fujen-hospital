@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HOTKEYS } from '../../src/pages/labeling/WorkbenchPage';
-import { createTrainingJob } from '../../src/pages/labeling/api';
+import { createTrainingJob, trainingSetting } from '../../src/pages/labeling/api';
 import { hotkeyId } from '../../src/pages/labeling/useHotkeys';
 import { MOCK_STUDIES, MOCK_STUDY_COUNT, labelingMock } from '../../src/mocks/labeling';
 import { renderApp } from '../render';
@@ -75,13 +75,28 @@ describe('labeling index', () => {
     expect(screen.queryByRole('button', { name: '建立訓練任務' })).toBeNull();
   });
 
-  it('TC-B02-06 creates a training task from the labeling page with type and parameters', async () => {
+  function studyLabel(label: string) {
     const s = labelingMock();
     s.annotations.push({
       id: s.nextAnnotationId++, project_id: 1, study_instance_uid: STUDY.study_instance_uid, series_instance_uid: null,
-      sop_instance_uid: null, kind: 'classification', payload: { label: 'nodule' }, source: 'manual', rating: null, version: 1,
+      sop_instance_uid: null, kind: 'classification', payload: { label }, source: 'manual', rating: null, version: 1,
       autolabel_run_id: null, created_by: 'ra01', updated_by: 'ra01', created_at: '2026-09-29T00:00:00Z', updated_at: '2026-09-29T00:00:00Z',
     });
+  }
+
+  it('TC-B02-06 one classification label is not enough: the server message is shown', async () => {
+    studyLabel('nodule');
+    const { user } = await renderApp('/labeling', 'ra01');
+    const form = await screen.findByRole('form', { name: '建立訓練任務' });
+    await within(form).findByLabelText(/nodule/);
+    await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('影像分類至少需要 2 種 Label');
+    expect(labelingMock().jobs).toHaveLength(0);
+  });
+
+  it('TC-B02-06 creates a training task from the labeling page with type and parameters', async () => {
+    studyLabel('nodule');
+    studyLabel('normal');
     const { user } = await renderApp('/labeling', 'ra01');
     const form = await screen.findByRole('form', { name: '建立訓練任務' });
     await within(form).findByLabelText(/nodule/);
@@ -93,12 +108,36 @@ describe('labeling index', () => {
     expect(labelingMock().jobs).toEqual([expect.objectContaining({ kind: 'training', training_type: 'classification', user: 'ra01', project_id: 1 })]);
   });
 
-  it('createTrainingJob posts to the existing job API', async () => {
+  it('createTrainingJob saves a training setting from the labels and submits a training run (WP5b)', async () => {
     const calls: [string, unknown][] = [];
-    const api = { post: async (path: string, body: unknown) => (calls.push([path, body]), { id: 1 }) } as never;
-    await createTrainingJob(api, 3, { trainingType: 'detection', labels: ['nodule'], resize: 128, validationSplit: 0.2, testSplit: 0.1, seed: 1 });
-    expect(calls[0][0]).toBe('/api/projects/3/jobs');
-    expect(calls[0][1]).toMatchObject({ kind: 'training', training_type: 'detection', labels: ['nodule'], resize: 128, seed: 1 });
+    const replies = [{ id: 9 }, { id: 21, project_id: 3, status: 'queued', kind: 'image_detection' }];
+    const api = { post: async (path: string, body: unknown) => (calls.push([path, body]), replies.shift()) } as never;
+    const run = await createTrainingJob(api, 3, {
+      trainingType: 'detection', labels: ['nodule', 'organ'], resize: 128, validationSplit: 0.2, testSplit: 0.1, seed: 1,
+    });
+    expect(calls.map((c) => c[0])).toEqual(['/api/projects/3/training/settings', '/api/projects/3/training/settings/9/runs']);
+    const setting = calls[0][1] as { name: string; config: unknown };
+    expect(setting.name).toMatch(/^標註頁訓練 /);
+    expect(setting.config).toEqual({
+      kind: 'image_detection',
+      source: { type: 'dicom', studies: 'all', label_source: { provider: 'annotations' } },
+      image: { resize: [128, 128], labels: ['nodule', 'organ'] },
+      split: { train: 0.7, validation: 0.2, test: 0.1 },
+      seed: 1,
+    });
+    expect(calls[1][1]).toEqual({ executor: 'template' });
+    expect(run).toMatchObject({ id: 21, status: 'queued', kind: 'image_detection' });
+  });
+
+  it('training split adds up to exactly 1 for every whole-percent choice', () => {
+    for (let v = 0; v <= 90; v += 1) {
+      for (const t of [0, 5, 10, 15, 30]) {
+        if (v + t >= 100) continue;
+        const { split } = trainingSetting({ trainingType: 'classification', labels: ['a', 'b'], resize: 32,
+          validationSplit: v / 100, testSplit: t / 100, seed: 0 }, 'x').config;
+        expect(Math.abs(split.train + split.validation + split.test - 1)).toBeLessThan(1e-9);
+      }
+    }
   });
 });
 

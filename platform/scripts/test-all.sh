@@ -30,6 +30,7 @@ run "結構式函式庫"        libs/tabular   "${PYTEST[@]}"
 run "合成資料"            tools/synth    "${PYTEST[@]}"
 run "匯入 CLI"            tools/importer "${PYTEST[@]}"
 run "假模型服務"          fakes          "${PYTEST[@]}"
+run "訓練範本與推論服務"  training       uv run -q --extra keras pytest -q -p no:cacheprovider
 run "網頁單元"            web            npm test --silent
 run "S0 smoke"            smoke          "${PYTEST[@]}" -rs
 

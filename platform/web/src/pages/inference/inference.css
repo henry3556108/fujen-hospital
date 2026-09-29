@@ -1,0 +1,17 @@
+.inference-forms { display: flex; flex-wrap: wrap; gap: var(--space-4, 1rem); }
+.inference-form { display: flex; align-items: flex-end; gap: var(--space-3, 0.75rem); flex-wrap: wrap; }
+.inference-result-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.inference-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.inference-table { max-height: 28rem; overflow: auto; }
+.inference-prediction { font-weight: 600; background: var(--color-bg-subtle); }
+.inference-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
+.inference-card figure { margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.inference-card figcaption { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.875rem; overflow-wrap: anywhere; }
+.inference-preview { position: relative; aspect-ratio: 1; background: var(--viewer-bg); border-radius: 0.25rem; overflow: hidden; }
+.inference-preview img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.inference-box { position: absolute; border: 2px solid var(--annotation-color-1); box-sizing: border-box; }
+.inference-name { font-size: 0.875rem; }
+/* 窄螢幕：表單與檔案欄位不超出版面 */
+.inference-form { min-width: 0; max-width: 100%; }
+.inference-form .field { min-width: 0; max-width: 100%; }
+.inference-form input[type='file'] { max-width: 100%; width: 100%; }

@@ -3,6 +3,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Role, type User } from '../api/types';
 import { meFor, seedDb, type MockDb } from './data';
 import { createLabelingHandlers } from './labeling';
+import { createInferenceHandlers } from './inference';
 import { llmHandlers, resetLlmMock } from './llm';
 
 let db: MockDb = seedDb();
@@ -196,5 +197,7 @@ export const handlers = [
   }),
   // WP5a 影像標註：定義在 mocks/labeling.ts
   ...createLabelingHandlers(() => db),
+  // WP5b 推論服務管理：定義在 mocks/inference.ts
+  ...createInferenceHandlers(() => db),
   ...llmHandlers, // WP7
 ];

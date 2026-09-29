@@ -23,7 +23,44 @@ KUEUE_GROUP, KUEUE_VERSION = "kueue.x-k8s.io", "v1beta2"
 SAME_QUEUE_GAP_SECONDS = 1.05
 
 
+def _workload_pod(spec: JobSpec, tolerations: list, gpu: dict) -> dict:
+    """真實工作的 Pod：不掛 ServiceAccount token、不注入叢集服務的環境變數、以非 root 執行。
+    容器拿到的只有 spec.env（由提交者列舉），所以不會帶到任何平台憑證。"""
+    limits = {"memory": f"{spec.memory_mb}Mi"} | gpu
+    requests = {"cpu": spec.cpu_request, "memory": f"{max(spec.memory_mb // 2, 64)}Mi"} | gpu
+    return {
+        "restartPolicy": "Never",
+        "automountServiceAccountToken": False,
+        "enableServiceLinks": False,
+        "nodeSelector": {LABEL_POOL: spec.pool},
+        "tolerations": tolerations,
+        "terminationGracePeriodSeconds": 5,
+        "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "runAsGroup": 10001, "fsGroup": 10001},
+        "containers": [{
+            "name": "job", "image": spec.image, "imagePullPolicy": "IfNotPresent",
+            "command": list(spec.command),
+            "env": [{"name": k, "value": v} for k, v in spec.env],
+            "resources": {"requests": requests, "limits": limits},
+            "securityContext": {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}},
+            "volumeMounts": [{"name": "work", "mountPath": "/work"}],
+        }],
+        "volumes": [{"name": "work", "emptyDir": {}}],
+    }
+
+
 def build_job_manifest(spec: JobSpec, *, namespace: str, image: str) -> dict:
+    if spec.command:
+        gpu = {GPU: str(spec.gpus)} if spec.gpus else {}
+        tolerations = [{"key": GPU, "operator": "Exists", "effect": "NoSchedule"}] if spec.gpus else []
+        job_spec = {"suspend": True, "backoffLimit": 0, "ttlSecondsAfterFinished": 86400,
+                    "template": {"metadata": {"labels": dict(spec.labels)},
+                                 "spec": _workload_pod(spec, tolerations, gpu)}}
+        if spec.timeout_seconds:
+            job_spec["activeDeadlineSeconds"] = spec.timeout_seconds
+        return {"apiVersion": "batch/v1", "kind": "Job",
+                "metadata": {"name": spec.name, "namespace": namespace,
+                             "labels": dict(spec.labels) | {QUEUE_LABEL: spec.queue, LABEL_POOL: spec.pool}},
+                "spec": job_spec}
     # 假工作：在記憶體型 emptyDir 寫入 memory_mb 的資料（算進 Pod 記憶體），睡 duration 秒，再以 0 或 1 結束
     script = (f"dd if=/dev/zero of=/scratch/alloc bs=1M count={spec.memory_mb} 2>/dev/null; "
               f"sleep {spec.duration_seconds}; exit {1 if spec.fail else 0}")
