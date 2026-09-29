@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
@@ -50,9 +50,20 @@ def update_project(session: Session, *, actor: str, project_id: int, changes: di
     return project
 
 
+def _revoke_memberships(session: Session, condition, *, actor: str, reason: str, source_ip: str | None) -> None:
+    """刪除帳號或專案時連帶移除成員資格：每筆各寫 1 筆 role 稽核，與刪除同一個交易。"""
+    for m in session.scalars(select(Membership).where(condition).order_by(Membership.id)).all():
+        record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
+               target=f"project:{m.project_id}/user:{m.user_id}", source_ip=source_ip,
+               detail={"role": m.role, "reason": reason})
+        session.delete(m)
+    session.flush()
+
+
 def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None) -> None:
     project = _get(session, Project, project_id)
-    session.execute(delete(Membership).where(Membership.project_id == project_id))
+    _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
+                        source_ip=source_ip)
     session.delete(project)
     record(session, actor=actor, category=AuditCategory.PROJECT, action="delete",
            target=f"project:{project_id}", source_ip=source_ip, detail={"name": project.name})
@@ -119,7 +130,8 @@ def delete_user(session: Session, idp: IdentityProvider, *, actor_user: User, us
         raise Conflict("不能刪除自己的帳號")
     if user.account_type == AccountType.ADMIN and _admin_count(session) <= 1:
         raise Conflict("至少要保留 1 個 Admin")
-    session.execute(delete(Membership).where(Membership.user_id == user_id))
+    _revoke_memberships(session, Membership.user_id == user_id, actor=actor_user.username, reason="user_deleted",
+                        source_ip=source_ip)
     session.delete(user)
     record(session, actor=actor_user.username, category=AuditCategory.ACCOUNT, action="delete",
            target=f"user:{user_id}", source_ip=source_ip, detail={"username": user.username})

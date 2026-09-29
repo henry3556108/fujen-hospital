@@ -85,3 +85,67 @@ def test_list_members_requires_admin_and_existing_project(client, add_user, sess
     assert client.get(f"/api/admin/projects/{project.id}/members", headers=pi).status_code == 403
     missing = client.get("/api/admin/projects/999/members", headers=admin)
     assert missing.status_code == 404 and "找不到" in missing.json()["detail"]
+
+
+def _revokes(session):
+    rows = session.scalars(select(AuditLog).where(AuditLog.category == "role", AuditLog.action == "revoke")
+                           .order_by(AuditLog.id)).all()
+    return [(e.actor, e.target, e.detail) for e in rows]
+
+
+def test_delete_project_audits_each_membership(client, add_user, session):
+    admin, project = _setup(client, add_user, session)
+    other = Project(name="P2-tabular")
+    session.add(other)
+    session.commit()
+    md, _ = add_user("md01")
+    ra, _ = add_user("ra01")
+    client.put(f"/api/admin/projects/{project.id}/members/{md.id}", headers=admin, json={"role": "medical_doctor"})
+    client.put(f"/api/admin/projects/{project.id}/members/{ra.id}", headers=admin, json={"role": "research_assistant"})
+    client.put(f"/api/admin/projects/{other.id}/members/{ra.id}", headers=admin, json={"role": "viewer"})
+
+    assert client.delete(f"/api/admin/projects/{project.id}", headers=admin).status_code == 204
+
+    assert _revokes(session) == [
+        ("admin01", f"project:{project.id}/user:{md.id}", {"role": "medical_doctor", "reason": "project_deleted"}),
+        ("admin01", f"project:{project.id}/user:{ra.id}", {"role": "research_assistant", "reason": "project_deleted"}),
+    ]   # 另一個專案的成員資格不受影響，也不寫稽核
+    members = client.get(f"/api/admin/projects/{other.id}/members", headers=admin).json()
+    assert [m["username"] for m in members] == ["ra01"]
+
+
+def test_delete_user_audits_each_membership(client, add_user, session):
+    admin, project = _setup(client, add_user, session)
+    other = Project(name="P2-tabular")
+    session.add(other)
+    session.commit()
+    ra, _ = add_user("ra01")
+    md, _ = add_user("md01")
+    client.put(f"/api/admin/projects/{project.id}/members/{ra.id}", headers=admin, json={"role": "research_assistant"})
+    client.put(f"/api/admin/projects/{other.id}/members/{ra.id}", headers=admin, json={"role": "viewer"})
+    client.put(f"/api/admin/projects/{project.id}/members/{md.id}", headers=admin, json={"role": "medical_doctor"})
+
+    assert client.delete(f"/api/admin/users/{ra.id}", headers=admin).status_code == 204
+
+    assert _revokes(session) == [
+        ("admin01", f"project:{project.id}/user:{ra.id}", {"role": "research_assistant", "reason": "user_deleted"}),
+        ("admin01", f"project:{other.id}/user:{ra.id}", {"role": "viewer", "reason": "user_deleted"}),
+    ]
+
+
+def test_delete_user_membership_audit_rolls_back_with_idp_failure(client, add_user, session, idp, monkeypatch):
+    """成員資格稽核與刪除同一個交易：身分提供者失敗時一起回復。"""
+    admin, project = _setup(client, add_user, session)
+    ra, _ = add_user("ra01")
+    client.put(f"/api/admin/projects/{project.id}/members/{ra.id}", headers=admin, json={"role": "research_assistant"})
+
+    def boom(subject):
+        raise RuntimeError("idp down")
+    monkeypatch.setattr(idp, "delete_user", boom)
+    import pytest
+    with pytest.raises(RuntimeError):
+        client.delete(f"/api/admin/users/{ra.id}", headers=admin)
+
+    session.expire_all()
+    assert _revokes(session) == []
+    assert [m["username"] for m in client.get(f"/api/admin/projects/{project.id}/members", headers=admin).json()] == ["ra01"]
