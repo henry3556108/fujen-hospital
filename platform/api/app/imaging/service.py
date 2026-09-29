@@ -1,8 +1,10 @@
 """影像匯入與查詢的業務邏輯（路由、DICOMweb 授權共用）。"""
 import hashlib
+import os
 import posixpath
 import re
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
@@ -18,7 +20,32 @@ from app.imaging.orthanc import QUERY_KEYS, OrthancClient, OrthancError
 from app.storage import ObjectStore
 
 DICOM_EXTENSIONS = ("", ".dcm", ".dicom", ".ima")
-FileItem = tuple[str, bytes]
+DEFAULT_MAX_FILE_MB = 512
+DEFAULT_MAX_DECOMPRESSED_MB = 2048
+
+
+@dataclass(frozen=True)
+class Oversize:
+    """上傳時就超過單檔上限的檔案：內容沒有讀進來，只在匯入結果記成失敗。"""
+    limit: int
+
+    @property
+    def reason(self) -> str:
+        return f"檔案超過上限 {self.limit / 1024 / 1024:g} MB"
+
+
+FileItem = tuple[str, bytes | Oversize]
+
+
+def upload_limits(state) -> tuple[int, int]:
+    """（單檔上限, 解壓後上限）位元組。app.state.imaging_max_*_bytes > 環境變數 IMAGING_MAX_*_MB > 預設 512／2048 MB。"""
+    def one(attr: str, env: str, default_mb: int) -> int:
+        configured = getattr(state, attr, None)
+        if configured:
+            return int(configured)
+        return int(float(os.environ.get(env, default_mb)) * 1024 * 1024)
+    return (one("imaging_max_file_bytes", "IMAGING_MAX_FILE_MB", DEFAULT_MAX_FILE_MB),
+            one("imaging_max_decompressed_bytes", "IMAGING_MAX_DECOMPRESSED_MB", DEFAULT_MAX_DECOMPRESSED_MB))
 
 
 # ---------- 共用 ----------
@@ -106,6 +133,8 @@ def _has_instance(session: Session, project_id: int, sop_uid: str) -> bool:
 
 def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int, name: str, data: bytes,
                       *, store_in_orthanc: bool = True) -> ImportFileResult:
+    if isinstance(data, Oversize):
+        return ImportFileResult(filename=name, status="failed", reason=data.reason)
     ext = posixpath.splitext(name.lower())[1]
     if ext not in DICOM_EXTENSIONS:
         return ImportFileResult(filename=name, status="failed", reason=f"副檔名 {ext} 不是 DICOM（可用 .dcm 或無副檔名）")
@@ -301,9 +330,12 @@ def _safe_basename(name: str) -> str:
     return base.lstrip(".") or "file"
 
 
-def _import_one_file(session: Session, store: ObjectStore, project_id: int, name: str, data: bytes) -> ImportFileResult:
+def _import_one_file(session: Session, store: ObjectStore, project_id: int, name: str, data: bytes | Oversize,
+                     max_decompressed: int | None = None) -> ImportFileResult:
+    if isinstance(data, Oversize):
+        return ImportFileResult(filename=name, status="failed", reason=data.reason)
     try:
-        parsed = parse_file(name, data)
+        parsed = parse_file(name, data, max_decompressed=max_decompressed)
     except InvalidFile as exc:
         return ImportFileResult(filename=name, status="failed", reason=str(exc))
     digest = hashlib.sha256(data).hexdigest()
@@ -329,10 +361,11 @@ def _import_one_file(session: Session, store: ObjectStore, project_id: int, name
 
 
 def import_files(session: Session, store: ObjectStore, *, project_id: int, actor: str,
-                 files: Sequence[FileItem], source_ip: str | None = None) -> ImportJob:
+                 files: Sequence[FileItem], source_ip: str | None = None,
+                 max_decompressed: int | None = None) -> ImportJob:
     job = ImportJob(project_id=project_id, kind="files", status="running", created_by=actor)
     session.add(job)
-    results = [_import_one_file(session, store, project_id, clean_name(n), d) for n, d in files]
+    results = [_import_one_file(session, store, project_id, clean_name(n), d, max_decompressed) for n, d in files]
     resolve_pairings(session, project_id)
     return _finish_job(session, job, results, actor=actor, source_ip=source_ip)
 
