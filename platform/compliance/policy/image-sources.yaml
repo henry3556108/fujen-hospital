@@ -1,0 +1,34 @@
+# 核准的映像來源（TC-D01-07：非受限來源 0）。
+# 這是「政策」，不是「清單」：實際用到哪些映像由 discover 探索；這裡只決定哪些來源可以用。
+# 新增映像時若來源不在這裡，sources 檢查會失敗，需由負責人審核後加入並註明理由。
+approved:
+  - pattern: docker.io/library/*
+    reason: Docker 官方映像（Docker Official Images）
+  - pattern: quay.io/keycloak/*
+    reason: Keycloak 專案官方發布
+  - pattern: docker.io/apache/apisix
+    reason: Apache APISIX 官方發布
+  - pattern: docker.io/jodogne/orthanc-plugins
+    reason: Orthanc 作者維護的官方映像
+  - pattern: cgr.dev/chainguard/*
+    reason: Chainguard 官方映像庫
+  - pattern: ghcr.io/astral-sh/uv
+    reason: uv 官方發布（平台 API 映像的基底）
+  - pattern: quay.io/prometheus/*
+    reason: Prometheus 專案官方發布
+  - pattern: docker.io/grafana/grafana
+    reason: Grafana 官方發布
+  - pattern: registry.k8s.io/*
+    reason: Kubernetes 專案官方映像庫（kube-state-metrics、Kueue）
+  - pattern: docker.io/kindest/node
+    reason: kind 官方節點映像（僅開發機）
+  - pattern: docker.io/axllent/mailpit
+    reason: Mailpit 作者發布（僅開發機收告警信）
+  - pattern: docker.io/clamav/clamav
+    reason: ClamAV 官方映像（Cisco Talos），上傳掃毒與定期掃描
+
+# 這些命名空間的 Pod 來自節點映像本身（kindest/node 內建），比對執行中的映像時歸在節點映像名下。
+bundled_namespaces: [kube-system, local-path-storage]
+
+# 掃描工具本身（tools.lock.json）不屬於平台部署，但會出現在開發機上。
+tool_images_from: tools.lock.json

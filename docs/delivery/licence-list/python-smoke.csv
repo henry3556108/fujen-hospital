@@ -1,0 +1,8 @@
+name,version,type,licences
+ai-platform-smoke,0.1.0,python,（本平台未安裝，授權未讀取）
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+iniconfig,2.3.0,python,MIT
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pluggy,1.6.0,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pytest,9.1.1,python,MIT

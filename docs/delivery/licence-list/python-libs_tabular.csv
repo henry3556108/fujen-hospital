@@ -1,0 +1,36 @@
+name,version,type,licences
+autograd,1.9.1,python,MIT
+autograd-gamma,0.5.0,python,MIT License
+cloudpickle,3.1.2,python,BSD License
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+contourpy,1.4.0,python,BSD-3-Clause
+cycler,0.12.1,python,BSD License
+fonttools,4.66.0,python,MIT
+formulaic,1.2.2,python,MIT
+iniconfig,2.3.0,python,MIT
+interface-meta,2.0.1,python,MIT
+joblib,1.6.0,python,BSD-3-Clause
+kiwisolver,1.5.1,python,BSD License
+lifelines,0.30.3,python,MIT License
+matplotlib,3.11.2,python,Python Software Foundation License
+narwhals,2.26.0,python,MIT
+numpy,2.5.3,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pandas,2.3.3,python,BSD License
+patsy,1.0.3,python,BSD License
+pillow,12.3.0,python,MIT-CMU
+pluggy,1.6.0,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pyparsing,3.3.3,python,MIT
+pytest,9.1.1,python,MIT
+python-dateutil,2.9.0.post0,python,Apache Software License; BSD License
+pytz,2026.4,python,MIT License
+scikit-learn,1.9.1,python,BSD-3-Clause
+scipy,1.18.1,python,BSD License
+six,1.17.0,python,MIT License
+statsmodels,0.15.0,python,BSD-3-Clause
+tabular,0.1.0,python,
+threadpoolctl,3.7.0,python,BSD-3-Clause
+typing-extensions,4.16.0,python,PSF-2.0
+tzdata,2026.4,python,Apache-2.0
+wrapt,2.5.0,python,BSD-2-Clause

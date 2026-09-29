@@ -1,0 +1,9 @@
+# 監控覆蓋（TC-DAILY-02、TC-C02-01）的政策。服務清單由叢集探索，不寫在這裡。
+# 叢集內這些命名空間的元件由 kind 節點映像內建，不在平台監控範圍（以 kubelet／cAdvisor 抓節點層指標）。
+excluded_namespaces: [kube-system, local-path-storage, kube-public, kube-node-lease]
+# 沒有 /metrics 端點的服務：允許只以 cAdvisor 容器指標覆蓋。新增服務若沒有抓取目標又不在這裡，檢查會失敗。
+container_metrics_only:
+  - monitoring/mailpit
+  - platform-web/web-echo
+# 每個節點都必須有這些抓取工作
+per_node_jobs: [kubelet, cadvisor]
