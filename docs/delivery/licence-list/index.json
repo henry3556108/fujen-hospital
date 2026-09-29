@@ -46,6 +46,21 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/clamav/clamav:1.5.4",
+    "file": "image-docker.io_clamav_clamav_1.5.4.csv",
+    "components": 41,
+    "used_by": [
+      "compose:deploy/local/compose.compliance.yaml#clamav"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "clamav/clamav@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/grafana/grafana:13.2.2",
     "file": "image-docker.io_grafana_grafana_13.2.2.csv",
     "components": 846,
