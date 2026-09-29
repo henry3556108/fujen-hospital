@@ -1,4 +1,5 @@
 """/api/projects/{project_id}/labels/*：標註、評分、CSV 自動分類、自動標註。"""
+import os
 from contextlib import contextmanager
 from typing import Any, Literal
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field, StrictInt
 
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.labeling import service
+from app.labeling.autolabel import AutolabelClient, autolabel_from_env
 from app.labeling.csv_labels import CsvError
 from app.labeling.payloads import InvalidPayload
 from app.permissions import Permission
@@ -27,6 +29,8 @@ def _errors():
         yield
     except (InvalidPayload, CsvError) as exc:
         raise HTTPException(422, str(exc))
+    except service.AutolabelFailed as exc:
+        raise HTTPException(exc.status, exc.message)
 
 
 class AnnotationIn(BaseModel):
@@ -107,3 +111,43 @@ def classification_csv(request: Request, file: UploadFile = File(...), key: str 
             ctx.session, project_id=ctx.project.id, actor=ctx.user.username, source_ip=client_ip(request),
             filename=file.filename or "", data=file.file.read(), key=key,
             key_column=key_column or None, label_column=label_column or None)
+
+
+# ---------- 自動標註 ----------
+
+def get_autolabel(request: Request) -> AutolabelClient:
+    client = getattr(request.app.state, "autolabel", None)
+    if client is None:
+        client = autolabel_from_env(os.environ)
+        if client is None:
+            raise HTTPException(503, "自動標註服務尚未設定（AUTOLABEL_URL）")
+        request.app.state.autolabel = client
+    return client
+
+
+class AutolabelIn(BaseModel):
+    model: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
+    study_instance_uid: str = Field(pattern=_UID, max_length=64)
+    sop_instance_uid: str = Field(pattern=_UID, max_length=64)
+
+
+@router.get("/autolabel/models")
+def autolabel_models(ctx: ProjectContext = Depends(can_read),
+                     client: AutolabelClient = Depends(get_autolabel)) -> list[dict]:
+    with _errors():
+        return service.autolabel_models(client)
+
+
+@router.post("/autolabel", status_code=201)
+def submit_autolabel(body: AutolabelIn, request: Request, ctx: ProjectContext = Depends(can_label),
+                     client: AutolabelClient = Depends(get_autolabel)) -> dict:
+    with _errors():
+        run, annotation = service.submit_autolabel(
+            ctx.session, client, project_id=ctx.project.id, actor=ctx.user.username, source_ip=client_ip(request),
+            model=body.model, study_uid=body.study_instance_uid, sop_uid=body.sop_instance_uid)
+    return {"run": service.run_out(run), "annotation": service.annotation_out(annotation)}
+
+
+@router.get("/autolabel/runs")
+def autolabel_runs(ctx: ProjectContext = Depends(can_read)) -> list[dict]:
+    return [service.run_out(r) for r in service.list_runs(ctx.session, ctx.project.id)]

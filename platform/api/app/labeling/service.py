@@ -1,4 +1,5 @@
-"""標註服務：CRUD、評分、摘要。寫入與 dataset 稽核同一個交易。"""
+"""標註服務：CRUD、評分、摘要、CSV 自動分類、自動標註。寫入與 dataset 稽核同一個交易。"""
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -9,8 +10,9 @@ from app.admin_service import NotFound
 from app.audit import AuditCategory
 from app.imaging.models import ImagingInstance, ImagingSeries, ImagingStudy
 from app.imaging.service import allowlist, find_accessible_study
-from app.labeling import csv_labels
-from app.labeling.models import Annotation
+from app.labeling import csv_labels, formats
+from app.labeling.autolabel import AutolabelClient, AutolabelRejected, AutolabelUnavailable
+from app.labeling.models import Annotation, AutolabelRun
 from app.labeling.payloads import KINDS, MAX_LABEL, InvalidPayload, labels_of, normalize
 from app.models import utcnow
 
@@ -247,3 +249,90 @@ def classify_from_csv(session: Session, *, project_id: int, actor: str, source_i
     session.commit()
     return {"key": key, "rows": len(rows), **tally, **counts, "annotated_studies": len(annotation_ids),
             "results": results}
+
+
+# ---------- 自動標註 ----------
+
+class AutolabelFailed(Exception):
+    """自動標註沒有完成；status 決定回給用戶端的狀態碼。"""
+
+    def __init__(self, status: int, message: str, reason: str):
+        super().__init__(message)
+        self.status, self.message, self.reason = status, message, reason
+
+
+def autolabel_models(client: AutolabelClient) -> list[dict]:
+    try:
+        models = formats.validate_info(client.info())
+    except (AutolabelUnavailable, AutolabelRejected):
+        raise AutolabelFailed(503, "自動標註服務目前無法連線，請稍後再試", "unavailable")
+    except formats.FormatError as exc:
+        raise AutolabelFailed(502, f"自動標註服務的回應不合規格：{exc}", "bad_format")
+    return [{"name": name, "type": m["type"], "labels": m["labels"], "dimension": m["dimension"],
+             "description": m.get("description", "")} for name, m in sorted(models.items())]
+
+
+def run_out(run: AutolabelRun) -> dict:
+    return {"id": run.id, "project_id": run.project_id, "model": run.model, "model_type": run.model_type,
+            "study_instance_uid": run.study_instance_uid, "sop_instance_uid": run.sop_instance_uid,
+            "annotation_id": run.annotation_id, "duration_ms": run.duration_ms, "created_by": run.created_by,
+            "created_at": _iso(run.created_at)}
+
+
+def list_runs(session: Session, project_id: int) -> list[AutolabelRun]:
+    visible = accessible_study_uids(session, project_id)
+    rows = session.scalars(select(AutolabelRun).where(AutolabelRun.project_id == project_id)
+                           .order_by(AutolabelRun.id.desc()))
+    return [r for r in rows if r.study_instance_uid in visible]
+
+
+def submit_autolabel(session: Session, client: AutolabelClient, *, project_id: int, actor: str,
+                     source_ip: str | None, model: str, study_uid: str, sop_uid: str) -> tuple[AutolabelRun, Annotation]:
+    """送出 → 驗證格式 → 標註、執行紀錄、稽核同一個交易寫入。
+    任何一步失敗都不寫標註與執行紀錄，只留一筆 result=failure 的稽核。"""
+    _, series_uid, _ = resolve_target(session, project_id, study_uid, None, sop_uid)
+    target = f"project:{project_id}/image:{sop_uid}"
+    started = time.monotonic()
+    try:
+        models = {m["name"]: m for m in autolabel_models(client)}
+        if model not in models:
+            raise AutolabelFailed(404, f"自動標註服務沒有模型 {model}", "unknown_model")
+        model_type = models[model]["type"]
+        try:
+            body = client.infer(model, sop_uid)
+        except AutolabelUnavailable:
+            raise AutolabelFailed(503, "自動標註服務目前無法連線，請稍後再試", "unavailable")
+        except AutolabelRejected as exc:
+            raise AutolabelFailed(502, f"自動標註服務拒絕這次請求（{exc}）", "rejected")
+        try:
+            payload = formats.to_payload(model_type, body, model=model, image=sop_uid)
+        except formats.FormatError as exc:
+            raise AutolabelFailed(502, f"自動標註服務的回應不合規格：{exc}", "bad_format")
+        if payload is None:
+            raise AutolabelFailed(422, "自動標註沒有偵測到物件，未建立標註", "empty")
+    except AutolabelFailed as failure:
+        session.rollback()
+        audit.record(session, actor=actor, category=AuditCategory.DATASET, action="autolabel.submit", target=target,
+                     result="failure", source_ip=source_ip,
+                     detail={"model": model, "study_instance_uid": study_uid, "reason": failure.reason})
+        session.commit()
+        raise
+    duration_ms = int((time.monotonic() - started) * 1000)
+    annotation = Annotation(project_id=project_id, study_instance_uid=study_uid, series_instance_uid=series_uid,
+                            sop_instance_uid=sop_uid, kind=model_type, payload=payload, source="autolabel",
+                            created_by=actor, updated_by=actor)
+    session.add(annotation)
+    session.flush()
+    run = AutolabelRun(project_id=project_id, model=model, model_type=model_type, study_instance_uid=study_uid,
+                       sop_instance_uid=sop_uid, annotation_id=annotation.id, duration_ms=duration_ms,
+                       created_by=actor)
+    session.add(run)
+    session.flush()
+    annotation.autolabel_run_id = run.id
+    audit.record(session, actor=actor, category=AuditCategory.DATASET, action="autolabel.submit", target=target,
+                 source_ip=source_ip,
+                 detail={"model": model, "model_type": model_type, "study_instance_uid": study_uid,
+                         "annotation_id": annotation.id, "run_id": run.id, "duration_ms": duration_ms,
+                         "spec_version": formats.SPEC_VERSION})
+    session.commit()
+    return run, annotation
