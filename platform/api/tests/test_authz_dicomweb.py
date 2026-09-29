@@ -23,6 +23,17 @@ S, R, I = "1.2.3", "1.2.3.4", "1.2.3.4.5"
     (f"/dicomweb/projects/7/studies/{S}/series/{R}/instances/{I}/bulk/7fe00010", DicomwebTarget(7, S, R, I)),
     (f"/dicomweb/projects/7/studies?StudyInstanceUID={S}", DicomwebTarget(7, S, None, None)),
     (f"/dicomweb/projects/7/studies?StudyInstanceUID={S}&includefield=all&limit=1", DicomwebTarget(7, S, None, None)),
+    # OHIF 送出的查詢形式（WP5a）：includefield 以 %2C 分隔、固定帶 fuzzymatching=false
+    (f"/dicomweb/projects/7/studies?limit=101&offset=0&fuzzymatching=false&includefield=00081030%2C00080060"
+     f"&StudyInstanceUID={S}", DicomwebTarget(7, S, None, None)),
+    (f"/dicomweb/projects/7/studies/{S}/series?includefield=0008103E%2C00080021", DicomwebTarget(7, S, None, None)),
+    (f"/dicomweb/projects/7/studies/{S}/series?includefield=0008103E%2c00080021", DicomwebTarget(7, S, None, None)),
+    (f"/dicomweb/projects/7/studies?StudyInstanceUID={S}&fuzzymatching=true", None),
+    (f"/dicomweb/projects/7/studies?StudyInstanceUID={S}%2C9.9.9", None),          # 編碼的逗號也不能拿來列多個研究
+    (f"/dicomweb/projects/7/studies?fuzzymatching=false&includefield=00081030%2C00080060", None),
+    (f"/dicomweb/projects/7/studies/{S}%2Cx", None),                                # 路徑裡的 %2C 仍然拒絕
+    (f"/dicomweb/projects/7/studies/{S}/series?includefield=%2e%2e", None),
+    (f"/dicomweb/projects/7/studies/{S}/series?includefield=a%252Cb", None),
     # 研究列表搜尋：只能指定單一研究
     ("/dicomweb/projects/7/studies", None),
     ("/dicomweb/projects/7/studies?PatientID=*", None),
