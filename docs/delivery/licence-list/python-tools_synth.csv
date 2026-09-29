@@ -1,0 +1,13 @@
+name,version,type,licences
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+iniconfig,2.3.0,python,MIT
+nibabel,5.4.2,python,MIT
+numpy,2.5.3,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pluggy,1.6.0,python,MIT License
+pydicom,3.0.2,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pytest,9.1.1,python,MIT
+simpleitk,2.5.6,python,Apache Software License
+synth,0.1.0,python,（本平台未安裝，授權未讀取）
+typing-extensions,4.16.0,python,PSF-2.0

@@ -1,0 +1,129 @@
+name,version,type,licences
+apt,3.0.3,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later; curl
+base-files,13.8+deb13u6,deb,GPL; GPL-2.0-or-later; verbatim
+base-passwd,3.6.7,deb,GPL-2.0-only; public-domain
+bash,5.2.37-2+b9,deb,BSD-4-Clause-UC; GFDL-1.3-only; GFDL-NIV-1.3; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; Latex2e; MIT-like; permissive
+bsdutils,1:2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+ca-certificates,20250419,deb,GPL-2.0-only; GPL-2.0-or-later; MPL-2.0
+coreutils,9.7-3,deb,BSD-4-Clause-UC; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3; GPL-3.0-only; GPL-3.0-or-later; ISC
+dash,0.5.12-12,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later; public-domain
+debconf,1.5.91,deb,BSD-2-Clause
+debian-archive-keyring,2025.1,deb,sha256:8f918c0bebd1454a084698a95c09d9a03cec8453dad1fc6eab9e6427da9d33a9
+debianutils,5.23.2,deb,GPL-2.0-only; GPL-2.0-or-later; SMAIL-GPL; public-domain
+diffutils,1:3.10-4,deb,FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
+dpkg,1.22.22,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain-s-s-d
+findutils,4.10.0-3,deb,BSD-3-Clause; FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3+; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
+fontconfig-config,2.15.0-2.3,deb,HPND-sell-variant
+fonts-dejavu-core,2.37-8,deb,Bitstream-Vera; GPL-2.0-only; GPL-2.0-or-later
+fonts-dejavu-mono,2.37-8,deb,Bitstream-Vera; GPL-2.0-only; GPL-2.0-or-later
+gcc-14-base,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+grep,3.11-4,deb,GPL-3.0-only; GPL-3.0-or-later
+gzip,1.13-1,deb,FSF-manpages; GFDL-1.3+-no-invariant; GFDL-3; GPL-3.0-only; GPL-3.0-or-later
+hostname,3.25,deb,GPL-2.0-only
+init-system-helpers,1.69~deb13u1,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libacl1,2.3.2-2+b1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
+libapt-pkg7.0,3.0.3,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later; curl
+libatomic1,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libattr1,1:2.5.2-3,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
+libaudit-common,1:4.0.2-2,deb,GPL-1.0-only; GPL-2.0-only; LGPL-2.1-only
+libaudit1,1:4.0.2-2+b2,deb,GPL-1.0-only; GPL-2.0-only; LGPL-2.1-only
+libblkid1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+libbrotli1,1.1.0-2+b7,deb,MIT
+libbsd0,0.12.2-2,deb,BSD-2-Clause; BSD-2-clause-author; BSD-2-clause-verbatim; BSD-3-Clause; BSD-3-clause-John-Birrell; BSD-3-clause-Regents; BSD-3-clause-author; BSD-5-clause-Peter-Wemm; Beerware; Expat; ISC; ISC-Original; public-domain
+libbz2-1.0,1.0.8-6,deb,BSD-variant; GPL-2.0-only
+libc-bin,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+libc-l10n,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+libc6,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+libcairo2,1.18.4-1+b1,deb,sha256:408fb9e704e875cd42d432e7c9b3b378f568e3c89db2b5c5ef3d11c025319574
+libcap-ng0,0.8.5-4+b1,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libcap2,1:2.75-10+deb13u1+b1,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libcrypt1,1:4.4.38-1,deb,sha256:5a5e7ca0e9f3f9679977e3a3e9ede45ad92885a3297ea78e766979f9866c5a16
+libdb5.3t64,5.3.28+dfsg2-9,deb,Artistic; BSD-3-Clause; BSD-3-clause-fjord; GPL; GPL-3.0-only; MIT-old; MS-PL; Sleepycat; TCL-like; X11; Zlib
+libdebconfclient0,0.280,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+libdeflate0,1.23-2,deb,Expat
+libexpat1,2.8.3-1~deb13u1,deb,MIT
+libffi8,3.4.8-2,deb,Expat; GPL; GPL-2.0-or-later; GPL-3.0-or-later; MPL-1.1; X11; public-domain
+libfontconfig1,2.15.0-2.3,deb,HPND-sell-variant
+libfreetype6,2.13.3+dfsg-1+deb13u1,deb,BSD-3-Clause; BSL-1.0; Expat; FSFAP; FTL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; MIT-Modern-Variant; MIT-SMC; OpenGroup-MIT; Public-Domain; Zlib
+libgcc-s1,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libgdk-pixbuf-2.0-0,2.42.12+dfsg-4+deb13u1,deb,CC0-1.0; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libgdk-pixbuf2.0-bin,2.42.12+dfsg-4+deb13u1,deb,CC0-1.0; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libgdk-pixbuf2.0-common,2.42.12+dfsg-4+deb13u1,deb,CC0-1.0; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libglib2.0-0t64,2.84.4-3~deb13u3,deb,AFL-2.0; Apache-2.0; CC-BY-SA-3.0; CC0-1.0; Expat; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; Iconv-PD; Janik-permissive; Kuchling-PD; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MPL-1.1; Mingw-PD; Plumb-PD; Unicode-DFS-2016; bzip2-1.0.6; cmph; old-glib-tests
+libglib2.0-data,2.84.4-3~deb13u3,deb,AFL-2.0; Apache-2.0; CC-BY-SA-3.0; CC0-1.0; Expat; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; Iconv-PD; Janik-permissive; Kuchling-PD; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MPL-1.1; Mingw-PD; Plumb-PD; Unicode-DFS-2016; bzip2-1.0.6; cmph; old-glib-tests
+libgmp10,2:6.3.0+dfsg-3,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+libgnutls30t64,3.8.9-3+deb13u4,deb,sha256:a07e99815cf1998f1dabbc21fe199460bfa09b85ead0d56b49a32cac3d1791b5
+libhogweed6t64,3.10.1-1,deb,Expat; GAP; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-3.0-or-later; public-domain
+libidn2-0,2.3.8-2,deb,Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; Unicode
+libjbig0,2.1-6.1+b2,deb,GPL-2.0-only; GPL-2.0-or-later
+libjpeg62-turbo,1:2.1.5-4,deb,BSD-3-Clause; BSD-BY-LC-NE; Expat; NTP; Zlib
+liblastlog2-2,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+liblerc4,4.0.0+ds-5,deb,Apache-2.0
+liblz4-1,1.10.0-4,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+liblzma5,5.8.1-1+deb13u1,deb,0BSD; FSFUL; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later-WITH-Autoconf-exception-macro; LGPL-2.1-only; LGPL-2.1-or-later; PD; PD-debian; noderivs; permissive-nowarranty
+libmd0,1.1.0-2+b1,deb,BSD-2-Clause; BSD-3-Clause; BSD-3-clause-Aaron-D-Gifford; Beerware; ISC; public-domain-md4; public-domain-md5; public-domain-sha1
+libmount1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+libnettle8t64,3.10.1-1,deb,Expat; GAP; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-3.0-or-later; public-domain
+libopenjp2-7,2.5.3-2.1~deb13u2,deb,BSD-2; BSD-3; LIBTIFF-GLARSON; LIBTIFF-PIXAR; Libpng; MIT; Zlib; libtiff
+libopenslide0,3.4.1+dfsg-7+deb13u1,deb,CC0-1.0; IJG; LGPL-2.1-only
+libp11-kit0,0.25.5-3,deb,Apache-2.0; BSD-3-Clause; FSFAP; FSFULLR; GPL-2.0-or-later; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; X11; customFSFUL; customFSFULLRWD
+libpam-modules,1.7.0-5,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam-modules-bin,1.7.0-5,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam-runtime,1.7.0-5,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam0g,1.7.0-5,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpcre2-8-0,10.46-1~deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-3-clause-Cambridge; X11; public-domain
+libpixman-1-0,0.44.0-3,deb,sha256:1b3fb5690861e15ca4fd6640fd4def4b2576617942eec04b6fcb7d8bc6c4c9da
+libpng16-16t64,1.6.48-1+deb13u5,deb,Apache-2.0; BSD-3-Clause; BSD-like-with-advertising-clause; GPL-2.0-only; GPL-2.0-or-later; Libpng; expat
+libpsl5t64,0.21.2-1.1+b1,deb,Chromium; MIT; gnulib
+libseccomp2,2.6.0-2,deb,LGPL-2.1-only
+libselinux1,3.8.1-1,deb,GPL-2.0-only; public-domain
+libsemanage-common,3.8.1-1,deb,GPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libsemanage2,3.8.1-1,deb,GPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libsepol2,3.8.1-1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; Zlib
+libsharpyuv0,1.5.0-0.1,deb,Apache-2.0; BSD-3-Clause
+libsmartcols1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+libsqlite3-0,3.46.1-7+deb13u1,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain
+libssl3t64,3.5.7-1~deb13u2,deb,Apache-2.0; Artistic; GPL-1.0-only; GPL-1.0-or-later
+libstdc++6,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libsystemd0,257.13-1~deb13u1,deb,CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; public-domain
+libtasn1-6,4.20.0-2+deb13u1,deb,sha256:5f9f7b538d221104bdb561ae80fd794ec5f813eb8fd04650293bddcc0f856e7d
+libtiff6,4.7.0-3+deb13u3,deb,Hylafax
+libtinfo6,6.5+20250216-2,deb,BSD-3-Clause; MIT/X11; X11
+libudev1,257.13-1~deb13u1,deb,CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; public-domain
+libunistring5,1.3-2,deb,BSD-3-Clause; FreeSoftware; GFDL-1.2-or-later; GFDL-1.3-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; Unicode-DFS-2016; X11; public-domain
+libuuid1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+libwebp7,1.5.0-0.1,deb,Apache-2.0; BSD-3-Clause
+libx11-6,2:1.8.12-1,deb,BSD-1-Clause; HPND; HPND-sell-variant; MIT
+libx11-data,2:1.8.12-1,deb,BSD-1-Clause; HPND; HPND-sell-variant; MIT
+libxau6,1:1.0.11-1,deb,sha256:118dd263a7b91c8f21c489f949bf13281dff9e766deea92b829dac4dce66601a
+libxcb-render0,1.17.0-2+b1,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxcb-shm0,1.17.0-2+b1,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxcb1,1.17.0-2+b1,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxdmcp6,1:1.1.5-1,deb,sha256:1bcbb50f8603fe8b86d330bfa460b772ea04fbd3c70e4499f0768b5340b9fd6e
+libxext6,2:1.3.4-1+b3,deb,sha256:bc57e445ca1d9fe082c8d54189dd411ff26caa8552c9c63d44ea06a982f32124
+libxml2,2.12.7+dfsg+really2.9.14-2.1+deb13u3,deb,ISC; MIT-1
+libxrender1,1:0.9.12-1,deb,HPND-sell-variant
+libxxhash0,0.8.3-2,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+libzstd1,1.5.7+dfsg-1,deb,BSD-3-Clause; Expat; GPL-2.0-only; Zlib
+locales,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+login,1:4.16.0-2+really2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+login.defs,1:4.17.4-2,deb,BSD-3-Clause; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later
+mawk,1.3.4.20250131-1,deb,CC-BY-3.0; GPL-2.0-only; X11
+mount,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+ncurses-base,6.5+20250216-2,deb,BSD-3-Clause; MIT/X11; X11
+ncurses-bin,6.5+20250216-2,deb,BSD-3-Clause; MIT/X11; X11
+openssl,3.5.7-1~deb13u2,deb,Apache-2.0; Artistic; GPL-1.0-only; GPL-1.0-or-later
+openssl-provider-legacy,3.5.7-1~deb13u2,deb,Apache-2.0; Artistic; GPL-1.0-only; GPL-1.0-or-later
+passwd,1:4.17.4-2,deb,BSD-3-Clause; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later
+perl-base,5.40.1-6,deb,"Artistic; Artistic-2.0; Artistic-dist; BSD-3-Clause; BSD-3-clause-GENERIC; BSD-3-clause-with-weird-numbering; BSD-4-clause-POWERDOG; BZIP; DONT-CHANGE-THE-GPL; Expat; FSFAP; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3+-WITH-BISON-EXCEPTION; LGPL-2.1-only; REGCOMP; REGCOMP,; SDBM-PUBLIC-DOMAIN; TEXT-TABS; Unicode; Zlib"
+publicsuffix,20250328.1952-0.1,deb,CC0; MPL-2.0
+sed,4.9-2+deb13u1,deb,BSD-4-Clause-UC; BSL-1.0; GFDL-1.3-only; GFDL-NIV-1.3+; GPL-3.0-only; GPL-3.0-or-later; ISC; X11; pcre
+shared-mime-info,2.4-5+b2,deb,sha256:5145b47d997486e5327091374e807046a32216168b6f2bbf6d1816f60927686c
+sqv,1.3.0-3+b2,deb,LGPL-2.0-only; LGPL-2.0-or-later
+sysvinit-utils,3.14-4,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+tar,1.35+dfsg-3.1,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+tzdata,2026b-0+deb13u1,deb,public-domain
+util-linux,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+wget,1.25.0-2,deb,sha256:289d796794edf8c547691e415ddd7ba3396e6e6d8de03397bd69ce9515914bf8
+xdg-user-dirs,0.18-2,deb,sha256:8fea73a6a82aa48f7b00aa9f88a6a36935528f60e2f79799e521754e1621bcf4
+zlib1g,1:1.3.dfsg+really1.3.1-1+b1,deb,Zlib

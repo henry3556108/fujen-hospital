@@ -1,0 +1,322 @@
+[
+  {
+    "kind": "image",
+    "name": "cgr.dev/chainguard/minio:latest",
+    "file": "image-cgr.dev_chainguard_minio_latest.csv",
+    "components": 287,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#minio"
+    ],
+    "pinned": false,
+    "repo_digests": [
+      "cgr.dev/chainguard/minio@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9"
+    ],
+    "architecture": "amd64",
+    "os": "Wolfi 20230201"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/apache/apisix:3.11.0-debian",
+    "file": "image-docker.io_apache_apisix_3.11.0-debian.csv",
+    "components": 172,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#apisix"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "apache/apisix@sha256:178d1f79c2c39834f50213bf6ace90284f6b985dc8189cc50f3666d9fb1037ad"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 11.11"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/axllent/mailpit:v1.31.3",
+    "file": "image-docker.io_axllent_mailpit_v1.31.3.csv",
+    "components": 71,
+    "used_by": [
+      "manifest:deploy/kind/monitoring/mailpit.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "axllent/mailpit@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/grafana/grafana:13.2.2",
+    "file": "image-docker.io_grafana_grafana_13.2.2.csv",
+    "components": 846,
+    "used_by": [
+      "manifest:deploy/kind/monitoring/grafana.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "grafana/grafana@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.1"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/jodogne/orthanc-plugins:1.13.0",
+    "file": "image-docker.io_jodogne_orthanc-plugins_1.13.0.csv",
+    "components": 128,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#orthanc",
+      "compose:deploy/local/compose.yaml#orthanc-pacs"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "jodogne/orthanc-plugins@sha256:f02a20b72ab45311c5177e4647af0cfa2d0745b9c608694461756bf71a6e3ea9"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.6"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+    "file": "image-docker.io_kindest_node_v1.37.0_sha256_a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5.csv",
+    "components": 487,
+    "used_by": [
+      "manifest:deploy/kind/kind-config.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "kindest/node@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.6"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/library/busybox:1.36",
+    "file": "image-docker.io_library_busybox_1.36.csv",
+    "components": 1,
+    "used_by": [
+      "code:api/app/scheduling/kube.py:JOB_IMAGE",
+      "compose:deploy/local/compose.kind.yaml#api:JOB_IMAGE",
+      "manifest:deploy/kind/workloads/web-echo.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+    ],
+    "architecture": "amd64",
+    "os": "busybox 1.36.1"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/library/postgres:16-alpine",
+    "file": "image-docker.io_library_postgres_16-alpine.csv",
+    "components": 50,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#postgres"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "postgres@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/library/python:3.12-slim",
+    "file": "image-docker.io_library_python_3.12-slim.csv",
+    "components": 90,
+    "used_by": [
+      "dockerfile:fakes/Dockerfile"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "python@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "image",
+    "name": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim",
+    "file": "image-ghcr.io_astral-sh_uv_python3.12-bookworm-slim.csv",
+    "components": 108,
+    "used_by": [
+      "dockerfile:api/Dockerfile"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 12.13"
+  },
+  {
+    "kind": "image",
+    "name": "quay.io/keycloak/keycloak:26.0",
+    "file": "image-quay.io_keycloak_keycloak_26.0.csv",
+    "components": 483,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#keycloak"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858"
+    ],
+    "architecture": "amd64",
+    "os": "Red Hat Enterprise Linux 9.5"
+  },
+  {
+    "kind": "image",
+    "name": "quay.io/prometheus/alertmanager:v0.34.1",
+    "file": "image-quay.io_prometheus_alertmanager_v0.34.1.csv",
+    "components": 120,
+    "used_by": [
+      "manifest:deploy/kind/monitoring/alertmanager.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "quay.io/prometheus/alertmanager@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a"
+    ],
+    "architecture": "amd64",
+    "os": "busybox 1.38.0"
+  },
+  {
+    "kind": "image",
+    "name": "quay.io/prometheus/prometheus:v3.15.0",
+    "file": "image-quay.io_prometheus_prometheus_v3.15.0.csv",
+    "components": 243,
+    "used_by": [
+      "manifest:deploy/kind/monitoring/prometheus.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "quay.io/prometheus/prometheus@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e"
+    ],
+    "architecture": "amd64",
+    "os": "busybox 1.38.0"
+  },
+  {
+    "kind": "image",
+    "name": "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0",
+    "file": "image-registry.k8s.io_kube-state-metrics_kube-state-metrics_v2.20.0.csv",
+    "components": 109,
+    "used_by": [
+      "manifest:deploy/kind/monitoring/kube-state-metrics.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "registry.k8s.io/kube-state-metrics/kube-state-metrics@sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.6"
+  },
+  {
+    "kind": "image",
+    "name": "registry.k8s.io/kueue/kueue:v0.19.6",
+    "file": "image-registry.k8s.io_kueue_kueue_v0.19.6.csv",
+    "components": 153,
+    "used_by": [
+      "remote:https://github.com/kubernetes-sigs/kueue/releases/download/v0.19.6/manifests.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "registry.k8s.io/kueue/kueue@sha256:b0f5a48116f3576d8f23189a183123a63ea4d6ea2bc41250aa43750508b064c8"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.5"
+  },
+  {
+    "kind": "build",
+    "name": "自建映像 api",
+    "file": "build-api.csv",
+    "components": 214,
+    "used_by": [
+      "compose:deploy/local/compose.yaml#api",
+      "compose:deploy/local/compose.yaml#minio-init"
+    ],
+    "base_images": [
+      "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 12.13"
+  },
+  {
+    "kind": "build",
+    "name": "自建映像 fakes",
+    "file": "build-fakes.csv",
+    "components": 612,
+    "used_by": [
+      "dockerfile:fakes/Dockerfile"
+    ],
+    "base_images": [
+      "docker.io/library/python:3.12-slim"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 acceptance",
+    "file": "python-acceptance.csv",
+    "components": 14,
+    "lock": "acceptance/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 api",
+    "file": "python-api.csv",
+    "components": 90,
+    "lock": "api/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 compliance",
+    "file": "python-compliance.csv",
+    "components": 15,
+    "lock": "compliance/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 fakes",
+    "file": "python-fakes.csv",
+    "components": 24,
+    "lock": "fakes/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 libs/tabular",
+    "file": "python-libs_tabular.csv",
+    "components": 35,
+    "lock": "libs/tabular/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 smoke",
+    "file": "python-smoke.csv",
+    "components": 7,
+    "lock": "smoke/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 tools/importer",
+    "file": "python-tools_importer.csv",
+    "components": 14,
+    "lock": "tools/importer/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 tools/synth",
+    "file": "python-tools_synth.csv",
+    "components": 12,
+    "lock": "tools/synth/uv.lock"
+  },
+  {
+    "kind": "node",
+    "name": "Node 套件 web",
+    "file": "node-web.csv",
+    "components": 196,
+    "lock": "web/package-lock.json"
+  }
+]
