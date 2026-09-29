@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app import admin_service
+from app import admin_service, scanning
 from app.db import make_engine, make_sessionmaker
 from app.imaging.router import router as imaging_router
 from app.models import Base
@@ -20,6 +20,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.state.verifier = verifier
     app.state.idp = idp
     app.state.store = store
+    scanning.install(app)  # 掃毒：app.state.scanner、物件儲存寫入前掃描、錯誤回應
 
     @app.exception_handler(admin_service.Conflict)
     def _conflict(request: Request, exc: admin_service.Conflict):

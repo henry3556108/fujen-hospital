@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
+from app import scanning
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.imaging import service
 from app.imaging.orthanc import OrthancClient
@@ -20,12 +21,14 @@ def get_orthanc(request: Request) -> OrthancClient:
     return orthanc
 
 
-def _read_all(files: list[UploadFile], limit: int) -> list[service.FileItem]:
+def _read_all(files: list[UploadFile], limit: int, request: Request) -> list[service.FileItem]:
     """同步端點在 threadpool 執行，不會卡住事件迴圈。超過單檔上限的檔案不讀進記憶體，只記成該檔失敗。"""
     items = []
     for f in files:
         data = f.file.read(limit + 1)
-        items.append((f.filename or "", service.Oversize(limit) if len(data) > limit else data))
+        blocked = None if len(data) > limit else scanning.blocked_reason(request, f.filename or "", data)
+        items.append((f.filename or "", service.Oversize(limit) if len(data) > limit
+                      else service.Rejected(blocked) if blocked else data))
     return items
 
 
@@ -33,7 +36,7 @@ def _read_all(files: list[UploadFile], limit: int) -> list[service.FileItem]:
 def upload_dicom(request: Request, files: list[UploadFile] = File(...),
                  ctx: ProjectContext = Depends(can_import),
                  orthanc: OrthancClient = Depends(get_orthanc)) -> dict:
-    items = _read_all(files, service.upload_limits(request.app.state)[0])
+    items = _read_all(files, service.upload_limits(request.app.state)[0], request)
     job = service.import_dicom(ctx.session, orthanc, project_id=ctx.project.id, actor=ctx.user.username,
                                files=items, source_ip=client_ip(request))
     return service.job_to_dict(job)
@@ -44,7 +47,7 @@ def upload_files(request: Request, files: list[UploadFile] = File(...),
                  ctx: ProjectContext = Depends(can_import)) -> dict:
     """NIfTI（.nii/.nii.gz）、ITK（.mha）、makesense（COCO .json）；存物件儲存並配對。"""
     max_file, max_decompressed = service.upload_limits(request.app.state)
-    items = _read_all(files, max_file)
+    items = _read_all(files, max_file, request)
     job = service.import_files(ctx.session, request.app.state.store, project_id=ctx.project.id,
                                actor=ctx.user.username, files=items, source_ip=client_ip(request),
                                max_decompressed=max_decompressed)

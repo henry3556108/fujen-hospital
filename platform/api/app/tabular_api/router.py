@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from tabular import explore, preprocess, stats
 from tabular.errors import TabularError
 
+from app import scanning
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.permissions import Permission
 from app.tabular_api import service
@@ -50,6 +51,7 @@ def upload_dataset(request: Request, file: UploadFile = File(...), schema_text: 
     if len(raw) > limit:
         raise service.too_large(limit)
     filename = file.filename or "data.csv"
+    scanning.ensure_clean(request, filename, raw)
     ds, report = service.create_dataset(ctx, request.app.state.store, raw=raw, schema_text=schema_text,
                                         name=(name or "").strip() or filename, filename=filename,
                                         source_ip=client_ip(request))
