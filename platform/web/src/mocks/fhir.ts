@@ -79,10 +79,10 @@ export function resetFhirMock(): void {
 }
 
 const STATIC_ROUTES: GatewayRoute[] = [
-  { id: 'platform-api', managed: false, description: '', uri: '/api/*', upstream: ['api:8000'], enabled: true,
+  { id: '/api/*', managed: false, description: '', uri: '/api/*', upstream: ['api:8000'], enabled: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'], alert_threshold_per_minute: null, plugins: ['cors'],
     updated_by: null, updated_at: null },
-  { id: 'dicomweb', managed: false, description: '', uri: '/dicomweb/projects/*', upstream: ['orthanc:8042'],
+  { id: '/dicomweb/projects/*', managed: false, description: '', uri: '/dicomweb/projects/*', upstream: ['orthanc:8042'],
     enabled: true, methods: ['GET', 'HEAD'], alert_threshold_per_minute: null,
     plugins: ['forward-auth', 'proxy-rewrite', 'serverless-post-function'], updated_by: null, updated_at: null },
 ];

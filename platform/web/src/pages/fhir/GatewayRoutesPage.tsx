@@ -111,7 +111,8 @@ export function GatewayRoutesPage() {
             {routes.data?.map((r) => (
               <tr key={r.id}>
                 <th scope="row">
-                  {r.id} {r.managed ? <span className="badge">可在此修改</span> : <span className="badge">部署設定檔</span>}
+                  {r.managed ? r.id : '靜態路由'}{' '}
+                  {r.managed ? <span className="badge">可在此修改</span> : <span className="badge">部署設定檔</span>}
                 </th>
                 <td className="fhir-code">{r.uri}</td>
                 <td className="fhir-code">{r.upstream.join('、') || '—'}</td>

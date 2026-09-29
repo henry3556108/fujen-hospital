@@ -50,7 +50,8 @@ def claim_due(session: Session, now: datetime) -> list[Claim]:
     return claims
 
 
-def run_claim(session: Session, client: FhirClient, claim: Claim, now=utcnow) -> FhirRun | None:
+def run_claim(session: Session, client: FhirClient, claim: Claim, now=utcnow,
+              source_ip: str | None = None) -> FhirRun | None:
     schedule = session.get(FhirSchedule, claim.schedule_id)
     if schedule is None:
         return None
@@ -60,17 +61,18 @@ def run_claim(session: Session, client: FhirClient, claim: Claim, now=utcnow) ->
     if project is None or source is None or mapping is None:
         return None
     return etl.run_etl(session, client, project=project, source=source, mapping=mapping, actor=SCHEDULER_ACTOR,
-                       trigger="schedule", schedule_id=schedule.id, planned_at=claim.planned_at, now=now)
+                       source_ip=source_ip, trigger="schedule", schedule_id=schedule.id, planned_at=claim.planned_at, now=now)
 
 
-def run_due(make_session: sessionmaker, client: FhirClient, now=utcnow) -> list[int]:
-    """執行所有到期的排程，回傳執行紀錄編號。單一排程出錯不影響其他排程。"""
+def run_due(make_session: sessionmaker, client: FhirClient, now=utcnow, source_ip: str | None = None) -> list[int]:
+    """執行所有到期的排程，回傳執行紀錄編號。單一排程出錯不影響其他排程。
+    source_ip：稽核的來源 IP，排程由 worker 發起，記 worker 自己的位址。"""
     with make_session() as session:
         claims = claim_due(session, now())
     run_ids = []
     for claim in claims:
         with make_session() as session:
-            run = run_claim(session, client, claim, now=now)
+            run = run_claim(session, client, claim, now=now, source_ip=source_ip)
             if run is not None:
                 run_ids.append(run.id)
     return run_ids

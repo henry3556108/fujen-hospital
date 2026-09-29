@@ -447,7 +447,7 @@ def test_tc_c03_09_twenty_audit_rows_are_complete(http, tokens, tenants, loaded)
 def test_tc_c03_03_route_change_takes_effect_at_the_gateway(http, tokens, tenants, loaded):
     admin, pid = tokens("admin01"), tenants["a"]
     routes = http.get("/api/admin/gateway/routes", headers=admin).json()
-    assert {"fhir-rest", "platform-api", "dicomweb"} <= {r["id"] for r in routes}
+    assert {"fhir-rest", "/api/*", "/dicomweb/projects/*"} <= {r["id"] for r in routes}
     original = next(r for r in routes if r["id"] == "fhir-rest")
     assert original["managed"] and original["enabled"]
     assert "Basic " not in json.dumps(routes)                     # 不洩漏 Gateway 連上游的認證

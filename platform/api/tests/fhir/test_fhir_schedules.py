@@ -86,9 +86,11 @@ def test_two_workers_do_not_run_the_same_slot_twice(app, session, fhir, p1, pair
     service.create_schedule(session, project_id=p1.id, actor="admin01", source_ip=None, name="s", now=clock,
                             source_id=pairs[0][0], mapping_id=pairs[0][1], interval_minutes=1)
     clock.advance(seconds=61)
-    first = scheduler.run_due(app.state.sessionmaker, fhir, now=clock)
+    first = scheduler.run_due(app.state.sessionmaker, fhir, now=clock, source_ip="172.18.0.5")
     second = scheduler.run_due(app.state.sessionmaker, fhir, now=clock)   # 另一份 worker 同一時間檢查
     assert len(first) == 1 and second == []
+    audit = session.scalars(select(AuditLog).where(AuditLog.action == "fhir.etl.run")).one()
+    assert (audit.actor, audit.source_ip) == ("fhir-scheduler", "172.18.0.5")
 
 
 def test_worker_downtime_runs_once_and_reports_the_delay(app, session, fhir, p1, pairs):

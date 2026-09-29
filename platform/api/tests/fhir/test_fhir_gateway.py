@@ -184,8 +184,9 @@ def test_static_routes_are_listed_read_only_without_secrets(client, admin, tmp_p
     monkeypatch.setenv("GATEWAY_ROUTES_FILE", str(config))
     response = client.get("/api/admin/gateway/routes", headers=admin)
     routes = response.json()
-    assert [r["id"] for r in routes] == ["fhir-rest", "platform-api", "dicomweb"]
-    assert routes[2] == {"id": "dicomweb", "managed": False, "description": "", "uri": "/dicomweb/projects/*",
+    assert [r["id"] for r in routes] == ["fhir-rest", "/api/*", "/dicomweb/projects/*"]
+    assert "platform-api" not in response.text          # 設定檔裡的路由名稱不回傳（可能與帳號同名）
+    assert routes[2] == {"id": "/dicomweb/projects/*", "managed": False, "description": "", "uri": "/dicomweb/projects/*",
                          "upstream": ["orthanc:8042"], "enabled": True, "methods": ["GET", "HEAD"],
                          "alert_threshold_per_minute": None, "plugins": ["serverless-post-function"],
                          "updated_by": None, "updated_at": None}

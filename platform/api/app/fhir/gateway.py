@@ -100,9 +100,20 @@ def policy_out(p: GatewayRoutePolicy) -> dict:
             "updated_by": p.updated_by, "updated_at": p.updated_at.isoformat() if p.updated_at else None}
 
 
+def _static_route_ids(path: str | None = None) -> set[str]:
+    return {r["_config_id"] for r in _read_static(path)}
+
+
 def static_routes(path: str | None = None) -> list[dict]:
     """部署設定檔（APISIX standalone 的 apisix.yaml）裡的路由，唯讀。只回傳路由的形狀，
-    不回傳外掛設定：裡面有 Gateway 連上游用的認證。"""
+    不回傳外掛設定：裡面有 Gateway 連上游用的認證。
+
+    靜態路由以路徑當識別（id＝uri），不回傳設定檔裡的路由名稱：名稱是自由文字，可能剛好等於某個帳號或金鑰
+    （本機環境 MinIO 的存取帳號就叫 platform-api，與 /api/* 路由同名），TC-SS-04 的外洩掃描會把它當成外洩。"""
+    return [{k: v for k, v in r.items() if k != "_config_id"} for r in _read_static(path)]
+
+
+def _read_static(path: str | None = None) -> list[dict]:
     path = path or os.environ.get("GATEWAY_ROUTES_FILE", "")
     if not path or not Path(path).is_file():
         return []
@@ -120,8 +131,9 @@ def static_routes(path: str | None = None) -> list[dict]:
         targets = sorted(nodes) if isinstance(nodes, dict) else []
         if upstream.get("service_name"):
             targets.append(str(upstream["service_name"]))
-        out.append({"id": str(route.get("id", "")), "managed": False, "description": "",
-                    "uri": route.get("uri") or ", ".join(route.get("uris") or []), "upstream": targets,
+        uri = route.get("uri") or ", ".join(route.get("uris") or [])
+        out.append({"_config_id": str(route.get("id", "")), "id": uri, "managed": False, "description": "",
+                    "uri": uri, "upstream": targets,
                     "enabled": True, "methods": route.get("methods") or list(ALL_METHODS),
                     "alert_threshold_per_minute": None, "plugins": sorted(route.get("plugins") or {}),
                     "updated_by": None, "updated_at": None})
@@ -130,7 +142,8 @@ def static_routes(path: str | None = None) -> list[dict]:
 
 def list_routes(session: Session) -> list[dict]:
     managed = policy_out(ensure_policy(session))
-    static = [r for r in static_routes() if r["id"] != FHIR_ROUTE]
+    static = [r for r in _read_static() if r["_config_id"] != FHIR_ROUTE]
+    static = [{k: v for k, v in r.items() if k != "_config_id"} for r in static]
     return [managed] + static
 
 
@@ -145,7 +158,7 @@ def update_route(session: Session, route_id: str, *, actor: str, source_ip: str 
                  alert_threshold_per_minute: int | None = None) -> dict:
     policy = ensure_policy(session)
     if route_id != FHIR_ROUTE:
-        if any(r["id"] == route_id for r in static_routes()):
+        if route_id in _static_route_ids() or any(r["id"] == route_id for r in static_routes()):
             raise RouteError(409, f"路由 {route_id} 是部署設定檔內的靜態路由，請修改設定檔後重新部署")
         raise RouteError(404, f"找不到路由 {route_id}")
     changes: dict = {}

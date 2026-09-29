@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import scanning
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext, client_ip, get_session, require_admin, require_project_permission
 from app.fhir import etl, gateway, graph, service, traffic
@@ -139,6 +140,8 @@ def list_sources(ctx: ProjectContext = Depends(read_access)) -> list[dict]:
 
 @projects.post("/sources", status_code=201)
 def create_source(body: SourceIn, request: Request, ctx: ProjectContext = Depends(admin_access)) -> dict:
+    if body.content is not None:   # CSV、HL7 V2、JSON 的內容是上傳的檔案：存下來之前先掃毒（TC-D01-06）
+        scanning.ensure_clean(request, f"fhir-source:{body.name}"[:128], body.content.encode("utf-8"))
     with _errors():
         source = service.create_source(ctx.session, project_id=ctx.project.id, actor=ctx.user.username,
                                        source_ip=client_ip(request), **body.model_dump())
@@ -286,6 +289,7 @@ async def hl7_body(request: Request) -> bytes:
 @projects.post("/hl7v2", status_code=201)
 def receive_hl7(request: Request, raw: bytes = Depends(hl7_body), ctx: ProjectContext = Depends(admin_access),
                 fhir: FhirClient = Depends(get_fhir)) -> Response:
+    scanning.ensure_clean(request, "fhir-hl7v2-message", raw)
     run = etl.ingest_hl7(ctx.session, fhir, project=ctx.project, raw=raw, actor=ctx.user.username,
                          source_ip=client_ip(request))
     return _run_response(run)
