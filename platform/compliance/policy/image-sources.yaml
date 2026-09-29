@@ -24,6 +24,8 @@ approved:
     reason: kind 官方節點映像（僅開發機）
   - pattern: docker.io/axllent/mailpit
     reason: Mailpit 作者發布（僅開發機收告警信）
+  - pattern: docker.io/clamav/clamav
+    reason: ClamAV 官方映像（Cisco Talos），上傳掃毒與定期掃描
 
 # 這些命名空間的 Pod 來自節點映像本身（kindest/node 內建），比對執行中的映像時歸在節點映像名下。
 bundled_namespaces: [kube-system, local-path-storage]
