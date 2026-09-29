@@ -5,41 +5,68 @@
 
 ## 目前狀態
 
-| 工作包 | 範圍 | 狀態 | 測試 |
+| 工作包 | 範圍 | 狀態 | 計畫與結果 |
 |---|---|---|---|
-| WP1a | 平台 API 核心：身分、專案、帳號、權限、稽核、授權檢查 | 完成 | 單元＋經 Gateway 驗收 |
-| WP1b | 網頁殼：登入、8 個入口、帳號管理 | 完成 | 單元 152、Playwright 20、真環境 E2E 3 |
-| WP2 | 影像匯入：Orthanc ×2、MinIO、匯入 CLI、DICOMweb 經 Gateway | 完成 | 經 Gateway 驗收 16 |
-| WP3 | 結構式資料：CSV 驗證、統計、66 種前處理 | 完成 | 函式庫 199、經 Gateway 驗收 7 |
-| WP4 | 排程與監控：kind、假 GPU、Kueue、GPU Dashboard、告警 | 完成（compose 的 API 可接 kind 叢集） | kind 叢集 15 |
-| WP5 | 影像建模主線：OHIF、訓練範本、MLflow、推論 | 未開始 | — |
-| WP6 | HL7 FHIR 資料交換 | 未開始 | — |
-| WP7 | LLM、RAG、LangGraph、Wiki、模型白名單 | 未開始 | — |
-| WP8 | 合規與交付：SBOM、掃毒、稽核覆蓋、備份還原 | 未開始 | — |
+| WP1a | 平台 API 核心：身分、專案、帳號、權限、稽核、授權檢查 | 完成 | `2026-09-28-wp1a-platform-api-core.md` |
+| WP1b | 網頁殼：登入、8 個入口、帳號管理 | 完成 | `2026-09-28-wp1b-web-shell.md` |
+| WP2 | 影像匯入：Orthanc ×2、MinIO、匯入 CLI、DICOMweb 經 Gateway | 完成 | `2026-09-28-wp2-imaging.md` |
+| WP3 | 結構式資料：CSV 驗證、統計、66 種前處理 | 完成 | `2026-09-28-wp3-tabular-api.md` |
+| WP4 | 排程與監控：kind、假 GPU、Kueue、GPU Dashboard、告警；compose 的 API 可接 kind | 完成 | `2026-09-28-wp4-scheduling.md` |
+| WP5a | 影像標註與自動標註：標註 API、OHIF、自動標註介面（MONAI Label 相容） | 完成 | `2026-09-29-wp5a-labeling.md` |
+| WP5b | 自動訓練、模型匯出、部署與推論：資料版本凍結、5 種範本、MLflow、推論服務 | 完成 | `2026-09-29-wp5b-training.md` |
+| WP6 | HL7 FHIR 資料交換：HAPI FHIR、4 種來源 ETL、對應規則、排程、多租戶 | 完成 | `2026-09-29-wp6-fhir.md` |
+| WP7 | LLM、RAG、LangGraph、Wiki、模型白名單 | 完成 | `2026-09-29-wp7-llm.md` |
+| WP8 | 合規與交付：SBOM、授權清單、Trivy、ClamAV、稽核覆蓋、備份還原、部署演練 | 完成 | `2026-09-29-wp8-compliance.md` |
+| 網頁補齊 | 排程、GPU Dashboard、監控、影像與結構式資料頁面 | 完成 | `2026-09-29-web-pages.md` |
+| 技術債 | 第三節前 10 項 | 完成 | `2026-09-29-tech-debt.md` |
 
-一鍵測試：`platform/scripts/test-all.sh`（`--e2e` 加 Playwright，`--docker` 加經 Gateway 驗收，`--kind` 加 kind 叢集測試）。S0 smoke 走 10 個情境主幹：9 項通過、8 項標為待開發工作包。
+計畫檔都在 `docs/superpowers/plans/`，各檔最後的「結果」段落記錄測試數字與裁定。
 
-全部測試（2026-09-28）：平台 API 單元 360、經 Gateway 驗收 34（另 15 個需 kind 叢集）、網頁 152、結構式函式庫 199、合成資料 43、假服務 45、匯入 CLI 13、smoke 1。
-Linux 開發機（Proxmox LXC，nesting 開啟後）2026-09-29：經 Gateway 驗收 34 通過、kind 叢集 15 通過；compose 的 API 接上 kind 後，經 Gateway 送出的訓練工作在 gpu-exclusive 節點以 Kubernetes Job 跑完。
+一鍵測試：`platform/scripts/test-all.sh`（`--e2e` 加 Playwright，`--docker` 加經 Gateway 驗收，`--kind` 加 kind 叢集測試，`--compliance` 加合規檢查）。
 
-## 1. 下一批開發
+完整整合環境（所有疊加檔）：
+```bash
+cd platform/deploy/local
+export COMPOSE_FILE=compose.yaml:compose.kind.yaml:compose.labeling.yaml:compose.training.yaml:compose.fhir.yaml:compose.llm.yaml:compose.compliance.yaml
+docker compose up -d --build --wait
+docker compose exec -T api /app/.venv/bin/python -m app.seed
+docker compose exec -T api /app/.venv/bin/python -m app.llm.wiki_setup   # Wiki.js 首次設定
+unset COMPOSE_FILE   # 驗收測試會自己呼叫 docker compose -p，留著相對路徑會失敗
+```
+kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.kind`（見 `platform/deploy/kind/README.md`）。
 
-WP5、WP6、WP7 彼此獨立，可以平行；WP8 放最後。
+### 整合結果（2026-09-29，分支 `integration/wp5-8`，Linux 開發機）
 
-- [x] 把 compose 的 API 接上 kind 叢集：`platform/deploy/kind/connect-compose.sh`（產生 kubeconfig、套用 `compose.kind.yaml`），做法見 `platform/deploy/kind/README.md`（2026-09-29）
-- [ ] WP5 影像建模主線（依賴 WP2、WP4）
-  - [ ] OHIF 檢視器與標註存回平台（分類、分割、偵測、評分、快捷鍵、器官窗）— TC-B02
-  - [ ] 自動標註串接（先接 `platform/fakes` 的 fake-autolabel，再換 MONAI Label）— TC-B03
-  - [ ] 資料版本凍結，確保「重現差異 0」— TC-B05-04、07
-  - [ ] 5 種訓練範本：影像用 Keras 輸出 H5，結構式用 scikit-learn 輸出 pkl；「匯出原始碼」＝匯出範本與設定 — TC-B05
-  - [ ] fake-trainer（本機建立極小模型，不下載）
-  - [ ] 結構式前處理拆成「在訓練資料上擬合、套用到測試資料」，避免資料洩漏
-  - [ ] MLflow、推論服務映像、批次推論、部署與授權呼叫 — TC-B06
-  - [ ] 使用者修改後的原始碼只在 Job 容器內執行，不掛任何憑證
-- [ ] WP6 FHIR：HAPI FHIR、4 種來源 ETL、對應規則、排程、Transaction 原子性、監視器轉 Observation、關聯圖、壓測 — TC-C03（合成資料已備好：`platform/tools/synth clinical`、`vitals`）
-- [ ] WP7 LLM：白名單下載與審核紀錄、OpenAI 相容介面（Mac 接 Ollama／fake-llm，正式接 vLLM）、Prompt Template、Playground、生成參數、6 種格式 RAG、發布 API、LangGraph、Wiki.js — TC-B07、B08、D01-02～04
-- [ ] WP8 合規與交付：Syft 與 Trivy、ClamAV、授權清單、稽核 8 類每日覆蓋檢查、監控覆蓋檢查、備份與還原腳本、部署與還原演練 — TC-D01、D02、DAILY
-- [ ] 網頁補上：共享排程設定頁（TC-A02-07）、GPU Dashboard、監控儀表板的 Playwright 版（TC-C02-03）、影像與結構式資料頁面
+所有工作包合併後，在完整整合環境（所有疊加檔）與 kind 叢集上執行：
+
+| 測試 | 結果 |
+|---|---|
+| 平台 API 單元 | 972 通過，5 略過 |
+| 結構式函式庫 | 333 通過 |
+| 合成資料、假模型服務、匯入 CLI | 46、46、13 通過 |
+| 網頁單元 | 332 通過 |
+| S0 smoke（10 個情境） | 17 通過，1 略過（監控告警，由 kind 測試驗證） |
+| 經 Gateway 驗收 | 95 通過，0 失敗（另 15 個是 kind 測試） |
+| kind 叢集 | 15 通過 |
+| 教學流程 TC-D02-03，Chromium 與 Edge | 12 通過 |
+| 監控儀表板瀏覽器版 TC-C02-03 | 通過 |
+| OHIF 經 Keycloak 登入顯示影像 | 通過（手動腳本） |
+| 合規：授權清單、映像內套件、來源、8 類稽核、監控覆蓋、機密、掃毒 | 全部通過 |
+| 合規：映像漏洞（只報告） | 26 個映像，CRITICAL 99、HIGH 1279，多為上游基底映像的作業系統套件 |
+
+尚未在合併後重跑：訓練範本單元測試（需 TensorFlow）、Playwright 全套、備份還原演練。開發機只有 12 GB 記憶體，完整整合環境加 kind 叢集時，一鍵測試腳本會因記憶體不足被中止；要先停掉整合環境再跑單元與瀏覽器測試。
+
+## 1. 下一步
+
+- [ ] 甲方確認第二節的事項；答案與預設不同的項目要回頭改
+- [ ] 網頁補上訓練設定頁、模型匯出按鈕與部署頁（API 已完成；目前建模管理與 AI 模型部署是佔位頁，教學流程第 4 段因此只能部分示範）
+- [ ] 網頁：隱藏欄位改存後端（目前存在瀏覽器，TC-B04-02 不跨電腦）、研究清單分頁、專案管理的 GPU 群組改成選單
+- [ ] 刪除專案時一併清除 HAPI FHIR 內該專案的資料（影像與結構式資料已會清）；叢集中執行中的工作也要停止
+- [x] OHIF 在真的瀏覽器經 Keycloak 登入後顯示影像（2026-09-29，完整整合環境，md01 開 ACC0001）。OHIF 依病歷號查「同病人其他研究」會被 Gateway 以 403 擋下，這是刻意的（避免跨專案列出研究），所以歷史研究清單只會有當前研究
+- [ ] 推論（含批次）目前在平台 API 內同步執行；資料量大時改成背景工作
+- [ ] 映像漏洞：與甲方議定門檻與修補期限後，把 Trivy 從「只報告」改成「超過門檻即失敗」
+- [ ] `cgr.dev/chainguard/minio:latest` 改成以 digest 釘版本
+- [ ] 甲方環境部署（見第四節）
 
 ## 2. 需要甲方確認
 
@@ -56,35 +83,59 @@ WP5、WP6、WP7 彼此獨立，可以平行；WP8 放最後。
 - [ ] 甘特圖仍寫「MIG 靜態切分」，請甲方修正
 - [ ] 書面需求清單（環境、PACS 測試介面、網域與憑證、對外網路與模型 Token 等）逐項註明期限；逾 15 日未提供須書面催告
 
+2026-09-29 開發時採用的預設與裁定（細節見各計畫檔的「裁定」段落）：
+
+- [ ] 標註：自動標註工具採 MONAI Label 介面，換工具只改 `AUTOLABEL_URL`；格式規格 1.0 只涵蓋 2D 單張影像（`docs/specs/autolabel-io-format.md`，需甲方書面簽認）；標註只存平台，不寫回 Orthanc
+- [ ] 標註：CSV 自動分類時同一鍵出現兩種診斷就不寫入；重新上傳 CSV 會更新先前的 CSV 標註
+- [ ] 訓練：匯出與修改原始碼需 Coding 權限，執行修改後的原始碼另需 Training；排隊中的訓練在來源被刪時仍用凍結資料完成
+- [ ] 部署：線上服務只依部署的使用者清單授權，不看專案角色；查無部署與無權限都回 403
+- [ ] FHIR：讀取需專案的 Project 權限；來源、對應、排程、寫入、Gateway 路由管理只限 Admin
+- [ ] FHIR：平台寫入都帶租戶標記；外部系統經 Gateway 做條件式寫入也必須帶同一標記（HAPI 條件式寫入的 URL 表跨租戶共用）
+- [ ] FHIR：所有寫入都經 HAPI 驗證，Transaction 的每筆 entry 都要有 `fullUrl`
+- [ ] FHIR：Gateway 以設定檔運作、沒有管理後台；「修改路由」以平台的路由政策實作（啟用、方法、告警門檻）
+- [ ] FHIR：流量告警為每人每專案每分鐘超過 120 次，最多每分鐘寄 1 封，不阻擋；排程在 worker 停機期間錯過的執行不補跑
+- [ ] LLM：發布的 API 以平台帳號清單授權，外部系統各需一個 Keycloak 帳號（另一選項是 API 金鑰）
+- [ ] LLM：只有 Admin 能核准模型下載（可考慮另設審核角色）；正式環境的模型來源與離線預載目錄的交付方式未定
+- [ ] LLM：Wiki.js 以一個服務帳號寫入，作者欄都是它；真正的使用者記在平台稽核
+- [ ] 稽核類別：LLM 操作記「推論」、知識庫與 Wiki 記「資料集」、白名單與 Prompt 記「專案」、種子重設記「專案」、掃毒攔截記「資料集」
+- [ ] 掃毒：掃毒服務中斷時一律拒絕上傳（503）；寫入物件儲存與 DICOM 匯入時都掃，另有排程掃描
+- [ ] 合規：授權清單只涵蓋映像與套件；監控覆蓋只涵蓋 kind 叢集；備份不含模擬 PACS，Keycloak 以資料庫為準
+- [ ] 核准的映像來源（`platform/compliance/policy/image-sources.yaml`）：新增 HAPI FHIR、OHIF、pgvector、MLflow、Wiki.js 官方映像
+- [ ] 上傳大小：單檔 512 MB、解壓後 2048 MB（DICOM 也適用，可用環境變數調整）
+- [ ] 重複上傳的影像補記來源路徑，讓標註配得到切片；資料庫裡不認得的權限字串改為忽略並記 log
+
 ## 3. 技術債與已知限制
 
-- [ ] 被拒絕的操作（403、409）目前不寫稽核（合約未明確要求）
-- [ ] 種子資料重設沒有寫稽核
-- [ ] 刪除帳號或專案時，連帶移除的成員資格沒有逐筆寫稽核
-- [ ] 建立帳號失敗後的補償步驟如果也失敗，會蓋掉原本的錯誤
-- [ ] 資料庫存了不認得的權限字串會回 500
-- [ ] 補一個「經 API 刪除帳號後，用舊 token 呼叫得 401」的回歸測試
-- [ ] 刪除專案時，Orthanc 影像與物件儲存的檔案不會跟著刪（影像與結構式資料都是）
-- [ ] NIfTI 上傳沒有大小上限，也未防壓縮炸彈
-- [ ] MinIO 開發環境用 root 帳號
-- [ ] 同一研究先經 PACS 取回、再批次上傳時，第二次被判為重複而不記檔案路徑，makesense 標註因此配不到這些切片（S0 smoke 發現；需決定重複上傳時是否補記路徑）
-- [ ] OHIF 需要的 bulk data 路徑（Orthanc `PublicRoot`）留到 WP5
+- [ ] 被拒絕的操作（403、409）目前不寫稽核（合約未明確要求；選項與成本見 `2026-09-29-tech-debt.md`，建議只稽核被拒絕的寫入）
+- [x] 種子資料重設沒有寫稽核（2026-09-29，tech-debt）
+- [x] 刪除帳號或專案時，連帶移除的成員資格沒有逐筆寫稽核（2026-09-29，tech-debt）
+- [x] 建立帳號失敗後的補償步驟如果也失敗，會蓋掉原本的錯誤（2026-09-29，tech-debt）
+- [x] 資料庫存了不認得的權限字串會回 500（2026-09-29，改為忽略並記 log）
+- [x] 補一個「經 API 刪除帳號後，用舊 token 呼叫得 401」的回歸測試（2026-09-29，單元與經 Gateway 各 1）
+- [x] 刪除專案時，Orthanc 影像與物件儲存的檔案不會跟著刪（2026-09-29；清理失敗的部分記在 `storage_cleanup_tasks` 之後重試）
+- [x] NIfTI 上傳沒有大小上限，也未防壓縮炸彈（2026-09-29）
+- [x] MinIO 開發環境用 root 帳號（2026-09-29，API 改用最小權限帳號）
+- [x] 同一研究先經 PACS 取回、再批次上傳時，重複影像不記檔案路徑（2026-09-29，改為補記路徑；見第二節）
+- [x] OHIF 需要的 bulk data 路徑（2026-09-29，WP5a 在 Gateway 改寫 BulkDataURI）
 - [ ] Orthanc 映像只有 amd64，在 M1 上是模擬執行
-- [ ] Starlette 的 httpx 棄用警告
-- [ ] 正式環境：關閉 Keycloak `directAccessGrantsEnabled`；CORS 改成甲方網域；所有開發密碼替換
+- [x] Starlette 的 httpx 棄用警告（2026-09-29，改用 httpx2，警告視為錯誤）
+- [ ] 正式環境：關閉 Keycloak `directAccessGrantsEnabled`；CORS 改成甲方網域（含 DICOMweb 路由目前允許任何 localhost 埠）；所有開發密碼替換
+- [ ] 已存在的舊堆疊要重新匯入 Keycloak realm（新增了 OHIF client），切換到 pgvector 映像前要 `down -v`
+- [ ] 叢集的 Grafana 設 `GOMEMLIMIT`，否則瀏覽器登入就會被 OOMKilled（開發機已設 450MiB）
 
 ## 4. 只能在甲方環境驗證
 
 - [ ] A-01：OS、驅動、CUDA、cuDNN、PyTorch、TensorFlow、GPU 偵測 3 次
 - [ ] 真實 GPU 分配、DCGM 指標、獨占卡上無其他工作、時間片效能
 - [ ] LLM 4-bit 與 8-bit 量化（bitsandbytes＋vLLM）
-- [ ] 時間與效能指標：權限 10 秒生效、DICOM 查詢 30 秒、自動標註 30 秒、Playground 10 秒、首屏時間
+- [ ] 時間與效能指標：權限 10 秒生效、DICOM 查詢 30 秒、自動標註 30 秒、Playground 10 秒、首屏時間、FHIR 壓測延遲
+- [ ] GPU 上的訓練速度與重現性、真實模型品質；LLM 真模型的回應時間
 - [ ] 真實 PACS、HIS、生理監視器、Email 或通訊軟體
 - [x] Edge 瀏覽器相容（TC-A02-08）：Linux 開發機裝 Edge 154 後 Playwright 40 項全過（2026-09-28）；甲方 Windows 環境可再抽測
 
 ## 5. 換機器開發
 
-需要：git、uv、Node.js、Docker（建議 8 GB 以上記憶體給 Docker）、kind（WP4 叢集測試）、磁碟 30 GB 以上。
+需要：git、uv、Node.js、Docker、kind（叢集測試）。完整整合環境加 kind 叢集實測約需 10 GB 記憶體、磁碟 80 GB 以上（訓練映像含 TensorFlow 約 6 GB）。
 
 ```bash
 git clone https://github.com/henry3556108/fujen-hospital.git

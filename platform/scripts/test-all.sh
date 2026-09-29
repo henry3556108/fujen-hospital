@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 E2E=0; DOCKER=0; KIND=0; COMPLIANCE=0
 for a in "$@"; do case $a in --e2e) E2E=1;; --docker) DOCKER=1;; --kind) KIND=1;; --compliance) COMPLIANCE=1;; *) echo "未知參數 $a"; exit 2;; esac; done
 
-declare -a RESULTS; FAILED=0
+RESULTS=(); FAILED=0
 JUNIT_DIR="$PWD/acceptance/reports/junit"; rm -rf "$JUNIT_DIR"; mkdir -p "$JUNIT_DIR"
 run() {  # run <名稱> <目錄> <指令...>
   local name=$1 dir=$2; shift 2
