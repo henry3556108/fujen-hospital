@@ -1,0 +1,52 @@
+# 疊加檔：WP7 LLM、RAG、工作流、Wiki。
+#   docker compose -f compose.yaml -f compose.llm.yaml up -d --build --wait
+#   docker compose -f compose.yaml -f compose.llm.yaml exec -T api /app/.venv/bin/python -m app.seed
+#   docker compose -f compose.yaml -f compose.llm.yaml exec -T api /app/.venv/bin/python -m app.llm.wiki_setup
+#
+# 模型服務是 platform/fakes 的 fake-llm（不下載任何權重）。Mac 上要接 Ollama 時，把 LLM_BASE_URL 改成
+# http://host.docker.internal:11434/v1，並設定 LLM_CHAT_MODEL、LLM_EMBED_MODEL；甲方環境接 vLLM。
+# fake-llm、wiki 都不對主機開放連接埠，只能由平台 API 存取。
+services:
+  postgres:
+    # 與 postgres:16 相同，多了 pgvector 外掛。既有的資料卷是 alpine 映像建立的，換映像前請先 down -v
+    image: pgvector/pgvector:pg16
+    volumes:
+      - ./postgres/init-wiki.sql:/docker-entrypoint-initdb.d/init-wiki.sql:ro
+
+  fake-llm:
+    build:
+      context: ../../fakes
+    environment:
+      FAKE_SERVICE: llm
+
+  wiki:
+    image: ghcr.io/requarks/wiki:2.5
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: platform
+      DB_PASS: platform-dev
+      DB_NAME: wiki
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    environment:
+      LLM_BASE_URL: http://fake-llm:8101/v1
+      LLM_CHAT_MODEL: fake-llm-small
+      LLM_EMBED_MODEL: fake-embed-small
+      LLM_TIMEOUT_SECONDS: "25"
+      LLM_MODEL_SOURCE: fake            # 假的模型來源（只有設定檔）；甲方環境不可設定
+      LLM_PRELOAD_DIR: /opt/llm-preload
+      LLM_MODEL_DIR: /data/objects/llm-models
+      VECTOR_STORE: pgvector
+      WIKI_URL: http://wiki:3000
+      WIKI_ADMIN_EMAIL: wiki-svc@example.org
+      WIKI_ADMIN_PASSWORD: wiki-svc-dev
+      LANGSMITH_TRACING: "false"
+    volumes:
+      - ./llm/preload:/opt/llm-preload:ro
+    depends_on:
+      fake-llm: {condition: service_started}
+      wiki: {condition: service_started}

@@ -40,7 +40,7 @@ def test_tc_b08_02_edit_version_and_search_three_times_each(client, llm, pages, 
     # 全文檢索 3 次（內文，不只是標題）
     for query, expected in (("金屬物品", "sop/mri"), ("乾洗手", "sop/hand-hygiene"), ("夜間門診", "sop/outpatient")):
         hits = client.get(f"{base}/wiki/search", headers=coder, params={"q": query}).json()
-        assert [h["path"] for h in hits] == [expected], query
+        assert [(h["path"], h["match"]) for h in hits] == [(expected, "index")], query
     # 頁面在 Wiki 裡放在專案的前綴下
     assert llm.wiki.pages[page["id"]].path == f"projects/{project.id}/sop/outpatient"
     session.expire_all()
@@ -77,6 +77,19 @@ def test_wiki_ask_by_search_uses_wiki_search_then_fetch(client, llm, pages, code
     assert [p["title"] for p in body["pages"]] == ["手部衛生"]
     missing = client.post(f"{base}/wiki/ask", headers=coder, json={"question": "x", "query": "不存在的字詞"})
     assert missing.status_code == 404
+
+
+def test_search_falls_back_to_page_content_when_the_index_misses(client, llm, pages, coder, base):
+    """Wiki.js 的索引以空白斷詞：中文句子裡的片段查不到。模擬索引沒有結果的情況。"""
+    llm.wiki.search = lambda query: llm.wiki.calls.append("pages.search") or []
+    llm.wiki.calls.clear()
+    hits = client.get(f"{base}/wiki/search", headers=coder, params={"q": "金屬物品"}).json()
+    assert [(h["path"], h["match"]) for h in hits] == [("sop/mri", "content")]
+    assert llm.wiki.calls == ["pages.search", "pages.single", "pages.single", "pages.single"]
+    assert client.get(f"{base}/wiki/search", headers=coder, params={"q": "沒有這個詞"}).json() == []
+    body = client.post(f"{base}/wiki/ask", headers=coder, json={"question": "要取下什麼", "query": "金屬物品"}).json()
+    assert [p["title"] for p in body["pages"]] == ["磁振造影檢查前準備"] and body["context_source"] == "wiki_api"
+    assert llm.vectors.searches == 0 and llm.client.embed_calls == []
 
 
 def test_wiki_node_in_workflow_records_wiki_api_as_context_source(client, llm, pages, coder, base):

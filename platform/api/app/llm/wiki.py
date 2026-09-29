@@ -30,6 +30,7 @@ from app.llm.util import iso
 _PATH = re.compile(r"^[a-z0-9][a-z0-9_-]*(/[a-z0-9][a-z0-9_-]*)*$")
 MAX_ASK_PAGES = 3
 MAX_CONTEXT_CHARS = 12000
+MAX_SCAN_PAGES = 500
 
 
 class WikiNotFound(LlmServiceError):
@@ -424,9 +425,24 @@ def search(session: Session, services: LlmServices, *, project_id: int, query: s
     """Wiki 的檢索不分專案，所以只留下歸屬於本專案的頁面。"""
     if not query.strip():
         raise Invalid("請輸入檢索字詞")
+    wiki, needle = require_wiki(services), query.strip()
     links = {l.wiki_id: l for l in list_pages(session, project_id=project_id)}
-    return [{"id": h.id, "path": links[h.id].path, "title": h.title, "description": h.description}
-            for h in require_wiki(services).search(query.strip()) if h.id in links]
+    hits = [{"id": h.id, "path": links[h.id].path, "title": h.title, "description": h.description, "match": "index"}
+            for h in wiki.search(needle) if h.id in links]
+    if hits:
+        return hits
+    # Wiki.js 的 PostgreSQL 檢索以空白與標點斷詞，整句中文是一個詞，句子裡的片段查不到。
+    # 索引沒有結果時，改用 Wiki API 逐頁取回內文比對，確保中文內文也檢索得到。
+    lowered = needle.lower()
+    for link in list(links.values())[:MAX_SCAN_PAGES]:
+        try:
+            page = wiki.get_page(link.wiki_id)
+        except WikiNotFound:
+            continue
+        if any(lowered in text.lower() for text in (page.title, page.description, page.content)):
+            hits.append({"id": page.id, "path": link.path, "title": page.title, "description": page.description,
+                         "match": "content"})
+    return hits
 
 
 def ask(session: Session, services: LlmServices, *, project_id: int, actor: str, source_ip: str | None,
