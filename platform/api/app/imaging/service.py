@@ -14,8 +14,8 @@ from app.audit import AuditCategory, record
 from app.authz import DicomwebTarget
 from app.imaging.dicom import DicomInfo, InvalidDicom, parse_dicom
 from app.imaging.formats import InvalidFile, parse_file
-from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingSeries, ImagingStudy,
-                                ImportFileResult, ImportJob)
+from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingInstanceSource,
+                                ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
 from app.imaging.orthanc import QUERY_KEYS, OrthancClient, OrthancError
 from app.storage import ObjectStore
 
@@ -126,9 +126,19 @@ def _index(session: Session, project_id: int, info: DicomInfo, *, source_path: s
     session.flush()
 
 
-def _has_instance(session: Session, project_id: int, sop_uid: str) -> bool:
-    return session.scalar(select(ImagingInstance.id).where(ImagingInstance.project_id == project_id,
-                                                           ImagingInstance.sop_instance_uid == sop_uid)) is not None
+def _find_instance(session: Session, project_id: int, sop_uid: str) -> ImagingInstance | None:
+    return session.scalar(select(ImagingInstance).where(ImagingInstance.project_id == project_id,
+                                                        ImagingInstance.sop_instance_uid == sop_uid))
+
+
+def _remember_path(session: Session, instance: ImagingInstance, path: str) -> bool:
+    """重複影像的這次來源路徑若是新的就補記；回傳是否有新增。"""
+    if path == instance.source_path or session.scalar(select(ImagingInstanceSource.id).where(
+            ImagingInstanceSource.instance_id == instance.id, ImagingInstanceSource.source_path == path)) is not None:
+        return False
+    session.add(ImagingInstanceSource(project_id=instance.project_id, instance_id=instance.id, source_path=path))
+    session.flush()
+    return True
 
 
 def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int, name: str, data: bytes,
@@ -142,9 +152,13 @@ def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int,
         info = parse_dicom(data)
     except InvalidDicom as exc:
         return ImportFileResult(filename=name, status="failed", reason=str(exc))
-    if _has_instance(session, project_id, info.sop_instance_uid):
+    existing = _find_instance(session, project_id, info.sop_instance_uid)
+    if existing is not None:
+        # 不重送 Orthanc、不新增影像列（TC-B01-06）。上傳的檔案才有可供配對的路徑；PACS 取回的名稱是平台自己編的
+        noted = store_in_orthanc and _remember_path(session, existing, name)
         return ImportFileResult(filename=name, status="duplicate",
-                                reason=f"SOP Instance UID {info.sop_instance_uid} 已匯入")
+                                reason=f"SOP Instance UID {info.sop_instance_uid} 已匯入"
+                                       + ("；已補記來源路徑" if noted else ""))
     orthanc_id = ""
     if store_in_orthanc:
         try:
@@ -388,6 +402,10 @@ def resolve_pairings(session: Session, project_id: int) -> None:
             if sources is None:
                 sources = list(session.execute(select(ImagingInstance.source_path, ImagingInstance.sop_instance_uid)
                                                .where(ImagingInstance.project_id == project_id)).all())
+                sources += list(session.execute(
+                    select(ImagingInstanceSource.source_path, ImagingInstance.sop_instance_uid)
+                    .join(ImagingInstance, ImagingInstance.id == ImagingInstanceSource.instance_id)
+                    .where(ImagingInstanceSource.project_id == project_id)).all())
             matched, missing, ambiguous = [], [], []
             for file_name in label.meta.get("file_names", []):
                 sops = _match_sop(sources, file_name)

@@ -82,8 +82,8 @@ def test_scenario_02_bring_images_in(world):
     # 1. DICOM 網路節點向 PACS 查詢與取像：只看得到清單內的研究
     answers = ok(c.post(f"/api/projects/{p1}/imaging/pacs/query", headers=ra, json={}))
     assert sorted(a["AccessionNumber"] for a in answers) == sorted(allow)
-    # makesense 以上傳時的檔案路徑配對，而經 PACS 取回的切片沒有檔案路徑，所以挑一個不被 makesense 引用的研究
-    first = next(s for s in allowed if s["accession_number"] not in {"ACC0001", "ACC0002", "ACC0003"})
+    # 刻意挑一個被 makesense 引用的研究：先經 PACS 取回、之後批次上傳時判為重複，但會補記檔案路徑，標註仍配得到
+    first = next(s for s in allowed if s["accession_number"] in {"ACC0001", "ACC0002", "ACC0003"})
     job = ok(c.post(f"/api/projects/{p1}/imaging/pacs/retrieve", headers=ra,
                     json={"study_instance_uid": first["study_instance_uid"]}), 201)
     assert job["counts"]["imported"] == len(first["files"])

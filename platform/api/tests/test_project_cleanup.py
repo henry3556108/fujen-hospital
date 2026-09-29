@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app import project_cleanup
-from app.imaging.models import ImagingFile, ImagingInstance, ImagingStudy, ImportJob
+from app.imaging.models import ImagingFile, ImagingInstance, ImagingInstanceSource, ImagingStudy, ImportJob
 from app.imaging.orthanc import OrthancError
 from app.models import AuditLog, Project
 from app.permissions import AccountType
@@ -33,6 +33,7 @@ def _count(session, model, **where):
 def _fill(client, admin, pid, synth, schema_text, studies=(1, 2)):
     for no in studies:
         assert upload_imaging(client, admin, pid, study_files(no)).status_code == 201
+        assert upload_imaging(client, admin, pid, [("again/" + n, d) for n, d in study_files(no)]).status_code == 201
     files = [("nifti/case01_image.nii.gz", make_nifti()), ("nifti/case01_label.nii.gz", make_nifti())]
     assert upload_imaging(client, admin, pid, files, kind="files").status_code == 201
     assert upload_csv(client, pid, admin, (synth / "cohort_01.csv").read_bytes(), schema_text, name="c1").status_code == 201
@@ -55,7 +56,7 @@ def test_delete_project_removes_orthanc_images_and_objects(client, admin, sessio
     assert store.list(f"projects/{pid}/") == []
     assert sorted(orthanc.instances) == sorted(sop_uid(3, s) for s in (1, 2, 3))     # 只剩另一個專案的影像
     assert len(store.list(f"projects/{keep}/")) == 5
-    for model in (ImagingStudy, ImagingInstance, ImagingFile, ImportJob, TabularDataset):
+    for model in (ImagingStudy, ImagingInstance, ImagingInstanceSource, ImagingFile, ImportJob, TabularDataset):
         assert _count(session, model, project_id=pid) == 0, model.__name__
         assert _count(session, model, project_id=keep) > 0, model.__name__
     assert _count(session, StorageCleanupTask) == 0

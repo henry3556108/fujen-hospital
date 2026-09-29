@@ -17,8 +17,8 @@ from sqlalchemy import DateTime, Integer, String, delete, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.audit import AuditCategory, record
-from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingSeries, ImagingStudy,
-                                ImportFileResult, ImportJob)
+from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingInstanceSource,
+                                ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
 from app.models import Base, Project, utcnow
 from app.tabular_api.models import TabularDataset, TabularTargetFeature
 
@@ -64,6 +64,7 @@ def stage(session: Session, project_id: int) -> None:
     jobs = select(ImportJob.id).where(ImportJob.project_id == project_id)
     datasets = select(TabularDataset.id).where(TabularDataset.project_id == project_id)
     for statement in (
+        delete(ImagingInstanceSource).where(ImagingInstanceSource.project_id == project_id),
         delete(ImagingInstance).where(ImagingInstance.project_id == project_id),
         delete(ImagingSeries).where(ImagingSeries.study_id.in_(studies)),
         delete(ImagingStudy).where(ImagingStudy.project_id == project_id),
