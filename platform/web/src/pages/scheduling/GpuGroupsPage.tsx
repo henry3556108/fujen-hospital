@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
+import { relabel } from '../../api/relabel';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
@@ -46,7 +47,7 @@ function GroupForm({
       await onSubmit(values);
       if (!editing) setValues(EMPTY);
     } catch (err) {
-      setError(err);
+      setError(relabel(err, { name: '群組名稱' }));
     } finally {
       setBusy(false);
     }
