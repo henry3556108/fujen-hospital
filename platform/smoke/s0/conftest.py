@@ -6,6 +6,8 @@
 - 物件儲存：LocalObjectStore（取代 MinIO）
 - 排程：FakeJobBackend（取代 kind＋Kueue），以 advance() 推進時間
 - 模型服務：platform/fakes 的 fake-llm、fake-autolabel（ASGI 直接呼叫）
+- WP7：模型來源用 InMemoryModelSource、向量庫用 SqlVectorStore、Wiki 用 InMemoryWiki；LLM 用戶端是正式的
+  OpenAICompatClient，接到程序內的 fake-llm
 
 所有情境共用同一個 world（session scope），依檔案順序執行，模擬同一套平台被連續使用。
 """
@@ -22,7 +24,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 PLATFORM = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(PLATFORM / "api"), str(PLATFORM / "fakes"), str(PLATFORM / "training")]
+sys.path[:0] = [str(PLATFORM / "api"), str(PLATFORM / "fakes"), str(PLATFORM / "tools" / "synth"),
+                str(PLATFORM / "training")]
 
 from app.identity import InMemoryIdentityProvider, JwtVerifier  # noqa: E402
 from app.imaging.orthanc import InMemoryOrthanc  # noqa: E402
@@ -31,6 +34,11 @@ from app.models import AuditLog  # noqa: E402
 from app.scheduling.backend import FakeJobBackend  # noqa: E402
 from app.seed import reset_and_seed  # noqa: E402
 from app.storage import LocalObjectStore  # noqa: E402
+from app.llm.client import OpenAICompatClient  # noqa: E402
+from app.llm.services import LlmServices  # noqa: E402
+from app.llm.sources import fake_source, FAKE_SOURCE_HOST  # noqa: E402
+from app.llm.vectors import SqlVectorStore  # noqa: E402
+from app.llm.wiki import InMemoryWiki  # noqa: E402
 
 ISSUER = "http://s0-idp/realms/ai-platform"
 AUDIENCE = "ai-platform"
@@ -93,6 +101,12 @@ def world(synth, tmp_path_factory) -> World:
     backend = FakeJobBackend()
     app.state.orthanc = orthanc
     app.state.job_backend = backend
+
+    from fakes.llm import app as fake_llm
+    app.state.llm = LlmServices(client=OpenAICompatClient("http://testserver/v1", http=TestClient(fake_llm)),
+                                sources={FAKE_SOURCE_HOST: fake_source()},
+                                model_dir=tmp_path_factory.mktemp("llm-models"),
+                                vectors=SqlVectorStore(), wiki=InMemoryWiki())
 
     idp.create_user("admin01", "Dev-Passw0rd!")
     with app.state.sessionmaker() as s:

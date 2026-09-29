@@ -4,10 +4,12 @@ import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Rol
 import { meFor, seedDb, type MockDb } from './data';
 import { createLabelingHandlers } from './labeling';
 import { createInferenceHandlers } from './inference';
+import { llmHandlers, resetLlmMock } from './llm';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
   db = seedDb();
+  resetLlmMock();
 }
 export function mockDb(): MockDb {
   return db;
@@ -197,4 +199,5 @@ export const handlers = [
   ...createLabelingHandlers(() => db),
   // WP5b 推論服務管理：定義在 mocks/inference.ts
   ...createInferenceHandlers(() => db),
+  ...llmHandlers, // WP7
 ];

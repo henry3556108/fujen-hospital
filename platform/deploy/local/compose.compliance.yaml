@@ -1,0 +1,30 @@
+# 疊加檔：上傳檔案掃毒（D-01、TC-D01-06）。
+#   docker compose -f compose.yaml -f compose.compliance.yaml up -d --build --wait
+# clamd 載入病毒碼後約佔 1.2 GB 記憶體；第一次啟動會下載病毒碼（數百 MB），存在 clamav-db volume。
+# 設定 CLAMAV_HOST 之後，平台 API 在掃毒服務連不上時會拒絕上傳（fail closed）。
+services:
+  clamav:
+    image: clamav/clamav:1.5.4
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"     # 讓容器自己定期更新病毒碼；離線環境改用預載的病毒碼並設為 true
+      CLAMAV_NO_MILTERD: "true"
+    volumes:
+      - clamav-db:/var/lib/clamav
+      - ./clamav/clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      # 映像內建的 clamdcheck.sh 連 localhost，在這裡會解析成 IPv6 而連不上；clamd 只聽 IPv4，所以直接連 127.0.0.1
+      test: ["CMD-SHELL", "[ \"$$(echo PING | nc 127.0.0.1 3310)\" = PONG ]"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+
+  api:
+    environment:
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+    depends_on:
+      clamav: {condition: service_healthy}
+
+volumes:
+  clamav-db: {}

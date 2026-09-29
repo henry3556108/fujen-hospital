@@ -1,0 +1,93 @@
+{
+  "columns": [
+    {
+      "name": "patient_id",
+      "pattern": "^P\\d{5}$",
+      "required": true,
+      "type": "str",
+      "unique": true
+    },
+    {
+      "max": 100,
+      "min": 18,
+      "name": "age",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "allowed": [
+        "M",
+        "F"
+      ],
+      "name": "sex",
+      "required": true,
+      "type": "category"
+    },
+    {
+      "max": 60,
+      "min": 12,
+      "name": "bmi",
+      "required": false,
+      "type": "float"
+    },
+    {
+      "max": 250,
+      "min": 70,
+      "name": "sbp",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "max": 150,
+      "min": 40,
+      "name": "dbp",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "max": 500,
+      "min": 40,
+      "name": "glucose",
+      "required": false,
+      "type": "float"
+    },
+    {
+      "allowed": [
+        "never",
+        "former",
+        "current"
+      ],
+      "name": "smoker",
+      "required": true,
+      "type": "category"
+    },
+    {
+      "max": 1,
+      "min": 0,
+      "name": "diagnosis",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "max": 3650,
+      "min": 1,
+      "name": "time_to_event",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "max": 1,
+      "min": 0,
+      "name": "event",
+      "required": true,
+      "type": "int"
+    },
+    {
+      "name": "study_accession",
+      "pattern": "^ACC\\d{4}$",
+      "required": false,
+      "type": "str"
+    }
+  ],
+  "description": "Column rules for the platform CSV validator (TC-B01-10)."
+}

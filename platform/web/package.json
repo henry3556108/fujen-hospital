@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit -p .",
-    "test:e2e:real": "playwright test -c playwright.real.config.ts"
+    "test:e2e:real": "playwright test -c playwright.real.config.ts",
+    "test:e2e:grafana": "playwright test -c playwright.grafana.config.ts --project=chromium"
   },
   "dependencies": {
     "oidc-client-ts": "^3.5.0",

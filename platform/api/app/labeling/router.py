@@ -6,6 +6,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field, StrictInt
 
+from app import scanning
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.labeling import service
 from app.labeling.autolabel import AutolabelClient, autolabel_from_env
@@ -106,10 +107,12 @@ def classification_csv(request: Request, file: UploadFile = File(...), key: str 
                        key_column: str | None = Form(None), label_column: str | None = Form(None),
                        ctx: ProjectContext = Depends(can_label)) -> dict:
     """以 CSV 診斷結果，依病歷號（patient_id）或影像編號（accession_number）自動做研究層級的分類標註。"""
+    data = file.file.read()
+    scanning.ensure_clean(request, file.filename or "diagnosis.csv", data)
     with _errors():
         return service.classify_from_csv(
             ctx.session, project_id=ctx.project.id, actor=ctx.user.username, source_ip=client_ip(request),
-            filename=file.filename or "", data=file.file.read(), key=key,
+            filename=file.filename or "", data=data, key=key,
             key_column=key_column or None, label_column=label_column or None)
 
 

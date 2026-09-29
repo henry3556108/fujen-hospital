@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 PROJECT = Path(__file__).resolve().parents[1]
-KINDS = ["dicom", "nifti", "itk", "makesense", "tabular", "clinical", "vitals"]
+KINDS = ["dicom", "nifti", "itk", "makesense", "tabular", "clinical", "vitals", "documents"]
 
 
 def run(*args):

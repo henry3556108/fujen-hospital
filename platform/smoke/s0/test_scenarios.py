@@ -458,7 +458,91 @@ def test_scenario_07_llm_contract(world):
 
 
 def test_scenario_07_knowledge_qa_on_platform(world):
-    pending("WP7", "白名單下載、量化載入、6 種格式 RAG、Playground、發布 API、LangGraph、Wiki（TC-B07、B08）")
+    """白名單下載 → 量化載入 → 6 種格式建庫 → Playground → 發布 API → 工作流與 Wiki（TC-B07、B08）。"""
+    from app.llm.sources import FAKE_SOURCE_HOST, FAKE_VALID_TOKEN
+    from synth import documents
+
+    c, admin = world.client, world.headers(ADMIN)
+    p3 = world.project_id("P3-llm")
+    users = {u["username"]: u["id"] for u in ok(c.get("/api/admin/users", headers=admin))}
+    ok(c.put(f"/api/admin/projects/{p3}/members/{users['ca01']}", headers=admin, json={"role": "coder_assistant"}))
+    ok(c.put(f"/api/admin/projects/{p3}/members/{users['vw01']}", headers=admin, json={"role": "viewer"}))
+    ca, vw, base = world.headers("ca01"), world.headers("vw01"), f"/api/projects/{p3}/llm"
+    world.ids["p3"] = p3
+    mark = world.last_audit_id()
+
+    # 1. 經白名單審核下載開源模型（D-01）
+    source = world.app.state.llm.sources[FAKE_SOURCE_HOST]
+    artifact = source.repos["fake-org/fake-llm-gated"]
+    ok(c.post("/api/admin/llm/whitelist", headers=admin, json={
+        "name": "s0-llm", "source": FAKE_SOURCE_HOST, "repo": artifact.repo, "revision": artifact.commit,
+        "sha256": artifact.sha256, "license": "apache-2.0", "requires_token": True}), 201)
+    assert c.post(f"{base}/models/downloads", headers=ca, json={"name": "not-on-the-list"}).status_code == 403
+    download = ok(c.post(f"{base}/models/downloads", headers=ca, json={"name": "s0-llm"}), 201)
+    assert c.post(f"{base}/models/downloads/{download['id']}/execute", headers=ca,
+                  json={"token": FAKE_VALID_TOKEN}).status_code == 409           # 還沒核准
+    ok(c.post(f"/api/admin/llm/downloads/{download['id']}/approve", headers=admin))
+    done = ok(c.post(f"{base}/models/downloads/{download['id']}/execute", headers=ca,
+                     json={"token": FAKE_VALID_TOKEN}))
+    assert all(done[k] for k in ("commit", "hash", "time", "user", "token_usage", "reviewer"))
+    world.ids["s0_download"] = download["id"]
+
+    # 2. 以 4-bit 量化載入，設定資源（Mac 只驗設定保存）
+    config = {"quantization": "4bit", "cpu": 8, "memory_gb": 32, "gpu_type": "gpu-exclusive", "gpu_count": 1}
+    ok(c.put(f"{base}/models/s0-llm/load-config", headers=ca, json=config))
+    assert ok(c.post(f"{base}/models/s0-llm/load", headers=ca))["config"]["quantization"] == "4bit"
+
+    # 3. 上傳 6 種格式文件建立向量庫
+    kb = ok(c.post(f"{base}/knowledge-bases", headers=ca, json={"name": "S0 院內規範"}), 201)
+    files = [("files", (name, data, "application/octet-stream")) for name, data in documents.build().items()]
+    built = ok(c.post(f"{base}/knowledge-bases/{kb['id']}/documents", headers=ca, files=files), 201)
+    assert built["counts"] == {"indexed": 6, "duplicate": 0, "failed": 0}
+
+    # 4. 在 Playground 以 Chat with Knowledge Base 測試
+    answer = ok(c.post(f"{base}/chat", headers=ca,
+                       json={"mode": "kb", "kb_id": kb["id"], "message": "體內有心律調節器可以做磁振造影嗎"}))
+    assert answer["message"]["sources"][0]["filename"] == documents.FILENAMES["docx"]
+    assert "context:" in answer["message"]["content"] and "temperature" in answer["message"]["content"]
+
+    # 5. 發布為內部服務 RESTful API：只有授權名單內的帳號可呼叫
+    service = ok(c.post(f"{base}/services", headers=ca, json={
+        "slug": "s0-sop-qa", "name": "S0 規範問答", "kb_id": kb["id"], "grants": ["md01"]}), 201)
+    assert ok(c.post(service["endpoint"], headers=world.headers("md01"), json={"question": "資訊室分機幾號"}))["answer"]
+    assert c.post(service["endpoint"], headers=world.headers("user01"), json={"question": "x"}).status_code == 403
+    assert c.post(service["endpoint"], json={"question": "x"}).status_code == 401
+
+    # 6. 用 LangGraph 建多步驟工作流、在 Wiki 維護知識
+    flow = ok(c.post(f"{base}/workflows", headers=ca, json={"name": "S0 問答流程", "definition": {
+        "state": {"question": ""},
+        "nodes": [{"id": "retrieve", "type": "retrieve", "kb_id": kb["id"], "query": "{question}", "output": "context"},
+                  {"id": "draft", "type": "llm", "prompt": "{question}", "context": "context", "output": "draft"},
+                  {"id": "final", "type": "template", "template": "答覆：{draft}", "output": "answer"}],
+        "edges": [["retrieve", "draft"], ["draft", "final"]]}}), 201)
+    run = ok(c.post(f"{base}/workflows/{flow['id']}/runs", headers=ca, json={"input": {"question": "夜間門診"}}), 201)
+    assert run["status"] == "succeeded" and [n["node"] for n in run["nodes"]] == ["retrieve", "draft", "final"]
+    assert run["nodes"][1]["llm_request"] and run["nodes"][1]["llm_response"]
+
+    page = ok(c.post(f"{base}/wiki/pages", headers=ca, json={
+        "path": "sop/visiting", "title": "探病規定", "content": "探病時間為每日 11:00 至 13:00。"}), 201)
+    ok(c.put(f"{base}/wiki/pages/{page['id']}", headers=ca,
+             json={"title": "探病規定", "content": "探病時間為每日 11:00 至 13:00 與 18:00 至 20:00。"}))
+    assert len(ok(c.get(f"{base}/wiki/pages/{page['id']}/history", headers=ca))) == 1
+    assert ok(c.get(f"{base}/wiki/search", headers=ca, params={"q": "探病時間"}))[0]["id"] == page["id"]
+    asked = ok(c.post(f"{base}/wiki/ask", headers=ca, json={"question": "晚上可以探病嗎", "page_id": page["id"]}))
+    assert asked["context_source"] == "wiki_api"
+
+    # 越權：沒有 coding 權限的人什麼都不能做
+    for method, url in (("get", "/models/catalog"), ("get", "/knowledge-bases"), ("get", "/workflows"),
+                        ("get", "/wiki/pages"), ("get", "/prompts")):
+        assert getattr(c, method)(base + url, headers=vw).status_code == 403, url
+    assert c.post(f"{base}/chat", headers=vw, json={"mode": "free", "message": "x"}).status_code == 403
+
+    actions = {a.action for a in world.audit(since=mark)}
+    assert {"llm.whitelist.add", "llm.model.download.request", "llm.model.download.approve", "llm.model.download",
+            "llm.model.load_config", "llm.model.load", "llm.kb.create", "llm.kb.documents.add", "llm.chat",
+            "llm.service.publish", "llm.service.invoke", "llm.workflow.run", "llm.wiki.page.create",
+            "llm.wiki.ask"} <= actions
+    assert {"inference", "dataset", "project"} <= {a.category for a in world.audit(since=mark)}
 
 
 # ---------------------------------------------------------------- 情境 8：醫療資料標準化交換
@@ -514,5 +598,38 @@ def test_scenario_10_audit_trail(world):
     assert not [p for p in paths if p[0] in {"PUT", "PATCH", "DELETE", "POST"}], paths
 
 
+def test_scenario_10_model_governance(world):
+    """模型下載審核紀錄與遠端程式碼阻擋（TC-D01-02～04）。接續情境 7 建立的專案與下載紀錄。"""
+    from app.llm.sources import FAKE_SOURCE_HOST
+
+    c, admin, ca = world.client, world.headers(ADMIN), world.headers("ca01")
+    base = f"/api/projects/{world.ids['p3']}/llm"
+    mark = world.last_audit_id()
+
+    # 下載審核紀錄：commit、hash、時間、使用者、Token 使用紀錄、審核人
+    rows = {d["id"]: d for d in ok(c.get("/api/admin/llm/downloads", headers=admin))}
+    row = rows[world.ids["s0_download"]]
+    assert all(row[k] for k in ("commit", "hash", "time", "user", "token_usage", "reviewer"))
+    assert row["user"] == "ca01" and row["reviewer"] == ADMIN and row["token_usage"]["used"] is True
+    assert "hf_test_valid_token" not in json.dumps(rows, ensure_ascii=False)
+
+    # 夾帶程式碼的模型：未核准不可載入，管理者核准後才可以
+    artifact = world.app.state.llm.sources[FAKE_SOURCE_HOST].repos["fake-org/fake-llm-remote-code"]
+    ok(c.post("/api/admin/llm/whitelist", headers=admin, json={
+        "name": "s0-remote-code", "source": FAKE_SOURCE_HOST, "repo": artifact.repo, "revision": artifact.commit,
+        "sha256": artifact.sha256, "has_remote_code": True}), 201)
+    download = ok(c.post(f"{base}/models/downloads", headers=ca, json={"name": "s0-remote-code"}), 201)
+    ok(c.post(f"/api/admin/llm/downloads/{download['id']}/approve", headers=admin))
+    ok(c.post(f"{base}/models/downloads/{download['id']}/execute", headers=ca, json={}))
+    assert c.post(f"{base}/models/s0-remote-code/load", headers=ca).status_code == 403
+    assert c.post("/api/admin/llm/models/s0-remote-code/remote-code-approval", headers=ca).status_code == 403
+    ok(c.post("/api/admin/llm/models/s0-remote-code/remote-code-approval", headers=admin), 201)
+    assert ok(c.post(f"{base}/models/s0-remote-code/load", headers=ca))["trust_remote_code"] is True
+
+    denied = [a for a in world.audit(since=mark) if a.result == "denied"]
+    assert [a.action for a in denied] == ["llm.model.load"]
+    assert "inference" in {a.category for a in world.audit()}
+
+
 def test_scenario_10_compliance(world):
-    pending("WP7、WP8", "授權清單、模型下載審核紀錄、遠端程式碼阻擋、inference 與 data_exchange 稽核、掃毒（TC-D01、D02）")
+    pending("WP8", "授權清單、data_exchange 稽核、8 類稽核每日覆蓋檢查、掃毒、映像掃描（TC-D01-01、05～07、D02）")

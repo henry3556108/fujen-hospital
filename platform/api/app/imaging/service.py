@@ -34,7 +34,13 @@ class Oversize:
         return f"檔案超過上限 {self.limit / 1024 / 1024:g} MB"
 
 
-FileItem = tuple[str, bytes | Oversize]
+@dataclass(frozen=True)
+class Rejected:
+    """上傳時就被擋下的檔案（例如掃毒攔截）：只在匯入結果記成失敗。"""
+    reason: str
+
+
+FileItem = tuple[str, bytes | Oversize | Rejected]
 
 
 def upload_limits(state) -> tuple[int, int]:
@@ -143,7 +149,7 @@ def _remember_path(session: Session, instance: ImagingInstance, path: str) -> bo
 
 def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int, name: str, data: bytes,
                       *, store_in_orthanc: bool = True) -> ImportFileResult:
-    if isinstance(data, Oversize):
+    if isinstance(data, (Oversize, Rejected)):
         return ImportFileResult(filename=name, status="failed", reason=data.reason)
     ext = posixpath.splitext(name.lower())[1]
     if ext not in DICOM_EXTENSIONS:
@@ -346,7 +352,7 @@ def _safe_basename(name: str) -> str:
 
 def _import_one_file(session: Session, store: ObjectStore, project_id: int, name: str, data: bytes | Oversize,
                      max_decompressed: int | None = None) -> ImportFileResult:
-    if isinstance(data, Oversize):
+    if isinstance(data, (Oversize, Rejected)):
         return ImportFileResult(filename=name, status="failed", reason=data.reason)
     try:
         parsed = parse_file(name, data, max_decompressed=max_decompressed)

@@ -179,7 +179,13 @@ def _embed(text: str) -> list[float]:
 
     Texts sharing words share hashed buckets, so their cosine similarity is higher.
     """
-    tokens = _TOKEN_RE.findall(text.lower())
+    tokens = []
+    for word in _TOKEN_RE.findall(text.lower()):
+        if any("\u4e00" <= ch <= "\u9fff" for ch in word):
+            # Chinese has no spaces: a whole sentence would be one token. Split into single characters.
+            tokens.extend(word)
+        else:
+            tokens.append(word)
     features = [(t, 1.0) for t in tokens]
     features += [(f"{a} {b}", 0.5) for a, b in zip(tokens, tokens[1:])]
     if not features:

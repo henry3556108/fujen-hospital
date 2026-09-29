@@ -1,0 +1,15 @@
+name,version,type,licences
+ai-platform-acceptance,0.1.0,python,（本平台未安裝，授權未讀取）
+anyio,4.15.1,python,MIT
+certifi,2026.7.22,python,Mozilla Public License 2.0 (MPL 2.0)
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+h11,0.16.0,python,MIT License
+httpcore,1.0.9,python,BSD-3-Clause
+httpx,0.28.1,python,BSD License
+idna,3.20,python,BSD-3-Clause
+iniconfig,2.3.0,python,MIT
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pluggy,1.6.0,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pytest,9.1.1,python,MIT
+typing-extensions,4.16.0,python,PSF-2.0
