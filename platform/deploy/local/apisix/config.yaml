@@ -2,3 +2,11 @@ deployment:
   role: data_plane
   role_data_plane:
     config_provider: yaml
+# WP6：上游以 Docker 內建 DNS 做服務發現（FHIR 水平擴充用）。只查 A 記錄
+discovery:
+  dns:
+    servers:
+      - "127.0.0.11:53"
+    order:
+      - last
+      - A

@@ -555,8 +555,86 @@ def test_scenario_08_source_data_ready(world):
     assert len((world.synth / "vitals" / "vitals.jsonl").read_text().splitlines()) == 100
 
 
-def test_scenario_08_fhir_exchange(world):
-    pending("WP6", "HAPI FHIR、4 種來源 ETL、對應規則、排程、監視器轉 Observation（TC-C03）")
+def test_scenario_08_fhir_exchange(world, tmp_path):
+    """情境 8：接入 4 種來源 → 對應規則 → 排程 → 監視器轉 Observation → 外部系統經 Gateway 存取。
+    FHIR 伺服器換成 InMemoryFhir（租戶、Transaction 原子性與 HAPI 相同）；真的 HAPI 由 acceptance/test_tc_c03.py 驗證。"""
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    from app.fhir import scheduler
+    from app.fhir.client import InMemoryFhir
+
+    c, admin, p1 = world.client, world.headers(ADMIN), world.project_id("P1-lung-ct")
+    fhir = world.app.state.fhir = InMemoryFhir()
+    base = f"/api/projects/{p1}/fhir"
+    clinical = world.synth / "clinical"
+    mark = world.last_audit_id()
+
+    # 1. 接入 SQL、CSV、HL7 V2、JSON 來源
+    his = tmp_path / "his.sqlite"
+    with sqlite3.connect(his) as conn:
+        conn.executescript((clinical / "patients.sql").read_text(encoding="utf-8"))
+    hl7 = "\n".join(p.read_bytes().decode("ascii") for p in sorted((clinical / "hl7").glob("*.hl7")))
+    specs = [("sql", "sql-patient", {"config": {"dsn": f"sqlite:///{his}", "query": "SELECT * FROM patients"}}),
+             ("csv", "csv-encounter", {"content": (clinical / "encounters.csv").read_text(encoding="utf-8")}),
+             ("json", "json-lab-observation", {"content": (clinical / "labs.json").read_text(encoding="utf-8")}),
+             ("hl7v2", "hl7v2-adt", {"content": hl7})]
+    pairs = {}
+    for kind, builtin, extra in specs:
+        source = ok(c.post(f"{base}/sources", headers=admin, json={"name": f"s0-{kind}", "kind": kind, **extra}), 201)
+        # 2. 以對應工具建立轉換規則（先預覽再存）
+        rules = next(m for m in ok(c.get(f"{base}/mappings/builtin", headers=admin)) if m["name"] == builtin)
+        mapping = ok(c.post(f"{base}/mappings", headers=admin, json={"name": builtin, "source_kind": kind,
+                                                                    "rules": rules["rules"]}), 201)
+        pairs[kind] = (source["id"], mapping["id"])
+        run = ok(c.post(f"{base}/runs", headers=admin, json={"source_id": source["id"], "mapping_id": mapping["id"]}),
+                 201)
+        assert (run["status"], run["records_read"]) == ("succeeded", 20), run
+    preview = ok(c.post(f"{base}/mappings/preview", headers=admin,
+                        json={"rules": rules["rules"], "records": [{"patient_id": "X"}]}))
+    assert preview["results"][0]["ok"] is False                       # 缺欄位的記錄在預覽就看得到原因
+    assert ok(c.get(f"{base}/summary", headers=admin))["counts"] == {"Patient": 20, "Encounter": 40, "Observation": 20}
+
+    # 3. 定時抓取、轉換、轉存：排程到期由 worker 執行（這裡以假時鐘推進）
+    t0 = datetime.now(timezone.utc)
+    sched = ok(c.post(f"{base}/schedules", headers=admin, json={
+        "name": "s0-every-5-min", "source_id": pairs["csv"][0], "mapping_id": pairs["csv"][1],
+        "interval_minutes": 5, "start_at": (t0 + timedelta(minutes=5)).isoformat()}), 201)
+    clock = {"now": t0 + timedelta(minutes=5, seconds=3)}
+    [run_id] = scheduler.run_due(world.app.state.sessionmaker, fhir, now=lambda: clock["now"], source_ip="10.0.0.2")
+    runs = ok(c.get(f"{base}/runs", headers=admin, params={"schedule_id": sched["id"]}))
+    assert runs[0]["id"] == run_id and runs[0]["status"] == "succeeded" and runs[0]["deviation_seconds"] == 3
+
+    # 4. 生理監視器資料即時轉成 Observation
+    readings = [json.loads(line) for line in (world.synth / "vitals" / "vitals.jsonl").read_text().splitlines()]
+    for reading in readings:
+        ok(c.post(f"{base}/vitals", headers=admin, json=reading), 201)
+    assert ok(c.get(f"{base}/summary", headers=admin))["counts"]["Observation"] == 20 + 300
+    bad = c.post(f"{base}/hl7v2", headers={**admin, "Content-Type": "text/plain"},
+                 content=(clinical / "invalid" / "adt_a01_missing_pid3.hl7").read_bytes())
+    assert bad.status_code == 422 and "PID-3" in bad.json()["detail"]["run"]["errors"][0]["reasons"][0]
+
+    # 5. 外部系統經 Gateway 以 OAuth2 身分存取：成員可讀自己的租戶；非成員、他租戶一律拒絕
+    def gateway(username, uri, method="GET"):
+        return c.get("/authz/check", headers={**world.headers(username), "X-Forwarded-Uri": uri,
+                                              "X-Forwarded-Method": method, "X-Forwarded-For": "203.0.113.9"})
+    assert gateway("md01", f"/fhir/projects/{p1}/Observation?_count=5").status_code == 200
+    assert gateway("md01", f"/fhir/projects/{p1}", "POST").status_code == 403        # 寫入需要 Admin
+    assert gateway("user01", f"/fhir/projects/{p1}/Patient").status_code == 403
+    p2 = world.project_id("P2-tabular")
+    assert gateway("md01", f"/fhir/projects/{p2}/Patient").status_code == 403
+    assert c.get(f"{base}/resources/Patient", headers=world.headers("user01")).status_code == 403
+    graph = ok(c.get(f"{base}/graph", headers=world.headers("md01"), params={"patient": "SYN-42-0001"}))
+    assert len(graph["nodes"]) == 1 + len(graph["edges"]) and len(graph["edges"]) >= 3
+
+    # 每一步都有資料交換稽核，允許與拒絕都記
+    rows = world.audit("data_exchange", since=mark)
+    actions = {(a.action, a.result) for a in rows}
+    assert {("fhir.source.create", "success"), ("fhir.mapping.create", "success"), ("fhir.etl.run", "success"),
+            ("fhir.schedule.create", "success"), ("fhir.vitals.receive", "success"),
+            ("fhir.hl7v2.receive", "rejected"), ("fhir.gateway.access", "success"),
+            ("fhir.gateway.access", "denied")} <= actions
+    assert all(a.source_ip for a in rows)
 
 
 # ---------------------------------------------------------------- 情境 9：維運與算力調度

@@ -1,0 +1,48 @@
+"""排程 worker：python -m app.fhir.worker
+
+環境變數：DATABASE_URL、FHIR_URL（必填）；FHIR_WORKER_POLL_SECONDS（預設 5）。
+"""
+import logging
+import os
+import signal
+import socket
+import threading
+
+from app.db import make_engine, make_sessionmaker
+from app.fhir import scheduler
+from app.fhir.client import fhir_from_env
+
+log = logging.getLogger("fhir.worker")
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    client = fhir_from_env()
+    if client is None or not os.environ.get("DATABASE_URL"):
+        log.error("缺少環境變數 FHIR_URL 或 DATABASE_URL")
+        return 2
+    import app.main  # noqa: F401  載入所有資料表定義（外鍵指向的表要先註冊）
+    # 資料表由平台 API 啟動時建立；worker 不建表，避免兩邊同時建表互撞。表還沒建好時下一輪再試
+    make_session = make_sessionmaker(make_engine(os.environ["DATABASE_URL"]))
+    poll = float(os.environ.get("FHIR_WORKER_POLL_SECONDS", "5"))
+    try:   # 稽核的來源 IP：排程由這個 worker 發起
+        own_address = socket.gethostbyname(socket.gethostname())
+    except OSError:
+        own_address = "127.0.0.1"
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    log.info("排程 worker 啟動，每 %.0f 秒檢查一次", poll)
+    while not stop.is_set():
+        try:
+            for run_id in scheduler.run_due(make_session, client, source_ip=own_address):
+                log.info("排程執行完成 run_id=%s", run_id)
+        except Exception:   # 資料庫或 FHIR 暫時連不上：記錄後下一輪再試
+            log.exception("排程檢查失敗")
+        stop.wait(poll)
+    log.info("排程 worker 結束")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

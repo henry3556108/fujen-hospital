@@ -2,6 +2,7 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Role, type User } from '../api/types';
 import { meFor, seedDb, type MockDb } from './data';
+import { fhirHandlers, resetFhirMock } from './fhir';
 import { createLabelingHandlers } from './labeling';
 import { createInferenceHandlers } from './inference';
 import { llmHandlers, resetLlmMock } from './llm';
@@ -9,6 +10,7 @@ import { llmHandlers, resetLlmMock } from './llm';
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
   db = seedDb();
+  resetFhirMock();
   resetLlmMock();
 }
 export function mockDb(): MockDb {
@@ -195,6 +197,8 @@ export const handlers = [
     if (db.memberships.length === before) return detail(404, `找不到成員資格：使用者 ${uid} 不在專案 ${pid}`);
     return noContent();
   }),
+  // WP6 FHIR（C-03）
+  ...fhirHandlers,
   // WP5a 影像標註：定義在 mocks/labeling.ts
   ...createLabelingHandlers(() => db),
   // WP5b 推論服務管理：定義在 mocks/inference.ts

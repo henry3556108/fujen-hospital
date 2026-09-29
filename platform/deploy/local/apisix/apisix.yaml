@@ -77,4 +77,32 @@ routes:
       type: roundrobin
       nodes:
         "ohif:80": 1
+  # ---- WP6 FHIR（C-03）----
+  # FHIR REST 只經這裡：/fhir/projects/{pid}/{FHIR 路徑} → forward-auth（專案權限、路由政策、稽核、流量計數）
+  # → HAPI /fhir/{pid}/{FHIR 路徑}（租戶＝專案編號）。X-Forwarded-Prefix 讓 HAPI 回應內的網址維持對外路徑。
+  # 上游用 DNS 服務發現（config.yaml 的 discovery.dns）：HAPI 擴充成多份時自動分流。
+  # 使用者的 Bearer token 不往上游送；對外連接埠取自 Host 標頭（容器內看不到主機對應的連接埠）。
+  # 需要 compose.fhir.yaml；沒啟動 HAPI 時這條路由回 503，不影響其他路由。
+  - id: fhir-rest
+    uri: /fhir/projects/*
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
+    plugins:
+      forward-auth:
+        uri: http://api:8000/authz/check
+        request_method: GET
+        request_headers: ["Authorization"]
+        upstream_headers: ["X-User"]
+      proxy-rewrite:
+        regex_uri: ["^/fhir/projects/([0-9]+)(/.*)?$", "/fhir/$1$2"]
+        headers:
+          set:
+            X-Forwarded-Prefix: /fhir/projects
+      serverless-post-function:
+        phase: access
+        functions:
+          - "return function(conf, ctx) local core = require('apisix.core'); core.request.set_header(ctx, 'Authorization', nil); local port = string.match(ngx.var.http_host or '', ':(%d+)$'); if port then core.request.set_header(ctx, 'X-Forwarded-Port', port) end end"
+    upstream:
+      type: roundrobin
+      discovery_type: dns
+      service_name: "hapi:8080"
 #END

@@ -1,0 +1,133 @@
+{
+  "counts": {
+    "encounters": 20,
+    "hl7_messages": 20,
+    "invalid_hl7": 2,
+    "lab_results": 20,
+    "patients": 20,
+    "sql_patients": 20
+  },
+  "files": {
+    "encounters": "encounters.csv",
+    "hl7": [
+      "adt_a01_0001.hl7",
+      "adt_a01_0002.hl7",
+      "adt_a01_0003.hl7",
+      "adt_a01_0004.hl7",
+      "adt_a01_0005.hl7",
+      "adt_a01_0006.hl7",
+      "adt_a01_0007.hl7",
+      "adt_a01_0008.hl7",
+      "adt_a01_0009.hl7",
+      "adt_a01_0010.hl7",
+      "adt_a01_0011.hl7",
+      "adt_a01_0012.hl7",
+      "adt_a01_0013.hl7",
+      "adt_a01_0014.hl7",
+      "adt_a01_0015.hl7",
+      "adt_a01_0016.hl7",
+      "adt_a01_0017.hl7",
+      "adt_a01_0018.hl7",
+      "adt_a01_0019.hl7",
+      "adt_a01_0020.hl7"
+    ],
+    "labs": "labs.json",
+    "sql": "patients.sql"
+  },
+  "invalid": [
+    {
+      "file": "invalid/adt_a01_missing_pid3.hl7",
+      "reason": "PID-3 (patient identifier list) is empty",
+      "test_case": "TC-C03-13"
+    },
+    {
+      "file": "invalid/adt_a01_bad_sex_code.hl7",
+      "reason": "PID-8 administrative sex 'Q' is not in HL7 table 0001",
+      "test_case": "TC-C03-13"
+    }
+  ],
+  "kind": "clinical",
+  "patients": [
+    {
+      "patient_id": "SYN-42-0001",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0002",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0003",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0004",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0005",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0006",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0007",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0008",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0009",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0010",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0011",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0012",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0013",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0014",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0015",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0016",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0017",
+      "sex": "M"
+    },
+    {
+      "patient_id": "SYN-42-0018",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0019",
+      "sex": "F"
+    },
+    {
+      "patient_id": "SYN-42-0020",
+      "sex": "M"
+    }
+  ],
+  "seed": 42
+}
