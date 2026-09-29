@@ -77,7 +77,8 @@ def _write(session: Session, client: FhirClient, run: FhirRun, mapped: list[Mapp
         client.transaction(run.project_id, bundle)
     except FhirUnavailable as exc:
         return _finish(session, run, status="failed", action=action, target=target, source_ip=source_ip, now=now,
-                       errors=[{"reasons": [exc.message, "整批未寫入；若連線在送出後中斷，請以查詢確認"]}],
+                       errors=[{"reasons": [exc.message, "整批未寫入；若連線在送出後中斷，請以查詢確認"],
+                                "unavailable": True}],
                        detail={**(detail or {}), "unavailable": True})
     except FhirError as exc:
         return _finish(session, run, status="failed", action=action, target=target, source_ip=source_ip, now=now,
