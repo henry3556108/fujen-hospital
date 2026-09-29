@@ -9,8 +9,9 @@ from app.admin_service import NotFound
 from app.audit import AuditCategory
 from app.imaging.models import ImagingInstance, ImagingSeries, ImagingStudy
 from app.imaging.service import allowlist, find_accessible_study
+from app.labeling import csv_labels
 from app.labeling.models import Annotation
-from app.labeling.payloads import KINDS, InvalidPayload, labels_of, normalize
+from app.labeling.payloads import KINDS, MAX_LABEL, InvalidPayload, labels_of, normalize
 from app.models import utcnow
 
 SOURCES = ("manual", "csv", "autolabel")
@@ -169,3 +170,80 @@ def summary(session: Session, project_id: int) -> dict:
                      "annotations": sum(per_study[s.study_instance_uid].values()),
                      "by_kind": per_study[s.study_instance_uid]} for s in studies],
     }
+
+
+# ---------- CSV 自動分類標註 ----------
+
+def classify_from_csv(session: Session, *, project_id: int, actor: str, source_ip: str | None, filename: str,
+                      data: bytes, key: str, key_column: str | None = None,
+                      label_column: str | None = None) -> dict:
+    """每個對到的研究一筆 source=csv 的研究層級分類標註；同一研究重傳時更新，不重複建立。
+    逐列回報 matched／unmatched／conflict／invalid；只有 matched 會寫入。"""
+    rows = csv_labels.parse(data, key=key, key_column=key_column, label_column=label_column)
+    column = ImagingStudy.patient_id if key == "patient_id" else ImagingStudy.accession_number
+    allowed = allowlist(session, project_id)
+    by_key: dict[str, list[str]] = {}
+    for study in session.scalars(select(ImagingStudy).where(ImagingStudy.project_id == project_id)
+                                 .order_by(ImagingStudy.id)):
+        if allowed and study.accession_number not in allowed:
+            continue
+        value = getattr(study, column.key)
+        if value:
+            by_key.setdefault(value, []).append(study.study_instance_uid)
+
+    labels_per_key: dict[str, set[str]] = {}
+    for r in rows:
+        if r.key and r.label and len(r.label) <= MAX_LABEL:
+            labels_per_key.setdefault(r.key, set()).add(r.label)
+
+    existing = {a.study_instance_uid: a for a in session.scalars(select(Annotation).where(
+        Annotation.project_id == project_id, Annotation.source == "csv", Annotation.kind == "classification",
+        Annotation.sop_instance_uid.is_(None)))}
+    counts = {"created": 0, "updated": 0, "unchanged": 0}
+    written: dict[str, list[int]] = {}     # 鍵 → 標註 id（同一鍵重複出現時只寫一次）
+    results = []
+    for r in rows:
+        item = {"row": r.row, "key": r.key, "label": r.label, "status": "matched", "reason": "",
+                "study_instance_uids": [], "annotation_ids": []}
+        if not r.key or not r.label:
+            item |= {"status": "invalid", "reason": "缺少鍵值" if not r.key else "缺少診斷結果"}
+        elif len(r.label) > MAX_LABEL:
+            item |= {"status": "invalid", "reason": f"診斷結果超過 {MAX_LABEL} 個字"}
+        elif len(labels_per_key[r.key]) > 1:
+            item |= {"status": "conflict",
+                     "reason": f"同一個鍵有不同的診斷結果：{'、'.join(sorted(labels_per_key[r.key]))}"}
+        elif r.key not in by_key:
+            item |= {"status": "unmatched", "reason": "專案內找不到對應的研究（或不在 Accession 清單內）"}
+        else:
+            if r.key not in written:
+                ids = []
+                for study_uid in by_key[r.key]:
+                    a = existing.get(study_uid)
+                    if a is None:
+                        a = Annotation(project_id=project_id, study_instance_uid=study_uid, kind="classification",
+                                       payload={"label": r.label}, source="csv", created_by=actor, updated_by=actor)
+                        session.add(a)
+                        session.flush()
+                        existing[study_uid] = a
+                        counts["created"] += 1
+                    elif a.payload != {"label": r.label}:
+                        a.payload = {"label": r.label}
+                        a.version += 1
+                        a.updated_by, a.updated_at = actor, utcnow()
+                        counts["updated"] += 1
+                    else:
+                        counts["unchanged"] += 1
+                    ids.append(a.id)
+                written[r.key] = ids
+            item |= {"study_instance_uids": list(by_key[r.key]), "annotation_ids": written[r.key]}
+        results.append(item)
+
+    tally = {s: sum(1 for i in results if i["status"] == s) for s in ("matched", "unmatched", "conflict", "invalid")}
+    annotation_ids = sorted({i for ids in written.values() for i in ids})
+    audit.record(session, actor=actor, category=AuditCategory.DATASET, action="annotation.csv_classification",
+                 target=f"project:{project_id}", source_ip=source_ip,
+                 detail={"filename": filename, "key": key, "rows": len(rows), **tally, **counts,
+                         "annotation_ids": annotation_ids})
+    session.commit()
+    return {"key": key, "rows": len(rows), **tally, **counts, "annotated_studies": len(annotation_ids),
+            "results": results}
