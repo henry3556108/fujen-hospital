@@ -29,6 +29,7 @@ gen-docs.js         重新產生 docs：node gen-docs.js
 ## 平台程式碼
 
 - `platform/`：平台實作（API、網頁、部署、測試工具），各子目錄有自己的 README。
+- `platform/scripts/test-all.sh`：一鍵跑所有不需 Docker 的測試與 S0 smoke。
 - `docs/TODO.md`：開發追蹤（待辦、需甲方確認事項、技術債、換機器開發步驟）。
 - `docs/test-cases/acceptance-test-cases.md`：依契約驗收指標整理的測試案例。
 - `docs/superpowers/plans/`：各工作包的實作計畫與路線圖。
