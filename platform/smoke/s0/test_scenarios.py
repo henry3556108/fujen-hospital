@@ -710,4 +710,27 @@ def test_scenario_10_model_governance(world):
 
 
 def test_scenario_10_compliance(world):
-    pending("WP8", "授權清單、data_exchange 稽核、8 類稽核每日覆蓋檢查、掃毒、映像掃描（TC-D01-01、05～07、D02）")
+    """8 類稽核各抽 3 筆欄位齊全（TC-D01-05、TC-DAILY-01）；上傳 EICAR 被擋下並留稽核（TC-D01-06）。
+    授權清單、映像來源與漏洞、備份還原需要 Docker，由 platform/compliance 與 scripts/restore-drill.sh 驗證。"""
+    from app.audit import AuditCategory
+    from app.scanning import FakeScanner, eicar
+
+    rows = world.audit()
+    by_category = {c.value: [r for r in rows if r.category == c.value] for c in AuditCategory}
+    assert {c for c, found in by_category.items() if not found} == set(), "有稽核類別沒有任何紀錄"
+    for category, found in by_category.items():
+        for r in sorted(found, key=lambda r: r.id, reverse=True)[:3]:
+            assert r.actor and r.at and r.action and r.target and r.result and r.source_ip, (category, r.id)
+
+    c, ca = world.client, world.headers("ca01")
+    base = f"/api/projects/{world.ids['p3']}/llm"
+    kb = ok(c.post(f"{base}/knowledge-bases", headers=ca, json={"name": "s0-掃毒"}), 201)
+    mark = world.last_audit_id()
+    previous, world.app.state.scanner = world.app.state.scanner, FakeScanner()
+    try:
+        body = ok(c.post(f"{base}/knowledge-bases/{kb['id']}/documents", headers=ca,
+                         files=[("files", ("eicar.txt", eicar(), "text/plain"))]), 201)
+    finally:
+        world.app.state.scanner = previous
+    assert body["counts"]["failed"] == 1 and body["results"][0]["reason"].startswith("掃毒攔截")
+    assert [a.result for a in world.audit(since=mark) if a.action == "llm.kb.documents.add"] == ["failed"]

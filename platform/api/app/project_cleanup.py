@@ -154,4 +154,5 @@ if __name__ == "__main__":
 
     with app.state.sessionmaker() as s:
         print(json.dumps(run_pending(s, app.state.store, getattr(app.state, "orthanc", None),
-                                     actor=os.environ.get("SEED_ADMIN", "admin01")), ensure_ascii=False, indent=2))
+                                     actor=os.environ.get("SEED_ADMIN", "admin01"), source_ip="local:project_cleanup"),
+                         ensure_ascii=False, indent=2))

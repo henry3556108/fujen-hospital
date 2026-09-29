@@ -47,3 +47,14 @@ def test_seed_reset_writes_audit(session, idp):
     assert (first.actor, first.category, first.target, first.result) == ("admin01", "project", "baseline", "success")
     assert first.detail == {"removed": {"users": 0, "projects": 0, "memberships": 0}}
     assert second.detail == {"removed": {"users": 7, "projects": 3, "memberships": 5}}
+
+
+def test_seed_audit_rows_carry_a_source(session, idp):
+    """種子沒有網路來源，稽核來源欄記 local:seed 而不是留空（TC-D01-05 欄位缺漏 0）。"""
+    from app.models import AuditLog
+    from app.seed import SEED_SOURCE, reset_and_seed
+
+    idp.create_user("admin01", "x")
+    reset_and_seed(session, idp, admin_username="admin01")
+    rows = session.scalars(select(AuditLog)).all()
+    assert rows and {r.source_ip for r in rows} == {SEED_SOURCE}

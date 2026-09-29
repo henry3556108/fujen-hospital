@@ -24,12 +24,17 @@ P1_MEMBERS = [
 OUTSIDERS = ["user01", "user02"]
 
 
+# 種子由命令列執行，沒有網路來源；稽核的來源欄記成這個標記，而不是留空（TC-D01-05 要求欄位無缺漏）
+SEED_SOURCE = "local:seed"
+
+
 def _fresh_user(session: Session, idp: IdentityProvider, actor: str, username: str) -> User:
     stale = idp.find_subject(username)
     if stale:
         idp.delete_user(stale)
     return admin_service.create_user(session, idp, actor=actor, username=username,
-                                     password=DEV_PASSWORD, account_type=AccountType.USER)
+                                     password=DEV_PASSWORD, account_type=AccountType.USER,
+                                     source_ip=SEED_SOURCE)
 
 
 def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: str, store=None,
@@ -59,19 +64,20 @@ def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: s
     session.execute(delete(Project))
     # 稽核表不清；重設本身記 1 筆（管理設定歸 project 類），與清除同一個交易
     record(session, actor=admin.username, category=AuditCategory.PROJECT, action="seed.reset",
-           target="baseline", detail={"removed": removed})
+           target="baseline", source_ip=SEED_SOURCE, detail={"removed": removed})
     session.commit()
-    project_cleanup.run_pending(session, store, orthanc, actor=admin.username)
+    project_cleanup.run_pending(session, store, orthanc, actor=admin.username, source_ip=SEED_SOURCE)
 
     actor = admin.username
     projects = {
-        name: admin_service.create_project(session, actor=actor, name=name, description=desc, gpu_group=group)
+        name: admin_service.create_project(session, actor=actor, name=name, description=desc, gpu_group=group,
+                                           source_ip=SEED_SOURCE)
         for name, desc, group in PROJECTS
     }
     for username, role in P1_MEMBERS:
         user = _fresh_user(session, idp, actor, username)
         admin_service.set_membership(session, actor=actor, project_id=projects["P1-lung-ct"].id,
-                                     user_id=user.id, role=role)
+                                     user_id=user.id, role=role, source_ip=SEED_SOURCE)
     for username in OUTSIDERS:
         _fresh_user(session, idp, actor, username)
 
