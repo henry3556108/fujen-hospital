@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 
 from app.deps import ProjectContext, client_ip, require_project_permission
 from app.labeling import service
@@ -77,3 +77,20 @@ def delete_annotation(annotation_id: int, request: Request, ctx: ProjectContext 
     service.delete_annotation(ctx.session, project_id=ctx.project.id, annotation_id=annotation_id,
                               actor=ctx.user.username, source_ip=client_ip(request))
     return Response(status_code=204)
+
+
+class RatingIn(BaseModel):
+    rating: StrictInt | None = Field(ge=1, le=5)
+
+
+@router.put("/annotations/{annotation_id}/rating")
+def rate_annotation(annotation_id: int, body: RatingIn, request: Request,
+                    ctx: ProjectContext = Depends(can_label)) -> dict:
+    a = service.rate_annotation(ctx.session, project_id=ctx.project.id, annotation_id=annotation_id,
+                                actor=ctx.user.username, source_ip=client_ip(request), rating=body.rating)
+    return service.annotation_out(a)
+
+
+@router.get("/summary")
+def summary(ctx: ProjectContext = Depends(can_read)) -> dict:
+    return service.summary(ctx.session, ctx.project.id)

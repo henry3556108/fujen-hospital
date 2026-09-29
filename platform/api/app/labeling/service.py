@@ -10,7 +10,7 @@ from app.audit import AuditCategory
 from app.imaging.models import ImagingInstance, ImagingSeries, ImagingStudy
 from app.imaging.service import allowlist, find_accessible_study
 from app.labeling.models import Annotation
-from app.labeling.payloads import InvalidPayload, normalize
+from app.labeling.payloads import KINDS, InvalidPayload, labels_of, normalize
 from app.models import utcnow
 
 SOURCES = ("manual", "csv", "autolabel")
@@ -131,3 +131,41 @@ def delete_annotation(session: Session, *, project_id: int, annotation_id: int, 
     _audit(session, a, "annotation.delete", actor=actor, source_ip=source_ip)
     session.delete(a)
     session.commit()
+
+
+def rate_annotation(session: Session, *, project_id: int, annotation_id: int, actor: str, source_ip: str | None,
+                    rating: int | None) -> Annotation:
+    """評分是對標註品質的評等，不算內容修改：version 不變。"""
+    a = get_annotation(session, project_id, annotation_id)
+    a.rating = rating
+    a.updated_by, a.updated_at = actor, utcnow()
+    _audit(session, a, "annotation.rate", actor=actor, source_ip=source_ip, rating=rating)
+    session.commit()
+    return a
+
+
+def summary(session: Session, project_id: int) -> dict:
+    """各研究的標註數與各標籤筆數；訓練選 Label 與標註清單頁共用。只算可存取的研究。"""
+    rows = list_annotations(session, project_id)
+    allowed = allowlist(session, project_id)
+    studies = [s for s in session.scalars(select(ImagingStudy).where(ImagingStudy.project_id == project_id)
+                                          .order_by(ImagingStudy.id))
+               if not allowed or s.accession_number in allowed]
+    per_study = {s.study_instance_uid: {k: 0 for k in KINDS} for s in studies}
+    labels: dict[str, dict[str, int]] = {k: {} for k in KINDS}
+    for a in rows:
+        per_study[a.study_instance_uid][a.kind] += 1
+        for label in labels_of(a.kind, a.payload):
+            labels[a.kind][label] = labels[a.kind].get(label, 0) + 1
+    return {
+        "total": len(rows),
+        "rated": sum(1 for a in rows if a.rating is not None),
+        "by_kind": {k: sum(1 for a in rows if a.kind == k) for k in KINDS},
+        "by_source": {s: sum(1 for a in rows if a.source == s) for s in SOURCES},
+        "labels": {k: dict(sorted(v.items())) for k, v in labels.items()},
+        "studies": [{"study_instance_uid": s.study_instance_uid, "accession_number": s.accession_number,
+                     "patient_id": s.patient_id, "study_date": s.study_date,
+                     "study_description": s.study_description,
+                     "annotations": sum(per_study[s.study_instance_uid].values()),
+                     "by_kind": per_study[s.study_instance_uid]} for s in studies],
+    }
