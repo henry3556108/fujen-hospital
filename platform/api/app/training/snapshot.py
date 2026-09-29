@@ -114,8 +114,10 @@ def _dicom(session: Session, store: ObjectStore, orthanc: OrthancClient | None, 
         .where(ImagingInstance.project_id == project_id, ImagingStudy.study_instance_uid.in_(list(studies)))).all()
     refs = [label_sources.InstanceRef(sop_instance_uid=r[0], source_path=r[1], study_instance_uid=r[2],
                                       accession_number=r[3]) for r in rows]
-    options = source["label_source"]
+    options = dict(source["label_source"])
     provider = label_sources.get_provider(state, options["provider"])
+    # 給標註來源的提示：要哪一種標註、Label 的順序（分割遮罩依此重新編號）
+    options |= {"kind": kind.removeprefix("image_"), "wanted_labels": wanted_labels or []}
     found, names = provider.labels(session, store, project_id, refs, options)
     names = wanted_labels or names
 
