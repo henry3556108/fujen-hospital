@@ -24,6 +24,23 @@ class JobSpec:
     fail: bool = False        # 假工作：跑完後以非 0 結束
     memory_mb: int = 16       # 假工作：配置的記憶體量
     timeout_seconds: int | None = None
+    # 真實工作（WP5b 訓練）：指定映像與指令時不再產生假工作的 sleep 指令稿
+    image: str | None = None
+    command: tuple[str, ...] | None = None
+    env: tuple[tuple[str, str], ...] = ()
+    cpu_request: str = "10m"
+
+
+@dataclass(frozen=True)
+class Workload:
+    """要在 Job 容器內執行的真實工作。env 只能放這一次工作需要的值，不可放任何平台憑證。"""
+    image: str
+    command: tuple[str, ...]
+    env: dict[str, str] = field(default_factory=dict)
+    memory_mb: int = 1024
+    cpu_request: str = "250m"
+    expected_seconds: int = 60          # 記憶體版後端用來推進時間；Kubernetes 後端不使用
+    training_id: int | None = None      # 標籤 platform/training-id（GPU Dashboard 顯示）
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
 from app.models import Project, utcnow
-from app.scheduling.backend import JobBackend, JobSpec
+from collections.abc import Callable
+
+from app.scheduling.backend import JobBackend, JobSpec, Workload
 from app.scheduling.models import GpuGroup, Job, SharedSchedulingSettings
 from app.scheduling.states import TERMINAL, InvalidTransition, JobStatus, check_transition, path_to
 
@@ -176,16 +178,19 @@ def job_out(job: Job) -> dict:
     }
 
 
-def job_labels(job: Job) -> dict[str, str]:
+def job_labels(job: Job, training_id: int | None = None) -> dict[str, str]:
     labels = {"platform/project-id": str(job.project_id), "platform/job-id": str(job.id),
               "platform/user": label_value(job.user)}
     if job.kind in TRAINING_KINDS:
-        labels["platform/training-id"] = str(job.id)
+        labels["platform/training-id"] = str(training_id if training_id is not None else job.id)
     return labels
 
 
 def submit_job(session: Session, backend: JobBackend, *, project: Project, actor: str, kind: str,
-               duration_seconds: int, fail: bool, memory_mb: int, source_ip: str | None) -> Job:
+               duration_seconds: int = 30, fail: bool = False, memory_mb: int = 16, source_ip: str | None,
+               workload: Workload | None = None, on_created: Callable[[Job], None] | None = None) -> Job:
+    """workload 有值時送出真實工作（映像＋指令），否則是假工作。
+    on_created 在 Job 取得 id 之後、送進排程系統之前呼叫，讓呼叫端在同一個交易內建立關聯。"""
     settings = ensure_defaults(session)
     uses_gpu = JOB_KINDS[kind]
     group = None
@@ -202,9 +207,18 @@ def submit_job(session: Session, backend: JobBackend, *, project: Project, actor
     job.k8s_name = f"job-{job.id}-{secrets.token_hex(3)}"
     # 共享池是大家輪流用的卡，加上執行時限；獨占池的長時間訓練不設限
     timeout = settings.job_timeout_minutes * 60 if group and group.mode == "shared" else None
-    spec = JobSpec(name=job.k8s_name, queue=pool, pool=pool, gpus=1 if uses_gpu else 0,
-                   duration_seconds=duration_seconds, fail=fail, memory_mb=memory_mb,
-                   labels=job_labels(job), timeout_seconds=timeout)
+    if workload is None:
+        spec = JobSpec(name=job.k8s_name, queue=pool, pool=pool, gpus=1 if uses_gpu else 0,
+                       duration_seconds=duration_seconds, fail=fail, memory_mb=memory_mb,
+                       labels=job_labels(job), timeout_seconds=timeout)
+    else:
+        spec = JobSpec(name=job.k8s_name, queue=pool, pool=pool, gpus=1 if uses_gpu else 0,
+                       duration_seconds=workload.expected_seconds, memory_mb=workload.memory_mb,
+                       labels=job_labels(job, workload.training_id), timeout_seconds=timeout,
+                       image=workload.image, command=tuple(workload.command),
+                       env=tuple(sorted(workload.env.items())), cpu_request=workload.cpu_request)
+    if on_created is not None:
+        on_created(job)
     record(session, actor=actor, category=AuditCategory.TRAINING, action="job.submit", target=f"job:{job.id}",
            source_ip=source_ip, detail={"project_id": project.id, "kind": kind, "queue": pool,
                                         "gpu_group": job.gpu_group, "k8s_name": job.k8s_name})
