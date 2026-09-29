@@ -1,0 +1,32 @@
+# 疊加檔（WP5a 影像標註與自動標註）：fake-autolabel、OHIF 檢視器。
+#   docker compose -f compose.yaml -f compose.labeling.yaml up -d --build
+# OHIF 走 Gateway 的第二個埠（預設 9081）；DICOMweb 與 OHIF 同源，一律經 /dicomweb/projects/{pid}。
+# 注意：autolabel 是 platform/fakes 的假服務，只供開發與測試；甲方環境改接真正的自動標註工具（改 AUTOLABEL_URL）。
+services:
+  api:
+    environment:
+      AUTOLABEL_URL: http://autolabel:8102
+      AUTOLABEL_TIMEOUT_SECONDS: "25"
+    depends_on:
+      autolabel: {condition: service_started}
+
+  # 自動標註服務（MONAI Label 介面子集）。不對主機開放，只有平台 API 連得到
+  autolabel:
+    build:
+      context: ../../fakes
+    environment:
+      FAKE_SERVICE: autolabel
+
+  # OHIF 檢視器（靜態網頁）。不對主機開放，只經 Gateway 的 9081 埠
+  ohif:
+    image: ohif/app:v3.13.10
+    # 映像的 entrypoint 會把 app-config.js 壓成 .gz 再清空原檔，所以設定檔掛在別處、啟動時複製進去
+    entrypoint: ["/bin/sh", "-c", "cp /config/app-config.js /usr/share/nginx/html/app-config.js && exec /usr/src/entrypoint.sh nginx -g 'daemon off;'"]
+    volumes:
+      - ./ohif/app-config.js:/config/app-config.js:ro
+
+  apisix:
+    volumes:
+      - ./apisix/config.labeling.yaml:/usr/local/apisix/conf/config.yaml:ro
+    ports: ["${OHIF_HOST_PORT:-9081}:9081"]
+    depends_on: [ohif]

@@ -197,6 +197,18 @@
   --alert-info-text: var(--color-status-info-text);
 
   color-scheme: light;
+
+  /* 影像標註工作台（WP5a）。影像區固定深色底，不隨主題切換：醫療影像一律在暗底上判讀 */
+  --viewer-bg: var(--primitive-neutral-950);
+  --viewer-text: var(--primitive-neutral-100);
+  --viewer-border: var(--primitive-neutral-700);
+  --viewer-border-active: var(--primitive-brand-300);
+  --annotation-color-1: var(--primitive-amber-300);
+  --annotation-color-2: var(--primitive-green-300);
+  --annotation-color-3: var(--primitive-red-300);
+  --annotation-color-4: var(--primitive-indigo-300);
+  --annotation-color-5: var(--primitive-violet-300);
+  --annotation-color-6: var(--primitive-brand-300);
 }
 
 /* ---------- Semantic（Dark）：跟隨系統，除非使用者手動選了 light ---------- */

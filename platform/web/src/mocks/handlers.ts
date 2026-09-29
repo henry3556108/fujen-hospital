@@ -2,6 +2,7 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, ROLES, type Permission, type Role, type User } from '../api/types';
 import { meFor, seedDb, type MockDb } from './data';
+import { createLabelingHandlers } from './labeling';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
@@ -191,4 +192,6 @@ export const handlers = [
     if (db.memberships.length === before) return detail(404, `找不到成員資格：使用者 ${uid} 不在專案 ${pid}`);
     return noContent();
   }),
+  // WP5a 影像標註：定義在 mocks/labeling.ts
+  ...createLabelingHandlers(() => db),
 ];

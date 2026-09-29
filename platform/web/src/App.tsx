@@ -12,6 +12,9 @@ import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
 import { SchedulingPlaceholder } from './pages/admin/SchedulingPlaceholder';
+import { LabelingPage } from './pages/labeling/LabelingPage';
+import { WorkbenchPage } from './pages/labeling/WorkbenchPage';
+import { AutoLabelPage } from './pages/labeling/AutoLabelPage';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -102,6 +105,10 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
             </Route>
+            {/* WP5a 影像標註 */}
+            <Route path="labeling" element={<EntryGuard entry={entryByKey('labeling')!}><LabelingPage /></EntryGuard>} />
+            <Route path="labeling/studies/:studyUid" element={<EntryGuard entry={entryByKey('labeling')!}><WorkbenchPage /></EntryGuard>} />
+            <Route path="auto-labeling" element={<EntryGuard entry={entryByKey('auto-labeling')!}><AutoLabelPage /></EntryGuard>} />
             {ENTRIES.filter((e) => e.placeholder).map((e) => (
               <Route
                 key={e.key}

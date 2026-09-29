@@ -48,6 +48,40 @@
       "secret": "api-secret-dev",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false
+    },
+    {
+      "clientId": "ai-platform-ohif",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:9081/*",
+        "http://127.0.0.1:9081/*",
+        "http://localhost:19081/*",
+        "http://127.0.0.1:19081/*"
+      ],
+      "webOrigins": [
+        "http://localhost:9081",
+        "http://127.0.0.1:9081",
+        "http://localhost:19081",
+        "http://127.0.0.1:19081"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:9081/*##http://127.0.0.1:9081/*##http://localhost:19081/*##http://127.0.0.1:19081/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "platform-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ai-platform",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [

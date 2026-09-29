@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from app import admin_service
 from app.db import make_engine, make_sessionmaker
 from app.imaging.router import router as imaging_router
+from app.labeling.router import router as labeling_router
 from app.models import Base
 from app.routers import admin, authz_check, me
 from app.tabular_api.router import router as tabular_router
@@ -40,6 +41,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(tabular_router)
     app.include_router(imaging_router)
     app.include_router(scheduling.router)
+    app.include_router(labeling_router)
 
     @app.get("/healthz")
     def healthz() -> dict:
