@@ -29,6 +29,19 @@ def test_tc_a03_02_user_crud_and_login(api, auth):
         assert api.delete(f"/api/admin/users/{uid}", headers=admin).status_code == 204
 
 
+def test_deleted_account_old_token_rejected(api, auth):
+    """回歸：經 API 刪除帳號後，仍在有效期內的舊 token 經 Gateway 呼叫得 401。"""
+    admin = auth("admin01")
+    name = f"gone{time.time_ns()}"
+    uid = api.post("/api/admin/users", headers=admin,
+                   json={"username": name, "password": "Init-Passw0rd!", "account_type": "user"}).json()["id"]
+    old_token = auth(name, "Init-Passw0rd!")
+    assert api.get("/api/me", headers=old_token).status_code == 200
+    assert api.delete(f"/api/admin/users/{uid}", headers=admin).status_code == 204
+    for _ in range(3):
+        assert api.get("/api/me", headers=old_token).status_code == 401
+
+
 def test_tc_a03_03_non_admin_denied(api, auth):
     for username in ["pi01", "user01"]:
         headers = auth(username)

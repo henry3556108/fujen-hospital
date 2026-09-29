@@ -139,3 +139,75 @@ def test_jobs_listed(client, orthanc, project, member):
     upload(client, h, p1.id, study_files(1))
     jobs = client.get(f"/api/projects/{p1.id}/imaging/jobs", headers=h).json()
     assert len(jobs) == 1 and jobs[0]["kind"] == "dicom" and jobs[0]["created_by"] == "ra01"
+
+
+# ---- 重複上傳時補記來源路徑（S0 smoke 發現：先 PACS 取回、再批次上傳，makesense 配不到） ----
+
+def _files(client, h, pid):
+    return {f["filename"]: f for f in client.get(f"/api/projects/{pid}/imaging/files", headers=h).json()}
+
+
+def test_duplicate_upload_records_extra_path_for_pairing(client, session, orthanc, project, member):
+    from imaging_support import make_makesense, study_uid
+
+    from app.imaging.models import ImagingInstance, ImagingInstanceSource
+
+    p1 = project()
+    h = member("ra01", p1)
+    retrieved = client.post(f"/api/projects/{p1.id}/imaging/pacs/retrieve", headers=h,
+                            json={"study_instance_uid": study_uid(1)}).json()
+    assert retrieved["counts"]["imported"] == SLICES
+
+    job = upload(client, h, p1.id, study_files(1)).json()                 # 同一個研究再批次上傳
+    assert job["counts"] == {"imported": 0, "duplicate": SLICES, "failed": 0}       # TC-B01-06：不產生重複影像
+    assert all("已補記來源路徑" in f["reason"] for f in job["files"])
+    assert len(orthanc.instances) == SLICES
+    assert len(session.scalars(select(ImagingInstance)).all()) == SLICES
+    assert sorted(session.scalars(select(ImagingInstanceSource.source_path))) == [n for n, _ in study_files(1)]
+
+    upload(client, h, p1.id, [("makesense/m1.json", make_makesense(1))], kind="files")
+    label = _files(client, h, p1.id)["makesense/m1.json"]
+    assert label["pairing"] == "paired"
+    assert label["paired_sop_instance_uids"] == [sop_uid(1, s) for s in range(1, SLICES + 1)]
+
+
+def test_label_uploaded_before_duplicate_gets_paired_afterwards(client, orthanc, project, member):
+    from imaging_support import make_makesense, study_uid
+
+    p1 = project()
+    h = member("ra01", p1)
+    client.post(f"/api/projects/{p1.id}/imaging/pacs/retrieve", headers=h, json={"study_instance_uid": study_uid(1)})
+    upload(client, h, p1.id, [("makesense/m1.json", make_makesense(1))], kind="files")
+    assert _files(client, h, p1.id)["makesense/m1.json"]["pairing"] == "unpaired"
+    upload(client, h, p1.id, study_files(1))
+    assert _files(client, h, p1.id)["makesense/m1.json"]["pairing"] == "paired"
+
+
+def test_same_path_twice_records_nothing_new(client, session, orthanc, project, member):
+    from app.imaging.models import ImagingInstanceSource
+
+    p1 = project()
+    h = member("ra01", p1)
+    upload(client, h, p1.id, study_files(1))
+    for _ in range(2):
+        job = upload(client, h, p1.id, study_files(1)).json()
+        assert job["counts"]["duplicate"] == SLICES
+        assert all("已補記" not in f["reason"] for f in job["files"])
+    assert session.scalars(select(ImagingInstanceSource)).all() == []
+    moved = upload(client, h, p1.id, [("copy/" + n, d) for n, d in study_files(1)]).json()
+    again = upload(client, h, p1.id, [("copy/" + n, d) for n, d in study_files(1)]).json()
+    assert all("已補記" in f["reason"] for f in moved["files"])
+    assert all("已補記" not in f["reason"] for f in again["files"])
+    assert len(session.scalars(select(ImagingInstanceSource)).all()) == SLICES
+
+
+def test_extra_paths_stay_in_project(client, session, orthanc, project, member):
+    from imaging_support import make_makesense, study_uid
+
+    p1, p2 = project("P1"), project("P2")
+    h1, h2 = member("ra01", p1), member("ra02", p2)
+    client.post(f"/api/projects/{p1.id}/imaging/pacs/retrieve", headers=h1, json={"study_instance_uid": study_uid(1)})
+    upload(client, h1, p1.id, study_files(1))
+    client.post(f"/api/projects/{p2.id}/imaging/pacs/retrieve", headers=h2, json={"study_instance_uid": study_uid(1)})
+    upload(client, h2, p2.id, [("makesense/m1.json", make_makesense(1))], kind="files")
+    assert _files(client, h2, p2.id)["makesense/m1.json"]["pairing"] == "unpaired"

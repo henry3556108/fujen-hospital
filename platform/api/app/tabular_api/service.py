@@ -184,6 +184,11 @@ class FrameCache:
         with self._lock:
             self._items.pop(key, None)
 
+    def evict_prefix(self, prefix: str) -> None:
+        with self._lock:
+            for key in [k for k in self._items if k.startswith(prefix)]:
+                del self._items[key]
+
 
 def frame_cache(state) -> FrameCache:
     """每個 app 一份快取；換了 store（測試）就重建。"""

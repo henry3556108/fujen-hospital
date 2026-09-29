@@ -22,3 +22,13 @@ def test_role_defaults_match_baseline():
     assert DEFAULT_ROLE_PERMISSIONS[Role.RESEARCH_ASSISTANT] == {P.PROJECT, P.LABELING, P.TRAINING, P.PREDICTION}
     assert DEFAULT_ROLE_PERMISSIONS[Role.CODER_ASSISTANT] == {P.PROJECT, P.TRAINING, P.CODING, P.PREDICTION}
     assert DEFAULT_ROLE_PERMISSIONS[Role.PRINCIPAL_INVESTIGATOR] == set(P)
+
+
+def test_unknown_permission_split():
+    from app.permissions import split_permissions
+
+    known, unknown = split_permissions(["project", "superuser", "training", "", "superuser", None])
+    assert known == frozenset({Permission.PROJECT, Permission.TRAINING})
+    assert unknown == ["", "None", "superuser"]
+    assert split_permissions(None) == (frozenset(), [])
+    assert split_permissions("project") == (frozenset(), ["(不是清單)"])     # 欄位整個壞掉：一律沒有權限

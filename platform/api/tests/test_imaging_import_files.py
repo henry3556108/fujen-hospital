@@ -117,3 +117,48 @@ def test_files_import_requires_labeling(client, orthanc, project, member):
     p1 = project()
     h = member("ca01", p1, permissions=("project", "training", "coding"))
     assert upload(client, h, p1.id, [("a_image.nii.gz", make_nifti())], kind="files").status_code == 403
+
+
+def test_upload_over_limit_fails_only_that_file(client, store, orthanc, project, member):
+    """單檔超過上限只讓該檔失敗（TC-B01-05 的原則），同批其他檔照常匯入；超限的檔案不進物件儲存。"""
+    p1 = project()
+    h = member("ra01", p1)
+    client.app.state.imaging_max_file_bytes = 2000
+    big = make_nifti((32, 32, 8), gz=False)             # 約 16 KB
+    job = upload(client, h, p1.id, [("nifti/big_image.nii", big), ("nifti/ok_image.nii.gz", make_nifti())],
+                 kind="files").json()
+    assert job["counts"] == {"imported": 1, "duplicate": 0, "failed": 1}
+    failed = next(f for f in job["files"] if f["status"] == "failed")
+    assert failed["filename"] == "nifti/big_image.nii" and "超過上限" in failed["reason"]
+    assert [k.rsplit("/", 1)[-1] for k in store.list(f"projects/{p1.id}/")] == ["ok_image.nii.gz"]
+
+
+def test_upload_decompression_limit_applies(client, store, orthanc, project, member):
+    p1 = project()
+    h = member("ra01", p1)
+    client.app.state.imaging_max_decompressed_bytes = 100 * 1024
+    job = upload(client, h, p1.id, [("nifti/big_image.nii.gz", make_nifti((64, 64, 64)))], kind="files").json()
+    assert job["counts"]["failed"] == 1 and "解壓縮後" in job["files"][0]["reason"]
+    assert store.list(f"projects/{p1.id}/") == []
+
+
+def test_dicom_upload_over_limit_fails_only_that_file(client, orthanc, project, member):
+    p1 = project()
+    h = member("ra01", p1)
+    [(name, data), *rest] = study_files(1)
+    client.app.state.imaging_max_file_bytes = len(data)
+    job = upload(client, h, p1.id, [("huge.dcm", data + bytes(10)), (name, data)]).json()
+    assert job["counts"] == {"imported": 1, "duplicate": 0, "failed": 1}
+    assert "超過上限" in job["files"][0]["reason"] and len(orthanc.instances) == 1
+
+
+def test_limits_default_and_env(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.imaging.service import upload_limits
+
+    assert upload_limits(SimpleNamespace()) == (512 * 1024 * 1024, 2048 * 1024 * 1024)
+    monkeypatch.setenv("IMAGING_MAX_FILE_MB", "10")
+    monkeypatch.setenv("IMAGING_MAX_DECOMPRESSED_MB", "0.5")
+    assert upload_limits(SimpleNamespace()) == (10 * 1024 * 1024, 512 * 1024)
+    assert upload_limits(SimpleNamespace(imaging_max_file_bytes=7, imaging_max_decompressed_bytes=9)) == (7, 9)

@@ -20,12 +20,15 @@ dependencies = [
 [dependency-groups]
 dev = [
     "h5py>=3.11",
+    "httpx2>=2.13.1",
     "pytest>=8",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# TestClient 要用 httpx2；若退回 httpx，Starlette 的棄用警告直接當成錯誤
+filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]
 
 [tool.uv.sources]
 tabular = { path = "../libs/tabular", editable = true }

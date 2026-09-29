@@ -1,8 +1,10 @@
 """影像匯入與查詢的業務邏輯（路由、DICOMweb 授權共用）。"""
 import hashlib
+import os
 import posixpath
 import re
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
@@ -12,13 +14,38 @@ from app.audit import AuditCategory, record
 from app.authz import DicomwebTarget
 from app.imaging.dicom import DicomInfo, InvalidDicom, parse_dicom
 from app.imaging.formats import InvalidFile, parse_file
-from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingSeries, ImagingStudy,
-                                ImportFileResult, ImportJob)
+from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingInstanceSource,
+                                ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
 from app.imaging.orthanc import QUERY_KEYS, OrthancClient, OrthancError
 from app.storage import ObjectStore
 
 DICOM_EXTENSIONS = ("", ".dcm", ".dicom", ".ima")
-FileItem = tuple[str, bytes]
+DEFAULT_MAX_FILE_MB = 512
+DEFAULT_MAX_DECOMPRESSED_MB = 2048
+
+
+@dataclass(frozen=True)
+class Oversize:
+    """上傳時就超過單檔上限的檔案：內容沒有讀進來，只在匯入結果記成失敗。"""
+    limit: int
+
+    @property
+    def reason(self) -> str:
+        return f"檔案超過上限 {self.limit / 1024 / 1024:g} MB"
+
+
+FileItem = tuple[str, bytes | Oversize]
+
+
+def upload_limits(state) -> tuple[int, int]:
+    """（單檔上限, 解壓後上限）位元組。app.state.imaging_max_*_bytes > 環境變數 IMAGING_MAX_*_MB > 預設 512／2048 MB。"""
+    def one(attr: str, env: str, default_mb: int) -> int:
+        configured = getattr(state, attr, None)
+        if configured:
+            return int(configured)
+        return int(float(os.environ.get(env, default_mb)) * 1024 * 1024)
+    return (one("imaging_max_file_bytes", "IMAGING_MAX_FILE_MB", DEFAULT_MAX_FILE_MB),
+            one("imaging_max_decompressed_bytes", "IMAGING_MAX_DECOMPRESSED_MB", DEFAULT_MAX_DECOMPRESSED_MB))
 
 
 # ---------- 共用 ----------
@@ -99,13 +126,25 @@ def _index(session: Session, project_id: int, info: DicomInfo, *, source_path: s
     session.flush()
 
 
-def _has_instance(session: Session, project_id: int, sop_uid: str) -> bool:
-    return session.scalar(select(ImagingInstance.id).where(ImagingInstance.project_id == project_id,
-                                                           ImagingInstance.sop_instance_uid == sop_uid)) is not None
+def _find_instance(session: Session, project_id: int, sop_uid: str) -> ImagingInstance | None:
+    return session.scalar(select(ImagingInstance).where(ImagingInstance.project_id == project_id,
+                                                        ImagingInstance.sop_instance_uid == sop_uid))
+
+
+def _remember_path(session: Session, instance: ImagingInstance, path: str) -> bool:
+    """重複影像的這次來源路徑若是新的就補記；回傳是否有新增。"""
+    if path == instance.source_path or session.scalar(select(ImagingInstanceSource.id).where(
+            ImagingInstanceSource.instance_id == instance.id, ImagingInstanceSource.source_path == path)) is not None:
+        return False
+    session.add(ImagingInstanceSource(project_id=instance.project_id, instance_id=instance.id, source_path=path))
+    session.flush()
+    return True
 
 
 def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int, name: str, data: bytes,
                       *, store_in_orthanc: bool = True) -> ImportFileResult:
+    if isinstance(data, Oversize):
+        return ImportFileResult(filename=name, status="failed", reason=data.reason)
     ext = posixpath.splitext(name.lower())[1]
     if ext not in DICOM_EXTENSIONS:
         return ImportFileResult(filename=name, status="failed", reason=f"副檔名 {ext} 不是 DICOM（可用 .dcm 或無副檔名）")
@@ -113,9 +152,13 @@ def _import_one_dicom(session: Session, orthanc: OrthancClient, project_id: int,
         info = parse_dicom(data)
     except InvalidDicom as exc:
         return ImportFileResult(filename=name, status="failed", reason=str(exc))
-    if _has_instance(session, project_id, info.sop_instance_uid):
+    existing = _find_instance(session, project_id, info.sop_instance_uid)
+    if existing is not None:
+        # 不重送 Orthanc、不新增影像列（TC-B01-06）。上傳的檔案才有可供配對的路徑；PACS 取回的名稱是平台自己編的
+        noted = store_in_orthanc and _remember_path(session, existing, name)
         return ImportFileResult(filename=name, status="duplicate",
-                                reason=f"SOP Instance UID {info.sop_instance_uid} 已匯入")
+                                reason=f"SOP Instance UID {info.sop_instance_uid} 已匯入"
+                                       + ("；已補記來源路徑" if noted else ""))
     orthanc_id = ""
     if store_in_orthanc:
         try:
@@ -301,9 +344,12 @@ def _safe_basename(name: str) -> str:
     return base.lstrip(".") or "file"
 
 
-def _import_one_file(session: Session, store: ObjectStore, project_id: int, name: str, data: bytes) -> ImportFileResult:
+def _import_one_file(session: Session, store: ObjectStore, project_id: int, name: str, data: bytes | Oversize,
+                     max_decompressed: int | None = None) -> ImportFileResult:
+    if isinstance(data, Oversize):
+        return ImportFileResult(filename=name, status="failed", reason=data.reason)
     try:
-        parsed = parse_file(name, data)
+        parsed = parse_file(name, data, max_decompressed=max_decompressed)
     except InvalidFile as exc:
         return ImportFileResult(filename=name, status="failed", reason=str(exc))
     digest = hashlib.sha256(data).hexdigest()
@@ -329,10 +375,11 @@ def _import_one_file(session: Session, store: ObjectStore, project_id: int, name
 
 
 def import_files(session: Session, store: ObjectStore, *, project_id: int, actor: str,
-                 files: Sequence[FileItem], source_ip: str | None = None) -> ImportJob:
+                 files: Sequence[FileItem], source_ip: str | None = None,
+                 max_decompressed: int | None = None) -> ImportJob:
     job = ImportJob(project_id=project_id, kind="files", status="running", created_by=actor)
     session.add(job)
-    results = [_import_one_file(session, store, project_id, clean_name(n), d) for n, d in files]
+    results = [_import_one_file(session, store, project_id, clean_name(n), d, max_decompressed) for n, d in files]
     resolve_pairings(session, project_id)
     return _finish_job(session, job, results, actor=actor, source_ip=source_ip)
 
@@ -355,6 +402,10 @@ def resolve_pairings(session: Session, project_id: int) -> None:
             if sources is None:
                 sources = list(session.execute(select(ImagingInstance.source_path, ImagingInstance.sop_instance_uid)
                                                .where(ImagingInstance.project_id == project_id)).all())
+                sources += list(session.execute(
+                    select(ImagingInstanceSource.source_path, ImagingInstance.sop_instance_uid)
+                    .join(ImagingInstance, ImagingInstance.id == ImagingInstanceSource.instance_id)
+                    .where(ImagingInstanceSource.project_id == project_id)).all())
             matched, missing, ambiguous = [], [], []
             for file_name in label.meta.get("file_names", []):
                 sops = _match_sop(sources, file_name)

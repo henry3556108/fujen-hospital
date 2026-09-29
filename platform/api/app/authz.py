@@ -1,3 +1,4 @@
+import logging
 import posixpath
 import re
 from dataclasses import dataclass
@@ -8,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Membership, User
-from app.permissions import AccountType, Permission
+from app.permissions import AccountType, Permission, split_permissions
+
+log = logging.getLogger(__name__)
 
 
 def effective_permissions(session: Session, user: User, project_id: int) -> frozenset[Permission]:
@@ -20,7 +23,11 @@ def effective_permissions(session: Session, user: User, project_id: int) -> froz
     )
     if membership is None:
         return frozenset()
-    return frozenset(Permission(p) for p in membership.permissions)
+    known, unknown = split_permissions(membership.permissions)
+    if unknown:
+        log.warning("成員資格 %s（使用者 %s、專案 %s）含不認得的權限 %s，已忽略；請管理者重新指派角色或權限",
+                    membership.id, user.username, project_id, unknown)
+    return known
 
 
 def require_permission(session: Session, user: User, project_id: int, permission: Permission) -> None:
@@ -73,7 +80,8 @@ _DICOMWEB = re.compile(
     rf")?)?$"
 )
 _DICOMWEB_SEARCH = re.compile(r"^/dicomweb/projects/(?P<pid>\d+)/studies$")
-_SEARCH_EXTRA_KEYS = {"includefield", "limit", "offset"}
+_SEARCH_EXTRA_KEYS = {"includefield", "limit", "offset", "fuzzymatching"}   # fuzzymatching：OHIF 固定會帶
+_ENCODED_COMMA = re.compile(r"%2[Cc]")
 _UID_ONLY = re.compile(rf"^{_UID}$")
 
 
@@ -82,8 +90,10 @@ def match_dicomweb(uri: str) -> DicomwebTarget | None:
 
     研究層級以下的路徑只接受固定的 DICOMweb 子資源。研究列表搜尋（QIDO /studies）會列出節點上所有研究，
     所以只允許 `?StudyInstanceUID=<單一 UID>`：不接受 UID 清單（, 或 \\）、萬用字元、重複鍵或以標籤碼寫的同義鍵。
-    查詢字串不可含 %、;、\\、NUL，避免 Gateway 與 Orthanc 解碼不一致。"""
+    查詢字串不可含 %（%2C 除外）、;、\\、NUL，避免 Gateway 與 Orthanc 解碼不一致。"""
     path, _, query = uri.partition("?")
+    # 查詢字串唯一允許的百分比編碼是逗號（%2C）：OHIF 的 includefield 清單會這樣送，逗號沒有路徑語意
+    query = _ENCODED_COMMA.sub(",", query)
     normalized = _canonical(path)
     if normalized is None or any(c in query for c in _FORBIDDEN_CHARS + ("#",)):
         return None
@@ -97,6 +107,8 @@ def match_dicomweb(uri: str) -> DicomwebTarget | None:
     keys = [k for k, _ in pairs]
     uids = [v for k, v in pairs if k == "StudyInstanceUID"]
     if len(uids) != 1 or not _UID_ONLY.match(uids[0]) or len(set(keys)) != len(keys):
+        return None
+    if any(k == "fuzzymatching" and v != "false" for k, v in pairs):
         return None
     if any(k not in _SEARCH_EXTRA_KEYS | {"StudyInstanceUID"} for k in keys):
         return None
