@@ -94,3 +94,16 @@ Keycloak 的 `KC_HOSTNAME` 固定為 `http://localhost:8080`，所以 token 的 
 docker compose down        # 保留資料
 docker compose down -v     # 連同資料庫一起清掉
 ```
+
+## 訓練與推論（WP5b）
+
+疊加 `compose.training.yaml`：MLflow（訓練紀錄）與推論服務，兩者都不對主機開連接埠。訓練工作跑在 kind 叢集，所以同時要疊加 `compose.kind.yaml`：
+
+```bash
+../kind/load-trainer-image.sh                  # 建 platform-trainer 映像（約 6 GB）並載入 kind 的 GPU 節點
+JOB_IO_BASE_URL=http://ai-platform-api-1:8000 \
+  docker compose -f compose.yaml -f compose.kind.yaml -f compose.training.yaml up -d --build
+```
+
+`JOB_IO_BASE_URL` 是 kind 內的 Job 回連平台 API 的位址，用 api 容器在 `kind` 網路上的名稱（`<compose 專案>-api-1`）。
+所有端點都在既有的 Gateway 路由 `/api/*` 之下，APISIX 不需要新增路由。說明見 `platform/training/README.md`。

@@ -135,6 +135,47 @@ platform/web/src/pages/inference/             推論結果頁（影像結果呈�
 - 真實影像與真實標註下的模型品質（本機資料是合成的，指標沒有臨床意義）。
 - 推論服務在甲方叢集以 Deployment 方式水平擴充、線上推論的延遲。
 
-## 結果
+## 結果（2026-09-29）
 
-（完成後填寫）
+| 範圍 | 指令 | 結果 |
+|---|---|---|
+| 平台 API 全套（合併 integration 後） | `cd platform/api && uv run pytest` | 757 passed, 5 skipped（WP5b 新增 `tests/training/` 100 passed） |
+| 刪除專案的外鍵行為，PostgreSQL | `TEST_POSTGRES_URL=… uv run pytest tests/training/test_train_project_delete.py` | 2 passed（修正前 SQLite 與 PostgreSQL 都失敗） |
+| 結構式函式庫 | `cd platform/libs/tabular && uv run pytest` | 333 passed（新增 `fitted` 134） |
+| 訓練範本、fake-trainer、推論服務 | `cd platform/training && uv run pytest` | 48 passed（含真的 Keras 訓練） |
+| 網頁單元 | `cd platform/web && npm test` | 322 passed |
+| Playwright（Chromium＋Edge） | `npx playwright test --workers=2` | 66 passed；預設平行度在主機負載 25 時有 2～4 個逾時，2 個 worker 全過 |
+| S0 smoke | `cd platform/smoke && uv run pytest` | 情境 15 passed、3 skipped（WP6、WP7／8、kind 監控） |
+| 經 Gateway＋kind | `test_tc_b05_b06.py` | 見下方 |
+
+經 Gateway＋kind 驗收（`ai-wp5b` 堆疊：compose.yaml＋compose.kind.yaml＋compose.training.yaml，訓練在 kind 的 gpu-exclusive 節點以 `platform-trainer:dev` 執行）：
+
+- 第一次執行：11 passed、2 failed。TC-B05-02、04、05、06、07，TC-B06-01～05 全過。
+- TC-B05-04 在叢集內重跑影像分類 3 次，三個 Pod 產出的 H5 逐位元相同，指標差異 0。
+- 失敗 1：TC-B05-01 的 5 種訓練都成功，但沒有寫入 MLflow。原因是 `tracker_from_env` 沒有接上。已改為第一次使用時依 `MLFLOW_TRACKING_URI` 建立。
+- 失敗 2：TC-B06-06 線上推論回 422。推論服務用完整的資料集結構驗證輸入，要求模型沒用到的 `patient_id`。已改為只要求特徵與前處理讀取的欄位。
+- 同時發現：推論服務在同一程序載入第二個 Keras 模型會失敗（TensorFlow 執行緒設定只能設一次），已修正並加測試。
+
+裁定：
+
+- 影像訓練一律 Keras 輸出 H5（依 TODO 第 2 節的預設，待甲方確認）。結構式一律 scikit-learn 輸出 pkl。
+- 「匯出原始碼」＝匯出範本、共用模組、這次訓練的設定、requirements.txt、README；結構式另附 tabular 函式庫原始碼，解壓後不需平台套件就能執行。
+- 匯出原始碼與執行修改後的原始碼需要 `coding` 權限；執行時另需 `training`（占用排程資源）。重跑使用者原始碼的訓練同樣需要 `coding`。
+- Job 容器只拿到 `RUN_ID`、`JOB_IO_URL`、`JOB_IO_TOKEN`。token 只對這一次訓練的資料包與產出有效，資料庫只存雜湊，訓練結束立即失效。訓練程式在清空環境變數的子程序執行，連 token 都看不到。Pod 不掛 ServiceAccount token、`enableServiceLinks: false`、非 root。
+- 資料凍結以內容定址：blob 以 sha256 命名，manifest 雜湊相同即同一版本。訓練只讀凍結版本，所以排隊中刪除來源仍會完成（TC-B05-07 選「照常完成」）；之後從設定重新送出會明確失敗。
+- 凍結 DICOM 時套用 Accession 清單，清單外影像不會進入訓練資料。
+- 標註來源三種：`annotations`（影像標註平台，WP5a）、`makesense`、`inline`。分類 Label 以影像層級優先，否則用研究層級。分割遮罩依設定的 Label 順序重新編號。
+- 影像切分以研究或病例為單位；結構式以列為單位。增強只套用在訓練資料，每筆原始影像另加 `augmentation_copies` 份。
+- 結構式前處理改為在訓練資料上擬合、套用到其他資料；會刪列的步驟只在擬合時執行，推論時不刪列。
+- 訓練成功的判定：Job 成功且上傳了模型與模型卡；Job 成功但沒有模型記為失敗。
+- 刪除專案時，排程工作列（`jobs.project_id`）與所有訓練資料列 ON DELETE CASCADE。叢集內仍在執行的 Kubernetes Job 不會因此停止；物件儲存中的 blob 由專案刪除的清理流程處理。
+- 線上推論的授權只看部署的帳號清單，不看專案角色。不存在與未授權都回 403；拒絕也寫 `inference` 稽核。先檢查授權再掃毒。
+- 掃毒：上傳推論的 CSV 與修改後的原始碼 zip 不乾淨就整個請求拒絕；一批影像中被攔的檔案單獨失敗並列在結果的 `blocked`。
+- MLflow 3 關閉 GenAI 背景工作（`MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false`），否則閒置就超過 1 GB。MLflow 連不上不影響訓練，只在訊息中註明。
+- `platform-trainer` 映像約 6 GB（TensorFlow CPU）。磁碟吃緊時只載入 gpu-exclusive 節點（`NODES=ai-platform-worker3`）。
+
+未完成或限制：
+
+- 推論只在平台 API 同步執行（批次也是）。大批量推論改為排程工作留到甲方環境依資料量決定。
+- 網頁只做了推論結果頁（TC-B06-04 需要）。訓練設定頁、模型部署頁仍是骨架；標註頁的「建立訓練任務」已改接訓練 API。
+- 本機堆疊沒有開 ClamAV（在 compose.compliance.yaml），掃毒以單元測試驗證。
