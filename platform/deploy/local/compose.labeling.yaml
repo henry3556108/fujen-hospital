@@ -26,7 +26,5 @@ services:
       - ./ohif/app-config.js:/config/app-config.js:ro
 
   apisix:
-    volumes:
-      - ./apisix/config.labeling.yaml:/usr/local/apisix/conf/config.yaml:ro
-    ports: ["${OHIF_HOST_PORT:-9081}:9081"]
+    ports: ["${OHIF_HOST_PORT:-9081}:9081"]   # 9081 的監聽設定在 apisix/config.yaml
     depends_on: [ohif]

@@ -1,3 +1,8 @@
+# Gateway 另開 9081 給 OHIF 檢視器（compose.labeling.yaml 才對主機開放；路由見 apisix.yaml 的 WP5a 區塊）
+apisix:
+  node_listen:
+    - 9080
+    - 9081
 deployment:
   role: data_plane
   role_data_plane:

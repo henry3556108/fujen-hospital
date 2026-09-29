@@ -168,7 +168,7 @@ def test_tc_b05_06_four_models_load_outside_platform(trained, env, tmp_path):
         paths[-1].write_bytes(data)
     assert [p.suffix for p in paths] == [".pkl", ".pkl", ".h5", ".h5"]
     # 平台外：training 專案的環境（只用到 scikit-learn、pandas、keras），腳本檢查沒有 import 平台程式
-    result = subprocess.run(["uv", "run", "-q", "--project", str(ROOT / "training"), "python",
+    result = subprocess.run(["uv", "run", "-q", "--extra", "keras", "--project", str(ROOT / "training"), "python",
                              str(ROOT / "training" / "scripts" / "load_exported_models.py"), *map(str, paths)],
                             capture_output=True, text=True, cwd=tmp_path, timeout=600)
     lines = [json.loads(line) for line in result.stdout.splitlines() if line.startswith("{")]
