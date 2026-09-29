@@ -1,0 +1,44 @@
+[project]
+name = "trainer"
+version = "0.1.0"
+description = "Training templates, Job entrypoint and inference service for the medical AI platform"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "scipy>=1.13",
+    "h5py>=3.11",
+    "pydicom>=3.0.2",
+    "nibabel>=5.3",
+    "simpleitk>=2.4",
+    "pillow>=11",
+    "httpx>=0.27",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.32",
+    "tabular",
+]
+
+[project.optional-dependencies]
+# 影像範本與 H5 推論需要；fake-trainer、結構式範本不需要
+keras = ["tensorflow-cpu>=2.21,<2.22"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["trainer"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv.sources]
+tabular = { path = "../libs/tabular", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["keras: 需要 TensorFlow（uv sync --extra keras）"]
