@@ -666,10 +666,13 @@ const labelingHandlers = [
   }),
 
   // ---- 標註後直接訓練：沿用排程的工作 API（WP4）；訓練型態與參數由 WP5b 擴充 ----
+  // 只接標註頁送來的（帶 training_type）；其他工作交給 mocks/scheduling.ts 的排程模擬（回傳 undefined 即交給下一個 handler）
   http.post(`${API}/jobs`, async ({ request, params }) => {
+    const peek = await bodyOf(request.clone());
+    if (typeof peek.training_type !== 'string') return undefined;
     const ctx = authorize(request, params.pid, 'training');
     if (ctx instanceof Response) return ctx;
-    const b = await bodyOf(request);
+    const b = peek;
     const s = load();
     const job: MockJob = {
       id: s.nextJobId++,

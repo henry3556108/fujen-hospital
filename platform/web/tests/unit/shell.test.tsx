@@ -151,9 +151,9 @@ describe('app shell', () => {
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
-  it('TC-A02-07 共享排程設定 is a clearly labelled placeholder for admins', async () => {
-    await renderApp('/admin/scheduling', 'admin01');
-    expect(await screen.findByRole('heading', { level: 1, name: /共享排程設定/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 2, name: /WP4/ })).toBeInTheDocument();
+  it('建模管理 placeholder links to the project job list', async () => {
+    const { user } = await renderApp('/training', 'pi01');
+    await user.click(await screen.findByRole('link', { name: /專案工作/ }));
+    expect(await screen.findByRole('heading', { level: 1, name: '專案工作' })).toBeInTheDocument();
   });
 });

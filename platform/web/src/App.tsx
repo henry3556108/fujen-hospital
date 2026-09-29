@@ -11,11 +11,14 @@ import { AccessDenied, HomePage, ModulePlaceholder, NotFoundPage } from './pages
 import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
-import { SchedulingPlaceholder } from './pages/admin/SchedulingPlaceholder';
 import { LabelingPage } from './pages/labeling/LabelingPage';
 import { WorkbenchPage } from './pages/labeling/WorkbenchPage';
 import { AutoLabelPage } from './pages/labeling/AutoLabelPage';
 import { LlmRoutes } from './pages/llm/LlmRoutes';
+import { DataRoutes } from './pages/data/DataRoutes';
+import { SchedulingRoutes } from './pages/scheduling/SchedulingRoutes';
+import { JobsPage } from './pages/scheduling/JobsPage';
+import { TrainingLanding } from './pages/scheduling/TrainingLanding';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -86,10 +89,26 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
           <Route element={<AppLayout />}>
             <Route index element={<HomePage />} />
             <Route
-              path="admin/scheduling"
+              path="admin/scheduling/*"
               element={
                 <EntryGuard entry={adminEntry}>
-                  <SchedulingPlaceholder />
+                  <SchedulingRoutes />
+                </EntryGuard>
+              }
+            />
+            <Route
+              path="data/*"
+              element={
+                <EntryGuard entry={entryByKey('data')!}>
+                  <DataRoutes />
+                </EntryGuard>
+              }
+            />
+            <Route
+              path="training/jobs"
+              element={
+                <EntryGuard entry={entryByKey('training')!}>
+                  <JobsPage />
                 </EntryGuard>
               }
             />
@@ -117,7 +136,7 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
                 path={e.path.slice(1)}
                 element={
                   <EntryGuard entry={e}>
-                    <ModulePlaceholder entry={e} />
+                    {e.key === 'training' ? <TrainingLanding entry={e} /> : <ModulePlaceholder entry={e} />}
                   </EntryGuard>
                 }
               />
