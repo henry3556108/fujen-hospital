@@ -1,4 +1,6 @@
 """來源、對應規則、執行紀錄的管理，以及資源瀏覽。寫入類動作都寫 data_exchange 稽核（同一個交易）。"""
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -239,7 +241,6 @@ def run_out(r: FhirRun) -> dict:
 
 
 def _aware(value):
-    from datetime import timezone
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)   # SQLite 讀回來不帶時區
 
 
@@ -262,3 +263,92 @@ def check_resource_type(resource_type: str) -> str:
     if resource_type not in SUPPORTED_TYPES:
         raise NotFound(f"不支援的資源型別 {resource_type}（支援：{'、'.join(SUPPORTED_TYPES)}）")
     return resource_type
+
+
+# ---------- 排程 ----------
+
+MAX_INTERVAL_MINUTES = 7 * 24 * 60
+
+
+def schedule_out(session: Session, s: FhirSchedule) -> dict:
+    last = session.scalar(select(FhirRun).where(FhirRun.schedule_id == s.id).order_by(FhirRun.id.desc()).limit(1))
+    return {"id": s.id, "project_id": s.project_id, "name": s.name, "source_id": s.source_id,
+            "mapping_id": s.mapping_id, "interval_minutes": s.interval_minutes, "enabled": s.enabled,
+            "next_run_at": _iso(_aware(s.next_run_at)), "last_run_at": _iso(_aware(s.last_run_at)) if s.last_run_at
+            else None, "created_by": s.created_by, "last_run": run_out(last) if last else None}
+
+
+def _check_interval(minutes: int) -> int:
+    if not 1 <= minutes <= MAX_INTERVAL_MINUTES:
+        raise Invalid(f"interval_minutes 必須介於 1 與 {MAX_INTERVAL_MINUTES}")
+    return minutes
+
+
+def create_schedule(session: Session, *, project_id: int, actor: str, source_ip: str | None, name: str,
+                    source_id: int, mapping_id: int, interval_minutes: int, enabled: bool = True,
+                    start_at: datetime | None = None, now=utcnow) -> FhirSchedule:
+    name = _clean_name(name)
+    _check_interval(interval_minutes)
+    source = get_source(session, project_id, source_id)
+    mapping = get_mapping(session, project_id, mapping_id)
+    if mapping.source_kind != source.kind:
+        raise Invalid(f"對應規則適用的來源類型是 {mapping.source_kind}，與來源的 {source.kind} 不符")
+    if _name_taken(session, FhirSchedule, project_id, name):
+        raise Conflict(f"排程名稱 {name} 已存在")
+    first = _aware(start_at) if start_at else now() + timedelta(minutes=interval_minutes)
+    s = FhirSchedule(project_id=project_id, name=name, source_id=source_id, mapping_id=mapping_id,
+                     interval_minutes=interval_minutes, enabled=enabled, next_run_at=first, created_by=actor)
+    session.add(s)
+    session.flush()
+    _audit(session, actor=actor, action="fhir.schedule.create", target=f"project:{project_id}/schedule:{s.id}",
+           source_ip=source_ip, detail={"name": name, "interval_minutes": interval_minutes,
+                                        "source_id": source_id, "mapping_id": mapping_id})
+    session.commit()
+    return s
+
+
+def list_schedules(session: Session, project_id: int) -> list[FhirSchedule]:
+    return list(session.scalars(select(FhirSchedule).where(FhirSchedule.project_id == project_id)
+                                .order_by(FhirSchedule.id)))
+
+
+def get_schedule(session: Session, project_id: int, schedule_id: int) -> FhirSchedule:
+    s = session.get(FhirSchedule, schedule_id)
+    if s is None or s.project_id != project_id:
+        raise NotFound(f"找不到排程 {schedule_id}")
+    return s
+
+
+def update_schedule(session: Session, *, project_id: int, schedule_id: int, actor: str, source_ip: str | None,
+                    name: str | None = None, interval_minutes: int | None = None, enabled: bool | None = None,
+                    now=utcnow) -> FhirSchedule:
+    s = get_schedule(session, project_id, schedule_id)
+    changes: dict = {}
+    if name is not None:
+        name = _clean_name(name)
+        if _name_taken(session, FhirSchedule, project_id, name, except_id=s.id):
+            raise Conflict(f"排程名稱 {name} 已存在")
+        s.name = changes["name"] = name
+    reschedule = False
+    if interval_minutes is not None and interval_minutes != s.interval_minutes:
+        s.interval_minutes = changes["interval_minutes"] = _check_interval(interval_minutes)
+        reschedule = True
+    if enabled is not None and enabled != s.enabled:
+        s.enabled = changes["enabled"] = enabled
+        reschedule = reschedule or enabled
+    if reschedule:   # 改間隔或重新啟用：從現在起算，不補跑停用期間的時間點
+        s.next_run_at = now() + timedelta(minutes=s.interval_minutes)
+    _audit(session, actor=actor, action="fhir.schedule.update", target=f"project:{project_id}/schedule:{s.id}",
+           source_ip=source_ip, detail=changes)
+    session.commit()
+    return s
+
+
+def delete_schedule(session: Session, *, project_id: int, schedule_id: int, actor: str, source_ip: str | None
+                    ) -> None:
+    s = get_schedule(session, project_id, schedule_id)
+    _audit(session, actor=actor, action="fhir.schedule.delete", target=f"project:{project_id}/schedule:{s.id}",
+           source_ip=source_ip, detail={"name": s.name})
+    session.execute(update(FhirRun).where(FhirRun.schedule_id == schedule_id).values(schedule_id=None))
+    session.delete(s)
+    session.commit()

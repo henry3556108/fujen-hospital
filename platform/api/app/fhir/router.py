@@ -1,6 +1,7 @@
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
@@ -299,6 +300,53 @@ def receive_vitals(request: Request, body: Any = Body(...), ctx: ProjectContext 
     run = etl.ingest_vitals(ctx.session, fhir, project=ctx.project, readings=readings, actor=ctx.user.username,
                             source_ip=client_ip(request))
     return _run_response(run)
+
+
+# ---------- 排程 ----------
+
+class ScheduleIn(BaseModel):
+    name: str
+    source_id: int
+    mapping_id: int
+    interval_minutes: int
+    enabled: bool = True
+    start_at: datetime | None = None
+
+
+class SchedulePatch(BaseModel):
+    name: str | None = None
+    interval_minutes: int | None = None
+    enabled: bool | None = None
+
+
+@projects.get("/schedules")
+def list_schedules(ctx: ProjectContext = Depends(read_access)) -> list[dict]:
+    return [service.schedule_out(ctx.session, s) for s in service.list_schedules(ctx.session, ctx.project.id)]
+
+
+@projects.post("/schedules", status_code=201)
+def create_schedule(body: ScheduleIn, request: Request, ctx: ProjectContext = Depends(admin_access)) -> dict:
+    with _errors():
+        s = service.create_schedule(ctx.session, project_id=ctx.project.id, actor=ctx.user.username,
+                                    source_ip=client_ip(request), **body.model_dump())
+    return service.schedule_out(ctx.session, s)
+
+
+@projects.patch("/schedules/{schedule_id}")
+def update_schedule(schedule_id: int, body: SchedulePatch, request: Request,
+                    ctx: ProjectContext = Depends(admin_access)) -> dict:
+    with _errors():
+        s = service.update_schedule(ctx.session, project_id=ctx.project.id, schedule_id=schedule_id,
+                                    actor=ctx.user.username, source_ip=client_ip(request), **body.model_dump())
+    return service.schedule_out(ctx.session, s)
+
+
+@projects.delete("/schedules/{schedule_id}", status_code=204)
+def delete_schedule(schedule_id: int, request: Request, ctx: ProjectContext = Depends(admin_access)) -> Response:
+    with _errors():
+        service.delete_schedule(ctx.session, project_id=ctx.project.id, schedule_id=schedule_id,
+                                actor=ctx.user.username, source_ip=client_ip(request))
+    return Response(status_code=204)
 
 
 router.include_router(projects)
