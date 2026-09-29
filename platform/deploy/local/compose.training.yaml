@@ -1,0 +1,39 @@
+# WP5b 疊加檔：MLflow（訓練紀錄）、推論服務，以及 api 的訓練與推論設定。
+#   docker compose -f compose.yaml -f compose.kind.yaml -f compose.training.yaml up -d --build
+# 訓練工作跑在 kind 叢集內（需 compose.kind.yaml 與 ../kind/load-trainer-image.sh）。
+# 兩個新服務都不對主機開連接埠：推論只經平台 API（/api/inference/{name}/predict）。
+services:
+  api:
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      INFERENCE_URL: http://inference:8000
+      INFERENCE_ADMIN_TOKEN: inference-admin-dev
+      TRAINING_IMAGE: platform-trainer:dev
+      # kind 內的 Job 容器回連平台 API 的位址（api 容器在 kind 網路上的名稱）
+      JOB_IO_BASE_URL: ${JOB_IO_BASE_URL:-http://api:8000}
+    depends_on:
+      mlflow: {condition: service_started}
+      inference: {condition: service_started}
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.16.1
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000",
+              "--backend-store-uri", "sqlite:////mlflow/mlflow.db", "--default-artifact-root", "/mlflow/artifacts",
+              "--workers", "1", "--allowed-hosts", "mlflow,mlflow:5000,localhost,127.0.0.1"]
+    volumes:
+      - mlflow:/mlflow
+    mem_limit: 512m
+
+  inference:
+    image: platform-trainer:dev
+    build:
+      context: ../..
+      dockerfile: training/Dockerfile
+    command: ["uvicorn", "trainer.serve:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      INFERENCE_ADMIN_TOKEN: inference-admin-dev
+      TRAIN_THREADS: "2"
+    mem_limit: 1536m
+
+volumes:
+  mlflow:
