@@ -81,15 +81,22 @@ uv run pytest -m kind ../acceptance/test_tc_a02_gpu.py ../acceptance/test_tc_c01
 
 測試在同一個程序裡啟動平台 API（SQLite、測試用簽章金鑰），後端接 `KubernetesJobBackend`，經 API 送工作、查狀態、看 Dashboard。
 
-## 與 compose 堆疊的串接（尚未接上）
+## 與 compose 堆疊的串接
 
-compose 的 `api` 容器目前沒有連到叢集，工作 API 會回 503「排程服務尚未設定」。接上的方式：
+compose 的 `api` 容器預設沒有連到叢集，工作 API 會回 503「排程服務尚未設定」。叢集與 compose 堆疊都起來後：
 
-1. 產生容器內可用的 kubeconfig：`kind get kubeconfig --name ai-platform --internal > kubeconfig.kind`（位址為 `ai-platform-control-plane:6443`）。
-2. `api` 服務加入 `kind` Docker 網路，掛載 kubeconfig，並設定環境變數：
-   `JOB_BACKEND=kubernetes`、`KUBECONFIG=/etc/platform/kubeconfig.kind`、`JOB_NAMESPACE=platform-jobs`、`JOB_IMAGE=busybox:1.36`。
-3. 正式環境（甲方）API 跑在叢集內，使用 in-cluster ServiceAccount（需要 `platform-jobs` 的 Job 建立／刪除、Pod 與 Node 讀取、
-   Kueue ClusterQueue 修改權限），不需要 kubeconfig。
+```bash
+./connect-compose.sh   # 產生 ../local/kubeconfig.kind，以 compose.kind.yaml 重啟 api，並列出 api 看到的節點
+```
+
+做的事：`kind get kubeconfig --internal`（位址 `ai-platform-control-plane:6443`）寫到 `deploy/local/kubeconfig.kind`（已在 .gitignore）；
+`deploy/local/compose.kind.yaml` 讓 `api` 加入 `kind` Docker 網路、唯讀掛載 kubeconfig，並設定
+`JOB_BACKEND=kubernetes`、`KUBECONFIG=/etc/platform/kubeconfig.kind`、`JOB_NAMESPACE=platform-jobs`、`JOB_IMAGE=busybox:1.36`。
+之後經 Gateway `POST /api/projects/{id}/jobs` 送出的工作會成為 `platform-jobs` 內的 Kubernetes Job。
+解除：`cd ../local && docker compose up -d api`（不帶疊加檔即回到 503 狀態）。重建叢集後 kubeconfig 的憑證會變，要重跑一次。
+
+正式環境（甲方）API 跑在叢集內，使用 in-cluster ServiceAccount（需要 `platform-jobs` 的 Job 建立／刪除、Pod 與 Node 讀取、
+Kueue ClusterQueue 修改權限），不需要 kubeconfig。
 
 ## 只能在甲方 GPU 上驗證
 

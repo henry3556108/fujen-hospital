@@ -1,6 +1,6 @@
 # 開發追蹤
 
-最後更新：2026-09-28。路線圖細節見 `docs/superpowers/plans/2026-09-28-roadmap.md`，驗收案例見 `docs/test-cases/acceptance-test-cases.md`。
+最後更新：2026-09-29。路線圖細節見 `docs/superpowers/plans/2026-09-28-roadmap.md`，驗收案例見 `docs/test-cases/acceptance-test-cases.md`。
 勾選方式：完成就把 `[ ]` 改成 `[x]`，並在行尾註明 commit 或日期。
 
 ## 目前狀態
@@ -11,19 +11,22 @@
 | WP1b | 網頁殼：登入、8 個入口、帳號管理 | 完成 | 單元 152、Playwright 20、真環境 E2E 3 |
 | WP2 | 影像匯入：Orthanc ×2、MinIO、匯入 CLI、DICOMweb 經 Gateway | 完成 | 經 Gateway 驗收 16 |
 | WP3 | 結構式資料：CSV 驗證、統計、66 種前處理 | 完成 | 函式庫 199、經 Gateway 驗收 7 |
-| WP4 | 排程與監控：kind、假 GPU、Kueue、GPU Dashboard、告警 | 完成（叢集尚未接上 compose 的 API） | kind 叢集 15 |
+| WP4 | 排程與監控：kind、假 GPU、Kueue、GPU Dashboard、告警 | 完成（compose 的 API 可接 kind 叢集） | kind 叢集 15 |
 | WP5 | 影像建模主線：OHIF、訓練範本、MLflow、推論 | 未開始 | — |
 | WP6 | HL7 FHIR 資料交換 | 未開始 | — |
 | WP7 | LLM、RAG、LangGraph、Wiki、模型白名單 | 未開始 | — |
 | WP8 | 合規與交付：SBOM、掃毒、稽核覆蓋、備份還原 | 未開始 | — |
 
+一鍵測試：`platform/scripts/test-all.sh`（`--e2e` 加 Playwright，`--docker` 加經 Gateway 驗收，`--kind` 加 kind 叢集測試）。S0 smoke 走 10 個情境主幹：9 項通過、8 項標為待開發工作包。
+
 全部測試（2026-09-28）：平台 API 單元 360、經 Gateway 驗收 34（另 15 個需 kind 叢集）、網頁 152、結構式函式庫 199、合成資料 43、假服務 45、匯入 CLI 13、smoke 1。
+Linux 開發機（Proxmox LXC，nesting 開啟後）2026-09-29：經 Gateway 驗收 34 通過、kind 叢集 15 通過；compose 的 API 接上 kind 後，經 Gateway 送出的訓練工作在 gpu-exclusive 節點以 Kubernetes Job 跑完。
 
 ## 1. 下一批開發
 
 WP5、WP6、WP7 彼此獨立，可以平行；WP8 放最後。
 
-- [ ] 把 compose 的 API 接上 kind 叢集（kubeconfig 掛進 api 容器、加入 kind 網路、`JOB_BACKEND=kubernetes`），做法見 `platform/deploy/kind/README.md`
+- [x] 把 compose 的 API 接上 kind 叢集：`platform/deploy/kind/connect-compose.sh`（產生 kubeconfig、套用 `compose.kind.yaml`），做法見 `platform/deploy/kind/README.md`（2026-09-29）
 - [ ] WP5 影像建模主線（依賴 WP2、WP4）
   - [ ] OHIF 檢視器與標註存回平台（分類、分割、偵測、評分、快捷鍵、器官窗）— TC-B02
   - [ ] 自動標註串接（先接 `platform/fakes` 的 fake-autolabel，再換 MONAI Label）— TC-B03
@@ -64,6 +67,7 @@ WP5、WP6、WP7 彼此獨立，可以平行；WP8 放最後。
 - [ ] 刪除專案時，Orthanc 影像與物件儲存的檔案不會跟著刪（影像與結構式資料都是）
 - [ ] NIfTI 上傳沒有大小上限，也未防壓縮炸彈
 - [ ] MinIO 開發環境用 root 帳號
+- [ ] 同一研究先經 PACS 取回、再批次上傳時，第二次被判為重複而不記檔案路徑，makesense 標註因此配不到這些切片（S0 smoke 發現；需決定重複上傳時是否補記路徑）
 - [ ] OHIF 需要的 bulk data 路徑（Orthanc `PublicRoot`）留到 WP5
 - [ ] Orthanc 映像只有 amd64，在 M1 上是模擬執行
 - [ ] Starlette 的 httpx 棄用警告
@@ -76,7 +80,7 @@ WP5、WP6、WP7 彼此獨立，可以平行；WP8 放最後。
 - [ ] LLM 4-bit 與 8-bit 量化（bitsandbytes＋vLLM）
 - [ ] 時間與效能指標：權限 10 秒生效、DICOM 查詢 30 秒、自動標註 30 秒、Playground 10 秒、首屏時間
 - [ ] 真實 PACS、HIS、生理監視器、Email 或通訊軟體
-- [ ] Edge 瀏覽器相容（TC-A02-08；在有 Edge 的機器上重跑 Playwright）
+- [x] Edge 瀏覽器相容（TC-A02-08）：Linux 開發機裝 Edge 154 後 Playwright 40 項全過（2026-09-28）；甲方 Windows 環境可再抽測
 
 ## 5. 換機器開發
 
@@ -91,6 +95,8 @@ docker compose exec -T api /app/.venv/bin/python -m app.seed
 cd ../../acceptance && COMPOSE_PROJECT=ai-platform uv run pytest -q
 ```
 
+- Linux 開發機（Ubuntu 24.04）：uv 用官方安裝腳本、Node.js 22 用 NodeSource、Docker 用官方 apt 套件庫、kind v0.33 與 kubectl 直接下載執行檔；Playwright 用 `npx playwright install --with-deps chromium` 與 `npx playwright install msedge`。
+- 若開發機是 Proxmox LXC 容器，必須在主機開啟 nesting（`pct set <id> -features nesting=1,keyctl=1` 後重開容器），否則 Docker 無法掛載 overlay 與 /proc。開啟後 Docker、compose 與 kind 5 節點叢集都能正常運作（2026-09-29 實測，12 CPU、12 GB 記憶體）。
 - 架構與資料流說明在 Claude Doc「MacBook 開發機實作計畫」，不在 repo 內。
 - `docker pull` 卡住時，多半是 Docker Desktop 的憑證工具在等鑰匙圈授權，處理方式見 `platform/deploy/local/README.md`。
 - 改了 Keycloak realm 設定要重新匯入，步驟同上 README。

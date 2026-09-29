@@ -1,0 +1,19 @@
+# 疊加檔：讓 compose 的 api 容器把工作送進本機的 kind 叢集（platform/deploy/kind）。
+# 產生 kubeconfig 並重啟 api：../kind/connect-compose.sh
+# 手動用法：docker compose -f compose.yaml -f compose.kind.yaml up -d api
+services:
+  api:
+    environment:
+      JOB_BACKEND: kubernetes
+      KUBECONFIG: /etc/platform/kubeconfig.kind
+      JOB_NAMESPACE: platform-jobs
+      JOB_IMAGE: busybox:1.36
+    volumes:
+      - ./kubeconfig.kind:/etc/platform/kubeconfig.kind:ro
+    networks:
+      default: {}
+      kind: {}   # kind 節點所在的 Docker 網路，叢集位址為 https://ai-platform-control-plane:6443
+
+networks:
+  kind:
+    external: true

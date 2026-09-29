@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 platform/acceptance/reports/
+# 從 platform/api 跑 kind 叢集測試時，acceptance 的 junitxml 會落在這裡
+platform/api/reports/
 .env
 .superpowers/
 .claude/worktrees/
+platform/deploy/local/kubeconfig.kind

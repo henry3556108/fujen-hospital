@@ -20,6 +20,12 @@ cd platform/web && VITE_API_BASE=http://localhost:9080 VITE_AUTH_MODE=oidc npm r
 cd platform/web && npm run test:e2e:real                          # 真的 Keycloak 登入
 ```
 
+## 接上 kind 叢集（WP4 排程）
+
+工作 API 預設回 503。先用 `platform/deploy/kind/up.sh` 建叢集，再執行 `platform/deploy/kind/connect-compose.sh`，
+它會產生 `kubeconfig.kind` 並以 `compose.kind.yaml` 疊加檔重啟 `api`。之後 `docker compose` 指令若要保留這個設定，
+要帶 `-f compose.yaml -f compose.kind.yaml`；只帶預設檔重啟 `api` 就會斷開。
+
 ## 影像服務（WP2）
 
 | 服務 | 用途 | 主機連接埠 |
