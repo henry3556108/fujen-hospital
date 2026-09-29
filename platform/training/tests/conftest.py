@@ -63,3 +63,52 @@ def run_template(name: str, config: dict, data: Path, out: Path, *, env=None) ->
                             capture_output=True, text=True, cwd=TEMPLATES, env=env)
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-4000:]
     return json.loads((out / "model_card.json").read_text())
+
+
+def _dicom_items(synth: Path, builder: DatasetBuilder, studies: int, boxes_by_file=None, label_of=None):
+    import pydicom
+
+    for study in sorted((synth / "dicom").glob("study_*"))[:studies]:
+        for path in sorted(study.rglob("*.dcm")):
+            data = path.read_bytes()
+            ds = pydicom.dcmread(path, stop_before_pixels=True)
+            extra = {}
+            if label_of:
+                extra["label"] = label_of(ds)
+            if boxes_by_file is not None:
+                extra["boxes"] = boxes_by_file.get(path.relative_to(synth / "dicom").as_posix(), [])
+            builder.add(str(ds.SOPInstanceUID), str(ds.StudyInstanceUID), {"image": builder.blob(data, "dicom")},
+                        **extra)
+
+
+@pytest.fixture
+def classification_dataset(synth, tmp_path) -> Path:
+    """20 個研究 × 5 張切片；Label 取 DICOM 的 Modality（CT／MR），讓小模型學得起來。"""
+    b = DatasetBuilder(tmp_path / "dataset", "image_classification", ["CT", "MR"])
+    _dicom_items(synth, b, 20, label_of=lambda ds: str(ds.Modality))
+    return b.write()
+
+
+@pytest.fixture
+def detection_dataset(synth, tmp_path) -> Path:
+    """makesense 標註涵蓋的 3 個研究（15 張切片）。"""
+    boxes, names = {}, {}
+    for path in sorted((synth / "makesense").glob("makesense_*.json")):
+        coco = json.loads(path.read_text())
+        names = {c["id"]: c["name"] for c in coco["categories"]}
+        files = {i["id"]: i["file_name"] for i in coco["images"]}
+        for a in coco["annotations"]:
+            boxes.setdefault(files[a["image_id"]], []).append({"label": names[a["category_id"]], "bbox": a["bbox"]})
+    b = DatasetBuilder(tmp_path / "dataset", "image_detection", list(names.values()))
+    _dicom_items(synth, b, 3, boxes_by_file=boxes)
+    return b.write()
+
+
+@pytest.fixture
+def segmentation_dataset(synth, tmp_path) -> Path:
+    b = DatasetBuilder(tmp_path / "dataset", "image_segmentation", ["class_1", "class_2"])
+    for image in sorted((synth / "nifti").glob("*_image.nii.gz")):
+        case = image.name.replace("_image.nii.gz", "")
+        label = image.with_name(f"{case}_label.nii.gz")
+        b.add(case, case, {"image": b.blob(image.read_bytes(), "nifti"), "mask": b.blob(label.read_bytes(), "nifti")})
+    return b.write()
