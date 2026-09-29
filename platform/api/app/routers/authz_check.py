@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.authz import effective_permissions, match_dicomweb, match_rule
 from app.deps import current_user, get_session
+from app.fhir.gateway import check_fhir
 from app.imaging.service import dicomweb_allowed
 from app.models import User
 from app.permissions import Permission
@@ -17,6 +18,8 @@ def check(request: Request, user: User = Depends(current_user), session: Session
     uri = request.headers.get("x-forwarded-uri", "")
     if uri.startswith("/dicomweb/"):
         return _check_dicomweb(request, uri, user, session)
+    if uri.startswith("/fhir/"):
+        return check_fhir(request, uri, user, session)
     rule = match_rule(uri)
     if rule is None:
         raise HTTPException(403, "此路徑未開放")

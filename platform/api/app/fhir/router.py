@@ -7,13 +7,17 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
-from app.deps import ProjectContext, client_ip, require_project_permission
-from app.fhir import etl, graph, service
+from app.deps import ProjectContext, client_ip, get_session, require_admin, require_project_permission
+from app.fhir import etl, gateway, graph, service, traffic
 from app.fhir.client import FhirClient, FhirError, FhirUnavailable, fhir_from_env
 from app.fhir.mapping import BUILTIN
+from app.fhir.models import FhirTrafficAlert
 from app.fhir.resources import SUPPORTED_TYPES
+from app.models import User
 from app.permissions import AccountType, Permission
 
 router = APIRouter()
@@ -347,6 +351,38 @@ def delete_schedule(schedule_id: int, request: Request, ctx: ProjectContext = De
         service.delete_schedule(ctx.session, project_id=ctx.project.id, schedule_id=schedule_id,
                                 actor=ctx.user.username, source_ip=client_ip(request))
     return Response(status_code=204)
+
+
+# ---------- 流量告警 ----------
+
+@projects.get("/alerts")
+def list_alerts(ctx: ProjectContext = Depends(admin_access)) -> list[dict]:
+    rows = ctx.session.scalars(select(FhirTrafficAlert).where(FhirTrafficAlert.project_id == ctx.project.id)
+                               .order_by(FhirTrafficAlert.id.desc()).limit(200))
+    return [traffic.alert_out(a) for a in rows]
+
+
+# ---------- Gateway 路由管理 ----------
+
+class RoutePatch(BaseModel):
+    enabled: bool | None = None
+    methods: list[str] | None = None
+    alert_threshold_per_minute: int | None = None
+
+
+@router.get("/api/admin/gateway/routes")
+def list_gateway_routes(user: User = Depends(require_admin), session: Session = Depends(get_session)) -> list[dict]:
+    return gateway.list_routes(session)
+
+
+@router.patch("/api/admin/gateway/routes/{route_id}")
+def update_gateway_route(route_id: str, body: RoutePatch, request: Request, user: User = Depends(require_admin),
+                         session: Session = Depends(get_session)) -> dict:
+    try:
+        return gateway.update_route(session, route_id, actor=user.username, source_ip=client_ip(request),
+                                    **body.model_dump())
+    except gateway.RouteError as exc:
+        raise HTTPException(exc.status_code, exc.message)
 
 
 router.include_router(projects)
