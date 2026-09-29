@@ -146,15 +146,20 @@ platform/web/src/pages/inference/             推論結果頁（影像結果呈�
 | 網頁單元 | `cd platform/web && npm test` | 322 passed |
 | Playwright（Chromium＋Edge） | `npx playwright test --workers=2` | 66 passed；預設平行度在主機負載 25 時有 2～4 個逾時，2 個 worker 全過 |
 | S0 smoke | `cd platform/smoke && uv run pytest` | 情境 15 passed、3 skipped（WP6、WP7／8、kind 監控） |
-| 經 Gateway＋kind | `test_tc_b05_b06.py` | 見下方 |
+| 經 Gateway＋kind | `test_tc_b05_b06.py` | 13 passed |
+| 經 Gateway 回歸（同一堆疊） | `test_tc_ss.py test_tc_a03.py test_tc_b01.py test_tc_b01_10.py test_tc_b04.py test_tech_debt.py` | 37 passed |
 
 經 Gateway＋kind 驗收（`ai-wp5b` 堆疊：compose.yaml＋compose.kind.yaml＋compose.training.yaml，訓練在 kind 的 gpu-exclusive 節點以 `platform-trainer:dev` 執行）：
 
-- 第一次執行：11 passed、2 failed。TC-B05-02、04、05、06、07，TC-B06-01～05 全過。
-- TC-B05-04 在叢集內重跑影像分類 3 次，三個 Pod 產出的 H5 逐位元相同，指標差異 0。
-- 失敗 1：TC-B05-01 的 5 種訓練都成功，但沒有寫入 MLflow。原因是 `tracker_from_env` 沒有接上。已改為第一次使用時依 `MLFLOW_TRACKING_URI` 建立。
-- 失敗 2：TC-B06-06 線上推論回 422。推論服務用完整的資料集結構驗證輸入，要求模型沒用到的 `patient_id`。已改為只要求特徵與前處理讀取的欄位。
-- 同時發現：推論服務在同一程序載入第二個 Keras 模型會失敗（TensorFlow 執行緒設定只能設一次），已修正並加測試。
+- 最後一次：13 passed（2 分 30 秒）。MLflow 記下 35 筆訓練，全部 FINISHED，各含 12 個參數、指標與 `platform.*` 標籤。
+- TC-B05-04 在叢集內重跑影像分類與結構式分類各 3 次，每個 Pod 產出的模型檔逐位元相同，指標差異 0。
+- TC-B05-01 同時輪詢 5 件：送出後都先進佇列，同一時間最多 2 件執行（獨占池 2 張卡）。
+- 前兩次執行抓到的問題（都已修正並加測試）：
+  - 5 種訓練都成功，但沒有寫入 MLflow：`tracker_from_env` 沒有接上。改為第一次使用時依 `MLFLOW_TRACKING_URI` 建立。
+  - TC-B06-06 線上推論回 422：推論服務用完整的資料集結構驗證輸入，要求模型沒用到的 `patient_id`。改為只要求特徵與前處理讀取的欄位。
+  - 推論服務在同一程序載入第二個 Keras 模型會失敗（TensorFlow 執行緒設定只能設一次）。
+  - MLflow 3.16 以 512 MB 啟動即被 OOM 砍掉：預設另起約 10 個 GenAI 背景程序。關掉後閒置約 390 MB。
+  - 測試本身：B-05-01 原本逐件輪詢，後面幾件第一次被看到時已經結束。改為同時輪詢。
 
 裁定：
 
