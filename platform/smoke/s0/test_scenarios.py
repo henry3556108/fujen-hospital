@@ -133,7 +133,55 @@ def test_scenario_03_autolabel_contract(world):
 
 
 def test_scenario_03_annotate_on_platform(world):
-    pending("WP5", "OHIF 檢視器、標註存回平台、自動標註送出與回存（TC-B02、B03）")
+    """醫師標註、評分、CSV 自動分類、送自動標註並修正（B-02、B-03）。OHIF 與畫面操作由 Playwright 與經 Gateway 驗收涵蓋。"""
+    from app.labeling.autolabel import HttpAutolabel
+    from fakes.autolabel import app as autolabel
+
+    c, md, p1 = world.client, world.headers("md01"), world.ids["p1"]
+    base = f"/api/projects/{p1}/labels"
+    world.app.state.autolabel = HttpAutolabel("http://autolabel",
+                                              client=TestClient(autolabel, base_url="http://autolabel"))
+    manifest = json.loads((world.synth / "dicom" / "manifest.json").read_text())
+    allow = set(world.ids["allowlist"])
+    study = next(s for s in manifest["studies"] if s["accession_number"] in allow)
+    sop = study["sop_instance_uids"][0]
+    target = {"study_instance_uid": study["study_instance_uid"], "sop_instance_uid": sop}
+    mark = world.last_audit_id()
+
+    # 1. 三種標註存回平台，重新載入內容一致；評分
+    shape = [64, 64]
+    bodies = [
+        {**target, "kind": "classification", "payload": {"label": "nodule"}},
+        {**target, "kind": "detection", "payload": {"shape": shape, "box_format": "xyxy",
+                                                    "boxes": [{"label": "nodule", "box": [10, 10, 20, 20]}]}},
+        {**target, "kind": "segmentation", "payload": {"shape": shape, "encoding": "rle", "rle": [[0, 4000], [1, 96]],
+                                                       "label_names": {"background": 0, "lung": 1}}},
+    ]
+    for body in bodies:
+        a = ok(c.post(f"{base}/annotations", headers=md, json=body), 201)
+        assert ok(c.get(f"{base}/annotations/{a['id']}", headers=md))["payload"] == body["payload"]
+    assert ok(c.put(f"{base}/annotations/{a['id']}/rating", headers=md, json={"rating": 4}))["rating"] == 4
+
+    # 2. 以 CSV 診斷結果依病歷號自動分類
+    rows = [f"{s['patient_id']},dx-{s['accession_number']}" for s in manifest["studies"] if s["accession_number"] in allow]
+    csv = ("patient_id,diagnosis\n" + "\n".join(rows) + "\n").encode()
+    result = ok(c.post(f"{base}/classification-csv", headers=md, data={"key": "patient_id"},
+                       files={"file": ("dx.csv", csv, "text/csv")}), 201)
+    assert result["matched"] == len(rows) and result["unmatched"] == 0
+
+    # 3. 送自動標註，結果回存，醫師開啟修正
+    run = ok(c.post(f"{base}/autolabel", headers=md, json={"model": "fake_detection", **target}), 201)
+    auto = run["annotation"]
+    assert auto["source"] == "autolabel"
+    edited = {**auto["payload"], "boxes": auto["payload"]["boxes"][:1]}
+    assert ok(c.put(f"{base}/annotations/{auto['id']}", headers=md, json={"payload": edited}))["version"] == 2
+
+    # 權限：Viewer 看得到不能改
+    assert c.post(f"{base}/annotations", headers=world.headers("vw01"), json=bodies[0]).status_code == 403
+    assert ok(c.get(f"{base}/summary", headers=world.headers("vw01")))["by_source"]["autolabel"] == 1
+    actions = {a.action for a in world.audit("dataset", since=mark)}
+    assert {"annotation.create", "annotation.rate", "annotation.csv_classification", "autolabel.submit",
+            "annotation.update"} <= actions
 
 
 # ---------------------------------------------------------------- 情境 4：不寫程式訓練模型
