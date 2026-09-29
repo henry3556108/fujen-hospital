@@ -46,6 +46,20 @@ uv run python -m importer upload --project P1-lung-ct --exclude manifest.json ..
 
 - 驗收：`cd platform/acceptance && PACS_URL=http://127.0.0.1:8043 uv run pytest -q test_tc_b01.py`（未設定 `SYNTH_DIR` 時會自動產生合成資料；設定 `COMPOSE_PROJECT=ai-platform` 會另外查稽核表）。
 
+## 影像標註與 OHIF（WP5a）
+
+```bash
+docker compose -f compose.yaml -f compose.labeling.yaml up -d --build
+cd platform/acceptance && COMPOSE_PROJECT=ai-platform uv run pytest -q test_tc_b02.py test_tc_b03.py test_ohif.py
+```
+
+- `autolabel`：`platform/fakes` 的 fake-autolabel（MONAI Label 介面子集），只有平台 API 連得到；甲方環境改 `AUTOLABEL_URL` 指向真正的工具。格式規格見 `docs/specs/autolabel-io-format.md`。
+- OHIF 檢視器在 Gateway 的 `http://localhost:9081`（`OHIF_HOST_PORT` 可改），網址 `/viewer?StudyInstanceUIDs=<uid>&project=<pid>`。
+  DICOMweb 與 OHIF 同源，一律走 `/dicomweb/projects/{pid}`，Accession 清單照樣生效；登入用 Keycloak client `ai-platform-ohif`。
+- Gateway 會把 Orthanc 回傳的 `BulkDataURI` 改寫成 Gateway 的專案範圍位址（取代 Orthanc `PublicRoot` 設定），bulk data 同樣經過 forward-auth。
+- DICOMweb 的 CORS 在開發環境放行 `localhost` 任意埠，甲方環境改成正式網域。
+- 改了 `keycloak/realm-ai-platform.json`（新增 `ai-platform-ohif`）的既有環境，要照下方「已知狀況」重新匯入 realm。
+
 ## 與共用環境並行啟動第二套
 
 主機連接埠可用環境變數改掉，搭配不同的 compose 專案名稱：

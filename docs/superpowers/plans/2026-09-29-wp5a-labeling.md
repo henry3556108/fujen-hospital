@@ -43,7 +43,7 @@ platform/deploy/local/
 platform/web/src/pages/labeling/   標註清單、工作台、CSV 標註、自動標註、建立訓練任務
 platform/web/src/mocks/labeling.ts MSW：標註 API 與合成 DICOMweb
 platform/web/e2e/labeling.spec.ts  TC-B02-01～04、06，TC-B03-03
-platform/acceptance/test_tc_b02.py  test_tc_b03.py  test_ohif.py
+platform/acceptance/test_tc_b02.py  test_tc_b03.py  test_ohif.py  labeling_support.py
 ```
 
 ## Data Model
@@ -122,3 +122,41 @@ platform/acceptance/test_tc_b02.py  test_tc_b03.py  test_ohif.py
 - TC-B03-02 的 30 秒：需在甲方環境以實際自動標註工具與實際影像大小量測。
 - 真實自動標註工具（MONAI Label 或甲方指定者）的模型與 GPU 推論；本機只驗介面與流程。
 - 實際臨床影像（多幀、壓縮傳輸語法、大矩陣）在工作台與 OHIF 的顯示效能。
+
+## 結果（2026-09-29）
+
+| 範圍 | 指令 | 結果 |
+|---|---|---|
+| 平台 API 單元（含標註 106、DICOMweb 授權新增 9） | `cd platform/api && uv run pytest -q` | 472 passed, 2 skipped |
+| 網頁單元 | `cd platform/web && npx vitest run` | 189 passed（標註 37） |
+| Playwright（Chromium，模擬 API） | `npx playwright test --project=chromium` | 30 passed（標註 10） |
+| S0 smoke | `cd platform/api && uv run pytest ../smoke/s0` | 10 passed, 7 skipped（情境 3 已換成真步驟） |
+| 經 Gateway 驗收（compose ＋ `compose.labeling.yaml`） | `COMPOSE_PROJECT=… uv run pytest -q` | 45 passed, 15 skipped（新增 11；略過的是 kind 叢集測試） |
+| 假服務 | `cd platform/fakes && uv run pytest` | 45 passed |
+
+- TC-B03-02 在開發機量到送出到可讀取 0.21 秒（假服務 9 毫秒），只證明流程；30 秒判準在甲方量。
+- TC-B03-04 的測試抓到規格漏寫 `/info/` 的 `description` 欄位，已補進文件與程式。
+- 以 HTTP 驗過 OHIF 實際送出的 DICOMweb 請求形式（研究查詢、序列 includefield、metadata、bulk data）經 9081 埠可用，且清單外、非成員、列出全部研究都被擋。
+  **未驗證**：真實瀏覽器中 OHIF 經 Keycloak 登入後畫出影像。原因是 Keycloak 的 `KC_HOSTNAME` 固定為 `localhost:8080`，
+  並行的第二套堆疊（18080）無法完成 OHIF 的登入導向；請在預設埠的堆疊手動開一次 `http://localhost:9081/viewer?StudyInstanceUIDs=<uid>&project=1`。
+- 工作台的畫面測試用 MSW 模擬 API 與合成影像；與真實堆疊的串接以經 Gateway 驗收（API 與 DICOMweb）涵蓋，未另寫真環境的 Playwright。
+
+### 裁定
+
+- 自動標註工具採 MONAI Label 介面（`docs/TODO.md` 第 2 節：「MONAI Label 是否算 Clara 等級或同等」待甲方確認）；平台只依賴 `AutolabelClient` 介面，換工具只改 `AUTOLABEL_URL`。
+- 自動標註輸入輸出格式 1.0 版以 2D 單張影像為範圍（`docs/specs/autolabel-io-format.md`），待甲方開工前書面確認；3D 另訂。
+- 標註存在平台資料庫，不寫回 Orthanc；DICOMweb 維持唯讀。
+- 標註以 UID 指向影像、不設外鍵；可否存取每次以影像索引與 Accession 清單重新判斷，所以清單縮小後清單外研究的標註看不到也改不了。
+- 評分（1–5）不算內容修改，不增加 version；分類標註可掛在研究或單張影像，分割與偵測必須指定影像。
+- CSV 同一鍵出現不同診斷視為衝突、整個鍵不寫入；重傳時更新既有的 CSV 標註，不重複建立，也不動手動標註。
+- 自動標註失敗（離線、逾時、5xx、4xx、格式不符）不留標註與執行紀錄，只寫一筆 `result=failure` 的 dataset 稽核；偵測沒有框時不建立標註。
+- 工作台是平台自己的頁面（Canvas，只支援未壓縮單色影像），OHIF 做為進階檢視器另開分頁；兩者用同一個 DICOMweb 入口。
+- 器官窗 5 組（軟組織、肺、骨、腦、腹部），快捷鍵 9 組（見工作台「快捷鍵」表）。
+- 「標註後直接訓練」目前呼叫 WP4 的 `POST /api/projects/{pid}/jobs`（`kind: training`），訓練型態與參數一併送出但 WP4 API 尚未使用；WP5b 接手後只改 `platform/web/src/pages/labeling/api.ts` 的 `createTrainingJob`。
+- DICOMweb 授權放寬兩處以配合 OHIF：查詢字串允許 `%2C`（只解碼逗號，研究 UID 仍不可多值）、允許 `fuzzymatching=false`。
+
+### 共用檔案異動（合併時注意）
+
+`platform/api/app/main.py`（1 個 import、1 個 include_router）、`platform/api/app/authz.py`、`platform/deploy/local/apisix/apisix.yaml`（dicomweb 路由加 CORS 與 BulkDataURI 改寫，結尾加 WP5a 區塊）、
+`platform/deploy/local/keycloak/realm-ai-platform.json`（新增 `ai-platform-ohif`）、`platform/deploy/local/README.md`、
+`platform/web/src/App.tsx`、`access/entries.ts`（影像標註、自動影像分類標註改為非骨架）、`mocks/handlers.ts`、`theme/tokens.css`（viewer 與標註色 token）、`env.d.ts`、`platform/smoke/s0/test_scenarios.py`。
