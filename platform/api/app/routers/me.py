@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import current_user, get_session
 from app.models import Membership, Project, User
-from app.permissions import AccountType, Permission
+from app.permissions import AccountType, Permission, split_permissions
 
 router = APIRouter(prefix="/api")
 
@@ -24,7 +24,8 @@ def me(user: User = Depends(current_user), session: Session = Depends(get_sessio
             .where(Membership.user_id == user.id).order_by(Project.id)
         )
         projects = [
-            {"id": p.id, "name": p.name, "role": m.role, "permissions": sorted(m.permissions)}
+            {"id": p.id, "name": p.name, "role": m.role,
+             "permissions": sorted(x.value for x in split_permissions(m.permissions)[0])}
             for p, m in rows
         ]
     return {"username": user.username, "account_type": user.account_type, "projects": projects}

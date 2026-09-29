@@ -33,6 +33,7 @@ cd platform/web && npm run test:e2e:real                          # 真的 Keycl
 | `orthanc` | 平台自己的 DICOM 節點（AET `PLATFORM`，只載入 DICOMweb 外掛）。REST 需要 Basic 認證 | 無；DICOMweb 只能經 Gateway |
 | `orthanc-pacs` | 模擬醫院 PACS（AET `PACS`）。平台節點以 C-FIND／C-MOVE 查詢取像 | `127.0.0.1:${PACS_HTTP_PORT:-8043}`（只給驗收測試放入研究） |
 | `minio` | S3 相容物件儲存（NIfTI、ITK、標註檔）；API 以 `STORAGE_BACKEND=s3` 使用 | 無 |
+| `minio-init` | 一次性：建立 bucket 與平台 API 專用帳號 `platform-api`（只能讀寫該 bucket）；API 不使用 MinIO root | 無 |
 
 - Orthanc 映像 `jodogne/orthanc-plugins` 只有 amd64，在 Apple Silicon 以模擬執行（啟動約 5 秒，足夠測試用）。設定在 `orthanc/platform/`、`orthanc/pacs/`。
 - DICOMweb 路由：`/dicomweb/projects/{pid}/studies/{StudyInstanceUID}/...` → APISIX `forward-auth` 呼叫 `api:8000/authz/check`（專案權限、研究在專案內、Accession 清單、series／instance 屬於該研究、非正規路徑一律拒絕、只允許 GET/HEAD）→ 改寫成 Orthanc `/dicom-web/...`，由 Gateway 換上 Orthanc 認證。研究列表搜尋只接受 `/studies?StudyInstanceUID=<單一 UID>`。
@@ -71,7 +72,7 @@ Keycloak 的 `KC_HOSTNAME` 固定為 `http://localhost:8080`，所以 token 的 
 - 若 `docker pull` 卡住不動，通常是 Docker Desktop 的憑證工具在等 macOS 鑰匙圈授權。可以按下鑰匙圈視窗的「允許」，或暫時用不含 `credsStore` 的設定檔下載公開映像：
   `DOCKER_CONFIG=<含 {"auths":{}} 的資料夾> DOCKER_HOST=unix://$HOME/.docker/run/docker.sock docker compose pull`
 - `realm-ai-platform.json` 的 `directAccessGrantsEnabled` 只為本機驗收腳本取 token，正式環境必須關閉。
-- 所有密碼都是本機測試值，不可用於甲方環境（含 Orthanc 帳號、MinIO root 金鑰、`apisix.yaml` 內的 Orthanc Basic 認證）。
+- 所有密碼都是本機測試值，不可用於甲方環境（含 Orthanc 帳號、MinIO root 金鑰與平台 API 的物件儲存帳號、`apisix.yaml` 內的 Orthanc Basic 認證）。
 
 ## 停止
 

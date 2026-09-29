@@ -32,3 +32,18 @@ def test_seed_resyncs_admin_subject_after_identity_provider_reset(session, idp):
     reset_and_seed(session, idp, admin_username="admin01")
     admin = session.scalar(select(User).where(User.username == "admin01"))
     assert admin.idp_subject == new
+
+
+def test_seed_reset_writes_audit(session, idp):
+    from app.models import AuditLog
+
+    idp.create_user("admin01", "Admin01-dev!")
+    reset_and_seed(session, idp, admin_username="admin01")
+    reset_and_seed(session, idp, admin_username="admin01")
+
+    resets = session.scalars(select(AuditLog).where(AuditLog.action == "seed.reset").order_by(AuditLog.id)).all()
+    assert len(resets) == 2                                  # 每次重設 1 筆；稽核表本身不被清掉
+    first, second = resets
+    assert (first.actor, first.category, first.target, first.result) == ("admin01", "project", "baseline", "success")
+    assert first.detail == {"removed": {"users": 0, "projects": 0, "memberships": 0}}
+    assert second.detail == {"removed": {"users": 7, "projects": 3, "memberships": 5}}

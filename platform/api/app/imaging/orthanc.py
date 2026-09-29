@@ -1,6 +1,6 @@
 """平台 DICOM 節點（Orthanc）的介面。
 
-`OrthancClient` 只有平台需要的 4 個動作；`InMemoryOrthanc` 給單元測試（內含一個模擬 PACS），
+`OrthancClient` 只有平台需要的 5 個動作；`InMemoryOrthanc` 給單元測試（內含一個模擬 PACS），
 `HttpOrthanc` 走 Orthanc REST（/instances、/modalities/{pacs}/query|move、/tools/find）。
 PACS 查詢都在 Study 層級。查詢鍵：StudyInstanceUID、AccessionNumber、PatientID、PatientSex、
 StudyDate（YYYYMMDD 或 YYYYMMDD-YYYYMMDD）、StudyDescription、Modality。
@@ -30,6 +30,7 @@ class OrthancClient(Protocol):
     def pacs_find(self, query: Mapping[str, str]) -> list[dict]: ...
     def pacs_move(self, study_uid: str) -> None: ...
     def study_instances(self, study_uid: str) -> list[bytes]: ...
+    def delete(self, sop_instance_uid: str) -> None: ...
 
 
 def _matches(value: str, pattern: str, key: str) -> bool:
@@ -88,6 +89,9 @@ class InMemoryOrthanc:
     def study_instances(self, study_uid: str) -> list[bytes]:
         return [d for d in self.instances.values() if parse_dicom(d).study_instance_uid == study_uid]
 
+    def delete(self, sop_instance_uid: str) -> None:
+        self.instances.pop(sop_instance_uid, None)
+
 
 class HttpOrthanc:
     def __init__(self, base_url: str, *, username: str | None = None, password: str | None = None,
@@ -134,6 +138,13 @@ class HttpOrthanc:
         ids = self._call("POST", "/tools/find",
                          json={"Level": "Instance", "Query": {"StudyInstanceUID": study_uid}}).json()
         return [self._call("GET", f"/instances/{i}/file").content for i in ids]
+
+    def delete(self, sop_instance_uid: str) -> None:
+        """從平台節點刪除一張影像；找不到視為已刪除。"""
+        ids = self._call("POST", "/tools/find",
+                         json={"Level": "Instance", "Query": {"SOPInstanceUID": sop_instance_uid}}).json()
+        for i in ids:
+            self._call("DELETE", f"/instances/{i}")
 
 
 def orthanc_from_env(env: Mapping[str, str]) -> OrthancClient | None:

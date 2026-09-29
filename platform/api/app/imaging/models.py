@@ -53,6 +53,17 @@ class ImagingInstance(Base):
     series: Mapped[ImagingSeries] = relationship(back_populates="instances")
 
 
+class ImagingInstanceSource(Base):
+    """同一張影像的其他來源路徑。影像已存在（例如先經 PACS 取回）又被上傳時，影像本身判為重複、不再存一份，
+    但這次的檔案路徑補記在這裡，makesense 標註才能用路徑配到它。"""
+    __tablename__ = "imaging_instance_sources"
+    __table_args__ = (UniqueConstraint("instance_id", "source_path"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT_FK), index=True)
+    instance_id: Mapped[int] = mapped_column(ForeignKey("imaging_instances.id", ondelete="CASCADE"), index=True)
+    source_path: Mapped[str] = mapped_column(String(512))
+
+
 class AccessionAllowlist(Base):
     __tablename__ = "imaging_accession_allowlist"
     __table_args__ = (UniqueConstraint("project_id", "accession_number"),)

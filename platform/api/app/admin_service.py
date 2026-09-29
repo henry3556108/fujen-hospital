@@ -1,10 +1,16 @@
-from sqlalchemy import delete, func, select
+import logging
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import audit, project_cleanup
 from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
 from app.permissions import DEFAULT_ROLE_PERMISSIONS, AccountType, Permission, Role
+
+
+log = logging.getLogger(__name__)
 
 
 class Conflict(Exception):
@@ -50,13 +56,29 @@ def update_project(session: Session, *, actor: str, project_id: int, changes: di
     return project
 
 
-def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None) -> None:
+def _revoke_memberships(session: Session, condition, *, actor: str, reason: str, source_ip: str | None) -> None:
+    """刪除帳號或專案時連帶移除成員資格：每筆各寫 1 筆 role 稽核，與刪除同一個交易。"""
+    for m in session.scalars(select(Membership).where(condition).order_by(Membership.id)).all():
+        record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
+               target=f"project:{m.project_id}/user:{m.user_id}", source_ip=source_ip,
+               detail={"role": m.role, "reason": reason})
+        session.delete(m)
+    session.flush()
+
+
+def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None,
+                   store=None, orthanc=None) -> None:
+    """刪除專案與它的索引；commit 之後才清 Orthanc 影像與物件儲存檔案（失敗可重試，見 app.project_cleanup）。"""
     project = _get(session, Project, project_id)
-    session.execute(delete(Membership).where(Membership.project_id == project_id))
-    session.delete(project)
+    name = project.name
+    _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
+                        source_ip=source_ip)
+    project_cleanup.stage(session, project_id)
+    session.delete(session.get(Project, project_id))
     record(session, actor=actor, category=AuditCategory.PROJECT, action="delete",
-           target=f"project:{project_id}", source_ip=source_ip, detail={"name": project.name})
+           target=f"project:{project_id}", source_ip=source_ip, detail={"name": name})
     session.commit()
+    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip)
 
 
 def _commit_after_idp(session: Session, idp_call) -> None:
@@ -92,11 +114,32 @@ def create_user(session: Session, idp: IdentityProvider, *, actor: str, username
         record(session, actor=actor, category=AuditCategory.ACCOUNT, action="create", target=f"user:{user.id}",
                source_ip=source_ip, detail={"username": username, "account_type": account_type.value})
         session.commit()
-    except Exception:
+    except Exception as original:
         session.rollback()
-        idp.delete_user(subject)  # 補償：資料庫失敗時不留下孤兒帳號
-        raise
+        try:
+            idp.delete_user(subject)  # 補償：資料庫失敗時不留下孤兒帳號
+        except Exception as compensation:
+            _report_orphan(session, original, compensation, actor=actor, username=username, subject=subject,
+                           source_ip=source_ip)
+        raise  # 一律拋原本的錯誤；補償失敗不可以蓋掉它
     return user
+
+
+def _report_orphan(session: Session, original: Exception, compensation: Exception, *, actor: str, username: str,
+                   subject: str, source_ip: str | None) -> None:
+    """補償失敗：身分提供者留下了平台不認得的帳號。寫 log 與 1 筆稽核，讓管理者找得到並手動清掉。"""
+    log.error("建立帳號 %s 失敗後補償失敗，身分提供者留下孤兒帳號 subject=%s：%s: %s（原本的錯誤：%s: %s）",
+              username, subject, type(compensation).__name__, compensation, type(original).__name__, original)
+    original.add_note(f"補償也失敗：身分提供者的帳號 {subject} 未刪除（{type(compensation).__name__}）")
+    try:
+        audit.record(session, actor=actor, category=AuditCategory.ACCOUNT, action="create.compensation_failed",
+                     target=f"idp:{subject}", result="failed", source_ip=source_ip,
+                     detail={"username": username, "idp_subject": subject,
+                             "error": type(original).__name__, "compensation_error": type(compensation).__name__})
+        session.commit()
+    except Exception:  # 資料庫仍然不通：至少 log 已經留下
+        session.rollback()
+        log.exception("補償失敗的稽核也寫不進去（帳號 %s，subject=%s）", username, subject)
 
 
 def update_user(session: Session, *, actor: str, user_id: int, account_type: AccountType,
@@ -119,7 +162,8 @@ def delete_user(session: Session, idp: IdentityProvider, *, actor_user: User, us
         raise Conflict("不能刪除自己的帳號")
     if user.account_type == AccountType.ADMIN and _admin_count(session) <= 1:
         raise Conflict("至少要保留 1 個 Admin")
-    session.execute(delete(Membership).where(Membership.user_id == user_id))
+    _revoke_memberships(session, Membership.user_id == user_id, actor=actor_user.username, reason="user_deleted",
+                        source_ip=source_ip)
     session.delete(user)
     record(session, actor=actor_user.username, category=AuditCategory.ACCOUNT, action="delete",
            target=f"user:{user_id}", source_ip=source_ip, detail={"username": user.username})
