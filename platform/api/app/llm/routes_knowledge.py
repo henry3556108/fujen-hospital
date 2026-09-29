@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+
+from app import scanning
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.deps import ProjectContext, client_ip
@@ -78,7 +80,8 @@ def add_documents(kb_id: int, request: Request, files: list[UploadFile] = File(.
         # 多讀 1 個位元組，讓過大的檔案在解析時被擋下而不是整個讀進記憶體
         payload = [(f.filename or "", f.file.read(MAX_DOCUMENT_BYTES + 1)) for f in files]
         return knowledge.add_documents(ctx.session, services, kb=kb, actor=ctx.user.username,
-                                       source_ip=client_ip(request), files=payload)
+                                       source_ip=client_ip(request), files=payload,
+                                       blocked=lambda name, data: scanning.blocked_reason(request, name, data))
 
 
 @router.delete("/knowledge-bases/{kb_id}/documents/{document_id}", status_code=204)

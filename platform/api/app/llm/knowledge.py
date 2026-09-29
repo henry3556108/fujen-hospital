@@ -1,4 +1,5 @@
 """知識庫：建立、上傳文件（解析 → 切片 → 向量化 → 寫入向量庫）、檢索。"""
+from collections.abc import Callable
 import hashlib
 
 from sqlalchemy import select
@@ -96,8 +97,10 @@ def _embed(services: LlmServices, model: str, texts: list[str]) -> list[list[flo
 
 
 def add_documents(session: Session, services: LlmServices, *, kb: KnowledgeBase, actor: str,
-                  source_ip: str | None, files: list[tuple[str, bytes]]) -> dict:
-    """逐檔處理：一份失敗不影響其他份；每份不是整份寫入就是完全不寫。"""
+                  source_ip: str | None, files: list[tuple[str, bytes]],
+                  blocked: Callable[[str, bytes], str | None] | None = None) -> dict:
+    """逐檔處理：一份失敗不影響其他份；每份不是整份寫入就是完全不寫。
+    blocked：掃毒等前置檢查，回傳拒絕原因則該檔記為失敗、不解析也不寫入。"""
     if not files:
         raise Invalid("請至少上傳一個檔案")
     if len(files) > MAX_FILES_PER_UPLOAD:
@@ -108,6 +111,10 @@ def add_documents(session: Session, services: LlmServices, *, kb: KnowledgeBase,
         filename = (filename or "").replace("\\", "/").rsplit("/", 1)[-1][:256]
         entry = {"filename": filename, "status": "failed", "reason": "", "document": None}
         results.append(entry)
+        reason = blocked(filename, data) if blocked else None
+        if reason:
+            entry["reason"] = reason
+            continue
         try:
             fmt, text = extract_text(filename, data)
             digest = hashlib.sha256(data).hexdigest()
