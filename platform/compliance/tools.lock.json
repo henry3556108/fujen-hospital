@@ -1,0 +1,20 @@
+{
+  "syft": {
+    "image": "anchore/syft@sha256:500e2d872ac019436926e8322b4fc1f39441d94d21f6f4046c6ff29b30e8cb02",
+    "version": "1.52.0",
+    "source": "https://github.com/anchore/syft",
+    "licence": "Apache-2.0"
+  },
+  "trivy": {
+    "image": "aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+    "version": "0.74.0",
+    "source": "https://github.com/aquasecurity/trivy",
+    "licence": "Apache-2.0"
+  },
+  "clamav": {
+    "image": "clamav/clamav@sha256:ebec5bc138401b36ae987caa1a3fa3c3b2a21ed3d51f0bfa5852825e663e67b0",
+    "version": "1.5.4",
+    "source": "https://github.com/Cisco-Talos/clamav",
+    "licence": "GPL-2.0-only"
+  }
+}
