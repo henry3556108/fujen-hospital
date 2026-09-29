@@ -196,6 +196,38 @@
   --alert-info-icon: var(--color-status-info-icon);
   --alert-info-text: var(--color-status-info-text);
 
+  /* ---------- 圖表（WP3 統計圖）：類別色固定順序、最多 3 個系列；發散色為藍↔紅＋中性灰 ---------- */
+  --primitive-chart-blue-400: #3987e5;
+  --primitive-chart-blue-450: #2a78d6;
+  --primitive-chart-orange-500: #eb6834;
+  --primitive-chart-orange-600: #d95926;
+  --primitive-chart-aqua-500: #1baf7a;
+  --primitive-chart-aqua-600: #199e70;
+  --primitive-chart-red-400: #e66767;
+  --primitive-chart-red-500: #e34948;
+  --primitive-chart-gray-100: #f0efec;
+  --primitive-chart-gray-800: #383835;
+
+  --color-chart-series-1: var(--primitive-chart-blue-450);
+  --color-chart-series-2: var(--primitive-chart-orange-500);
+  --color-chart-series-3: var(--primitive-chart-aqua-500);
+  --color-chart-negative: var(--primitive-chart-blue-450);
+  --color-chart-positive: var(--primitive-chart-red-500);
+  --color-chart-neutral: var(--primitive-chart-gray-100);
+
+  --chart-series-1: var(--color-chart-series-1);
+  --chart-series-2: var(--color-chart-series-2);
+  --chart-series-3: var(--color-chart-series-3);
+  --chart-series-other: var(--color-text-muted);
+  --chart-negative: var(--color-chart-negative);
+  --chart-positive: var(--color-chart-positive);
+  --chart-neutral: var(--color-chart-neutral);
+  --chart-surface: var(--color-bg-surface);
+  --chart-grid: var(--color-border-default);
+  --chart-axis: var(--color-border-strong);
+  --chart-text: var(--color-text-secondary);
+  --chart-cell-text: var(--color-text-primary);
+
   color-scheme: light;
 }
 
@@ -248,6 +280,12 @@
     --color-status-info-border: var(--primitive-indigo-400);
     --color-status-info-icon: var(--primitive-indigo-300);
     --color-status-info-text: var(--primitive-indigo-300);
+    --color-chart-series-1: var(--primitive-chart-blue-400);
+    --color-chart-series-2: var(--primitive-chart-orange-600);
+    --color-chart-series-3: var(--primitive-chart-aqua-600);
+    --color-chart-negative: var(--primitive-chart-blue-400);
+    --color-chart-positive: var(--primitive-chart-red-400);
+    --color-chart-neutral: var(--primitive-chart-gray-800);
     color-scheme: dark;
   }
 }
@@ -300,5 +338,11 @@
   --color-status-info-border: var(--primitive-indigo-400);
   --color-status-info-icon: var(--primitive-indigo-300);
   --color-status-info-text: var(--primitive-indigo-300);
+  --color-chart-series-1: var(--primitive-chart-blue-400);
+  --color-chart-series-2: var(--primitive-chart-orange-600);
+  --color-chart-series-3: var(--primitive-chart-aqua-600);
+  --color-chart-negative: var(--primitive-chart-blue-400);
+  --color-chart-positive: var(--primitive-chart-red-400);
+  --color-chart-neutral: var(--primitive-chart-gray-800);
   color-scheme: dark;
 }
