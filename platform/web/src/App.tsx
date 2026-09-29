@@ -12,6 +12,7 @@ import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
 import { SchedulingPlaceholder } from './pages/admin/SchedulingPlaceholder';
+import { FhirRoutes } from './pages/fhir/FhirLayout';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -65,6 +66,9 @@ function AdminLayout() {
         <NavLink to="/admin/scheduling" className="tabs__item">
           共享排程設定
         </NavLink>
+        <NavLink to="/fhir" className="tabs__item">
+          資料交換（FHIR）
+        </NavLink>
       </nav>
       <Outlet />
     </>
@@ -102,6 +106,15 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
             </Route>
+            {/* WP6：C-03 不是 8 個功能入口之一，由帳號管理（Admin）進入 */}
+            <Route
+              path="fhir/*"
+              element={
+                <EntryGuard entry={adminEntry}>
+                  <FhirRoutes />
+                </EntryGuard>
+              }
+            />
             {ENTRIES.filter((e) => e.placeholder).map((e) => (
               <Route
                 key={e.key}

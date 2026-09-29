@@ -1,0 +1,123 @@
+/* FHIR 頁面：只引用 tokens.css 的語意 token，不寫色碼。 */
+.fhir-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fhir-stat {
+  min-width: 9rem;
+  padding: 0.75rem 1rem;
+}
+
+.fhir-stat__value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.fhir-stat__label {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.fhir-textarea {
+  width: 100%;
+  min-height: 7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+}
+
+.fhir-graph {
+  width: 100%;
+  max-width: 44rem;
+  height: auto;
+  display: block;
+}
+
+.fhir-graph__edge {
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+}
+
+.fhir-graph__node circle {
+  stroke-width: 2;
+}
+
+.fhir-graph__node--Patient circle {
+  fill: var(--color-bg-selected);
+  stroke: var(--color-border-selected);
+}
+
+.fhir-graph__node--Encounter circle {
+  fill: var(--color-status-success-bg);
+  stroke: var(--color-status-success-border);
+}
+
+.fhir-graph__node--Observation circle {
+  fill: var(--color-status-warning-bg);
+  stroke: var(--color-status-warning-border);
+}
+
+.fhir-graph__node text {
+  fill: var(--color-text-primary);
+  font-size: 11px;
+}
+
+.fhir-graph__node .fhir-graph__type {
+  font-weight: 600;
+}
+
+.fhir-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.fhir-legend__swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.375rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+  vertical-align: -0.05rem;
+}
+
+.fhir-legend__swatch--Patient {
+  background: var(--color-bg-selected);
+  border-color: var(--color-border-selected);
+}
+
+.fhir-legend__swatch--Encounter {
+  background: var(--color-status-success-bg);
+  border-color: var(--color-status-success-border);
+}
+
+.fhir-legend__swatch--Observation {
+  background: var(--color-status-warning-bg);
+  border-color: var(--color-status-warning-border);
+}
+
+.fhir-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fhir-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
