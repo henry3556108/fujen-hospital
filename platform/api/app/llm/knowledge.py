@@ -11,6 +11,7 @@ from app.llm.documents import DocumentError, chunk_text, extract_text
 from app.llm.errors import Conflict, Invalid, NotFound
 from app.llm.models import KbDocument, KnowledgeBase, PublishedService
 from app.llm.services import LlmServices
+from app.llm.util import iso
 
 EMBED_BATCH = 32
 MAX_FILES_PER_UPLOAD = 50
@@ -19,14 +20,14 @@ MAX_FILES_PER_UPLOAD = 50
 def kb_out(kb: KnowledgeBase, documents: int = 0, chunks: int = 0) -> dict:
     return {"id": kb.id, "project_id": kb.project_id, "name": kb.name, "description": kb.description,
             "embed_model": kb.embed_model, "chunk_size": kb.chunk_size, "chunk_overlap": kb.chunk_overlap,
-            "created_by": kb.created_by, "created_at": kb.created_at.isoformat(), "documents": documents,
+            "created_by": kb.created_by, "created_at": iso(kb.created_at), "documents": documents,
             "chunks": chunks}
 
 
 def document_out(d: KbDocument) -> dict:
     return {"id": d.id, "kb_id": d.kb_id, "filename": d.filename, "format": d.format, "sha256": d.sha256,
             "size": d.size, "chunks": d.chunks, "characters": d.characters, "uploaded_by": d.uploaded_by,
-            "uploaded_at": d.uploaded_at.isoformat()}
+            "uploaded_at": iso(d.uploaded_at)}
 
 
 def get_kb(session: Session, *, project_id: int, kb_id: int) -> KnowledgeBase:

@@ -13,6 +13,7 @@ from app.llm.runtime import LoadRequest, ModelRuntime
 from app.llm.sources import (ModelArtifact, ModelSource, OfflinePreloadSource, SourceAuthError, SourceNotFound,
                              SourceUnreachable)
 from app.models import utcnow
+from app.llm.util import iso
 
 QUANTIZATIONS = ("none", "4bit", "8bit")
 GPU_TYPES = ("gpu-exclusive", "gpu-shared", "cpu")
@@ -22,30 +23,26 @@ def token_fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()[:12]
 
 
-def _iso(value):
-    return value.isoformat() if value else None
-
-
 def whitelist_out(w: ModelWhitelist, installed: InstalledModel | None = None,
                   approval: RemoteCodeApproval | None = None) -> dict:
     return {"name": w.name, "source": w.source, "repo": w.repo, "revision": w.revision, "sha256": w.sha256,
             "license": w.license, "requires_token": w.requires_token, "has_remote_code": w.has_remote_code,
-            "note": w.note, "reviewed_by": w.reviewed_by, "created_at": _iso(w.created_at),
+            "note": w.note, "reviewed_by": w.reviewed_by, "created_at": iso(w.created_at),
             "installed": installed is not None, "loaded": bool(installed and installed.loaded),
             "remote_code_approved": bool(approval and approval.commit == w.revision)}
 
 
 def download_out(d: ModelDownload) -> dict:
     return {"id": d.id, "project_id": d.project_id, "name": d.name, "source": d.source, "repo": d.repo,
-            "status": d.status, "user": d.requested_by, "requested_at": _iso(d.requested_at),
-            "reviewer": d.reviewer, "reviewed_at": _iso(d.reviewed_at), "commit": d.commit, "hash": d.sha256,
-            "mode": d.mode, "token_usage": d.token_usage, "time": _iso(d.downloaded_at), "message": d.message}
+            "status": d.status, "user": d.requested_by, "requested_at": iso(d.requested_at),
+            "reviewer": d.reviewer, "reviewed_at": iso(d.reviewed_at), "commit": d.commit, "hash": d.sha256,
+            "mode": d.mode, "token_usage": d.token_usage, "time": iso(d.downloaded_at), "message": d.message}
 
 
 def load_config_out(c: ModelLoadConfig) -> dict:
     return {"name": c.name, "quantization": c.quantization, "cpu": c.cpu, "memory_gb": c.memory_gb,
             "gpu_type": c.gpu_type, "gpu_count": c.gpu_count, "updated_by": c.updated_by,
-            "updated_at": _iso(c.updated_at)}
+            "updated_at": iso(c.updated_at)}
 
 
 # ---------------------------------------------------------------- 白名單（Admin）

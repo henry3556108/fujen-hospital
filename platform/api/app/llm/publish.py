@@ -13,6 +13,7 @@ from app.llm.params import GenerationParams, to_openai
 from app.llm.services import LlmServices
 from app.models import User
 from app.permissions import AccountType
+from app.llm.util import iso
 
 MAX_TURNS = 40
 
@@ -21,7 +22,7 @@ def service_out(s: PublishedService) -> dict:
     return {"id": s.id, "project_id": s.project_id, "slug": s.slug, "name": s.name, "description": s.description,
             "model": s.model, "kb_id": s.kb_id, "top_k": s.top_k, "params": s.params, "enabled": s.enabled,
             "grants": list(s.grants), "endpoint": f"/api/llm-services/{s.slug}/invoke",
-            "published_by": s.published_by, "published_at": s.published_at.isoformat()}
+            "published_by": s.published_by, "published_at": iso(s.published_at)}
 
 
 def _check_grants(session: Session, grants: list[str]) -> list[str]:

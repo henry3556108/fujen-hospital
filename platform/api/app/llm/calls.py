@@ -8,6 +8,7 @@ from app.llm.client import ChatResult, LlmError, LlmTimeout, LlmUnavailable
 from app.llm.errors import NotFound, Unavailable
 from app.llm.models import LlmCallRecord
 from app.llm.services import LlmServices
+from app.llm.util import iso
 
 CONTEXT_SOURCES = ("none", "vector", "wiki_api")
 
@@ -57,7 +58,7 @@ def call_out(c: LlmCallRecord, *, full: bool = False) -> dict:
     out = {"id": c.id, "project_id": c.project_id, "user": c.username, "origin": c.origin,
            "origin_ref": c.origin_ref, "model": c.model, "context_source": c.context_source,
            "context_refs": c.context_refs, "status": c.status, "error": c.error, "latency_ms": c.latency_ms,
-           "created_at": c.created_at.isoformat()}
+           "created_at": iso(c.created_at)}
     if full:
         out.update(request=c.request, response=c.response)
     return out

@@ -7,6 +7,7 @@ from app.llm import registry
 from app.llm.http import coding, errors, is_admin
 from app.llm.services import LlmServices, get_services
 from app.models import User
+from app.llm.util import iso
 
 router = APIRouter()
 _SHA = r"^[0-9a-fA-F]{64}$"
@@ -115,7 +116,7 @@ def approve_remote_code(name: str, request: Request, admin: User = Depends(requi
                         session: Session = Depends(get_session)) -> dict:
     with errors():
         a = registry.approve_remote_code(session, actor=admin.username, source_ip=client_ip(request), name=name)
-    return {"name": a.name, "commit": a.commit, "approved_by": a.approved_by, "approved_at": a.approved_at.isoformat()}
+    return {"name": a.name, "commit": a.commit, "approved_by": a.approved_by, "approved_at": iso(a.approved_at)}
 
 
 @router.delete("/api/admin/llm/models/{name}/remote-code-approval", status_code=204)

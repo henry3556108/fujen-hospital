@@ -7,14 +7,15 @@ from app.llm.errors import Forbidden, Invalid, NotFound
 from app.llm.models import GenerationSettings, PromptTemplate
 from app.llm.params import GenerationParams
 from app.models import utcnow
+from app.llm.util import iso
 
 VISIBILITIES = ("personal", "public")
 
 
 def prompt_out(p: PromptTemplate) -> dict:
     return {"id": p.id, "project_id": p.project_id, "owner": p.owner, "visibility": p.visibility, "title": p.title,
-            "content": p.content, "tags": list(p.tags), "created_at": p.created_at.isoformat(),
-            "updated_at": p.updated_at.isoformat()}
+            "content": p.content, "tags": list(p.tags), "created_at": iso(p.created_at),
+            "updated_at": iso(p.updated_at)}
 
 
 def clean_tags(tags: list[str]) -> list[str]:

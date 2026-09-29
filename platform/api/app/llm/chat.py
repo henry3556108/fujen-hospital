@@ -10,6 +10,7 @@ from app.llm.errors import Invalid, NotFound
 from app.llm.models import ChatMessage, ChatSession
 from app.llm.params import GenerationParams, to_openai
 from app.llm.services import LlmServices
+from app.llm.util import iso
 
 MODES = ("free", "kb")
 HISTORY_MESSAGES = 20
@@ -45,12 +46,12 @@ def choose_model(session: Session, services: LlmServices, model: str | None) -> 
 
 def session_out(s: ChatSession) -> dict:
     return {"id": s.id, "project_id": s.project_id, "user": s.username, "mode": s.mode, "kb_id": s.kb_id,
-            "model": s.model, "title": s.title, "created_at": s.created_at.isoformat()}
+            "model": s.model, "title": s.title, "created_at": iso(s.created_at)}
 
 
 def message_out(m: ChatMessage) -> dict:
     return {"id": m.id, "role": m.role, "content": m.content, "sources": m.sources, "call_id": m.call_id,
-            "created_at": m.created_at.isoformat()}
+            "created_at": iso(m.created_at)}
 
 
 def get_session(session: Session, *, project_id: int, username: str, session_id: int) -> ChatSession:
