@@ -19,6 +19,7 @@ uv run pytest                                     # 驗證產出
 | `tabular` | `cohort_01..03.csv`（各 100 筆、12 欄，glucose 有少量缺值）、`schema.json`（型別、必填、範圍、允許類別，給 CSV 驗證器用）、`bad.csv`（正常列混錯誤列）、`bad_rows.json`（錯誤列索引從 0 起算、不含標頭，及原因：缺必填、型別錯、超出範圍、未知類別、重複 patient_id） | 取代 Synthea CSV | TC-B01-10、TC-B04-01～08 |
 | `clinical` | 同一組 20 位病人（與 `dicom` 的 PatientID 相同）：`hl7/` 20 則 ADT^A01（分段以 `\r` 分隔）、`labs.json` 20 筆檢驗、`patients.sql`（CREATE TABLE + 20 筆 INSERT，PostgreSQL 相容）、`encounters.csv` 20 筆；`invalid/` 2 則不合格訊息（缺 PID-3、PID-8 性別代碼錯誤） | FHIR 接入來源 | TC-C03-01、04、05、13 |
 | `vitals --count 100` | `vitals.jsonl`：100 筆心率、SpO2、呼吸速率，時間間隔 1 秒；manifest 附 LOINC 代碼 | 生理監視器模擬 | TC-C03-12 |
+| `documents` | 知識庫文件 6 份，每種格式 1 份：PDF、DOCX、TXT、CSV、JSON、HTML（合成的院內作業規範）；每份各有一句別份沒有的內容，manifest 的 `unique_text` 記錄這句話；PDF 與 DOCX 只用標準函式庫產生 | RAG 建庫 | TC-B07-06 |
 | `all` | 以上全部，各自放在同名子資料夾 | 一次建立基線 | 共用測試基線 |
 
 注意：`dicom` 的影像與 `makesense` 的方框都是合成的，方框不對應影像中的實際結構，只用來測匯入與配對。

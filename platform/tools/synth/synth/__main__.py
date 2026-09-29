@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import clinical, dicom, itk, makesense, nifti, tabular, vitals
+from . import clinical, dicom, documents, itk, makesense, nifti, tabular, vitals
 from .common import DEFAULT_SEED, write_manifest
 
 
@@ -17,6 +17,7 @@ def _all(out: Path, seed: int) -> dict:
         "tabular": lambda d: tabular.generate(d, seed),
         "clinical": lambda d: clinical.generate(d, seed),
         "vitals": lambda d: vitals.generate(d, seed, count=100),
+        "documents": lambda d: documents.generate(d, seed),
     }
     outputs = {}
     for kind, step in steps.items():
@@ -43,6 +44,7 @@ def main(argv=None) -> int:
     add("tabular", "cohort CSVs, schema.json, bad.csv")
     add("clinical", "HL7 v2 / JSON / SQL / CSV FHIR sources")
     add("vitals", "monitor readings (JSON lines)", count=100)
+    add("documents", "knowledge-base documents, one per format")
     add("all", "everything, one subfolder per command")
 
     a = parser.parse_args(argv)
@@ -62,6 +64,8 @@ def main(argv=None) -> int:
         m = clinical.generate(a.out, a.seed)
     elif a.command == "vitals":
         m = vitals.generate(a.out, a.seed, count=a.count)
+    elif a.command == "documents":
+        m = documents.generate(a.out, a.seed)
     else:
         m = _all(a.out, a.seed)
     print(f"{a.command}: wrote {a.out / 'manifest.json'} counts={m.get('counts', m.get('outputs'))}")
