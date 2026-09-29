@@ -38,10 +38,13 @@ debconf,1.5.82,deb,BSD-2-Clause
 debian-archive-keyring,2023.3+deb12u2,deb,sha256:b32aecaae84643700a33bc9ee83fa9b36938d35aa7b61b5042092eca77ddb732
 debianutils,5.7-0.5~deb12u1,deb,GPL-2.0-only; GPL-2.0-or-later; SMAIL-GPL; public-domain
 diffutils,1:3.8-4,deb,FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
+distro,1.9.0,python,"Apache License, Version 2.0"
 dpkg,1.21.22,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later; public-domain-s-s-d
 durationpy,0.11,python,MIT
 e2fsprogs,1.47.0-2+b2,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
 fastapi,0.141.1,python,MIT
+fhir-core,1.1.11,python,BSD license
+fhir-resources,8.3.0,python,BSD license
 findutils,4.9.0-4,deb,BSD-3-Clause; FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3+; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
 fonttools,4.66.0,python,MIT
 formulaic,1.2.2,python,MIT
@@ -58,8 +61,10 @@ h11,0.16.0,python,MIT
 hatchling,1.32.4,python,MIT
 hostname,3.23+nmu1,deb,GPL-2.0-only
 httpcore,1.0.9,python,BSD-3-Clause
+httpcore2,2.13.1,python,BSD-3-Clause
 httptools,0.8.0,python,MIT
 httpx,0.28.1,python,BSD-3-Clause
+httpx2,2.13.1,python,BSD-3-Clause
 idna,3.20,python,BSD-3-Clause
 importlib-metadata,8.7.1,python,Apache-2.0
 init-system-helpers,1.65.2+deb12u1,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
@@ -68,8 +73,17 @@ jaraco-context,6.1.0,python,MIT
 jaraco-functools,4.4.0,python,MIT
 jaraco-text,4.0.0,python,MIT
 joblib,1.6.0,python,BSD-3-Clause
+jsonpatch,1.33,python,Modified BSD License
+jsonpointer,3.1.1,python,Modified BSD License
 kiwisolver,1.5.1,python,sha256:4e89b2eeb82ea10ec61119c814f2ca0bbccdc22b72d0eb4f5542ef08f6a73ed2
 kubernetes,36.0.3,python,Apache License Version 2.0
+langchain-core,1.6.5,python,MIT
+langchain-protocol,0.0.19,python,MIT
+langgraph,1.2.12,python,MIT
+langgraph-checkpoint,4.2.0,python,MIT
+langgraph-prebuilt,1.1.0,python,MIT
+langgraph-sdk,0.4.5,python,MIT
+langsmith,0.14.1,python,MIT
 libacl1,2.3.1-3,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
 libapt-pkg6.0,2.6.1,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
 libattr1,1:2.5.1-4,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
@@ -150,6 +164,8 @@ netbase,6.4,deb,GPL-2.0-only
 numpy,2.5.3,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
 oauthlib,4.0.0,python,BSD-3-Clause
 openssl,3.0.18-1~deb12u2,deb,Apache-2.0; Artistic; GPL-1.0-only; GPL-1.0-or-later
+orjson,3.12.0,python,MPL-2.0 AND (Apache-2.0 OR MIT)
+ormsgpack,1.12.2,python,Apache-2.0 OR MIT
 packaging,26.0,python,Apache-2.0 OR BSD-2-Clause
 packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
 pandas,2.3.3,python,sha256:1efd6de77e03a0dc2652da8c425085e0284cc0e6eb17e64589643ed21ab0054f
@@ -171,6 +187,7 @@ pydantic-core,2.46.5,python,MIT
 pydicom,3.0.2,python,
 pyjwt,2.15.0,python,MIT
 pyparsing,3.3.3,python,MIT
+pypdf,6.19.0,python,BSD-3-Clause
 python,3.12.12,binary,
 python-dateutil,2.9.0.post0,python,Dual License
 python-dotenv,1.2.3,python,BSD-3-Clause
@@ -180,21 +197,25 @@ pyyaml,6.0.3,python,MIT
 readline-common,8.2-1.3,deb,GFDL; GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC-no-attribution
 requests,2.34.2,python,Apache-2.0
 requests-oauthlib,2.0.0,python,ISC
+requests-toolbelt,1.0.0,python,Apache 2.0
 scikit-learn,1.9.1,python,BSD-3-Clause
 scipy,1.18.1,python,BSD-3-Clause
 sed,4.9-1,deb,BSD-4-Clause-UC; BSL-1.0; GFDL-1.3-only; GFDL-NIV-1.3+; GPL-3.0-only; GPL-3.0-or-later; ISC; X11; pcre
 setuptools,84.0.0,python,MIT
 six,1.17.0,python,MIT
+sniffio,1.3.1,python,MIT OR Apache-2.0
 sqlalchemy,2.1.1,python,MIT
 starlette,1.7.0,python,BSD-3-Clause
 statsmodels,0.15.0,python,BSD-3-Clause
 sysvinit-utils,3.06-4,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only
 tabular,0.1.0,python,
 tar,1.34+dfsg-1.2+deb12u1,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+tenacity,9.1.4,python,Apache 2.0
 threadpoolctl,3.7.0,python,BSD-3-Clause
 tomli,2.4.0,python,MIT
 tomlkit,0.15.1,python,MIT
 trove-classifiers,2026.9.21.13,python,
+truststore,0.10.4,python,MIT
 typing-extensions,4.16.0,python,PSF-2.0
 typing-inspection,0.4.4,python,MIT
 tzdata,2025b-0+deb12u2,deb,public-domain
@@ -203,13 +224,16 @@ urllib3,2.8.0,python,MIT
 usr-is-merged,37~deb12u1,deb,GPL-2.0-only; GPL-2.0-or-later
 util-linux,2.38.1-5+deb12u3,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
 util-linux-extra,2.38.1-5+deb12u3,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+uuid-utils,0.17.1,python,BSD-3-Clause
 uvicorn,0.54.0,python,BSD-3-Clause
 uvloop,0.22.1,python,MIT License
 watchfiles,1.3.0,python,MIT
 websocket-client,1.9.2,python,Apache-2.0
-websockets,17.1,python,BSD-3-Clause
+websockets,16.1.1,python,BSD-3-Clause
 wheel,0.46.3,python,MIT
 wrapt,2.5.0,python,BSD-2-Clause
+xxhash,4.0.1,python,BSD-2-Clause
 yarl,1.25.1,python,Apache-2.0
 zipp,3.23.0,python,MIT
 zlib1g,1:1.2.13.dfsg-1,deb,Zlib
+zstandard,0.25.0,python,BSD-3-Clause

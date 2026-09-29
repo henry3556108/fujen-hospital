@@ -1,0 +1,418 @@
+name,version,type,licences
+Eonasdan-bootstrap-datetimepicker,4.17.49,java-archive,MIT
+HdrHistogram,2.2.2,java-archive,"http://creativecommons.org/publicdomain/zero/1.0/, https://opensource.org/licenses/BSD-2-Clause"
+HikariCP,5.1.0,java-archive,Apache-2.0
+JavaEWAH,1.2.3,java-archive,Apache-2.0
+LatencyUtils,2.0.3,java-archive,"Public Domain, per Creative Commons CC0"
+RoaringBitmap,1.3.0,java-archive,
+ST4,4.0.8,java-archive,BSD licence
+Saxon-HE,13.0,java-archive,
+accessors-smart,2.5.2,java-archive,Apache-2.0
+ace-builds,1.36.3,java-archive,BSD-3-Clause
+angus-activation,2.0.2,java-archive,BSD-3-Clause
+angus-core,2.0.3,java-archive,
+angus-core,2.0.4,java-archive,
+angus-mail,2.0.3,java-archive,
+angus-mail,2.0.4,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html, http://www.eclipse.org/org/do"
+annotations,2.26.4,java-archive,Apache-2.0
+annotations,26.0.1,java-archive,
+antlr-kotlin-runtime-jvm,1.0.3,java-archive,
+antlr-runtime,3.5.2,java-archive,
+antlr4-runtime,4.11.1,java-archive,
+antlr4-runtime,4.13.2,java-archive,https://www.antlr.org/license.html
+apm-agent-api,1.52.0,java-archive,Apache-2.0
+asm,9.7.1,java-archive,BSD-3-Clause;link=https://asm.ow2.io/LICENSE.txt
+attoparser,2.0.7.RELEASE,java-archive,Apache-2.0
+auth,2.26.4,java-archive,Apache-2.0
+base-files,13.8+deb13u6,deb,GPL; GPL-2.0-or-later; verbatim
+bignum-jvm,0.3.10,java-archive,
+bootstrap,5.3.3,java-archive,"Apache License, Version 2.0"
+btf,1.2,java-archive,sha256:cbe57001c861adfae59886f1b9d5cb5a1d7872e31d8b7e758878ea749b286425
+byte-buddy,1.17.5,java-archive,Apache-2.0
+ca-certificates,20250419,deb,GPL-2.0-only; GPL-2.0-or-later; MPL-2.0
+caffeine,3.1.8,java-archive,Apache-2.0
+checker-qual,3.42.0,java-archive,MIT
+checksums,2.26.4,java-archive,Apache-2.0
+checksums-spi,2.26.4,java-archive,Apache-2.0
+classmate,1.5.1,java-archive,Apache-2.0
+collate,78.1,java-archive,
+collection,0.7,java-archive,
+commonmark,0.21.0,java-archive,BSD-2-Clause
+commonmark-ext-gfm-tables,0.21.0,java-archive,BSD-2-Clause
+commons-codec,1.15,java-archive,Apache-2.0
+commons-collections4,4.4,java-archive,Apache-2.0
+commons-compress,1.26.0,java-archive,Apache-2.0
+commons-csv,1.14.1,java-archive,Apache-2.0
+commons-dbcp2,2.11.0,java-archive,Apache-2.0
+commons-io,2.17.0,java-archive,Apache-2.0
+commons-lang3,3.18.0,java-archive,Apache-2.0
+commons-logging,1.3.5,java-archive,Apache-2.0
+commons-pool2,2.12.0,java-archive,Apache-2.0
+commons-text,1.10.0,java-archive,Apache-2.0
+context-propagation,1.1.3,java-archive,Apache-2.0
+core,78.1,java-archive,
+core-module,8.12.2,java-archive,Apache-2.0
+cqf-fhir,5.0.0,java-archive,
+cqf-fhir-cql,4.9.0,java-archive,
+cqf-fhir-cr,4.9.0,java-archive,
+cqf-fhir-cr-hapi,4.9.0,java-archive,
+cqf-fhir-npm,5.0.0,java-archive,
+cqf-fhir-utility,4.9.0,java-archive,
+cql-jvm,5.0.0,java-archive,
+cql-to-elm-jvm,5.0.0,java-archive,
+currdata,78.1,java-archive,
+datasource-proxy,1.10,java-archive,MIT License
+elasticsearch-java,8.19.19,java-archive,Apache-2.0
+elasticsearch-rest-client,8.19.19,java-archive,Apache-2.0
+elasticsearch-rest-client-sniffer,8.19.19,java-archive,Apache-2.0
+elm-fhir,5.0.0,java-archive,
+elm-jvm,5.0.0,java-archive,
+endpoints-spi,2.26.4,java-archive,Apache-2.0
+engine-fhir,5.0.0,java-archive,
+engine-jvm,5.0.0,java-archive,
+error_prone_annotations,2.26.1,java-archive,"""Apache 2.0"";link=""http://www.apache.org/licenses/LICENSE-2.0.txt"""
+eventstream,1.0.1,java-archive,"Apache License, Version 2.0"
+failureaccess,1.0.2,java-archive,Apache-2.0
+flexmark,0.64.8,java-archive,
+flexmark-util-ast,0.64.8,java-archive,
+flexmark-util-builder,0.64.8,java-archive,
+flexmark-util-collection,0.64.8,java-archive,
+flexmark-util-data,0.64.8,java-archive,
+flexmark-util-dependency,0.64.8,java-archive,
+flexmark-util-format,0.64.8,java-archive,
+flexmark-util-html,0.64.8,java-archive,
+flexmark-util-misc,0.64.8,java-archive,
+flexmark-util-sequence,0.64.8,java-archive,
+flexmark-util-visitor,0.64.8,java-archive,
+flyway-core,10.20.1,java-archive,Apache-2.0
+font-awesome,5.15.4,java-archive,CC BY 3.0
+fontconfig-config,2.15.0-2.3,deb,HPND-sell-variant
+fonts-dejavu-core,2.37-8,deb,Bitstream-Vera; GPL-2.0-only; GPL-2.0-or-later
+gcc-14-base,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+graphql-java,23.1,java-archive,Apache-2.0
+greenmail,2.1.0-rc-1,java-archive,Apache-2.0
+greenmail-junit5,2.1.0-rc-1,java-archive,
+gson,2.12.0,java-archive,"""Apache-2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+gson,2.12.1,java-archive,Apache-2.0
+guava,32.1.2-jre,java-archive,
+guava,33.2.1-jre,java-archive,Apache-2.0
+h2,2.3.232,java-archive,https://h2database.com/html/license.html
+hapi-fhir-base,8.12.0,java-archive,Apache-2.0
+hapi-fhir-caching-api,8.12.0,java-archive,
+hapi-fhir-caching-caffeine,8.12.0,java-archive,
+hapi-fhir-client,8.12.0,java-archive,Apache-2.0
+hapi-fhir-converter,8.12.0,java-archive,Apache-2.0
+hapi-fhir-jpa,8.12.0,java-archive,
+hapi-fhir-jpa-hibernate-services,8.12.0,java-archive,
+hapi-fhir-jpaserver-base,8.12.0,java-archive,
+hapi-fhir-jpaserver-hfql,8.12.0,java-archive,
+hapi-fhir-jpaserver-ips,8.12.0,java-archive,
+hapi-fhir-jpaserver-mdm,8.12.0,java-archive,
+hapi-fhir-jpaserver-model,8.12.0,java-archive,
+hapi-fhir-jpaserver-searchparam,8.12.0,java-archive,
+hapi-fhir-jpaserver-starter,8.12.0-1,java-archive,
+hapi-fhir-jpaserver-subscription,8.12.0,java-archive,
+hapi-fhir-repositories,8.12.0,java-archive,
+hapi-fhir-server,8.12.0,java-archive,Apache-2.0
+hapi-fhir-server-cds-hooks,8.12.0,java-archive,Apache-2.0
+hapi-fhir-server-mdm,8.12.0,java-archive,Apache-2.0
+hapi-fhir-server-openapi,8.12.0,java-archive,
+hapi-fhir-sql-migrate,8.12.0,java-archive,
+hapi-fhir-storage,8.12.0,java-archive,
+hapi-fhir-storage-batch2,8.12.0,java-archive,
+hapi-fhir-storage-batch2-jobs,8.12.0,java-archive,
+hapi-fhir-storage-mdm,8.12.0,java-archive,
+hapi-fhir-structures-dstu2,8.12.0,java-archive,Apache-2.0
+hapi-fhir-structures-dstu3,8.12.0,java-archive,Apache-2.0
+hapi-fhir-structures-hl7org-dstu2,8.12.0,java-archive,Apache-2.0
+hapi-fhir-structures-r4,8.12.0,java-archive,Apache-2.0
+hapi-fhir-structures-r4b,8.12.0,java-archive,Apache-2.0
+hapi-fhir-structures-r5,8.12.0,java-archive,Apache-2.0
+hapi-fhir-testpage-overlay,8.12.0,java-archive,
+hapi-fhir-validation,8.12.0,java-archive,Apache-2.0
+hapi-fhir-validation-resources-dstu2,8.12.0,java-archive,Apache-2.0
+hapi-fhir-validation-resources-dstu3,8.12.0,java-archive,Apache-2.0
+hapi-fhir-validation-resources-r4,8.12.0,java-archive,Apache-2.0
+hapi-fhir-validation-resources-r4b,8.12.0,java-archive,Apache-2.0
+hapi-fhir-validation-resources-r5,8.12.0,java-archive,Apache-2.0
+hibernate-commons-annotations,7.0.3.Final,java-archive,
+hibernate-core,6.6.4.Final,java-archive,
+hibernate-envers,6.6.4.Final,java-archive,LGPL-2.1-only
+hibernate-search-backend-elasticsearch,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-backend-elasticsearch-aws,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-backend-lucene,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-engine,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-mapper-orm,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-mapper-pojo-base,7.2.1.Final,java-archive,Apache-2.0
+hibernate-search-util-common,7.2.1.Final,java-archive,Apache-2.0
+hibernate-validator,8.0.0.Final,java-archive,Apache-2.0
+hppc,0.10.0,java-archive,
+http-auth,2.26.4,java-archive,Apache-2.0
+http-auth-aws,2.26.4,java-archive,Apache-2.0
+http-auth-spi,2.26.4,java-archive,Apache-2.0
+http-client-spi,2.26.4,java-archive,Apache-2.0
+httpasyncclient,4.1.5,java-archive,Apache-2.0
+httpclient,4.5.14,java-archive,Apache-2.0
+httpcore,4.4.16,java-archive,Apache-2.0
+httpcore-nio,4.4.16,java-archive,Apache-2.0
+icu4j,78.1,java-archive,Unicode-3.0
+identity-spi,2.26.4,java-archive,Apache-2.0
+imap,2.0.3,java-archive,
+imap,2.0.4,java-archive,
+isorelax,20090621,java-archive,
+istack-commons-runtime,3.0.12,java-archive,BSD-3-Clause
+itu,1.14.0,java-archive,Apache-2.0
+j2objc-annotations,3.0.0,java-archive,"Apache License, Version 2.0"
+jackson-annotations,2.21,java-archive,Apache-2.0
+jackson-core,2.21.6,java-archive,Apache-2.0
+jackson-core,3.1.6,java-archive,Apache-2.0
+jackson-coreutils,1.6,java-archive,sha256:cbe57001c861adfae59886f1b9d5cb5a1d7872e31d8b7e758878ea749b286425
+jackson-databind,2.21.6,java-archive,Apache-2.0
+jackson-databind,3.1.6,java-archive,Apache-2.0
+jackson-dataformat-toml,2.15.2,java-archive,Apache-2.0
+jackson-dataformat-yaml,2.21.6,java-archive,Apache-2.0
+jackson-datatype-jdk8,2.19.4,java-archive,Apache-2.0
+jackson-datatype-jsr310,2.21.6,java-archive,Apache-2.0
+jackson-module-jsonSchema,2.19.4,java-archive,Apache-2.0
+jackson-module-parameter-names,2.19.4,java-archive,Apache-2.0
+jakarta-regexp,1.4,java-archive,
+jakarta.activation,1.2.2,java-archive,BSD-3-Clause
+jakarta.activation-api,2.1.2,java-archive,BSD-3-Clause
+jakarta.annotation-api,2.1.1,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.inject-api,2.0.1,java-archive,Apache-2.0
+jakarta.interceptor-api,2.1.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.json-api,2.1.3,java-archive,"https://projects.eclipse.org/license/epl-2.0, https://projects.eclipse.org/license/secondary-gpl-2.0-cp"
+jakarta.mail,2.0.3,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html, http://www.eclipse.org/org/do"
+jakarta.mail-api,2.1.3,java-archive,EDL 1.0; EPL 2.0; GPL2 w/ CPE
+jakarta.persistence-api,3.1.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, http://www.eclipse.org/org/documents/edl-v10.php"
+jakarta.servlet-api,6.0.0,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.transaction-api,2.0.1,java-archive,"http://www.eclipse.org/legal/epl-2.0, https://www.gnu.org/software/classpath/license.html"
+jakarta.validation-api,3.0.2,java-archive,Apache-2.0
+jakarta.xml.bind-api,4.0.1,java-archive,BSD-3-Clause
+jandex,3.2.0,java-archive,Apache-2.0
+java-dataloader,4.0.0,java-archive,
+java-string-similarity,1.2.1,java-archive,MIT License
+java10-shim,20260102.1,java-archive,
+java8-shim,20260102.1,java-archive,
+javassist,3.22.0-GA,java-archive,"http://www.mozilla.org/MPL/MPL-1.1.html, http://www.gnu.org/licenses/lgpl-2.1.html, http://www.apache.org/licenses/"
+jaxb-runtime,2.3.8,java-archive,BSD-3-Clause
+jaxb2-basics-runtime,3.0.0,java-archive,http://www.opensource.org/licenses/bsd-license.php
+jboss-logging,3.6.1.Final,java-archive,https://repository.jboss.org/licenses/apache-2.0.txt
+jcip-annotations,1.0-1,java-archive,"Apache License, Version 2.0"
+jcl-over-slf4j,2.0.16,java-archive,Apache-2.0
+jena-arq,5.5.0,java-archive,Apache-2.0
+jena-base,5.5.0,java-archive,Apache-2.0
+jena-core,5.5.0,java-archive,Apache-2.0
+jena-iri,5.5.0,java-archive,Apache-2.0
+jena-iri3986,5.5.0,java-archive,Apache-2.0
+jena-langtag,5.5.0,java-archive,Apache-2.0
+jmail,1.6.3,java-archive,MIT License
+jrt-fs,21.0.12.1,java-archive,
+jscience,4.3.1,java-archive,
+json-patch,1.15,java-archive,sha256:cbe57001c861adfae59886f1b9d5cb5a1d7872e31d8b7e758878ea749b286425
+json-path,2.9.0,java-archive,
+json-schema-validator,2.0.0,java-archive,Apache-2.0
+json-smart,2.5.2,java-archive,Apache-2.0
+json-utils,2.26.4,java-archive,Apache-2.0
+jsonschema-generator,4.38.0,java-archive,
+jsonschema-module-jackson,4.38.0,java-archive,
+jsonschema-module-swagger-2,4.38.0,java-archive,
+jspecify,1.0.0,java-archive,Apache-2.0
+jsr305,3.0.2,java-archive,Apache-2.0
+jstimezonedetect,1.0.6,java-archive,MIT
+jtokkit,1.1.0,java-archive,
+jul-to-slf4j,2.0.17,java-archive,https://opensource.org/license/mit
+junit,4.13.2,java-archive,EPL-1.0
+kotlin-logging-jvm,8.0.01,java-archive,Apache-2.0
+kotlin-stdlib,2.3.20,java-archive,
+kotlin-stdlib-common,2.0.0,java-archive,
+kotlin-stdlib-jdk7,2.0.0,java-archive,
+kotlin-stdlib-jdk8,2.0.0,java-archive,
+kotlinx-datetime-jvm,0.7.1,java-archive,
+kotlinx-io-bytestring-jvm,0.8.0,java-archive,
+kotlinx-io-core-jvm,0.8.0,java-archive,
+kotlinx-serialization-core-jvm,1.9.0,java-archive,
+kotlinx-serialization-json-io-jvm,1.9.0,java-archive,
+kotlinx-serialization-json-jvm,1.9.0,java-archive,
+langdata,78.1,java-archive,
+libbrotli1,1.1.0-2+b7,deb,MIT
+libbz2-1.0,1.0.8-6,deb,BSD-variant; GPL-2.0-only
+libc-bin,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+libc6,2.41-12+deb13u3,deb,BSD-2-Clause; BSD-3-clause-Berkeley; BSD-3-clause-Carnegie; BSD-3-clause-Oracle; BSD-3-clause-WIDE; BSD-like-Spencer; BSL-1.0; CORE-MATH; Carnegie; DEC; FSFAP; GPL-2+-with-link-exception; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; IBM; ISC; Inner-Net; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1+-with-link-exception; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT-like-Lord; PCRE; SunPro; Unicode-DFS-2016; Univ-Coimbra; public-domain
+libcrypt1,1:4.4.38-1,deb,sha256:5a5e7ca0e9f3f9679977e3a3e9ede45ad92885a3297ea78e766979f9866c5a16
+libexpat1,2.8.3-1~deb13u1,deb,MIT
+libfontconfig1,2.15.0-2.3,deb,HPND-sell-variant
+libfreetype6,2.13.3+dfsg-1+deb13u1,deb,BSD-3-Clause; BSL-1.0; Expat; FSFAP; FTL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; MIT-Modern-Variant; MIT-SMC; OpenGroup-MIT; Public-Domain; Zlib
+libgcc-s1,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libjpeg62-turbo,1:2.1.5-4,deb,BSD-3-Clause; BSD-BY-LC-NE; Expat; NTP; Zlib
+liblcms2-2,2.16-2+deb13u2,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; IJG; MIT
+libpng16-16t64,1.6.48-1+deb13u5,deb,Apache-2.0; BSD-3-Clause; BSD-like-with-advertising-clause; GPL-2.0-only; GPL-2.0-or-later; Libpng; expat
+libstdc++6,14.2.0-19,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libthrift,0.24.0,java-archive,Apache-2.0
+libuuid1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
+listenablefuture,9999.0-empty-to-avoid-conflict-with-guava,java-archive,
+log4j-api,2.24.1,java-archive,"""Apache-2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+log4j-to-slf4j,2.24.1,java-archive,"""Apache-2.0"";link=""https://www.apache.org/licenses/LICENSE-2.0.txt"""
+logback-classic,1.5.25,java-archive,"http://www.eclipse.org/legal/epl-v10.html, http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+logback-core,1.5.25,java-archive,"http://www.eclipse.org/legal/epl-v10.html, http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html"
+logging-mailhandler,2.0.3,java-archive,
+logging-mailhandler,2.0.4,java-archive,
+lucene-analysis-common,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-analysis-phonetic,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-core,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-facet,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-highlighter,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-join,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-memory,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-queries,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-queryparser,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+lucene-sandbox,9.11.1,java-archive,Apache-2.0; BSD-2-Clause; BSD-3-Clause; ICU; MIT
+main,UNKNOWN,java-archive,
+mcp,0.17.0,java-archive,MIT License
+mcp-annotations,0.8.0,java-archive,MIT License
+mcp-core,0.17.0,java-archive,"""MIT License"";link=""http://www.opensource.org/licenses/mit-license.php"""
+mcp-json,0.17.0,java-archive,MIT License
+mcp-json-jackson2,0.17.0,java-archive,MIT License
+media-types,13.0.0,deb,ad-hoc
+metrics-spi,2.26.4,java-archive,Apache-2.0
+micrometer-commons,1.16.2,java-archive,Apache-2.0
+micrometer-core,1.16.2,java-archive,Apache-2.0
+micrometer-jakarta9,1.15.7,java-archive,Apache-2.0
+micrometer-observation,1.15.12,java-archive,Apache-2.0
+micrometer-registry-prometheus,1.16.2,java-archive,Apache-2.0
+micrometer-registry-prometheus-simpleclient,1.16.2,java-archive,Apache-2.0
+msg-simple,1.1,java-archive,sha256:cbe57001c861adfae59886f1b9d5cb5a1d7872e31d8b7e758878ea749b286425
+mssql-jdbc,13.4.0,java-archive,http://www.opensource.org/licenses/mit-license.php
+netbase,6.5,deb,GPL-2.0-only
+nimbus-jose-jwt,10.0.2,java-archive,Apache-2.0
+ognl,3.3.4,java-archive,"The Apache Software License, Version 2.0"
+ojdbc11,23.6.0.24.10,java-archive,sha256:6e2b82bc4990f8dfc8b4c64a802b6c89262e035aefc79672563db36d19b8a839
+okhttp-jvm,5.3.2,java-archive,
+okio,3.16.4,java-archive,
+okio-jvm,3.16.4,java-archive,
+opentelemetry-api,1.62.0,java-archive,
+opentelemetry-common,1.62.0,java-archive,
+opentelemetry-context,1.62.0,java-archive,
+opentelemetry-instrumentation-annotations,2.28.0,java-archive,
+opentelemetry-javaagent,2.24.0,java-archive,
+org.eclipse.jgit,7.4.0.202509020913-r,java-archive,
+org.hl7.fhir.convertors,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.dstu2,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.dstu2016may,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.dstu3,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.dstu3.support,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.model,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.r4,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.r4b,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.r5,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.support,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.utilities,6.9.12,java-archive,Apache-2.0
+org.hl7.fhir.validation,6.9.12,java-archive,Apache-2.0
+owasp-java-html-sanitizer,20260102.1,java-archive,Apache-2.0
+parsson,1.1.9,java-archive,"https://projects.eclipse.org/license/epl-2.0, https://projects.eclipse.org/license/secondary-gpl-2.0-cp"
+plantuml-mit,1.2026.1,java-archive,
+pop3,2.0.3,java-archive,
+pop3,2.0.4,java-archive,
+popper.js,2.11.7,java-archive,MIT
+postgresql,42.7.12,java-archive,BSD-2-Clause
+profiles,2.26.4,java-archive,Apache-2.0
+prometheus-metrics-config,1.4.3,java-archive,Apache-2.0
+prometheus-metrics-core,1.4.3,java-archive,Apache-2.0
+prometheus-metrics-exposition-formats,1.4.3,java-archive,Apache-2.0
+prometheus-metrics-exposition-textformats,1.4.3,java-archive,Apache-2.0
+prometheus-metrics-model,1.4.3,java-archive,Apache-2.0
+prometheus-metrics-tracer-common,1.4.3,java-archive,Apache-2.0
+protobuf-java,4.31.1,java-archive,BSD-3-Clause
+quartz,2.3.2,java-archive,Apache-2.0
+quick,5.0.0,java-archive,
+reactive-streams,1.0.3,java-archive,
+reactor-core,3.7.13,java-archive,Apache-2.0
+regiondata,78.1,java-archive,
+regions,2.26.4,java-archive,Apache-2.0
+retries,2.26.4,java-archive,Apache-2.0
+retries-spi,2.26.4,java-archive,Apache-2.0
+sdk-core,2.26.4,java-archive,Apache-2.0
+select2,4.0.13,java-archive,MIT
+shared-jvm,5.0.0,java-archive,
+simple-java-mail,8.12.2,java-archive,Apache-2.0
+simpleclient,0.16.0,java-archive,Apache-2.0
+simpleclient_common,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_common,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_otel,0.16.0,java-archive,Apache-2.0
+simpleclient_tracer_otel_agent,0.16.0,java-archive,Apache-2.0
+slf4j-api,2.0.16,java-archive,http://www.opensource.org/licenses/mit-license.php
+smtp,2.0.3,java-archive,
+smtp,2.0.4,java-archive,
+snakeyaml,2.4,java-archive,Apache-2.0
+spring-ai-autoconfigure-mcp-server-common,1.1.2,java-archive,Apache 2.0
+spring-ai-commons,1.1.2,java-archive,Apache 2.0
+spring-ai-mcp,1.1.2,java-archive,Apache 2.0
+spring-ai-mcp-annotations,1.1.2,java-archive,Apache 2.0
+spring-ai-model,1.1.2,java-archive,Apache 2.0
+spring-ai-starter-mcp-server,1.1.2,java-archive,Apache 2.0
+spring-ai-template-st,1.1.2,java-archive,Apache 2.0
+spring-aop,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-beans,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-boot,3.5.9,java-archive,Apache-2.0
+spring-boot-actuator,3.5.9,java-archive,Apache-2.0
+spring-boot-actuator-autoconfigure,3.5.9,java-archive,Apache-2.0
+spring-boot-autoconfigure,3.5.9,java-archive,Apache-2.0
+spring-boot-jarmode-tools,3.5.9,java-archive,Apache-2.0
+spring-context,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-context-support,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-core,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-data-commons,3.5.13,java-archive,Apache-2.0
+spring-data-elasticsearch,5.5.13,java-archive,Apache-2.0
+spring-data-envers,3.5.13,java-archive,Apache-2.0; BSD-3-Clause
+spring-data-jpa,3.5.13,java-archive,Apache-2.0
+spring-expression,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-jdbc,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-messaging,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-orm,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-retry,2.0.13,java-archive,Apache-2.0
+spring-test,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-tx,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-web,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-webmvc,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+spring-websocket,6.2.19,java-archive,Apache-2.0; BSD-3-Clause
+springdoc-openapi-starter-common,2.8.17,java-archive,Apache-2.0
+springdoc-openapi-starter-webmvc-api,2.8.17,java-archive,Apache-2.0
+springdoc-openapi-starter-webmvc-ui,2.8.17,java-archive,Apache-2.0
+sqlbuilder,3.0.2,java-archive,Apache-2.0
+sqlite-jdbc,3.53.2.0,java-archive,Apache-2.0
+stax2-api,4.2.1,java-archive,http://www.opensource.org/licenses/bsd-license.php
+swagger-annotations-jakarta,2.2.30,java-archive,"""Apache License 2.0"";link=""http://www.apache.org/licenses/LICENSE-2.0.html"""
+swagger-core-jakarta,2.2.30,java-archive,"""Apache License 2.0"";link=""http://www.apache.org/licenses/LICENSE-2.0.html"""
+swagger-models-jakarta,2.2.30,java-archive,"""Apache License 2.0"";link=""http://www.apache.org/licenses/LICENSE-2.0.html"""
+swagger-ui,5.32.13,java-archive,Apache-2.0
+temurin-21-jre,21.0.12.1.0+1-0,deb,GPL-2.0+CE
+third-party-jackson-core,2.26.4,java-archive,Apache-2.0
+throwing-function,1.5.1,java-archive,"The Apache License, Version 2.0"
+thymeleaf,3.1.5.RELEASE,java-archive,
+thymeleaf-spring6,3.1.5.RELEASE,java-archive,Apache-2.0
+titanium-jcs,1.0.0,java-archive,"Apache License, Version 2.0"
+titanium-json-ld,1.6.0,java-archive,"Apache License, Version 2.0"
+titanium-rdf-api,1.0.0,java-archive,"Apache License, Version 2.0"
+titanium-rdf-n-quads,1.0.0,java-archive,"Apache License, Version 2.0"
+tomcat-embed-core,10.1.50,java-archive,Apache-2.0
+tomcat-embed-el,10.1.53,java-archive,Apache-2.0
+tomcat-embed-websocket,10.1.50,java-archive,Apache-2.0
+tools_taglets,78.1,java-archive,
+translit,78.1,java-archive,
+txw2,2.3.8,java-archive,BSD-3-Clause
+tzdata,2026b-0+deb13u1,deb,public-domain
+tzdata-legacy,2026b-0+deb13u1,deb,public-domain
+ucum,1.0.9,java-archive,BSD 3 Clause
+ucum,5.0.0,java-archive,
+unbescape,1.1.6.RELEASE,java-archive,Apache-2.0
+utils,2.26.4,java-archive,Apache-2.0
+validation-api,1.1.0.Final,java-archive,Apache-2.0
+webjars-locator-lite,1.1.3,java-archive,MIT
+woodstox-core,6.4.0,java-archive,Apache-2.0
+xml-patch,0.3.1,java-archive,
+xmlresolver,6.0.23,java-archive,
+xmlresolver,6.0.23-data,java-archive,
+xmlsec,4.0.4,java-archive,Apache-2.0
+xpp3,1.1.6,java-archive,"The Apache Software License, Version 2.0"
+xsdlib,2013.6.1,java-archive,
+zlib1g,1:1.3.dfsg+really1.3.1-1+b1,deb,Zlib

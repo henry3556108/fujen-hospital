@@ -1,0 +1,85 @@
+name,version,type,licences
+absl-py,2.5.0,python,（本平台未安裝，授權未讀取）
+annotated-doc,0.0.5,python,MIT
+annotated-types,0.8.0,python,MIT
+anyio,4.15.1,python,MIT
+astunparse,1.6.3,python,（本平台未安裝，授權未讀取）
+autograd,1.9.1,python,MIT
+autograd-gamma,0.5.0,python,MIT License
+certifi,2026.7.22,python,Mozilla Public License 2.0 (MPL 2.0)
+charset-normalizer,3.5.1,python,（本平台未安裝，授權未讀取）
+click,8.5.0,python,BSD-3-Clause
+cloudpickle,3.1.2,python,BSD License
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+contourpy,1.4.0,python,BSD-3-Clause
+cycler,0.12.1,python,BSD License
+fastapi,0.141.1,python,MIT
+flatbuffers,25.12.19,python,（本平台未安裝，授權未讀取）
+fonttools,4.66.0,python,MIT
+formulaic,1.2.2,python,MIT
+gast,0.7.0,python,（本平台未安裝，授權未讀取）
+google-pasta,0.2.0,python,（本平台未安裝，授權未讀取）
+grpcio,1.84.0,python,（本平台未安裝，授權未讀取）
+h11,0.16.0,python,MIT License
+h5py,3.14.0,python,BSD-3-Clause
+httpcore,1.0.9,python,BSD-3-Clause
+httptools,0.8.0,python,MIT
+httpx,0.28.1,python,BSD License
+idna,3.20,python,BSD-3-Clause
+iniconfig,2.3.0,python,MIT
+interface-meta,2.0.1,python,MIT
+joblib,1.6.0,python,BSD-3-Clause
+keras,3.15.1,python,（本平台未安裝，授權未讀取）
+kiwisolver,1.5.1,python,BSD License
+libclang,18.1.1,python,（本平台未安裝，授權未讀取）
+lifelines,0.30.0,python,MIT License
+markdown-it-py,4.2.0,python,（本平台未安裝，授權未讀取）
+matplotlib,3.11.2,python,Python Software Foundation License
+mdurl,0.1.2,python,（本平台未安裝，授權未讀取）
+ml-dtypes,0.6.0,python,（本平台未安裝，授權未讀取）
+namex,0.1.0,python,（本平台未安裝，授權未讀取）
+narwhals,2.26.0,python,MIT
+nibabel,5.4.2,python,MIT
+numpy,2.5.3,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+opt-einsum,3.4.0,python,（本平台未安裝，授權未讀取）
+optree,0.20.0,python,（本平台未安裝，授權未讀取）
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pandas,3.0.6,python,BSD License
+patsy,1.0.3,python,BSD License
+pillow,12.3.0,python,MIT-CMU
+pluggy,1.6.0,python,MIT License
+protobuf,7.36.2,python,（本平台未安裝，授權未讀取）
+pydantic,2.13.5,python,MIT
+pydantic-core,2.46.5,python,MIT
+pydicom,3.0.2,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pyparsing,3.3.3,python,MIT
+pytest,9.1.1,python,MIT
+python-dateutil,2.9.0.post0,python,Apache Software License; BSD License
+python-dotenv,1.2.3,python,BSD-3-Clause
+python-multipart,0.0.32,python,Apache-2.0
+pyyaml,6.0.3,python,MIT License
+requests,2.34.2,python,（本平台未安裝，授權未讀取）
+rich,15.0.0,python,（本平台未安裝，授權未讀取）
+scikit-learn,1.9.1,python,BSD-3-Clause
+scipy,1.18.1,python,BSD License
+setuptools,84.0.0,python,（本平台未安裝，授權未讀取）
+simpleitk,2.5.6,python,Apache Software License
+six,1.17.0,python,MIT License
+starlette,1.7.0,python,BSD-3-Clause
+statsmodels,0.15.0,python,BSD-3-Clause
+tabular,0.1.0,python,
+tensorflow-cpu,2.21.0,python,（本平台未安裝，授權未讀取）
+termcolor,3.3.0,python,（本平台未安裝，授權未讀取）
+threadpoolctl,3.7.0,python,BSD-3-Clause
+trainer,0.1.0,python,
+typing-extensions,4.16.0,python,PSF-2.0
+typing-inspection,0.4.4,python,MIT
+tzdata,2026.4,python,（本平台未安裝，授權未讀取）
+urllib3,2.8.0,python,（本平台未安裝，授權未讀取）
+uvicorn,0.54.0,python,BSD-3-Clause
+uvloop,0.22.1,python,Apache Software License; MIT License
+watchfiles,1.3.0,python,MIT License
+websockets,17.1,python,BSD-3-Clause
+wheel,0.48.0,python,（本平台未安裝，授權未讀取）
+wrapt,2.5.0,python,BSD-2-Clause

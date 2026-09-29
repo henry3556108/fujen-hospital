@@ -26,6 +26,16 @@ approved:
     reason: Mailpit 作者發布（僅開發機收告警信）
   - pattern: docker.io/clamav/clamav
     reason: ClamAV 官方映像（Cisco Talos），上傳掃毒與定期掃描
+  - pattern: docker.io/hapiproject/hapi
+    reason: HAPI FHIR 專案官方映像（C-03 FHIR 伺服器）
+  - pattern: docker.io/ohif/app
+    reason: OHIF 專案官方映像（B-02 影像檢視器）
+  - pattern: docker.io/pgvector/pgvector
+    reason: pgvector 專案官方映像（PostgreSQL 16 加向量擴充，B-07 知識庫）
+  - pattern: ghcr.io/mlflow/mlflow
+    reason: MLflow 專案官方映像（B-05 訓練紀錄）
+  - pattern: ghcr.io/requarks/wiki
+    reason: Wiki.js 作者（Requarks）官方映像（B-08 知識庫）
 
 # 這些命名空間的 Pod 來自節點映像本身（kindest/node 內建），比對執行中的映像時歸在節點映像名下。
 bundled_namespaces: [kube-system, local-path-storage]

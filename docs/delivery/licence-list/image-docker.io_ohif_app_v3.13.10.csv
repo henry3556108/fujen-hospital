@@ -1,0 +1,69 @@
+name,version,type,licences
+alpine-baselayout,3.6.8-r1,apk,GPL-2.0-only
+alpine-baselayout-data,3.6.8-r1,apk,GPL-2.0-only
+alpine-keys,2.5-r0,apk,MIT
+alpine-release,3.21.3-r0,apk,MIT
+aom-libs,3.11.0-r0,apk,AND; BSD-2-Clause; custom
+apk-tools,2.14.6-r3,apk,GPL-2.0-only
+brotli-libs,1.1.0-r2,apk,MIT
+busybox,1.37.0-r12,apk,GPL-2.0-only
+busybox-binsh,1.37.0-r12,apk,GPL-2.0-only
+c-ares,1.34.5-r0,apk,MIT
+ca-certificates,20241121-r1,apk,MPL-2.0 AND MIT
+ca-certificates-bundle,20241121-r1,apk,MPL-2.0 AND MIT
+curl,8.12.1-r1,apk,curl
+fontconfig,2.15.0-r1,apk,MIT
+freetype,2.13.3-r0,apk,FTL OR GPL-2.0-or-later
+geoip,1.6.12-r5,apk,LGPL-2.1-or-later
+gettext-envsubst,0.22.5-r0,apk,GPL-3.0-or-later AND LGPL-2.1-or-later AND MIT
+libavif,1.0.4-r0,apk,BSD-2-Clause
+libbsd,0.12.2-r0,apk,BSD-3-Clause
+libbz2,1.0.8-r6,apk,bzip2-1.0.6
+libcrypto3,3.3.3-r0,apk,Apache-2.0
+libcurl,8.12.1-r1,apk,curl
+libdav1d,1.5.0-r0,apk,BSD-2-Clause
+libedit,20240808.3.1-r0,apk,BSD-3-Clause
+libexpat,2.7.0-r0,apk,MIT
+libgcrypt,1.10.3-r1,apk,LGPL-2.1-or-later AND GPL-2.0-or-later
+libgd,2.3.3-r9,apk,GD
+libgpg-error,1.51-r0,apk,GPL-2.0-or-later AND LGPL-2.1-or-later
+libice,1.1.1-r6,apk,X11
+libidn2,2.3.7-r0,apk,GPL-2.0-or-later OR LGPL-3.0-or-later
+libintl,0.22.5-r0,apk,LGPL-2.1-or-later
+libjpeg-turbo,3.0.4-r0,apk,BSD-3-Clause AND IJG AND Zlib
+libmd,1.1.0-r0,apk,AND; BSD-2-Clause; BSD-3-Clause; Beerware; Domain; ISC; Public
+libncursesw,6.5_p20241006-r3,apk,X11
+libpng,1.6.47-r0,apk,Libpng
+libpsl,0.21.5-r3,apk,MIT
+libsharpyuv,1.4.0-r0,apk,BSD-3-Clause
+libsm,1.2.4-r4,apk,MIT
+libssl3,3.3.3-r0,apk,Apache-2.0
+libunistring,1.2-r0,apk,GPL-2.0-or-later OR LGPL-3.0-or-later
+libuuid,2.40.4-r1,apk,BSD-3-Clause
+libwebp,1.4.0-r0,apk,BSD-3-Clause
+libx11,1.8.10-r0,apk,X11
+libxau,1.0.11-r4,apk,MIT
+libxcb,1.16.1-r0,apk,MIT
+libxdmcp,1.1.5-r1,apk,MIT
+libxext,1.3.6-r2,apk,MIT
+libxml2,2.13.4-r6,apk,MIT
+libxpm,3.5.17-r0,apk,X11
+libxslt,1.1.42-r2,apk,X11
+libxt,1.3.1-r0,apk,MIT
+musl,1.2.5-r9,apk,MIT
+musl-utils,1.2.5-r9,apk,MIT AND BSD-2-Clause AND GPL-2.0-or-later
+ncurses-terminfo-base,6.5_p20241006-r3,apk,X11
+nghttp2-libs,1.64.0-r0,apk,MIT
+nginx,1.27.5-r1,apk,2-clause; BSD-like; license
+nginx-module-geoip,1.27.5-r1,apk,2-clause; BSD-like; license
+nginx-module-image-filter,1.27.5-r1,apk,2-clause; BSD-like; license
+nginx-module-njs,1.27.5.0.8.10-r1,apk,2-clause; BSD-like; license
+nginx-module-xslt,1.27.5-r1,apk,2-clause; BSD-like; license
+pcre2,10.43-r0,apk,BSD-3-Clause
+scanelf,1.3.8-r1,apk,GPL-2.0-only
+ssl_client,1.37.0-r12,apk,GPL-2.0-only
+tiff,4.7.0-r0,apk,libtiff
+tzdata,2025b-r0,apk,Public-Domain
+xz-libs,5.6.3-r1,apk,0BSD; AND; GPL-2.0-or-later; LGPL-2.1-or-later; Public-Domain
+zlib,1.3.1-r2,apk,Zlib
+zstd-libs,1.5.6-r2,apk,BSD-3-Clause OR GPL-2.0-or-later

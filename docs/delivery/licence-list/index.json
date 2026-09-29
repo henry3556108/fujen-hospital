@@ -31,6 +31,21 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/axllent/mailpit:v1.22",
+    "file": "image-docker.io_axllent_mailpit_v1.22.csv",
+    "components": 65,
+    "used_by": [
+      "compose:deploy/local/compose.fhir.yaml#mailpit"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "axllent/mailpit@sha256:f7f7c31de4de59540ad6515a0ca057a77525bca2069b6e747d873ca66c10fe08"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.21.3"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/axllent/mailpit:v1.31.3",
     "file": "image-docker.io_axllent_mailpit_v1.31.3.csv",
     "components": 71,
@@ -73,6 +88,21 @@
     ],
     "architecture": "amd64",
     "os": "Alpine Linux 3.24.1"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/hapiproject/hapi:v8.12.0-1",
+    "file": "image-docker.io_hapiproject_hapi_v8.12.0-1.csv",
+    "components": 417,
+    "used_by": [
+      "compose:deploy/local/compose.fhir.yaml#hapi"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "hapiproject/hapi@sha256:d7f38d3676900b07e8a7d3500426eaf8d90ea9ced9a6726416f080f68e230fb0"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.6"
   },
   {
     "kind": "image",
@@ -124,10 +154,28 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/library/platform-trainer:dev",
+    "file": "image-docker.io_library_platform-trainer_dev.csv",
+    "components": 212,
+    "used_by": [
+      "code:api/app/training/service.py:TRAINING_IMAGE",
+      "compose:deploy/local/compose.training.yaml#api:TRAINING_IMAGE",
+      "compose:deploy/local/compose.training.yaml#inference"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "platform-trainer@sha256:e4a7d6f11a71a781052c52e68cc4e6fdc8dd784e249cde99f9e301f8f549d50f"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 12.13"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/library/postgres:16-alpine",
     "file": "image-docker.io_library_postgres_16-alpine.csv",
     "components": 50,
     "used_by": [
+      "compose:deploy/local/compose.fhir.yaml#fhir-db-init",
       "compose:deploy/local/compose.yaml#postgres"
     ],
     "pinned": true,
@@ -154,11 +202,42 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/ohif/app:v3.13.10",
+    "file": "image-docker.io_ohif_app_v3.13.10.csv",
+    "components": 68,
+    "used_by": [
+      "compose:deploy/local/compose.labeling.yaml#ohif"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "ohif/app@sha256:559a820cf7c423e2b15aa6db9ba15aaee966e519c6f899432c1abace92b3b07a"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.21.3"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/pgvector/pgvector:pg16",
+    "file": "image-docker.io_pgvector_pgvector_pg16.csv",
+    "components": 148,
+    "used_by": [
+      "compose:deploy/local/compose.llm.yaml#postgres"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 12.15"
+  },
+  {
+    "kind": "image",
     "name": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim",
     "file": "image-ghcr.io_astral-sh_uv_python3.12-bookworm-slim.csv",
     "components": 108,
     "used_by": [
-      "dockerfile:api/Dockerfile"
+      "dockerfile:api/Dockerfile",
+      "dockerfile:training/Dockerfile"
     ],
     "pinned": true,
     "repo_digests": [
@@ -166,6 +245,36 @@
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 12.13"
+  },
+  {
+    "kind": "image",
+    "name": "ghcr.io/mlflow/mlflow:v3.16.1",
+    "file": "image-ghcr.io_mlflow_mlflow_v3.16.1.csv",
+    "components": 204,
+    "used_by": [
+      "compose:deploy/local/compose.training.yaml#mlflow"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "ghcr.io/mlflow/mlflow@sha256:06058cc872276873e9759c635e773342aca4731e240f6d20d88ea43774083984"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.6"
+  },
+  {
+    "kind": "image",
+    "name": "ghcr.io/requarks/wiki:2.5",
+    "file": "image-ghcr.io_requarks_wiki_2.5.csv",
+    "components": 1656,
+    "used_by": [
+      "compose:deploy/local/compose.llm.yaml#wiki"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "ghcr.io/requarks/wiki@sha256:af71a17dc27ccc4c768591b1c504631ed820d9d13d4e8c325be4232c0035638c"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
   },
   {
     "kind": "image",
@@ -246,8 +355,9 @@
     "kind": "build",
     "name": "自建映像 api",
     "file": "build-api.csv",
-    "components": 214,
+    "components": 238,
     "used_by": [
+      "compose:deploy/local/compose.fhir.yaml#fhir-worker",
       "compose:deploy/local/compose.yaml#api",
       "compose:deploy/local/compose.yaml#minio-init"
     ],
@@ -263,13 +373,28 @@
     "file": "build-fakes.csv",
     "components": 612,
     "used_by": [
-      "dockerfile:fakes/Dockerfile"
+      "compose:deploy/local/compose.labeling.yaml#autolabel",
+      "compose:deploy/local/compose.llm.yaml#fake-llm"
     ],
     "base_images": [
       "docker.io/library/python:3.12-slim"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "build",
+    "name": "自建映像 training",
+    "file": "build-training.csv",
+    "components": 212,
+    "used_by": [
+      "compose:deploy/local/compose.training.yaml#inference"
+    ],
+    "base_images": [
+      "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 12.13"
   },
   {
     "kind": "python",
@@ -282,7 +407,7 @@
     "kind": "python",
     "name": "Python 套件 api",
     "file": "python-api.csv",
-    "components": 90,
+    "components": 112,
     "lock": "api/uv.lock"
   },
   {
@@ -326,6 +451,13 @@
     "file": "python-tools_synth.csv",
     "components": 12,
     "lock": "tools/synth/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 training",
+    "file": "python-training.csv",
+    "components": 84,
+    "lock": "training/uv.lock"
   },
   {
     "kind": "node",
