@@ -1,0 +1,13 @@
+# 測試報告（TC-DAILY-03）的缺陷分級。依測試 ID 前綴比對，由上而下第一條符合的規則生效。
+# 阻斷：身分、權限、稽核、資安類失敗，或測試本身無法執行（error）。
+# 嚴重：其餘契約驗收案例（TC-*）失敗。
+# 一般：非契約案例的測試失敗（單元、回歸）。
+rules:
+  - {match: "TC-SS-", grade: 阻斷}
+  - {match: "TC-A03-", grade: 阻斷}
+  - {match: "TC-D01-", grade: 阻斷}
+  - {match: "TC-B01-08", grade: 阻斷}
+  - {match: "TC-C03-08", grade: 阻斷}
+  - {match: "TC-", grade: 嚴重}
+default: 一般
+error_grade: 阻斷
