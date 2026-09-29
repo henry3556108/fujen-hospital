@@ -56,3 +56,21 @@ def member(session, add_user):
         session.commit()
         return headers
     return _member
+
+
+@pytest.fixture
+def fhir(app):
+    from app.fhir.client import InMemoryFhir
+    f = InMemoryFhir()
+    app.state.fhir = f
+    return f
+
+
+@pytest.fixture
+def his_dsn(clinical, tmp_path):
+    """把 synth 的 patients.sql 載入 SQLite，模擬院內 HIS 資料庫。"""
+    import sqlite3
+    path = tmp_path / "his.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.executescript((clinical / "patients.sql").read_text(encoding="utf-8"))
+    return f"sqlite:///{path}"
