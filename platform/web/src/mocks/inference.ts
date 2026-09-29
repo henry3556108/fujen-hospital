@@ -134,8 +134,12 @@ const inferenceHandlers = [
     const files = form.getAll('files').filter((f): f is File => typeof f !== 'string');
     if (files.length === 0) return detail(422, '請上傳至少一個檔案');
     if (model.kind.startsWith('image_')) {
-      const results = files.map((f) => imageResult(model, f.name));
-      return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [] })), 201);
+      // 掃毒：檔名含 eicar 的檔案模擬被攔下，其餘照常推論
+      const blocked = files.filter((f) => /eicar/i.test(f.name)).map((f) => ({ name: f.name, reason: '掃毒攔截：Eicar-Signature' }));
+      const clean = files.filter((f) => !/eicar/i.test(f.name));
+      if (clean.length === 0) return json({ detail: { code: 'all_files_blocked', message: '所有檔案都未通過掃毒，已拒絕', blocked } }, 422);
+      const results = clean.map((f) => imageResult(model, f.name));
+      return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [], blocked })), 201);
     }
     const { columns, rows } = parseCsv(await files[0].text());
     const missing = FEATURES.filter((f) => !columns.includes(f));

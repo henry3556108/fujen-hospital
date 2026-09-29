@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, File, Header, HTTPException, Reque
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app import scanning
 from app.deps import ProjectContext, client_ip, current_user, get_session, require_project_permission
 from app.models import User
 from app.permissions import Permission
@@ -162,6 +163,7 @@ def run_source(run_id: int, request: Request, file: UploadFile = File(...),
     if Permission.TRAINING not in _permissions(ctx):
         raise HTTPException(403, {"code": "forbidden", "permission": "training", "message": "你沒有 training 權限"})
     data = file.file.read(service.bundle.MAX_SOURCE_BYTES + 1)
+    scanning.ensure_clean(request, file.filename or "source.zip", data)   # 不乾淨回 422 並寫 malware_blocked 稽核
     with _errors():
         run = service.get_run(ctx.session, ctx.project.id, run_id)
         child = service.run_with_source(ctx, request.app.state, backend, run=run, data=data,
@@ -222,6 +224,26 @@ def batch_inference(model_id: int, request: Request, body: BatchIn | None = None
         return service.result_view(request.app.state.store, row)
 
 
+def _scan(request: Request, model, uploads: list[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[dict]]:
+    """上傳推論的掃毒。結構式只有一個 CSV：不乾淨整個請求拒絕。影像是一批：被攔下的檔案單獨失敗、
+    列在結果的 blocked，其餘照常推論；全部被攔下時拒絕。"""
+    if not model.kind.startswith("image_"):
+        for name, data in uploads:
+            scanning.ensure_clean(request, name, data)
+        return uploads, []
+    clean, blocked = [], []
+    for name, data in uploads:
+        reason = scanning.blocked_reason(request, name, data)
+        if reason:
+            blocked.append({"name": name, "reason": reason})
+        else:
+            clean.append((name, data))
+    if not clean:
+        raise HTTPException(422, {"code": "all_files_blocked", "message": "所有檔案都未通過掃毒，已拒絕",
+                                  "blocked": blocked})
+    return clean, blocked
+
+
 def _read_uploads(files: list[UploadFile]) -> list[tuple[str, bytes]]:
     out, total = [], 0
     for f in files:
@@ -239,7 +261,9 @@ def upload_inference(model_id: int, request: Request, files: list[UploadFile] = 
     uploads = _read_uploads(files)
     with _errors():
         model = service.get_model(ctx.session, ctx.project.id, model_id)
-        row = service.upload_inference(ctx, request.app.state, model=model, files=uploads,
+    uploads, blocked = _scan(request, model, uploads)
+    with _errors():
+        row = service.upload_inference(ctx, request.app.state, model=model, files=uploads, blocked=blocked,
                                        source_ip=client_ip(request))
         return service.result_view(request.app.state.store, row)
 
@@ -328,9 +352,20 @@ async def online_predict(name: str, request: Request, user: User = Depends(curre
         except ValueError:
             raise HTTPException(422, "請以 JSON 傳入 {\"rows\": [...]}，或以 multipart 上傳 files")
         rows = body.get("rows") if isinstance(body, dict) else None
+    if files:
+        with _errors():   # 先確認授權再掃毒：未授權的呼叫一律 403
+            service.authorised_deployment(session, name=name, user=user, source_ip=client_ip(request))
+        files, blocked = _scan(request, _ImageModel(), files)
+    else:
+        blocked = []
     with _errors():
         return service.online_predict(session, request.app.state, name=name, user=user, rows=rows, files=files,
-                                      source_ip=client_ip(request))
+                                      blocked=blocked, source_ip=client_ip(request))
+
+
+class _ImageModel:
+    """線上推論以 multipart 送檔案時一定是影像模型（結構式用 JSON rows）；掃毒時當成一批影像處理。"""
+    kind = "image_"
 
 
 # ---------------------------------------------------------------- 工作 I/O（只給 Job 容器）

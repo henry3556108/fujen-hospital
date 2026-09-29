@@ -246,6 +246,11 @@ function ResultView({ record, size, onDownload }: { record: InferenceRecord; siz
       </div>
       {!result ? <Alert tone="error">{record.message || '這次推論沒有結果'}</Alert> : null}
       {result && 'columns' in result ? <TableResult result={result} /> : null}
+      {result && 'results' in result && result.blocked?.length ? (
+        <Alert tone="warning">
+          {result.blocked.length} 個檔案未推論：{result.blocked.map((b) => `${b.name}（${b.reason}）`).join('、')}
+        </Alert>
+      ) : null}
       {result && 'results' in result ? <ImageResults results={result.results} size={size ?? [32, 32]} /> : null}
     </section>
   );

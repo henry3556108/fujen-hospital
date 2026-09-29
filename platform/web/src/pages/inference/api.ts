@@ -54,7 +54,7 @@ export interface InferenceRecord {
   created_at: string;
   result?:
     | { columns: string[]; rows: string[][]; prediction_column: string }
-    | { results: ImageResult[]; label_names: string[] }
+    | { results: ImageResult[]; label_names: string[]; blocked?: { name: string; reason: string }[] }
     | null;
 }
 

@@ -75,6 +75,14 @@ describe('inference page', () => {
     expect(within(history).getAllByRole('button', { name: /^下載 #/ })).toHaveLength(3);
   });
 
+  it('files blocked by the virus scanner are listed and not inferred', async () => {
+    const { user } = await openModel('modality-cnn-run2');
+    await user.upload(screen.getByLabelText('影像檔'), [new File(['a'], 'ok.dcm'), new File(['b'], 'eicar.dcm')]);
+    await user.click(screen.getByRole('button', { name: '上傳並推論' }));
+    expect(await screen.findAllByTestId('image-result')).toHaveLength(1);
+    expect(screen.getByText(/1 個檔案未推論：eicar\.dcm（掃毒攔截：Eicar-Signature）/)).toBeInTheDocument();
+  });
+
   it('server errors are shown in Chinese', async () => {
     const { user } = await openModel('diagnosis-rf-run1');
     await user.upload(screen.getByLabelText('CSV 檔'), new File(['foo,bar\n1,2\n'], 'x.csv', { type: 'text/csv' }));

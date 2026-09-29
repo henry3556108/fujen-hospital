@@ -642,7 +642,7 @@ def _run_inference(session: Session, state, backend: InferenceBackend, *, model:
             answer = _predict(backend, session, store, model, lambda: backend.predict_images(model.id, images))
             results = answer.get("results", [])
             body = {"model_id": model.id, "kind": model.kind, "label_names": model.card.get("label_names", []),
-                    "results": results}
+                    "results": results, "blocked": input_.get("blocked", [])}
             data, fmt, count, extra = json.dumps(body, ensure_ascii=False).encode("utf-8"), "json", len(results), {}
     except (InferenceError, TrainingError) as exc:
         session.rollback()
@@ -734,13 +734,15 @@ def image_format(name: str, data: bytes) -> str:
 
 
 def upload_inference(ctx: ProjectContext, state, *, model: TrainedModel, files: list[tuple[str, bytes]],
-                     source_ip: str | None) -> InferenceRecord:
+                     source_ip: str | None, blocked: list[dict] | None = None) -> InferenceRecord:
     if not files:
         raise Invalid("請上傳至少一個檔案")
     if sum(len(d) for _, d in files) > MAX_INFERENCE_BYTES:
         raise TooLarge(f"上傳檔案超過上限 {MAX_INFERENCE_BYTES // 1024 // 1024} MB")
     backend = inference_backend(state)
     input_ = {"files": [{"name": n, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for n, d in files]}
+    if blocked:
+        input_["blocked"] = blocked          # 掃毒攔下的檔案：不推論，留在紀錄與結果裡
     common = dict(model=model, mode="upload", user=ctx.user.username, input_=input_, source_ip=source_ip,
                   action="inference.upload")
     if model.kind in cfg.TABULAR_KINDS:
@@ -877,8 +879,7 @@ def rows_to_csv(model: TrainedModel, rows: Any) -> bytes:
     return _write_csv(header, [["" if row.get(k) is None else row.get(k) for k in header] for row in rows])
 
 
-def online_predict(session: Session, state, *, name: str, user: User, rows: Any = None,
-                   files: list[tuple[str, bytes]] | None = None, source_ip: str | None) -> dict[str, Any]:
+def authorised_deployment(session: Session, *, name: str, user: User, source_ip: str | None) -> Deployment:
     deployment = session.scalar(select(Deployment).where(Deployment.name == name))
     if deployment is None or user.username not in deployment.allowed_users:
         # 不存在與未授權回同樣的 403，不透露部署是否存在；拒絕也留稽核
@@ -887,6 +888,13 @@ def online_predict(session: Session, state, *, name: str, user: User, rows: Any 
                detail={"deployment": name[:128], "reason": "not_authorized"})
         session.commit()
         raise Forbidden("你沒有呼叫這個推論服務的授權")
+    return deployment
+
+
+def online_predict(session: Session, state, *, name: str, user: User, rows: Any = None,
+                   files: list[tuple[str, bytes]] | None = None, source_ip: str | None,
+                   blocked: list[dict] | None = None) -> dict[str, Any]:
+    deployment = authorised_deployment(session, name=name, user=user, source_ip=source_ip)
     model = session.get(TrainedModel, deployment.model_id)
     backend = inference_backend(state)
     common = dict(model=model, mode="online", user=user.username, source_ip=source_ip, action="inference.online",
@@ -905,10 +913,11 @@ def online_predict(session: Session, state, *, name: str, user: User, rows: Any 
     if sum(len(d) for _, d in files) > MAX_INFERENCE_BYTES:
         raise TooLarge(f"上傳檔案超過上限 {MAX_INFERENCE_BYTES // 1024 // 1024} MB")
     images = [ImageInput(name=n, data=d, format=image_format(n, d)) for n, d in files]
-    row = _run_inference(session, state, backend, images=images,
-                         input_={"files": [{"name": n, "size": len(d)} for n, d in files]}, **common)
+    input_ = {"files": [{"name": n, "size": len(d)} for n, d in files]} | ({"blocked": blocked} if blocked else {})
+    row = _run_inference(session, state, backend, images=images, input_=input_, **common)
     body = json.loads(result_bytes(state.store, row))
-    return {"inference_id": row.id, "deployment": name, "model_id": model.id, "results": body["results"]}
+    return {"inference_id": row.id, "deployment": name, "model_id": model.id, "results": body["results"],
+            "blocked": body.get("blocked", [])}
 
 
 def project_of(session: Session, project_id: int) -> Project | None:
