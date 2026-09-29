@@ -63,3 +63,14 @@ def test_empty_string_still_gives_unit_vector():
     v = vec("")
     assert len(v) == 384
     assert math.isclose(math.sqrt(sum(x * x for x in v)), 1.0, rel_tol=1e-6)
+
+
+def test_chinese_text_sharing_characters_is_more_similar():
+    from fakes.llm import _embed
+
+    def dot(a, b):
+        return sum(x * y for x, y in zip(a, b))
+    doc = _embed("夜間門診於週二與週四 18:00 至 21:00 開放，國定假日停診。")
+    other = _embed("磁振造影檢查前需取下所有金屬物品，包括手錶、髮夾與活動假牙。")
+    query = _embed("夜間門診是星期幾")
+    assert dot(query, doc) > dot(query, other) + 0.1

@@ -112,7 +112,7 @@ class OpenAICompatClient:
 _TOKEN = re.compile(r"\w+")
 
 
-def hashed_embedding(text: str, dim: int = 64) -> list[float]:
+def hashed_embedding(text: str, dim: int = 384) -> list[float]:
     """字詞雜湊向量：共用字詞的文字相似度較高，同一文字結果相同。只供測試與記憶體版使用。
     中文沒有空白分詞，所以連續的 CJK 字另外拆成單字與雙字。"""
     tokens: list[str] = []
