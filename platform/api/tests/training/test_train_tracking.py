@@ -50,3 +50,20 @@ def test_training_still_runs_when_mlflow_is_down(client, pi, project, backend, t
     run = start(client, pi, project.id, setting_body("tabular_regression", dataset_id=table))
     assert run["tracking_run_id"] is None and "MLflow" in run["message"]
     assert finish(client, backend, pi, run, tmp_path)["status"] == "succeeded"
+
+
+def test_tracker_comes_from_the_environment_when_not_set(app, monkeypatch):
+    from app.training.service import get_tracker
+
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+    assert isinstance(get_tracker(app.state), MlflowTracker)
+    assert get_tracker(app.state) is get_tracker(app.state), "只建立一次"
+    app.state.tracker = None                      # 明確設為 None：不記錄
+    assert get_tracker(app.state) is None
+
+
+def test_no_tracking_uri_means_no_tracking(app, monkeypatch):
+    from app.training.service import get_tracker
+
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    assert get_tracker(app.state) is None

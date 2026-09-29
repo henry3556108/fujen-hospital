@@ -170,6 +170,17 @@ def run_out(run: TrainingRun, version: DatasetVersion | None = None, model: Trai
     return out
 
 
+_UNSET = object()
+
+
+def get_tracker(state) -> tracking.Tracker | None:
+    """app.state.tracker 有設定就用它（測試）；否則第一次使用時依 MLFLOW_TRACKING_URI 建立，未設定則不記錄。"""
+    current = getattr(state, "tracker", _UNSET)
+    if current is _UNSET:
+        current = state.tracker = tracking.tracker_from_env(os.environ)
+    return current
+
+
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -192,7 +203,7 @@ def _start(ctx: ProjectContext, state, backend: JobBackend, *, run: TrainingRun,
     session.flush()
     token = secrets.token_urlsafe(32)
     run.io_token_hash = _token_hash(token)
-    tracker = getattr(state, "tracker", None)
+    tracker = get_tracker(state)
     if tracker is not None:
         try:
             run.tracking_run_id = tracker.start_run(
@@ -376,7 +387,7 @@ def sync_run(session: Session, state, backend: JobBackend, run: TrainingRun) -> 
 
 
 def _track_finish(state, run: TrainingRun) -> None:
-    tracker = getattr(state, "tracker", None)
+    tracker = get_tracker(state)
     if tracker is None or not run.tracking_run_id:
         return
     status = {"succeeded": "FINISHED", "failed": "FAILED", "cancelled": "KILLED"}[run.status]

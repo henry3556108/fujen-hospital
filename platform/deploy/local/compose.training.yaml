@@ -20,9 +20,13 @@ services:
     command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000",
               "--backend-store-uri", "sqlite:////mlflow/mlflow.db", "--default-artifact-root", "/mlflow/artifacts",
               "--workers", "1", "--allowed-hosts", "mlflow,mlflow:5000,localhost,127.0.0.1"]
+    environment:
+      # 平台只用訓練紀錄（參數、指標、標籤）。MLflow 3 預設另起約 10 個 GenAI 背景工作程序，各約 85 MB，關掉。
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
     volumes:
       - mlflow:/mlflow
     mem_limit: 512m
+    restart: on-failure
 
   inference:
     image: platform-trainer:dev
