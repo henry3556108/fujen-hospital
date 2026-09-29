@@ -1,0 +1,18 @@
+{
+  "counts": {
+    "readings": 100
+  },
+  "file": "vitals.jsonl",
+  "kind": "vitals",
+  "loinc": {
+    "heart_rate": "8867-4",
+    "resp_rate": "9279-1",
+    "spo2": "59408-5"
+  },
+  "seed": 42,
+  "units": {
+    "heart_rate": "/min",
+    "resp_rate": "/min",
+    "spo2": "%"
+  }
+}

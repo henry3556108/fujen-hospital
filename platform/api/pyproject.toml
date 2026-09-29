@@ -15,6 +15,7 @@ dependencies = [
     "minio>=7.2.20",
     "python-multipart>=0.0.32",
     "kubernetes>=31",
+    "fhir-resources>=8",
 ]
 
 [dependency-groups]
