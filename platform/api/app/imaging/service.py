@@ -258,11 +258,10 @@ def _like(value: str) -> str:
     return "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
-def list_studies(session: Session, project_id: int, *, modality: str | None = None, patient_sex: str | None = None,
-                 study_description: str | None = None, study_date: str | None = None,
-                 series_description: str | None = None) -> list[ImagingStudy]:
-    q = (select(ImagingStudy).where(ImagingStudy.project_id == project_id)
-         .options(selectinload(ImagingStudy.series)).order_by(ImagingStudy.study_date, ImagingStudy.id))
+def _studies_query(session: Session, project_id: int, *, modality: str | None = None,
+                   patient_sex: str | None = None, study_description: str | None = None,
+                   study_date: str | None = None, series_description: str | None = None):
+    q = select(ImagingStudy).where(ImagingStudy.project_id == project_id)
     allowed = allowlist(session, project_id)
     if allowed:
         q = q.where(ImagingStudy.accession_number.in_(allowed))
@@ -286,7 +285,24 @@ def list_studies(session: Session, project_id: int, *, modality: str | None = No
                 q = q.where(ImagingStudy.study_date >= m.group(2))
             if m.group(3):
                 q = q.where(ImagingStudy.study_date <= m.group(3))
-    return list(session.scalars(q))
+    return q
+
+
+def list_studies(session: Session, project_id: int, **filters) -> list[ImagingStudy]:
+    """篩選條件見 _studies_query；依檢查日期、建立順序排列。"""
+    q = _studies_query(session, project_id, **filters)
+    return list(session.scalars(q.options(selectinload(ImagingStudy.series))
+                                .order_by(ImagingStudy.study_date, ImagingStudy.id)))
+
+
+def page_studies(session: Session, project_id: int, *, limit: int, offset: int = 0,
+                 **filters) -> tuple[int, list[ImagingStudy]]:
+    """與 list_studies 同樣的篩選與排序，回傳（符合條件的總數, 這一頁）。"""
+    q = _studies_query(session, project_id, **filters)
+    total = session.scalar(select(func.count()).select_from(q.subquery()))
+    page = session.scalars(q.options(selectinload(ImagingStudy.series))
+                           .order_by(ImagingStudy.study_date, ImagingStudy.id).limit(limit).offset(offset))
+    return total, list(page)
 
 
 def find_accessible_study(session: Session, project_id: int, study_uid: str) -> ImagingStudy | None:

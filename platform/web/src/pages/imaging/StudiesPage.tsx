@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { withQuery } from '../../api/client';
 import { useResource } from '../../api/useResource';
@@ -8,6 +8,15 @@ import { formatDicomDate } from '../../components/format';
 import { EMPTY_FILTERS, SEX_LABELS, type Study, type StudyFilters } from './types';
 
 const MODALITIES = ['CT', 'MR', 'CR', 'DX', 'US', 'MG', 'PT', 'NM', 'XA'];
+/** 每頁研究數（API 的 limit） */
+export const STUDY_PAGE = 50;
+
+interface StudyPage {
+  items: Study[];
+  total: number;
+  offset: number;
+  limit: number;
+}
 const KEYS = Object.keys(EMPTY_FILTERS) as (keyof StudyFilters)[];
 
 const toDicom = (date: string) => date.replaceAll('-', '');
@@ -29,14 +38,38 @@ function splitRange(value: string): [string, string] {
   return [toInput(a), toInput(b)];
 }
 
-/** TC-B01-09 研究列表：以 5 個 DICOM 欄位篩選；篩選條件放在網址，重新載入或分享連結都一致。 */
+/** TC-B01-09 研究列表：以 5 個 DICOM 欄位篩選、每頁 50 個；篩選條件與頁碼放在網址，重新載入或分享連結都一致。 */
 export function StudiesPage() {
   const { api, project } = useSession();
   const pid = project!.id;
   const [params, setParams] = useSearchParams();
   const applied = Object.fromEntries(KEYS.map((k) => [k, params.get(k) ?? ''])) as unknown as StudyFilters;
   const appliedKey = KEYS.map((k) => applied[k]).join('|');
-  const studies = useResource(() => api.get<Study[]>(withQuery(`/api/projects/${pid}/imaging/studies`, { ...applied })), [pid, appliedKey]);
+  const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
+  const offset = (page - 1) * STUDY_PAGE;
+  const studies = useResource(
+    () =>
+      api.get<StudyPage>(
+        withQuery(`/api/projects/${pid}/imaging/studies`, { ...applied, limit: STUDY_PAGE, offset: offset || undefined }),
+      ),
+    [pid, appliedKey, offset],
+  );
+  const total = studies.data?.total ?? 0;
+  const shown = studies.data?.items ?? [];
+  const lastPage = Math.max(1, Math.ceil(total / STUDY_PAGE));
+
+  function goTo(next: number) {
+    const q = new URLSearchParams(params);
+    if (next <= 1) q.delete('page');
+    else q.set('page', String(next));
+    setParams(q);
+  }
+
+  useEffect(() => {
+    // 網址上的頁碼超過最後一頁（例如資料被刪掉）：改看最後一頁
+    if (studies.data && shown.length === 0 && total > 0 && page > lastPage) goTo(lastPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studies.data]);
 
   const [from0, to0] = splitRange(applied.study_date);
   const [draft, setDraft] = useState({ ...applied, from: from0, to: to0 });
@@ -114,8 +147,18 @@ export function StudiesPage() {
       <p role="status" className="section">
         {studies.loading && !studies.data
           ? '載入中…'
-          : `共 ${studies.data?.length ?? 0} 個研究${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}`}
+          : `共 ${total} 個研究${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 個` : ''}`}
       </p>
+      {total > STUDY_PAGE && (
+        <div className="row-actions section">
+          <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => goTo(page - 1)}>
+            上一頁
+          </button>
+          <button type="button" className="btn btn--secondary btn--small" disabled={page >= lastPage} onClick={() => goTo(page + 1)}>
+            下一頁
+          </button>
+        </div>
+      )}
       <div className="table-wrap">
         <table aria-label="研究列表">
           <thead>
@@ -137,7 +180,7 @@ export function StudiesPage() {
             </tr>
           </thead>
           <tbody>
-            {studies.data?.map((s) => (
+            {shown.map((s) => (
               <tr key={s.study_instance_uid}>
                 <td>{formatDicomDate(s.study_date)}</td>
                 <th scope="row">{s.accession_number ?? '—'}</th>
@@ -158,7 +201,7 @@ export function StudiesPage() {
                 </td>
               </tr>
             ))}
-            {studies.data?.length === 0 && (
+            {studies.data && total === 0 && (
               <tr>
                 <td colSpan={10}>{active.length ? '沒有符合篩選條件的研究' : '這個專案還沒有影像，請到「匯入影像」或「PACS 查詢取像」'}</td>
               </tr>

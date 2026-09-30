@@ -1,5 +1,5 @@
 """/api/projects/{project_id}/imaging/*：影像匯入、查詢、Accession 清單、PACS 查詢取像。"""
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from app import scanning
@@ -72,11 +72,15 @@ def get_job(job_id: int, ctx: ProjectContext = Depends(can_read)) -> dict:
 @router.get("/studies")
 def list_studies(modality: str | None = None, patient_sex: str | None = None, study_description: str | None = None,
                  study_date: str | None = None, series_description: str | None = None,
-                 ctx: ProjectContext = Depends(can_read)) -> list[dict]:
-    studies = service.list_studies(ctx.session, ctx.project.id, modality=modality, patient_sex=patient_sex,
-                                   study_description=study_description, study_date=study_date,
-                                   series_description=series_description)
-    return service.studies_to_dicts(ctx.session, studies)
+                 limit: int | None = Query(None, ge=1, le=500), offset: int = Query(0, ge=0),
+                 ctx: ProjectContext = Depends(can_read)) -> list[dict] | dict:
+    """不帶 limit：回完整陣列（既有行為）。帶 limit：分頁，回 {items, total, offset, limit}。"""
+    filters = dict(modality=modality, patient_sex=patient_sex, study_description=study_description,
+                   study_date=study_date, series_description=series_description)
+    if limit is None:
+        return service.studies_to_dicts(ctx.session, service.list_studies(ctx.session, ctx.project.id, **filters))
+    total, page = service.page_studies(ctx.session, ctx.project.id, limit=limit, offset=offset, **filters)
+    return {"items": service.studies_to_dicts(ctx.session, page), "total": total, "offset": offset, "limit": limit}
 
 
 class AllowlistBody(BaseModel):
