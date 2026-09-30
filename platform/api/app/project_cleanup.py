@@ -26,7 +26,7 @@ from app.models import Base, Project, utcnow
 from app.scheduling.backend import backend_from_env
 from app.scheduling.models import Job
 from app.scheduling.states import TERMINAL, JobStatus
-from app.tabular_api.models import TabularDataset, TabularTargetFeature
+from app.tabular_api.models import TabularColumnView, TabularDataset, TabularTargetFeature
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +112,7 @@ def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
         delete(ImportJob).where(ImportJob.project_id == project_id),
         delete(ImagingFile).where(ImagingFile.project_id == project_id),
         delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id.in_(datasets)),
+        delete(TabularColumnView).where(TabularColumnView.dataset_id.in_(datasets)),
         delete(TabularDataset).where(TabularDataset.project_id == project_id),
     ):
         session.execute(statement.execution_options(synchronize_session=False))

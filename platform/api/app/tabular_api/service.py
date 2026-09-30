@@ -17,7 +17,7 @@ from tabular.validate import load_clean_csv, validate_and_load
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
 from app.storage import ObjectStore
-from app.tabular_api.models import TabularDataset, TabularTargetFeature
+from app.tabular_api.models import TabularColumnView, TabularDataset, TabularTargetFeature
 
 DEFAULT_MAX_UPLOAD_MB = 50
 
@@ -118,6 +118,7 @@ def delete_dataset(ctx: ProjectContext, store: ObjectStore, frames: "FrameCache"
                    source_ip: str | None) -> None:
     session = ctx.session
     session.execute(delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id == ds.id))
+    session.execute(delete(TabularColumnView).where(TabularColumnView.dataset_id == ds.id))
     session.delete(ds)
     record(session, actor=ctx.user.username, category=AuditCategory.DATASET, action="tabular_delete",
            target=f"tabular_dataset:{ds.id}", source_ip=source_ip,
@@ -196,3 +197,32 @@ def frame_cache(state) -> FrameCache:
     if cache is None or cache.store is not state.store:
         cache = state.tabular_frames = FrameCache(state.store)
     return cache
+
+
+# ------------------------------------------------------------------ 欄位顯示設定（TC-B04-02）
+
+def _column_view_row(ctx: ProjectContext, ds: TabularDataset) -> TabularColumnView | None:
+    return ctx.session.scalar(select(TabularColumnView).where(TabularColumnView.dataset_id == ds.id,
+                                                              TabularColumnView.username == ctx.user.username))
+
+
+def get_column_view(ctx: ProjectContext, ds: TabularDataset) -> dict:
+    row = _column_view_row(ctx, ds)
+    return {"hidden": list(row.hidden) if row else [], "saved": row is not None}
+
+
+def save_column_view(ctx: ProjectContext, frames: "FrameCache", ds: TabularDataset, hidden: list[str]) -> dict:
+    """覆寫目前使用者在這個資料集的隱藏欄位。個人檢視偏好，不改變資料，不寫稽核。"""
+    if len(set(hidden)) != len(hidden):
+        raise HTTPException(422, "隱藏欄位有重複的名稱")
+    columns = set(frames.load(ds).columns)
+    unknown = [c for c in hidden if c not in columns]
+    if unknown:
+        raise HTTPException(422, f"資料集沒有這些欄位：{'、'.join(unknown)}")
+    row = _column_view_row(ctx, ds)
+    if row is None:
+        row = TabularColumnView(dataset_id=ds.id, username=ctx.user.username, hidden=[])
+        ctx.session.add(row)
+    row.hidden = list(hidden)
+    ctx.session.commit()
+    return {"hidden": list(row.hidden), "saved": True}
