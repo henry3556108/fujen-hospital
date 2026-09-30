@@ -108,4 +108,62 @@ describe('admin projects', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('GPU group is picked from the defined groups (not typed)', async () => {
+    const { user } = await renderApp('/admin/projects');
+    await projectTable();
+    const form = screen.getByRole('form', { name: '新增專案' });
+    const picker = within(form).getByRole('combobox', { name: 'GPU 群組' });
+    await waitFor(() =>
+      expect(within(picker).getAllByRole('option').map((o) => o.textContent)).toEqual([
+        '不綁定',
+        'gpu-exclusive（獨占，2 張）',
+        'gpu-shared（共享，1 張）',
+      ]),
+    );
+    await user.type(within(form).getByLabelText(/^專案名稱/), 'P4-gpu');
+    await user.selectOptions(picker, 'gpu-shared');
+    await user.click(within(form).getByRole('button', { name: '新增專案' }));
+    expect(await screen.findByText('已新增專案「P4-gpu」')).toBeInTheDocument();
+    expect(mockDb().projects.find((p) => p.name === 'P4-gpu')?.gpu_group).toBe('gpu-shared');
+  });
+
+  it('editing shows the current group selected and can unbind it', async () => {
+    const { user } = await renderApp('/admin/projects');
+    const table = await projectTable();
+    await within(table).findByText('P1-lung-ct');
+    await user.click(within(rowFor(table, 'P1-lung-ct')).getByRole('button', { name: /編輯/ }));
+    const form = screen.getByRole('form', { name: '編輯專案' });
+    const picker = within(form).getByRole('combobox', { name: 'GPU 群組' });
+    await waitFor(() => expect(picker).toHaveValue('gpu-exclusive'));
+    await user.selectOptions(picker, '');
+    await user.click(within(form).getByRole('button', { name: '儲存' }));
+    expect(await screen.findByText('已更新專案「P1-lung-ct」')).toBeInTheDocument();
+    expect(mockDb().projects.find((p) => p.name === 'P1-lung-ct')?.gpu_group).toBeNull();
+  });
+
+  it('a bound group that no longer exists stays selectable and is marked', async () => {
+    mockDb().projects[0].gpu_group = 'gpu-removed';
+    const { user } = await renderApp('/admin/projects');
+    const table = await projectTable();
+    await within(table).findByText('P1-lung-ct');
+    await user.click(within(rowFor(table, 'P1-lung-ct')).getByRole('button', { name: /編輯/ }));
+    const picker = within(screen.getByRole('form', { name: '編輯專案' })).getByRole('combobox', { name: 'GPU 群組' });
+    await waitFor(() => expect(within(picker).getByRole('option', { name: 'gpu-removed（已不存在）' })).toBeInTheDocument());
+    expect(picker).toHaveValue('gpu-removed');
+  });
+
+  it('when the group list cannot be loaded, the error is shown and only 不綁定 and the current value remain', async () => {
+    server.use(
+      http.get('*/api/admin/gpu-groups', () => HttpResponse.json({ detail: '排程服務尚未設定（JOB_BACKEND）' }, { status: 503 })),
+    );
+    const { user } = await renderApp('/admin/projects');
+    const table = await projectTable();
+    await within(table).findByText('P3-llm');
+    await user.click(within(rowFor(table, 'P3-llm')).getByRole('button', { name: /編輯/ }));
+    const form = screen.getByRole('form', { name: '編輯專案' });
+    expect(await within(form).findByRole('alert')).toHaveTextContent('排程服務尚未設定');
+    const picker = within(form).getByRole('combobox', { name: 'GPU 群組' });
+    expect(within(picker).getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual(['', 'gpu-shared']);
+  });
 });
