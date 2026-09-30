@@ -229,3 +229,19 @@ def test_permissions(client, member, project, backend, tabular_model, add_user):
     assert client.get(f"/api/projects/{project.id}/inference/{record['id']}", headers=outsider).status_code == 403
     assert client.post(f"/api/projects/{project.id}/inference/{record['id']}/cancel",
                        headers=outsider).status_code == 403
+
+
+def test_start_time_is_known_even_when_the_job_finishes_between_polls(client, pi, project, backend, tabular_model,
+                                                                      tmp_path):
+    """Job 下載輸入包就表示已在執行：即使沒有人在執行中查詢過，也記得開始時間。"""
+    record = batch(client, pi, project.id, tabular_model["id"])
+    done = run_batch(client, backend, pi, record, tmp_path / "job", advance=False)   # 送出後第一次查詢就已完成
+    assert done["status"] == "succeeded" and done["started_at"] and done["started_at"] <= done["finished_at"]
+
+
+def test_bundle_download_marks_the_batch_running(client, pi, project, backend, tabular_model):
+    record = batch(client, pi, project.id, tabular_model["id"])
+    assert client.get(f"/api/job-io/inference/{record['id']}/bundle",
+                      headers=batch_headers(backend, record)).status_code == 200
+    row = client.app.state.sessionmaker().get(InferenceRecord, record["id"])
+    assert row.status == "running" and row.batch.started_at is not None

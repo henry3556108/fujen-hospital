@@ -153,7 +153,7 @@ def sync(session: Session, backend: JobBackend | None, row: InferenceRecord) -> 
         _finish(session, row, job_batch, status="failed", message="排程工作不存在")
         return
     scheduling.sync_job(backend, job)
-    job_batch.started_at = job.started_at
+    job_batch.started_at = job_batch.started_at or job.started_at
     if job.status == JobStatus.SUCCEEDED.value:
         _finish(session, row, job_batch, status="failed", message="工作結束，但沒有回報推論結果",
                 finished_at=job.finished_at)
@@ -162,8 +162,8 @@ def sync(session: Session, backend: JobBackend | None, row: InferenceRecord) -> 
                 finished_at=job.finished_at)
     elif job.status == JobStatus.CANCELLED.value:
         _finish(session, row, job_batch, status="cancelled", message=job.message, finished_at=job.finished_at)
-    else:
-        row.status = job.status
+    elif not (row.status == JobStatus.RUNNING.value and job.status == JobStatus.QUEUED.value):
+        row.status = job.status     # 已下載輸入包（running）但排程還沒看到 Pod ready 時，不退回 queued
 
 
 def sync_all(session: Session, backend: JobBackend | None, rows: list[InferenceRecord]) -> None:
@@ -241,6 +241,10 @@ def io_bundle(session: Session, store: ObjectStore, row: InferenceRecord) -> byt
             header, rows = _tabular_input(store, model, manifest, row.input["rows"])
             _add(archive, "input.csv", _write_csv(header, rows))
         _add(archive, "batch.json", json.dumps(meta, ensure_ascii=False).encode("utf-8"))
+    # Job 來下載輸入包就表示容器已在執行；小批次可能在下一次查詢前就結束，所以在這裡記下開始時間
+    row.status = JobStatus.RUNNING.value
+    row.batch.started_at = row.batch.started_at or utcnow()
+    session.commit()
     return buffer.getvalue()
 
 
