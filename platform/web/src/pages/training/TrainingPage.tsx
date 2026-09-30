@@ -10,6 +10,7 @@ import { useTrainingApi, type Catalogue, type TrainingApi, type TrainingSetting 
 import { SettingForm } from './SettingForm';
 import { emptyForm, formFromSetting, type FormState } from './settingForm';
 import { Runs } from './Runs';
+import '../../styles/pages.css';
 import './training.css';
 
 export function TrainingPage() {

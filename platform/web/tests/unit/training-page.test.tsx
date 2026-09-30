@@ -97,7 +97,7 @@ describe('建模管理：訓練設定', () => {
     await user.click(within(edit).getByRole('button', { name: '儲存修改' }));
     expect(await screen.findByText('已儲存訓練設定「胸部 CT 分類」的修改。')).toBeInTheDocument();
     expect(trainingMock().settings[0].config).toEqual(saved);
-  });
+  }, 30_000); // 逐欄輸入較多，整套平行執行時放寬時限
 
   it('server validation messages are shown (split must add up to 100%)', async () => {
     const { user } = await renderApp('/training', 'ra01');

@@ -20,8 +20,8 @@ import { LlmRoutes } from './pages/llm/LlmRoutes';
 import { DataRoutes } from './pages/data/DataRoutes';
 import { SchedulingRoutes } from './pages/scheduling/SchedulingRoutes';
 import { JobsPage } from './pages/scheduling/JobsPage';
-import { TrainingLanding } from './pages/scheduling/TrainingLanding';
 import { TrainingPage } from './pages/training/TrainingPage';
+import { DeploymentPage } from './pages/deployment/DeploymentPage';
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();
@@ -144,8 +144,9 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
             <Route path="labeling" element={<EntryGuard entry={entryByKey('labeling')!}><LabelingPage /></EntryGuard>} />
             <Route path="labeling/studies/:studyUid" element={<EntryGuard entry={entryByKey('labeling')!}><WorkbenchPage /></EntryGuard>} />
             <Route path="auto-labeling" element={<EntryGuard entry={entryByKey('auto-labeling')!}><AutoLabelPage /></EntryGuard>} />
-            {/* M2 建模管理 */}
+            {/* M2 建模管理、AI 模型部署 */}
             <Route path="training" element={<EntryGuard entry={entryByKey('training')!}><TrainingPage /></EntryGuard>} />
+            <Route path="deployment" element={<EntryGuard entry={entryByKey('deployment')!}><DeploymentPage /></EntryGuard>} />
             {/* WP5b 推論服務管理 */}
             <Route path="inference" element={<EntryGuard entry={entryByKey('inference')!}><InferencePage /></EntryGuard>} />
             <Route path="llm/*" element={<EntryGuard entry={entryByKey('llm')!}><LlmRoutes /></EntryGuard>} />
@@ -155,7 +156,7 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
                 path={e.path.slice(1)}
                 element={
                   <EntryGuard entry={e}>
-                    {e.key === 'training' ? <TrainingLanding entry={e} /> : <ModulePlaceholder entry={e} />}
+                    <ModulePlaceholder entry={e} />
                   </EntryGuard>
                 }
               />
