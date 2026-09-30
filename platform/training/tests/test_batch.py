@@ -107,6 +107,17 @@ def test_bundle_paths_cannot_escape_the_workdir(tmp_path):
     assert io_.completed[0]["status"] == "failed"
 
 
+def test_rejected_report_ends_with_a_non_zero_code(tabular_model, synth, tmp_path):
+    out, card = tabular_model
+
+    class Cancelled(FakeIO):
+        def complete(self, status, message="", answer=None):
+            raise RuntimeError("401 工作憑證已失效（推論已結束）")
+
+    io_ = Cancelled(tabular_bundle(out, card, (synth / "tabular" / "cohort_02.csv").read_bytes(), None))
+    assert batch.run_batch(io_, tmp_path / "work") == 1
+
+
 def test_main_needs_the_job_environment(monkeypatch):
     for name in ("JOB_IO_URL", "JOB_IO_TOKEN"):
         monkeypatch.delenv(name, raising=False)

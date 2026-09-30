@@ -87,7 +87,11 @@ def run_batch(io_, workdir: Path, *, load: Callable[[dict, Path], Any] = load_pr
             pass
         print(f"批次推論失敗：{message}", file=sys.stderr)
         return 1
-    io_.complete("succeeded", answer=answer)
+    try:
+        io_.complete("succeeded", answer=answer)
+    except Exception as exc:  # noqa: BLE001  例如推論已被取消（token 失效）：以非 0 結束，讓排程記為失敗
+        print(f"無法回報批次推論結果：{type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
