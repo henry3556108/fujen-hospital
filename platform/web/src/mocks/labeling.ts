@@ -1,4 +1,5 @@
-// MSW：影像標註（/api/projects/:pid/labels/*）、合成的專案範圍 DICOMweb、建立訓練任務。
+// MSW：影像標註（/api/projects/:pid/labels/*）、合成的專案範圍 DICOMweb。
+// 「建立訓練任務」呼叫的訓練 API 由 mocks/training.ts 處理（與建模管理共用）。
 // 路徑、狀態碼、錯誤訊息照 platform/api/app/labeling。只在 dev server 與單元測試使用。
 //
 // 標註資料存在 sessionStorage：同一個分頁重新載入後仍在（用來驗證「重新載入差異 0」），關閉分頁就消失。
@@ -54,32 +55,19 @@ export const MOCK_STUDIES: MockStudy[] = Array.from({ length: MOCK_STUDY_COUNT }
   };
 });
 
-interface MockJob {
-  id: number;
-  project_id: number;
-  user: string;
-  kind: string;
-  status: string;
-  training_type?: string;
-}
-
 interface State {
   annotations: Annotation[];
   runs: AutolabelRun[];
-  jobs: MockJob[];
   nextAnnotationId: number;
   nextRunId: number;
-  nextJobId: number;
   autolabelOffline: boolean;
 }
 
 const fresh = (): State => ({
   annotations: [],
   runs: [],
-  jobs: [],
   nextAnnotationId: 1,
   nextRunId: 1,
-  nextJobId: 1,
   autolabelOffline: false,
 });
 
@@ -379,7 +367,6 @@ const LABEL_ALIASES = ['diagnosis', 'label', '診斷', '診斷結果'];
 // ---------- handlers ----------
 
 const API = '*/api/projects/:pid';
-const mockSettings = new Map<number, string>();
 const LABELS = `${API}/labels`;
 const WADO = '*/dicomweb/projects/:pid/studies/:study';
 const now = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -664,36 +651,6 @@ const labelingHandlers = [
     s.annotations.push(annotation);
     save();
     return json({ run, annotation }, 201);
-  }),
-
-  // ---- 標註後直接訓練：WP5b 的訓練 API（存設定、送出訓練） ----
-  // 設定只在記憶體裡：送出訓練時用來記下訓練型態
-  http.post(`${API}/training/settings`, async ({ request, params }) => {
-    const ctx = authorize(request, params.pid, 'training');
-    if (ctx instanceof Response) return ctx;
-    const b = await bodyOf(request);
-    const config = (b.config ?? {}) as { kind?: string; image?: { labels?: string[] } };
-    const labels = config.image?.labels ?? [];
-    if (config.kind === 'image_classification' && labels.length < 2) return detail(422, '影像分類至少需要 2 種 Label');
-    const id = mockSettings.size + 1;
-    mockSettings.set(id, String(config.kind ?? ''));
-    return json({ id, project_id: ctx.projectId, name: b.name, kind: config.kind, config }, 201);
-  }),
-  http.post(`${API}/training/settings/:sid/runs`, async ({ request, params }) => {
-    const ctx = authorize(request, params.pid, 'training');
-    if (ctx instanceof Response) return ctx;
-    const s = load();
-    const job: MockJob = {
-      id: s.nextJobId++,
-      project_id: ctx.projectId,
-      user: ctx.username,
-      kind: 'training',
-      status: 'queued',
-      training_type: mockSettings.get(Number(params.sid))?.replace(/^image_/, ''),
-    };
-    s.jobs.push(job);
-    save();
-    return json({ ...job, kind: mockSettings.get(Number(params.sid)), setting_id: Number(params.sid), executor: 'template' }, 201);
   }),
 
   // ---- 合成的專案範圍 DICOMweb ----
