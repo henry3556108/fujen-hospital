@@ -4,6 +4,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type { Permission } from '../api/types';
 import type { ImageResult, InferenceRecord, Model } from '../pages/inference/api';
 import { meFor, seedDb, type MockDb } from './data';
+import { trainedModels } from './training';
 
 let mockDb: () => MockDb = (() => {
   const db = seedDb();
@@ -19,7 +20,8 @@ const PREVIEW =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAAAAACMmsGiAAAAFklEQVR4nGNgYGD4z8DAwMDEwMDAAAAe+QMBxZ3a8AAAAABJRU5ErkJggg==';
 const FEATURES = ['age', 'bmi', 'glucose', 'sbp'];
 
-function models(projectId: number): Model[] {
+/** 預載的 3 個模型，加上在建模管理訓練完成的模型（mocks/training.ts）。 */
+export function models(projectId: number): Model[] {
   const base = { sha256: 'f'.repeat(64), created_by: 'pi01', created_at: '2026-09-29T01:00:00Z' };
   return [
     { ...base, id: projectId * 100 + 1, name: 'diagnosis-rf-run1', kind: 'tabular_classification', format: 'pkl',
@@ -28,6 +30,7 @@ function models(projectId: number): Model[] {
       filename: 'modality-cnn-run2.h5', card: { label_names: ['CT', 'MR'], input: { resize: [32, 32] } } },
     { ...base, id: projectId * 100 + 3, name: 'nodule-det-run3', kind: 'image_detection', format: 'h5',
       filename: 'nodule-det-run3.h5', card: { label_names: ['nodule'], input: { resize: [32, 32] } } },
+    ...trainedModels(projectId),
   ];
 }
 

@@ -1,0 +1,7 @@
+.training-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.training-studies { display: flex; flex-direction: column; gap: 0.25rem; max-height: 16rem; overflow: auto; }
+.training-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0; }
+.training-facts dt { font-weight: 600; }
+.training-facts dd { margin: 0; overflow-wrap: anywhere; }
+.training-log { max-height: 16rem; overflow: auto; padding: 0.75rem; border-radius: 6px; background: var(--color-bg-subtle); white-space: pre-wrap; overflow-wrap: anywhere; }
+.training-endpoint { overflow-wrap: anywhere; }
