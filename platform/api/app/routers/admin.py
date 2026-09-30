@@ -53,7 +53,8 @@ def delete_project(project_id: int, request: Request, admin: User = Depends(requ
                    session: Session = Depends(get_session)) -> Response:
     state = request.app.state
     admin_service.delete_project(session, actor=admin.username, project_id=project_id, source_ip=client_ip(request),
-                                 store=state.store, orthanc=getattr(state, "orthanc", None))
+                                 store=state.store, orthanc=getattr(state, "orthanc", None),
+                                 fhir=project_cleanup.fhir_client(state))
     frames = getattr(state, "tabular_frames", None)
     if frames is not None:  # 專案的 DataFrame 快取一併清掉
         frames.evict_prefix(project_cleanup.project_prefix(project_id))
