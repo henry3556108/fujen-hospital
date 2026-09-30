@@ -6,6 +6,7 @@ import { fhirHandlers, resetFhirMock } from './fhir';
 import { createLabelingHandlers } from './labeling';
 import { createInferenceHandlers } from './inference';
 import { llmHandlers, resetLlmMock } from './llm';
+import { trainingHandlers } from './training';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
@@ -199,6 +200,8 @@ export const handlers = [
   }),
   // WP6 FHIR（C-03）
   ...fhirHandlers,
+  // M2 建模管理與 AI 模型部署：定義在 mocks/training.ts（標註頁「建立訓練任務」也走這裡）
+  ...trainingHandlers,
   // WP5a 影像標註：定義在 mocks/labeling.ts
   ...createLabelingHandlers(() => db),
   // WP5b 推論服務管理：定義在 mocks/inference.ts

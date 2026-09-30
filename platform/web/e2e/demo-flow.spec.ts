@@ -151,44 +151,54 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByRole('table', { name: '標註清單' }).locator('tbody tr[data-source="autolabel"]')).toHaveCount(1);
   });
 
-  test('段落 4：建立訓練、推論（匯出模型、部署頁尚為骨架）', async ({ page }) => {
+  test('段落 4：建立訓練、匯出模型、部署與推論', async ({ page }) => {
     test.setTimeout(90_000);
-    await loginAs(page, 'ra01');
+    // pi01（Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
+    await loginAs(page, 'pi01');
     await page.goto('/');
 
-    // 建立訓練：在影像標註頁以 CSV 診斷結果做分類標註，再從「標註後直接訓練」建立訓練任務（TC-B02-06 的流程）。
-    // 建模管理（B-05）的訓練設定頁尚是骨架，這是目前網頁上建立訓練任務的實際入口。
-    await openEntry(page, '影像標註');
-    await expect(page.getByRole('table', { name: '研究清單' }).locator('tbody tr')).toHaveCount(10);
-    const rows = Array.from({ length: 10 }, (_, i) => `PAT${String(i + 1).padStart(4, '0')},${i % 2 ? 'normal' : 'nodule'}`);
-    await page.getByLabel(/^CSV 檔/).setInputFiles({
-      name: 'diagnosis.csv',
-      mimeType: 'text/csv',
-      buffer: Buffer.from(['patient_id,diagnosis', ...rows].join('\n'), 'utf8'),
-    });
-    await page.getByRole('button', { name: '上傳並標註' }).click();
-    await expect(page.getByTestId('csv-result')).toContainText('共 10 列：已標註 10 列');
-    const train = page.getByRole('form', { name: '建立訓練任務' });
-    await train.getByLabel('訓練型態').selectOption('classification');
-    await expect(train.getByLabel(/^nodule/)).toBeChecked();
-    await train.getByRole('button', { name: '建立訓練任務' }).click();
-    await expect(page.getByRole('table', { name: '已建立的訓練任務' }).getByRole('row', { name: /#1.*排隊中/ })).toBeVisible();
-
-    // 建模管理：訓練設定與模型匯出尚是骨架（「此功能將於 M2 提供」）；已可用的是「專案工作」，送出一件訓練工作看排程狀態。
+    // 建模管理：新增影像分類的訓練設定（資料來源＝影像標註平台的標註），存檔後送出訓練
     await openEntry(page, '建模管理');
-    await expect(page.getByRole('heading', { name: '此功能將於 M2 提供' })).toBeVisible();
-    await page.getByRole('link', { name: /^專案工作/ }).click();
-    const job = page.getByRole('form', { name: '送出工作' });
-    await job.getByLabel(/^執行秒數/).fill('3');
-    await job.getByRole('button', { name: '送出工作' }).click();
-    await expect(page.getByText(/^已送出工作 \d+，進入佇列 /)).toBeVisible();
-    await expect(page.getByRole('table', { name: '工作列表' }).getByRole('row', { name: /^1 / })).toBeVisible();
+    await page.getByRole('button', { name: '新增訓練設定' }).click();
+    const form = page.getByRole('form', { name: '新增訓練設定' });
+    await form.getByLabel('設定名稱').fill('demo-modality');
+    await form.getByLabel('訓練種類').selectOption('image_classification');
+    await form.getByLabel('標註來源').selectOption('annotations');
+    await form.getByLabel('Label（以逗號分隔）').fill('CT, MR');
+    await form.getByLabel('Resize 高（像素）').fill('64');
+    await form.getByLabel('Resize 寬（像素）').fill('64');
+    await form.getByLabel('亂數種子').fill('7');
+    await form.getByLabel('旋轉角度範圍（度）').fill('10');
+    await form.getByRole('checkbox', { name: '水平翻轉' }).check();
+    await form.getByRole('button', { name: '儲存設定' }).click();
+    await expect(page.getByText('已新增訓練設定「demo-modality」。')).toBeVisible();
+    await page.getByRole('button', { name: '送出訓練「demo-modality」' }).click();
+    await expect(page.getByText(/^完成：已送出訓練 #1（demo-modality），目前排隊中。$/)).toBeVisible();
 
-    // AI 模型部署（B-06 部署）尚是骨架頁：只能示範入口與說明，沒有部署操作。
+    // 狀態自動更新：排隊中 → 執行中 → 已完成，看指標
+    const status = page.getByTestId('run-status');
+    await expect(status).toContainText('已完成');
+    await expect(page.getByRole('table', { name: '訓練 #1 的指標' })).toContainText('test.accuracy');
+
+    // 模型匯出：下載 Keras H5、匯出原始碼
+    const model = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下載模型（H5）' }).click();
+    expect((await model).suggestedFilename()).toBe('demo-modality-run1.h5');
+    const source = page.waitForEvent('download');
+    await page.getByRole('button', { name: '匯出原始碼' }).click();
+    expect((await source).suggestedFilename()).toBe('training-run-1-source.zip');
+
+    // AI 模型部署：部署剛訓練好的模型，授權 md01 與 pi01，看呼叫端點
     await openEntry(page, 'AI 模型部署');
-    await expect(page.getByRole('heading', { name: '此功能將於 M2 提供' })).toBeVisible();
+    const deploy = page.getByRole('form', { name: '部署模型' });
+    await deploy.getByLabel('模型').selectOption({ label: 'demo-modality-run1（影像分類，H5）' });
+    await deploy.getByLabel('部署名稱（小寫英數字與 -）').fill('demo-modality');
+    await deploy.getByLabel('授權帳號（以逗號分隔）').fill('md01, pi01');
+    await deploy.getByRole('button', { name: '部署' }).click();
+    await expect(page.getByText('已部署「demo-modality」：POST /api/inference/demo-modality/predict')).toBeVisible();
+    await expect(page.getByRole('table', { name: '線上部署清單' }).getByRole('row', { name: /demo-modality/ })).toContainText('md01、pi01');
 
-    // 推論：選已訓練完成的模型，上傳影像推論，再做結構式批次推論
+    // 推論：選已訓練完成的模型，上傳影像推論
     await openEntry(page, '推論服務管理');
     await expect(page.getByRole('heading', { level: 1, name: '推論服務管理' })).toBeVisible();
     await page.getByRole('button', { name: '選擇 modality-cnn-run2' }).click();
