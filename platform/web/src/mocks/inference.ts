@@ -1,5 +1,6 @@
 // MSW：推論服務管理（/api/projects/:pid/models、/inference）。路徑、狀態碼、錯誤訊息照 platform/api/app/training。
 // 每個專案有一個結構式分類模型與一個影像分類模型、一個物件偵測模型；結果由輸入決定（可重現）。只在 dev server 與測試使用。
+// 批次推論是背景工作：POST 回 202（queued），之後每次 GET /inference/:iid 往前推一步：queued → running → succeeded。
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type { Permission } from '../api/types';
 import type { ImageResult, InferenceRecord, Model } from '../pages/inference/api';
@@ -34,6 +35,8 @@ function models(projectId: number): Model[] {
 interface Stored extends InferenceRecord {
   project_id: number;
   download: string;
+  /** 批次推論完成後的結果（完成前 result 是 null） */
+  final?: InferenceRecord['result'];
 }
 const records: Stored[] = [];
 
@@ -85,16 +88,28 @@ function parseCsv(text: string): { columns: string[]; rows: Record<string, strin
 function store(ctx: { username: string; projectId: number }, model: Model, mode: 'batch' | 'upload', result: Stored['result']): Stored {
   const count = result && 'rows' in result ? result.rows.length : result && 'results' in result ? result.results.length : 0;
   const csv = result && 'rows' in result ? [result.columns, ...result.rows].map((r) => r.join(',')).join('\n') + '\n' : JSON.stringify(result);
-  const record: Stored = {
-    id: records.length + 1, model_id: model.id, project_id: ctx.projectId, mode, status: 'succeeded', user: ctx.username,
-    count, message: '', result_format: result && 'rows' in result ? 'csv' : 'json', has_result: true,
-    created_at: new Date().toISOString(), result, download: csv,
-  };
+  const id = records.length + 1;
+  const common = {
+    id, model_id: model.id, project_id: ctx.projectId, mode, user: ctx.username, count, message: '',
+    result_format: result && 'rows' in result ? 'csv' : 'json', created_at: new Date().toISOString(), download: csv,
+  } as const;
+  const record: Stored =
+    mode === 'batch'
+      ? { ...common, status: 'queued', has_result: false, result: null, final: result, job_id: 500 + id, started_at: null, finished_at: null }
+      : { ...common, status: 'succeeded', has_result: true, result, job_id: null, started_at: null, finished_at: null };
   records.push(record);
   return record;
 }
 
-const view = ({ download: _d, project_id: _p, ...rest }: Stored): InferenceRecord => rest;
+/** 批次推論往前推一步（每次查詢一步）。 */
+function advance(r: Stored) {
+  const now = new Date().toISOString();
+  if (r.status === 'queued') Object.assign(r, { status: 'running', started_at: now });
+  else if (r.status === 'running') Object.assign(r, { status: 'succeeded', has_result: true, result: r.final, finished_at: now });
+}
+
+const view = ({ download: _d, project_id: _p, final: _f, ...rest }: Stored): InferenceRecord => rest;
+const find = (ctx: { projectId: number }, iid: unknown) => records.find((x) => x.id === Number(iid) && x.project_id === ctx.projectId);
 
 export function createInferenceHandlers(getDb: () => MockDb) {
   mockDb = getDb;
@@ -120,10 +135,10 @@ const inferenceHandlers = [
     if (!model) return detail(404, `找不到模型 ${String(params.mid)}`);
     if (model.kind.startsWith('image_')) {
       const results = Array.from({ length: 20 }, (_, i) => imageResult(model, `study_${String(i + 1).padStart(4, '0')}/IM0001.dcm`));
-      return json(view(store(ctx, model, 'batch', { results, label_names: model.card.label_names ?? [] })), 201);
+      return json(view(store(ctx, model, 'batch', { results, label_names: model.card.label_names ?? [] })), 202);
     }
     const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120' }));
-    return json(view(store(ctx, model, 'batch', tabular(rows, ['patient_id', ...FEATURES]))), 201);
+    return json(view(store(ctx, model, 'batch', tabular(rows, ['patient_id', ...FEATURES]))), 202);
   }),
   http.post(`${API}/models/:mid/inference/upload`, async ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
@@ -149,14 +164,29 @@ const inferenceHandlers = [
   http.get(`${API}/inference/:iid`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
     if (ctx instanceof Response) return ctx;
-    const r = records.find((x) => x.id === Number(params.iid) && x.project_id === ctx.projectId);
-    return r ? json(view(r)) : detail(404, `找不到推論紀錄 ${String(params.iid)}`);
+    const r = find(ctx, params.iid);
+    if (!r) return detail(404, `找不到推論紀錄 ${String(params.iid)}`);
+    advance(r);
+    return json(view(r));
+  }),
+  http.post(`${API}/inference/:iid/cancel`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'prediction');
+    if (ctx instanceof Response) return ctx;
+    const r = find(ctx, params.iid);
+    if (!r) return detail(404, `找不到推論紀錄 ${String(params.iid)}`);
+    if (r.mode !== 'batch') return detail(409, `推論 ${r.id} 不是批次推論，無法取消`);
+    if (r.status !== 'queued' && r.status !== 'running') return detail(409, `推論 ${r.id} 已結束（${r.status}），無法取消`);
+    Object.assign(r, { status: 'cancelled', message: `由 ${ctx.username} 取消`, finished_at: new Date().toISOString() });
+    const { result: _r, ...out } = view(r);
+    return json(out);
   }),
   http.get(`${API}/inference/:iid/download`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
     if (ctx instanceof Response) return ctx;
-    const r = records.find((x) => x.id === Number(params.iid) && x.project_id === ctx.projectId);
+    const r = find(ctx, params.iid);
     if (!r) return detail(404, `找不到推論紀錄 ${String(params.iid)}`);
+    if (r.status === 'queued' || r.status === 'running') return detail(409, `推論 ${r.id} 尚未完成，請稍後再下載`);
+    if (!r.has_result) return detail(404, `推論紀錄 ${r.id} 沒有結果（${r.message || r.status}）`);
     return new HttpResponse(r.download, {
       headers: {
         'Content-Type': r.result_format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json',

@@ -1,11 +1,15 @@
 // 推論服務管理（B-06）：選模型、批次或上傳檔案推論、檢視結果（結構式新增預測欄、影像顯示結果）、歷史與下載。
-import { useState, type FormEvent } from 'react';
+// 批次推論在背景執行：送出後輪詢狀態，完成後顯示結果；排隊或執行中可以取消。上傳推論當場回結果。
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import {
   KIND_NAMES,
+  STATUS_NAMES,
+  isFinished,
   isImageModel,
   useInferenceApi,
+  waitForRecord,
   type ImageResult,
   type InferenceApi,
   type InferenceRecord,
@@ -87,17 +91,51 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const watch = useRef<AbortController | null>(null);
   const image = isImageModel(model.kind);
+
+  useEffect(() => () => watch.current?.abort(), []);
+
+  /** 顯示一筆推論；還沒結束的批次推論持續輪詢到結束。 */
+  function follow(record: InferenceRecord) {
+    watch.current?.abort();
+    setResult(record);
+    if (isFinished(record.status)) return;
+    const ctrl = new AbortController();
+    watch.current = ctrl;
+    waitForRecord(inference, record.id, { signal: ctrl.signal, onUpdate: setResult })
+      .then((done) => {
+        if (done) history.reload();
+      })
+      .catch((err: unknown) => {
+        if (!ctrl.signal.aborted) setError(err);
+      });
+  }
 
   async function run(call: () => Promise<InferenceRecord>) {
     setBusy(true);
     setError(null);
     try {
-      setResult(await call());
+      follow(await call());
     } catch (err) {
       setError(err);
     } finally {
       setBusy(false);
+      history.reload();
+    }
+  }
+
+  async function cancel(id: number) {
+    setError(null);
+    try {
+      const record = await inference.cancel(id);
+      if (result?.id === id) {
+        watch.current?.abort();
+        setResult(record);
+      }
+    } catch (err) {
+      setError(err);
+    } finally {
       history.reload();
     }
   }
@@ -117,7 +155,7 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
   async function open(id: number) {
     setError(null);
     try {
-      setResult(await inference.record(id));
+      follow(await inference.record(id));
     } catch (err) {
       setError(err);
     }
@@ -181,7 +219,9 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
         </div>
         {busy ? <p role="status">推論中…</p> : null}
       </section>
-      {result ? <ResultView record={result} size={model.card.input?.resize} onDownload={download} /> : null}
+      {result ? (
+        <ResultView record={result} size={model.card.input?.resize} onDownload={download} onCancel={cancel} />
+      ) : null}
       <section className="card section" aria-labelledby="history-title">
         <h2 id="history-title">推論歷史</h2>
         <ApiErrorAlert error={history.error} />
@@ -206,10 +246,20 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
                     <td>#{h.id}</td>
                     <td>{MODES[h.mode]}</td>
                     <td>{h.count}</td>
-                    <td>{h.status === 'succeeded' ? '成功' : `失敗：${h.message}`}</td>
+                    <td>{h.status === 'failed' ? `失敗：${h.message}` : STATUS_NAMES[h.status]}</td>
                     <td>{h.user}</td>
                     <td>{new Date(h.created_at).toLocaleString('zh-TW')}</td>
                     <td className="inference-actions">
+                      {!isFinished(h.status) ? (
+                        <>
+                          <button type="button" className="btn btn--small" onClick={() => void open(h.id)}>
+                            檢視 #{h.id}
+                          </button>
+                          <button type="button" className="btn btn--small" onClick={() => void cancel(h.id)}>
+                            取消 #{h.id}
+                          </button>
+                        </>
+                      ) : null}
                       {h.has_result ? (
                         <>
                           <button type="button" className="btn btn--small" onClick={() => void open(h.id)}>
@@ -232,19 +282,45 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
   );
 }
 
-function ResultView({ record, size, onDownload }: { record: InferenceRecord; size?: number[]; onDownload: (id: number) => void }) {
+function ResultView({
+  record,
+  size,
+  onDownload,
+  onCancel,
+}: {
+  record: InferenceRecord;
+  size?: number[];
+  onDownload: (id: number) => void;
+  onCancel: (id: number) => void;
+}) {
   const result = record.result;
+  const pending = !isFinished(record.status);
   return (
     <section className="card section" aria-labelledby="result-title">
       <div className="inference-result-head">
         <h2 id="result-title">
           推論結果 #{record.id}（{record.count} 筆）
         </h2>
-        <button type="button" className="btn" onClick={() => onDownload(record.id)}>
-          下載結果
-        </button>
+        {pending ? (
+          <button type="button" className="btn" onClick={() => onCancel(record.id)}>
+            取消推論
+          </button>
+        ) : null}
+        {record.has_result ? (
+          <button type="button" className="btn" onClick={() => onDownload(record.id)}>
+            下載結果
+          </button>
+        ) : null}
       </div>
-      {!result ? <Alert tone="error">{record.message || '這次推論沒有結果'}</Alert> : null}
+      {pending ? (
+        <p role="status" data-testid="batch-status">
+          批次推論{STATUS_NAMES[record.status]}…在背景執行，完成後自動顯示結果；離開此頁也不影響，可稍後在推論歷史查看。
+        </p>
+      ) : null}
+      {record.status === 'cancelled' ? <Alert tone="info">{record.message || '這次推論已取消'}</Alert> : null}
+      {!pending && record.status !== 'cancelled' && !result ? (
+        <Alert tone="error">{record.message || '這次推論沒有結果'}</Alert>
+      ) : null}
       {result && 'columns' in result ? <TableResult result={result} /> : null}
       {result && 'results' in result && result.blocked?.length ? (
         <Alert tone="warning">
