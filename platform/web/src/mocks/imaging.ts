@@ -1,7 +1,7 @@
 // 模擬 platform/api 的影像 API（app/imaging）。上傳的 DICOM 會真的解析標頭（Explicit VR Little Endian）。
 import { http } from 'msw';
 import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, Study } from '../pages/imaging/types';
-import { API, detail, isoNow, json, jsonBody, moduleState, requireProject } from './support';
+import { API, detail, isoNow, json, jsonBody, moduleState, requireProject, validation } from './support';
 
 interface DicomInfo {
   sop: string;
@@ -465,7 +465,12 @@ export const imagingHandlers = [
         if (hit[3]) list = list.filter((st) => (st.study_date ?? '') <= hit[3]);
       }
     }
-    return json(list);
+    if (!q.has('limit')) return json(list); // 不帶 limit：完整陣列（既有行為）
+    const limit = Number(q.get('limit'));
+    const offset = Number(q.get('offset') ?? 0);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) return validation('limit', 'Input should be between 1 and 500', 'less_than_equal', q.get('limit'));
+    if (!Number.isInteger(offset) || offset < 0) return validation('offset', 'Input should be >= 0', 'greater_than_equal', q.get('offset'));
+    return json({ items: list.slice(offset, offset + limit), total: list.length, offset, limit });
   }),
 
   http.get(`${BASE}/studies/:uid`, ({ request, params }) => {

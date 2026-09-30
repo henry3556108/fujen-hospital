@@ -93,7 +93,8 @@ services:
 
   # S3 相容物件儲存（NIfTI／ITK／標註檔）。不對主機開放
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    # Chainguard 免費映像只提供 latest：以 digest 釘住（2026-09-28 建置的版本），換版時一併更新授權清單
+    image: cgr.dev/chainguard/minio:latest@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9
     command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: minio-dev

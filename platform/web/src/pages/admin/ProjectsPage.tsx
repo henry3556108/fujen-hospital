@@ -5,6 +5,7 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import type { GpuGroup } from '../scheduling/types';
 
 interface FormValues {
   name: string;
@@ -13,6 +14,17 @@ interface FormValues {
 }
 
 const EMPTY: FormValues = { name: '', description: '', gpu_group: '' };
+const MODE_SHORT: Record<string, string> = { exclusive: '獨占', shared: '共享' };
+
+/** GPU 群組選單的選項：不綁定＋已定義的群組；目前綁定的群組若已不存在也列出（標示），避免編輯時被默默改掉。 */
+function groupOptions(groups: GpuGroup[] | null, current: string): { value: string; label: string }[] {
+  const options = [{ value: '', label: '不綁定' }];
+  for (const g of groups ?? []) options.push({ value: g.name, label: `${g.name}（${MODE_SHORT[g.mode] ?? g.mode}，${g.gpu_count} 張）` });
+  if (current && !(groups ?? []).some((g) => g.name === current)) {
+    options.push({ value: current, label: groups ? `${current}（已不存在）` : current });
+  }
+  return options;
+}
 
 function invalid(error: unknown, field: string): boolean {
   return error instanceof ApiError && error.fieldErrors.some((f) => f.field === field);
@@ -24,12 +36,16 @@ function ProjectForm({
   submitLabel,
   onSubmit,
   onCancel,
+  groups,
+  groupsError,
 }: {
   title: string;
   initial: FormValues;
   submitLabel: string;
   onSubmit: (v: FormValues) => Promise<void>;
   onCancel?: () => void;
+  groups: GpuGroup[] | null;
+  groupsError: unknown;
 }) {
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<unknown>(null);
@@ -50,13 +66,14 @@ function ProjectForm({
     }
   }
 
-  const set = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof FormValues) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setValues((v) => ({ ...v, [k]: e.target.value }));
 
   return (
     <form aria-label={title} className="card section" onSubmit={submit} noValidate>
       <h2>{title}</h2>
       <ApiErrorAlert error={error} />
+      <ApiErrorAlert error={groupsError} />
       <div className="form-grid">
         <div className="field">
           <label htmlFor={`${idp}-name`}>專案名稱（必填）</label>
@@ -75,15 +92,21 @@ function ProjectForm({
         </div>
         <div className="field">
           <label htmlFor={`${idp}-gpu`}>GPU 群組</label>
-          <input
+          <select
             id={`${idp}-gpu`}
-            className="input"
+            className="select"
             value={values.gpu_group}
             onChange={set('gpu_group')}
             aria-describedby={`${idp}-gpu-hint`}
-          />
+          >
+            {groupOptions(groups, values.gpu_group).map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
           <span id={`${idp}-gpu-hint`} className="field__hint">
-            留白表示不綁定，例如 gpu-exclusive
+            群組在「共享排程設定 › GPU 群組」分頁定義
           </span>
         </div>
       </div>
@@ -104,6 +127,7 @@ function ProjectForm({
 export function ProjectsPage() {
   const { api } = useSession();
   const projects = useResource(() => api.get<Project[]>('/api/admin/projects'));
+  const groups = useResource(() => api.get<GpuGroup[]>('/api/admin/gpu-groups'));
   const [notice, setNotice] = useState<string | null>(null);
   const [editing, setEditing] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
@@ -222,9 +246,18 @@ export function ProjectsPage() {
           initial={{ name: editing.name, description: editing.description, gpu_group: editing.gpu_group ?? '' }}
           onSubmit={update}
           onCancel={() => setEditing(null)}
+          groups={groups.data}
+          groupsError={groups.error}
         />
       ) : (
-        <ProjectForm title="新增專案" submitLabel="新增專案" initial={EMPTY} onSubmit={create} />
+        <ProjectForm
+          title="新增專案"
+          submitLabel="新增專案"
+          initial={EMPTY}
+          onSubmit={create}
+          groups={groups.data}
+          groupsError={groups.error}
+        />
       )}
 
       {deleting && (
