@@ -1,13 +1,13 @@
 [
   {
     "kind": "image",
-    "name": "cgr.dev/chainguard/minio:latest",
-    "file": "image-cgr.dev_chainguard_minio_latest.csv",
+    "name": "cgr.dev/chainguard/minio:latest@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9",
+    "file": "image-cgr.dev_chainguard_minio_latest_sha256_71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9.csv",
     "components": 287,
     "used_by": [
       "compose:deploy/local/compose.yaml#minio"
     ],
-    "pinned": false,
+    "pinned": true,
     "repo_digests": [
       "cgr.dev/chainguard/minio@sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9"
     ],
@@ -158,13 +158,14 @@
     "file": "image-docker.io_library_platform-trainer_dev.csv",
     "components": 212,
     "used_by": [
+      "code:api/app/training/batch.py:TRAINING_IMAGE",
       "code:api/app/training/service.py:TRAINING_IMAGE",
       "compose:deploy/local/compose.training.yaml#api:TRAINING_IMAGE",
       "compose:deploy/local/compose.training.yaml#inference"
     ],
     "pinned": true,
     "repo_digests": [
-      "platform-trainer@sha256:e4a7d6f11a71a781052c52e68cc4e6fdc8dd784e249cde99f9e301f8f549d50f"
+      "platform-trainer@sha256:198830313362700da4c9dded4baed264825ddb5da3a4af272a0603486b34881e"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 12.13"
