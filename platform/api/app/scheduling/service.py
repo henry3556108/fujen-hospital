@@ -157,9 +157,15 @@ def update_shared_settings(session: Session, backend: JobBackend, *, actor: str,
 # ---------- 工作 ----------
 
 # 工作種類 → 是否用 GPU；GPU 工作走專案綁定群組的池，CPU 工作走固定的池
-JOB_KINDS = {"training": True, "data-cleaning": False}
-CPU_POOLS = {"data-cleaning": "cpu-data"}
+# inference／inference-cpu 是平台送出的批次推論（影像模型用 GPU、結構式模型只用 CPU），使用者不能直接送
+JOB_KINDS = {"training": True, "data-cleaning": False, "inference": True, "inference-cpu": False}
+CPU_POOLS = {"data-cleaning": "cpu-data", "inference-cpu": "cpu-data"}
 TRAINING_KINDS = {"training"}
+INFERENCE_KINDS = {"inference", "inference-cpu"}
+
+
+def _category(kind: str) -> AuditCategory:
+    return AuditCategory.INFERENCE if kind in INFERENCE_KINDS else AuditCategory.TRAINING
 
 _LABEL_BAD = re.compile(r"[^A-Za-z0-9_.-]+")
 
@@ -219,7 +225,7 @@ def submit_job(session: Session, backend: JobBackend, *, project: Project, actor
                        env=tuple(sorted(workload.env.items())), cpu_request=workload.cpu_request)
     if on_created is not None:
         on_created(job)
-    record(session, actor=actor, category=AuditCategory.TRAINING, action="job.submit", target=f"job:{job.id}",
+    record(session, actor=actor, category=_category(kind), action="job.submit", target=f"job:{job.id}",
            source_ip=source_ip, detail={"project_id": project.id, "kind": kind, "queue": pool,
                                         "gpu_group": job.gpu_group, "k8s_name": job.k8s_name})
     try:
@@ -291,12 +297,18 @@ def cancel_job(session: Session, backend: JobBackend, *, project_id: int, job_id
     if JobStatus(job.status) in TERMINAL:
         session.commit()
         raise Conflict(f"工作 {job_id} 已結束（{job.status}），無法取消")
+    mark_cancelled(session, backend, job, actor=actor, source_ip=source_ip)
+    session.commit()
+    return job
+
+
+def mark_cancelled(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> None:
+    """從排程系統刪除工作、狀態改為 cancelled、寫稽核，但不 commit：讓呼叫端把自己的狀態變更放進同一個交易。
+    呼叫前工作必須尚未結束（先 sync_job）。"""
     try:
         backend.cancel(job.k8s_name)
     except Exception as exc:
         raise Unavailable(f"無法取消排程系統中的工作：{exc}")
     _apply(job, JobStatus.CANCELLED)
-    record(session, actor=actor, category=AuditCategory.TRAINING, action="job.cancel", target=f"job:{job.id}",
-           source_ip=source_ip, detail={"project_id": project_id, "k8s_name": job.k8s_name})
-    session.commit()
-    return job
+    record(session, actor=actor, category=_category(job.kind), action="job.cancel", target=f"job:{job.id}",
+           source_ip=source_ip, detail={"project_id": job.project_id, "k8s_name": job.k8s_name})
