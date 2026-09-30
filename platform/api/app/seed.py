@@ -38,7 +38,7 @@ def _fresh_user(session: Session, idp: IdentityProvider, actor: str, username: s
 
 
 def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: str, store=None,
-                   orthanc=None, fhir=None) -> dict:
+                   orthanc=None, fhir=None, jobs=None) -> dict:
     subject = idp.find_subject(admin_username)
     if subject is None:
         raise RuntimeError(f"身分提供者中找不到 {admin_username}")
@@ -66,7 +66,8 @@ def reset_and_seed(session: Session, idp: IdentityProvider, *, admin_username: s
     record(session, actor=admin.username, category=AuditCategory.PROJECT, action="seed.reset",
            target="baseline", source_ip=SEED_SOURCE, detail={"removed": removed})
     session.commit()
-    project_cleanup.run_pending(session, store, orthanc, actor=admin.username, source_ip=SEED_SOURCE, fhir=fhir)
+    project_cleanup.run_pending(session, store, orthanc, actor=admin.username, source_ip=SEED_SOURCE, fhir=fhir,
+                                jobs=jobs)
 
     actor = admin.username
     projects = {
@@ -93,5 +94,6 @@ if __name__ == "__main__":
     with app.state.sessionmaker() as s:
         print(json.dumps(reset_and_seed(s, idp, admin_username=os.environ.get("SEED_ADMIN", "admin01"),
                                         store=app.state.store, orthanc=getattr(app.state, "orthanc", None),
-                                        fhir=project_cleanup.fhir_client(app.state)),
+                                        fhir=project_cleanup.fhir_client(app.state),
+                                        jobs=project_cleanup.job_backend(app.state)),
                          ensure_ascii=False, indent=2))

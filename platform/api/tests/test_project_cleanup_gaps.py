@@ -137,3 +137,99 @@ def test_seed_reset_cleans_fhir_tenants(session, idp, fhir, store):
 
     assert not set(ids) & set(fhir.tenants())
     assert session.scalar(select(func.count()).select_from(StorageCleanupTask)) == 0
+
+
+# ---------- 第 2 項：叢集中排隊／執行中的工作 ----------
+
+@pytest.fixture
+def backend(app):
+    from app.scheduling.backend import FakeJobBackend
+    app.state.job_backend = FakeJobBackend()
+    return app.state.job_backend
+
+
+def _job(client, admin, pid, kind="training", seconds=600):
+    r = client.post(f"/api/projects/{pid}/jobs", headers=admin, json={"kind": kind, "duration_seconds": seconds})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _k8s_name(session, job_id):
+    from app.scheduling.models import Job
+    return session.get(Job, job_id).k8s_name
+
+
+def test_delete_project_cancels_queued_and_running_jobs(client, admin, session, backend):
+    """done 已在叢集結束但資料庫還是 queued（只在查詢時同步）：不算取消、不動它。"""
+    pid = _project(client, admin, "P1", gpu_group="gpu-exclusive")
+    keep = _project(client, admin, "P2", gpu_group="gpu-exclusive")
+    done = _job(client, admin, pid, kind="data-cleaning", seconds=1)
+    backend.advance(5)
+    running = [_job(client, admin, pid) for _ in range(2)]            # 獨占池 2 張卡：2 件執行中
+    other = _job(client, admin, keep)                                  # 排在 P1 之後
+    queued = _job(client, admin, pid)
+    names = {j["id"]: _k8s_name(session, j["id"]) for j in (done, *running, other, queued)}
+    assert [backend.get(names[j["id"]]).state for j in running] == ["running", "running"]
+    assert backend.get(names[queued["id"]]).state == "queued"
+    assert backend.get(names[done["id"]]).state == "succeeded"
+
+    assert client.delete(f"/api/admin/projects/{pid}", headers=admin).status_code == 204
+
+    for j in (*running, queued):
+        assert backend.get(names[j["id"]]) is None, j                   # 已從叢集取消
+    assert backend.get(names[done["id"]]).state == "succeeded"         # 已結束的工作不動
+    assert backend.get(names[other["id"]]).state == "running"          # 釋出 GPU 後另一個專案的工作開始跑
+    assert _tasks(session) == []
+    assert _cleanup_audits(session) == [
+        (f"project:{pid}", "success", {"objects_deleted": 0, "orthanc_deleted": 0, "failed": 0, "jobs_cancelled": 3})]
+
+
+def test_training_run_job_is_cancelled_with_its_project(client, admin, session, backend):
+    """訓練都經由排程工作送進叢集：訓練的 Job 同樣被取消。"""
+    from app.scheduling.models import Job
+    from app.scheduling.service import TRAINING_KINDS
+    pid = _project(client, admin, "P1", gpu_group="gpu-exclusive")
+    job = _job(client, admin, pid)
+    assert session.get(Job, job["id"]).kind in TRAINING_KINDS
+    name = _k8s_name(session, job["id"])
+    assert client.delete(f"/api/admin/projects/{pid}", headers=admin).status_code == 204
+    assert backend.get(name) is None
+
+
+def test_job_cancel_failure_is_kept_and_retried(client, admin, session, backend, monkeypatch):
+    pid = _project(client, admin, "P1", gpu_group="gpu-exclusive")
+    other = _project(client, admin, "P2")
+    job = _job(client, admin, pid)
+    name = _k8s_name(session, job["id"])
+    real_cancel = backend.cancel
+
+    def broken(job_name):
+        raise RuntimeError("叢集 API 無法連線")
+    monkeypatch.setattr(backend, "cancel", broken)
+
+    assert client.delete(f"/api/admin/projects/{pid}", headers=admin).status_code == 204
+
+    assert backend.get(name).state == "running"
+    assert _tasks(session) == [("cluster_job", name, pid, 1)]
+    assert _cleanup_audits(session) == [
+        (f"project:{pid}", "partial", {"objects_deleted": 0, "orthanc_deleted": 0, "failed": 1})]
+
+    monkeypatch.setattr(backend, "cancel", real_cancel)
+    assert client.delete(f"/api/admin/projects/{other}", headers=admin).status_code == 204
+    assert backend.get(name) is None and _tasks(session) == []
+    assert _cleanup_audits(session)[-1] == (
+        f"project:{pid}", "success", {"objects_deleted": 0, "orthanc_deleted": 0, "failed": 0, "jobs_cancelled": 1})
+
+
+def test_job_backend_not_configured_keeps_the_task(client, admin, session, backend, monkeypatch):
+    pid = _project(client, admin, "P1", gpu_group="gpu-exclusive")
+    job = _job(client, admin, pid)
+    name = _k8s_name(session, job["id"])
+    client.app.state.job_backend = None
+    monkeypatch.delenv("JOB_BACKEND", raising=False)
+
+    assert client.delete(f"/api/admin/projects/{pid}", headers=admin).status_code == 204
+
+    [task] = session.scalars(select(StorageCleanupTask)).all()
+    assert (task.kind, task.ref, task.attempts) == ("cluster_job", name, 1) and "排程服務未設定" in task.last_error
+    assert backend.get(name).state == "running"
