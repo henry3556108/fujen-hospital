@@ -5,7 +5,7 @@
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base, utcnow
 
@@ -108,7 +108,8 @@ class InferenceRecord(Base):
     deployment_id: Mapped[int | None] = mapped_column(ForeignKey("model_deployments.id", ondelete="SET NULL"),
                                                       default=None)
     mode: Mapped[str] = mapped_column(String(16))              # batch | upload | online
-    status: Mapped[str] = mapped_column(String(16))            # succeeded | failed
+    # 上傳與線上：succeeded | failed；批次另有 queued | running | cancelled（與排程工作相同）
+    status: Mapped[str] = mapped_column(String(16))
     user: Mapped[str] = mapped_column(String(64))
     count: Mapped[int] = mapped_column(Integer, default=0)
     input: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -116,3 +117,19 @@ class InferenceRecord(Base):
     result_format: Mapped[str] = mapped_column(String(8), default="")   # csv | json
     message: Mapped[str] = mapped_column(String(1024), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # 批次推論的排程資訊（只讀的關聯，不是欄位；刪除由資料庫 ON DELETE CASCADE 處理）
+    batch: Mapped["InferenceBatch | None"] = relationship(uselist=False, viewonly=True, lazy="selectin")
+
+
+class InferenceBatch(Base):
+    """批次推論的背景工作：與推論紀錄一對一。另開資料表而不在 inference_records 加欄位，
+    因為平台以 create_all 建表、沒有遷移工具，既有資料庫加欄位不會生效。"""
+    __tablename__ = "inference_batches"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("inference_records.id", ondelete="CASCADE"), unique=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), default=None)
+    io_token_hash: Mapped[str] = mapped_column(String(64), default="")
+    io_closed: Mapped[bool] = mapped_column(Boolean, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

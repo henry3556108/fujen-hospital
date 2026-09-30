@@ -688,41 +688,6 @@ def _splits(store: ObjectStore, session: Session, model: TrainedModel) -> dict[s
     return splits
 
 
-def batch_inference(ctx: ProjectContext, state, *, model: TrainedModel, subset: str,
-                    source_ip: str | None) -> InferenceRecord:
-    if subset not in SUBSETS:
-        raise Invalid(f"subset 必須是：{'、'.join(SUBSETS)}")
-    session, store = ctx.session, state.store
-    backend = inference_backend(state)
-    run = session.get(TrainingRun, model.run_id)
-    version = session.get(DatasetVersion, run.dataset_version_id)
-    manifest = snapshot.load_manifest(store, version)
-    splits = _splits(store, session, model) if subset != "all" else {}
-    input_ = {"subset": subset, "dataset_version_id": version.id, "dataset_hash": version.content_hash}
-    blob = lambda ref: store.get(snapshot.blob_key(model.project_id, ref["blob"]))  # noqa: E731
-
-    if model.kind in cfg.TABULAR_KINDS:
-        header, rows = _read_csv(blob(manifest["items"][0]["files"]["csv"]))
-        picked = list(range(len(rows))) if subset == "all" else [i for i in splits[subset] if i < len(rows)]
-        if not picked:
-            raise Conflict(f"「{subset}」切分沒有資料")
-        target = model.card.get("target")
-        keep = [i for i, name in enumerate(header) if name != target]   # 推論不送目標欄，避免洩漏答案
-        data = _write_csv([header[i] for i in keep], [[rows[r][i] for i in keep] for r in picked])
-        return _run_inference(session, state, backend, model=model, mode="batch", user=ctx.user.username,
-                              input_={**input_, "rows": picked}, source_ip=source_ip, action="inference.batch",
-                              tabular=data)
-    wanted = None if subset == "all" else {str(s).split("#")[0] for s in splits[subset]}
-    items = [i for i in manifest["items"] if wanted is None or i["id"] in wanted]
-    if not items:
-        raise Conflict(f"「{subset}」切分沒有資料")
-    files = [ImageInput(name=i["id"], data=blob(i["files"]["image"]), format=i["files"]["image"]["format"])
-             for i in items]
-    return _run_inference(session, state, backend, model=model, mode="batch", user=ctx.user.username,
-                          input_={**input_, "items": [i["id"] for i in items]}, source_ip=source_ip,
-                          action="inference.batch", images=files)
-
-
 def image_format(name: str, data: bytes) -> str:
     lower = name.lower()
     for suffix, fmt in sorted(FORMATS.items(), key=lambda kv: -len(kv[0])):
@@ -754,10 +719,13 @@ def upload_inference(ctx: ProjectContext, state, *, model: TrainedModel, files: 
 
 
 def record_out(row: InferenceRecord) -> dict[str, Any]:
+    batch = row.batch if row.mode == "batch" else None      # 批次推論的排程資訊；其他方式為 null
     return {"id": row.id, "project_id": row.project_id, "model_id": row.model_id,
             "deployment_id": row.deployment_id, "mode": row.mode, "status": row.status, "user": row.user,
             "count": row.count, "input": row.input, "message": row.message, "result_format": row.result_format,
-            "has_result": bool(row.result_key), "created_at": _iso(row.created_at)}
+            "has_result": bool(row.result_key), "created_at": _iso(row.created_at),
+            "job_id": batch.job_id if batch else None, "started_at": _iso(batch.started_at) if batch else None,
+            "finished_at": _iso(batch.finished_at) if batch else None}
 
 
 def list_records(session: Session, model: TrainedModel) -> list[InferenceRecord]:
@@ -773,6 +741,8 @@ def get_record(session: Session, project_id: int, record_id: int) -> InferenceRe
 
 
 def result_bytes(store: ObjectStore, row: InferenceRecord) -> bytes:
+    if row.status in ("queued", "running"):
+        raise Conflict(f"推論 {row.id} 尚未完成（{'排隊中' if row.status == 'queued' else '執行中'}），請稍後再下載")
     if not row.result_key:
         raise NotFound(f"推論紀錄 {row.id} 沒有結果（{row.message or row.status}）")
     try:

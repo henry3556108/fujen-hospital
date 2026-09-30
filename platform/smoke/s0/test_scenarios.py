@@ -222,6 +222,34 @@ def run_job(world, run: dict, tmp: Path, headers: dict | None = None) -> dict:
                                headers=headers or world.headers("pi01")))
 
 
+def run_batch(world, record: dict, tmp: Path, headers: dict) -> dict:
+    """做批次推論 Job 做的事：以真正的進入點 trainer.batch 下載輸入包、預測、回報，然後輪詢到結束。
+    結構式模型用真的 scikit-learn 預測；影像模型用記憶體版（平台 API 的環境沒有 TensorFlow）。"""
+    from dataclasses import replace
+
+    from trainer.batch import BatchIO, load_predictor, run_batch as entry
+
+    from app.training.inference import FakeInferenceBackend, ImageInput
+
+    def load(meta, root):
+        if meta["format"] == "pkl":
+            return load_predictor(meta, root)
+        fake = FakeInferenceBackend()
+        fake.models[0] = {"card": meta["card"]}
+        return type("Images", (), {"predict": lambda self, files: fake.predict_images(
+            0, [ImageInput(name=n, data=d, format=f) for n, d, f in files])})()
+
+    job = next(j for j in world.backend._jobs.values() if dict(j.spec.env).get("INFERENCE_ID") == str(record["id"]))
+    env = dict(job.spec.env)
+    # 容器只拿到這一筆推論的編號、I/O 位址與一次性 token
+    assert set(env) == {"INFERENCE_ID", "JOB_IO_URL", "JOB_IO_TOKEN", "TRAIN_THREADS"}
+    path = "/api/job-io/inference/" + env["JOB_IO_URL"].rsplit("/api/job-io/inference/", 1)[1]
+    if entry(BatchIO(world.client, path, env["JOB_IO_TOKEN"]), tmp, load=load) != 0:
+        job.spec = replace(job.spec, fail=True)
+    world.backend.advance(60)
+    return ok(world.client.get(f"/api/projects/{record['project_id']}/inference/{record['id']}", headers=headers))
+
+
 def train(world, pid: int, headers: dict, name: str, config: dict, tmp: Path, executor: str = "fake") -> dict:
     c = world.client
     setting = ok(c.post(f"/api/projects/{pid}/training/settings", headers=headers,
@@ -319,16 +347,22 @@ def test_scenario_04_no_code_training_templates(world, tmp_path):
 
 # ---------------------------------------------------------------- 情境 5：部署模型給別人用
 
-def test_scenario_05_deploy_and_infer(world):
+def test_scenario_05_deploy_and_infer(world, tmp_path):
     """批次推論、檢視結果、部署為線上服務並設定可用帳號、授權帳號即時推論、查歷史並下載（B-06）。"""
     c, pi, md, p1 = world.client, world.headers("pi01"), world.headers("md01"), world.ids["p1"]
     model_id = world.ids["image_model"]
     base = f"/api/projects/{p1}/models/{model_id}"
     mark = world.last_audit_id()
 
-    # 1–2. 批次推論（全部凍結資料）與上傳推論，影像顯示分類結果
-    batch = ok(c.post(f"{base}/inference/batch", headers=pi, json={"subset": "all"}), 201)
+    # 1. 批次推論（全部凍結資料）：送出後立即回應、排進專案的 GPU 群組；Job 跑完後檢視結果
+    queued = ok(c.post(f"{base}/inference/batch", headers=pi, json={"subset": "all"}), 202)
+    assert queued["status"] == "queued" and queued["count"] > 0 and queued["result"] is None
+    assert ok(c.get(f"/api/projects/{p1}/jobs/{queued['job_id']}", headers=pi))["queue"] == "gpu-exclusive"
+    assert c.get(f"/api/projects/{p1}/inference/{queued['id']}/download", headers=pi).status_code == 409
+    batch = run_batch(world, queued, tmp_path / "batch", pi)
+    assert batch["status"] == "succeeded", batch["message"]
     assert batch["count"] > 0 and all(r["label"] for r in batch["result"]["results"])
+    # 2. 上傳推論（同步），影像顯示分類結果
     dicoms = sorted((world.synth / "dicom").rglob("*.dcm"))[:3]
     upload = ok(c.post(f"{base}/inference/upload", headers=pi,
                        files=[("files", (p.name, p.read_bytes())) for p in dicoms]), 201)
@@ -349,7 +383,8 @@ def test_scenario_05_deploy_and_infer(world):
     download = c.get(f"/api/projects/{p1}/inference/{history[-1]['id']}/download", headers=pi)
     assert download.status_code == 200 and json.loads(download.content)["results"]
     audit = world.audit("inference", since=mark)
-    assert {"inference.batch", "inference.upload", "deployment.create", "inference.online"} <= {a.action for a in audit}
+    assert {"inference.batch", "inference.batch.finish", "inference.upload", "deployment.create",
+            "inference.online"} <= {a.action for a in audit}
     assert sum(a.result == "denied" for a in audit) == 3
 
 
@@ -430,9 +465,12 @@ def test_scenario_06_train_on_tabular(world, tmp_path):
         rows = pd.DataFrame([[0.0] * len(model.feature_names_in_)] * 3, columns=model.feature_names_in_)
         assert len(model.predict(rows)) == 3
 
-    # 批次推論測試資料 20 筆，每一列都新增預測欄
-    out = ok(c.post(f"/api/projects/{p2}/models/{classifier['model_id']}/inference/batch", headers=ra,
-                    json={"subset": "test"}), 201)
+    # 批次推論測試資料 20 筆（背景 Job 在 cpu-data 執行），每一列都新增預測欄
+    queued = ok(c.post(f"/api/projects/{p2}/models/{classifier['model_id']}/inference/batch", headers=ra,
+                       json={"subset": "test"}), 202)
+    assert ok(c.get(f"/api/projects/{p2}/jobs/{queued['job_id']}", headers=ra))["queue"] == "cpu-data"
+    out = run_batch(world, queued, tmp_path / "batch", ra)
+    assert out["status"] == "succeeded", out["message"]
     data = c.get(f"/api/projects/{p2}/inference/{out['id']}/download", headers=ra).content.decode()
     rows = list(csv.DictReader(io.StringIO(data)))
     assert len(rows) == 20 and all(r["prediction"] or r["prediction_note"] for r in rows)

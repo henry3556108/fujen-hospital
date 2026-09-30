@@ -6,7 +6,8 @@
 |---|---|
 | `trainer/templates/` | 5 種訓練範本與共用模組。「匯出原始碼」匯出的就是這些檔案 |
 | `trainer/fake_trainer.py` | 假訓練：寫出隨機初始化的極小模型，不需要 TensorFlow |
-| `trainer/runner.py` | Kubernetes Job 的進入點 |
+| `trainer/runner.py` | 訓練 Job 的進入點 |
+| `trainer/batch.py` | 批次推論 Job 的進入點（`python -m trainer.batch`） |
 | `trainer/serve.py`、`trainer/predict.py` | 推論服務 |
 | `scripts/load_exported_models.py` | TC-B05-06：在平台外載入匯出的模型並預測 |
 | `Dockerfile` | `platform-trainer` 映像，Job 與推論服務共用 |
@@ -41,9 +42,13 @@ python train.py --config config.json --data dataset --out out
 
 訓練程式在子程序執行。子程序的環境變數全部清掉，只補回執行 Python 需要的幾個，所以使用者修改的程式拿不到 token。Pod 不掛 ServiceAccount token、不注入叢集服務位址，以 uid 10001 執行。
 
+## 批次推論 Job
+
+`python -m trainer.batch` 讀 `JOB_IO_URL`、`JOB_IO_TOKEN`、`INFERENCE_ID`：下載這一筆推論的輸入包（模型、前處理、輸入資料），以與推論服務相同的 `trainer.predict` 預測（影像每 32 個檔案一批），把原始預測回報給平台 API。加預測欄、存結果由平台 API 做。token 只對這一筆推論有效。
+
 ## 推論服務
 
-`uvicorn trainer.serve:app`。只給平台 API 呼叫，以 `X-Admin-Token` 驗證，不對主機開放連接埠，也沒有 Gateway 路由。模型只放在記憶體，服務重啟後由平台 API 重新推送。
+`uvicorn trainer.serve:app`。上傳推論與線上推論用；批次推論改在 Job 內執行。只給平台 API 呼叫，以 `X-Admin-Token` 驗證，不對主機開放連接埠，也沒有 Gateway 路由。模型只放在記憶體，服務重啟後由平台 API 重新推送。
 
 ## 開發
 

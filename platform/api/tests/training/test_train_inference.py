@@ -1,4 +1,5 @@
-"""模型與推論：TC-B06-01～06。推論後端用記憶體假實作；推論服務本身另在 platform/training 測試。"""
+"""模型與推論：TC-B06-01～06。上傳與線上推論的推論後端用記憶體假實作；批次推論以 trainer.batch 進入點模擬 Job
+（非同步行為另見 test_train_batch.py）。推論服務本身另在 platform/training 測試。"""
 import csv
 import hashlib
 import io
@@ -9,7 +10,7 @@ import pytest
 from app.models import AuditLog
 from app.permissions import Role
 from app.training import config as cfg
-from conftest_training import finish, ok, setting_body, start
+from conftest_training import batch, finish, ok, run_batch, setting_body, start
 
 
 def models(pid):
@@ -34,17 +35,18 @@ def rows_of(data: bytes) -> list[dict]:
     return list(csv.DictReader(io.StringIO(data.decode())))
 
 
-def test_tc_b06_01_batch_inference_on_test_split(client, pi, project, tabular_model, session):
+def test_tc_b06_01_batch_inference_on_test_split(client, pi, project, backend, tabular_model, session, tmp_path):
     """批次推論 20 筆以上：測試切分 20 筆，全部成功，自動新增預測欄。"""
-    out = ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi,
-                         json={"subset": "test"}), 201)
+    queued = batch(client, pi, project.id, tabular_model["id"], "test")
+    assert queued["status"] == "queued" and queued["count"] == 20
+    out = run_batch(client, backend, pi, queued, tmp_path / "test")
     assert out["status"] == "succeeded" and out["count"] == 20 and out["mode"] == "batch"
     result = out["result"]
     assert result["prediction_column"] == "prediction" and result["columns"][-2:] == ["prediction", "prediction_note"]
     assert "diagnosis" not in result["columns"], "不把答案送進推論"
     assert all(r[-2] != "" or r[-1] for r in result["rows"])
-    everything = ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi,
-                                json={"subset": "all"}), 201)
+    everything = run_batch(client, backend, pi, batch(client, pi, project.id, tabular_model["id"], "all"),
+                           tmp_path / "all")
     assert everything["count"] == 100
     audit = session.query(AuditLog).filter_by(category="inference", action="inference.batch").all()
     assert len(audit) == 2 and audit[0].detail["count"] == 20
@@ -65,14 +67,12 @@ def test_tc_b06_02_upload_inference_ten_times(client, pi, project, tabular_model
         assert out["status"] == "succeeded" and out["mode"] == "upload"
 
 
-def test_tc_b06_03_history_and_download(client, pi, project, tabular_model):
+def test_tc_b06_03_history_and_download(client, pi, project, backend, tabular_model, tmp_path):
     ids = []
-    for subset in ("test", "validation", "train", "all", "test"):
-        ids.append(ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi,
-                                  json={"subset": subset}), 201)["id"])
-    for _ in range(5):
-        ids.append(ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi,
-                                  json={}), 201)["id"])
+    for n, subset in enumerate(("test", "validation", "train", "all", "test") + ("test",) * 5):
+        record = batch(client, pi, project.id, tabular_model["id"], subset)
+        assert run_batch(client, backend, pi, record, tmp_path / str(n))["status"] == "succeeded"
+        ids.append(record["id"])
     history = ok(client.get(f"{models(project.id)}/{tabular_model['id']}/inference", headers=pi))
     assert [h["id"] for h in history] == sorted(ids, reverse=True), "10 筆全在，最新的在前"
     assert all(h["has_result"] and h["user"] == "pi01" for h in history)
@@ -169,26 +169,33 @@ def test_deployment_validation(client, pi, project, tabular_model):
     assert client.post(base, headers=pi, json={"model_id": 999, "name": "x1"}).status_code == 404
 
 
-def test_inference_service_down_or_bad_input_is_recorded(client, pi, project, tabular_model, inference, session):
+def test_inference_service_down_or_bad_input_is_recorded(client, pi, project, backend, tabular_model, inference,
+                                                         session, synth, tmp_path):
     inference.available = False
-    response = client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi, json={})
+    csv_file = [("files", ("c.csv", (synth / "tabular" / "cohort_02.csv").read_bytes(), "text/csv"))]
+    response = client.post(f"{models(project.id)}/{tabular_model['id']}/inference/upload", headers=pi, files=csv_file)
     assert response.status_code == 503 and "推論服務" in response.json()["detail"]
+    # 批次推論不經過推論服務：服務故障時照常完成
+    done = run_batch(client, backend, pi, batch(client, pi, project.id, tabular_model["id"]), tmp_path / "job")
+    assert done["status"] == "succeeded"
     inference.available = True
     response = client.post(f"{models(project.id)}/{tabular_model['id']}/inference/upload", headers=pi,
                            files=[("files", ("x.csv", b"foo,bar\n1,2\n", "text/csv"))])
     assert response.status_code == 422 and "缺少特徵欄位" in response.json()["detail"]
     history = ok(client.get(f"{models(project.id)}/{tabular_model['id']}/inference", headers=pi))
-    assert [h["status"] for h in history] == ["failed", "failed"] and not history[0]["has_result"]
+    assert [h["status"] for h in history] == ["failed", "succeeded", "failed"] and not history[0]["has_result"]
     assert client.get(f"/api/projects/{project.id}/inference/{history[0]['id']}/download",
                       headers=pi).status_code == 404
     failures = session.query(AuditLog).filter_by(category="inference", result="failure").all()
     assert len(failures) == 2
 
 
-def test_inference_service_restart_reloads_the_model(client, pi, project, tabular_model, inference):
-    ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi, json={}), 201)
+def test_inference_service_restart_reloads_the_model(client, pi, project, tabular_model, inference, synth):
+    csv_file = [("files", ("c.csv", (synth / "tabular" / "cohort_02.csv").read_bytes(), "text/csv"))]
+    upload = f"{models(project.id)}/{tabular_model['id']}/inference/upload"
+    ok(client.post(upload, headers=pi, files=csv_file), 201)
     inference.models.clear()                      # 推論服務重啟，忘記模型
-    ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/batch", headers=pi, json={}), 201)
+    ok(client.post(upload, headers=pi, files=csv_file), 201)
     assert [c for c in inference.calls if c[0] == "load"] == [("load", tabular_model["id"])] * 2
 
 
@@ -198,7 +205,7 @@ def test_permissions_for_models_and_inference(client, pi, member, project, tabul
     mid = tabular_model["id"]
     # Viewer 有 prediction：可以看模型、推論、看歷史；不能下載模型、不能部署
     assert client.get(f"{models(project.id)}/{mid}", headers=viewer).status_code == 200
-    assert client.post(f"{models(project.id)}/{mid}/inference/batch", headers=viewer, json={}).status_code == 201
+    assert client.post(f"{models(project.id)}/{mid}/inference/batch", headers=viewer, json={}).status_code == 202
     assert client.get(f"{models(project.id)}/{mid}/download", headers=viewer).status_code == 403
     assert client.post(f"/api/projects/{project.id}/deployments", headers=viewer,
                        json={"model_id": mid, "name": "v"}).status_code == 403

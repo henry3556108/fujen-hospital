@@ -1,4 +1,4 @@
-// 推論服務管理（模擬 API）：TC-B06-04 結果呈現。結構式 20 筆新增預測欄、影像 9 筆顯示結果，缺漏 0。
+// 推論服務管理（模擬 API）：TC-B06-04 結果呈現。結構式 20 筆新增預測欄（批次推論：送出 → 輪詢 → 結果）、影像 9 筆顯示結果，缺漏 0。
 import { expect, loginAs, snap, test } from './fixtures';
 
 const DICOM = (i: number) => ({ name: `IM${String(i + 1).padStart(4, '0')}.dcm`, mimeType: 'application/dicom', buffer: Buffer.from(`synthetic-${i}`) });
@@ -12,8 +12,12 @@ test.describe('推論服務管理', () => {
 
   test('TC-B06-04 結構式：批次推論 20 筆，每一列都有預測欄', async ({ page }, testInfo) => {
     await page.getByRole('button', { name: '批次推論' }).click();
+    // 批次推論在背景執行：先看到排隊狀態，輪詢到完成後顯示結果
+    await expect(page.getByTestId('batch-status')).toContainText('批次推論排隊中');
     const table = page.getByRole('table', { name: '結構式推論結果' });
-    await expect(table.getByRole('row')).toHaveCount(21);
+    await expect(table.getByRole('row')).toHaveCount(21, { timeout: 15_000 });
+    await expect(page.getByTestId('batch-status')).toHaveCount(0);
+    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('row', { name: /#1.*批次.*成功/ })).toBeVisible();
     await expect(table.getByRole('columnheader').last()).toHaveText('prediction_note');
     const rows = await table.locator('tbody tr').evaluateAll((trs) =>
       trs.map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => td.textContent ?? '')));
@@ -36,6 +40,15 @@ test.describe('推論服務管理', () => {
       await expect(card).toContainText(DICOM(i).name);
     }
     await snap(page, testInfo.project.name, 'inference/images');
+  });
+
+  test('批次推論排隊中可以取消', async ({ page }) => {
+    await page.getByRole('button', { name: '選擇 modality-cnn-run2' }).click();
+    await page.getByRole('button', { name: '批次推論' }).click();
+    await expect(page.getByTestId('batch-status')).toContainText('批次推論排隊中');
+    await page.getByRole('button', { name: '取消推論' }).click();
+    await expect(page.getByText('由 pi01 取消')).toBeVisible();
+    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('row', { name: /#1.*已取消/ })).toBeVisible();
   });
 
   test('物件偵測：方框疊在影像上，歷史可下載', async ({ page }) => {

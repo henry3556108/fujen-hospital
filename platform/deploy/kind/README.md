@@ -34,7 +34,7 @@
 |---|---|---|---|
 | ai-platform-control-plane | — | — | API server；監控 NodePort 對外 |
 | ai-platform-worker | `cpu-web` | — | 網頁服務（web-echo）、監控堆疊 |
-| ai-platform-worker2 | `cpu-data` | — | 資料清洗工作 |
+| ai-platform-worker2 | `cpu-data` | — | 資料清洗工作、結構式模型的批次推論 |
 | ai-platform-worker3 | `gpu-exclusive` | 2 | 獨占：一件工作一張卡，照順序排隊（影像訓練、LLM serving） |
 | ai-platform-worker4 | `gpu-shared` | 4 份 = 1 張 × 時間片 4 | 共享：推論、自動標註、結構式訓練、小模型 |
 
