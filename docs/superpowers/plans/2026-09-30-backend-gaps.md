@@ -86,7 +86,7 @@
 | Playwright（模擬 API，Chromium＋Edge，合併後） | `PW_PORT=5787 npx playwright test --workers=2` | 154 passed。合併前第一次跑 2 failed：`imaging.spec.ts` TC-B01-09 等「共 6 個研究」整句，狀態列多了「，第 1–6 個」屬預期變更，已改測試 |
 | 合規 | `cd platform/compliance && uv run pytest` | 48 passed（含新增 2） |
 | kind 叢集（第 2 項） | `cd platform/api && uv run pytest ../acceptance/test_backend_gaps_kind.py -m kind` | 1 passed；修正前（stash 掉第 2 項）1 failed |
-| 經 Gateway（compose `ai-gaps`＋compose.fhir.yaml，真 HAPI） | `COMPOSE_PROJECT=ai-gaps uv run pytest test_backend_gaps.py test_tc_b04.py test_tc_b01.py::test_tc_b01_09_* test_tech_debt.py` | 13 passed（第一次 1 failed：`test_tech_debt` 的清理稽核 detail 在有 FHIR 的堆疊多了 `fhir_deleted: 0`，測試改為兩種都接受） |
+| 經 Gateway（compose `ai-gaps`＋compose.fhir.yaml，真 HAPI） | `COMPOSE_PROJECT=ai-gaps uv run pytest test_backend_gaps.py test_tc_b04.py test_tc_b01.py::test_tc_b01_09_* test_tech_debt.py` | 第一次 11 passed, 1 failed；修正後重跑 `test_tech_debt.py` 2 passed（失敗原因：`test_tech_debt` 的清理稽核 detail 在有 FHIR 的堆疊多了 `fhir_deleted: 0`，測試改為兩種都接受） |
 
 - 第 1 項在真 HAPI 上：刪專案後 `hfj_resource` 該分割區 0 列（含歷史版本）、`hfj_partition` 沒有該編號，另一個租戶的資料還在；
   稽核 `project.data_cleanup` = success，`fhir_deleted: 3`。種子重設（有 FHIR）後待清理清單 0。
