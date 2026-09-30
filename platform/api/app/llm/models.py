@@ -30,7 +30,7 @@ class ModelDownload(Base):
     """下載申請與紀錄。Token 本身不存，只存指紋與使用紀錄。"""
     __tablename__ = "llm_model_downloads"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), default=None)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), default=None)
     name: Mapped[str] = mapped_column(String(128), index=True)
     source: Mapped[str] = mapped_column(String(128))
     repo: Mapped[str] = mapped_column(String(256))
@@ -90,7 +90,7 @@ class ModelLoadConfig(Base):
 class PromptTemplate(Base):
     __tablename__ = "llm_prompt_templates"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     owner: Mapped[str] = mapped_column(String(64), index=True)
     visibility: Mapped[str] = mapped_column(String(16))      # personal | public
     title: Mapped[str] = mapped_column(String(128))
@@ -105,7 +105,7 @@ class GenerationSettings(Base):
     __tablename__ = "llm_generation_settings"
     __table_args__ = (UniqueConstraint("project_id", "username"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     username: Mapped[str] = mapped_column(String(64))
     params: Mapped[dict] = mapped_column(JSON)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -118,7 +118,7 @@ class KnowledgeBase(Base):
     __tablename__ = "llm_knowledge_bases"
     __table_args__ = (UniqueConstraint("project_id", "name"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(128))
     description: Mapped[str] = mapped_column(String(512), default="")
     embed_model: Mapped[str] = mapped_column(String(128))
@@ -131,7 +131,7 @@ class KnowledgeBase(Base):
 class KbDocument(Base):
     __tablename__ = "llm_kb_documents"
     id: Mapped[int] = mapped_column(primary_key=True)
-    kb_id: Mapped[int] = mapped_column(ForeignKey("llm_knowledge_bases.id"), index=True)
+    kb_id: Mapped[int] = mapped_column(ForeignKey("llm_knowledge_bases.id", ondelete="CASCADE"), index=True)
     filename: Mapped[str] = mapped_column(String(256))
     format: Mapped[str] = mapped_column(String(8))
     sha256: Mapped[str] = mapped_column(String(64))
@@ -159,7 +159,7 @@ class KbChunk(Base):
 class ChatSession(Base):
     __tablename__ = "llm_chat_sessions"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     username: Mapped[str] = mapped_column(String(64), index=True)
     mode: Mapped[str] = mapped_column(String(8))              # free | kb
     kb_id: Mapped[int | None] = mapped_column(Integer, default=None)
@@ -171,7 +171,7 @@ class ChatSession(Base):
 class ChatMessage(Base):
     __tablename__ = "llm_chat_messages"
     id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("llm_chat_sessions.id"), index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("llm_chat_sessions.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
     call_id: Mapped[int | None] = mapped_column(Integer, default=None)
@@ -183,7 +183,7 @@ class LlmCallRecord(Base):
     """每一次送給模型服務的呼叫。context_source 說明脈絡怎麼來的：none｜vector｜wiki_api。"""
     __tablename__ = "llm_call_records"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     username: Mapped[str] = mapped_column(String(64))
     origin: Mapped[str] = mapped_column(String(16), index=True)   # playground | service | workflow | wiki
     origin_ref: Mapped[str] = mapped_column(String(128), default="")
@@ -204,7 +204,7 @@ class LlmCallRecord(Base):
 class PublishedService(Base):
     __tablename__ = "llm_published_services"
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     slug: Mapped[str] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(128))
     description: Mapped[str] = mapped_column(String(512), default="")
@@ -225,7 +225,7 @@ class Workflow(Base):
     __tablename__ = "llm_workflows"
     __table_args__ = (UniqueConstraint("project_id", "name"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(128))
     description: Mapped[str] = mapped_column(String(512), default="")
     definition: Mapped[dict] = mapped_column(JSON)
@@ -237,8 +237,8 @@ class Workflow(Base):
 class WorkflowRun(Base):
     __tablename__ = "llm_workflow_runs"
     id: Mapped[int] = mapped_column(primary_key=True)
-    workflow_id: Mapped[int] = mapped_column(ForeignKey("llm_workflows.id"), index=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("llm_workflows.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     username: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16))               # succeeded | failed
     definition: Mapped[dict] = mapped_column(JSON)                # 執行當下的定義快照
@@ -252,7 +252,7 @@ class WorkflowRun(Base):
 class WorkflowNodeRecord(Base):
     __tablename__ = "llm_workflow_node_records"
     id: Mapped[int] = mapped_column(primary_key=True)
-    run_id: Mapped[int] = mapped_column(ForeignKey("llm_workflow_runs.id"), index=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("llm_workflow_runs.id", ondelete="CASCADE"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     node: Mapped[str] = mapped_column(String(64))
     type: Mapped[str] = mapped_column(String(16))
@@ -270,7 +270,7 @@ class WikiPageLink(Base):
     __tablename__ = "llm_wiki_pages"
     __table_args__ = (UniqueConstraint("project_id", "path"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     wiki_id: Mapped[int] = mapped_column(Integer, unique=True)
     path: Mapped[str] = mapped_column(String(256))
     title: Mapped[str] = mapped_column(String(256))

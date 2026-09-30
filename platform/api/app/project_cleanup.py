@@ -15,13 +15,17 @@ FHIR：租戶＝專案（HAPI 分割區編號＝專案編號）。FHIR 有設定
 import logging
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, delete, select
+from sqlalchemy import DateTime, Integer, String, delete, inspect, select, text, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from app.audit import AuditCategory, record
 from app.fhir.client import fhir_from_env
 from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingInstanceSource,
                                 ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
+from app.llm.models import (ChatMessage, ChatSession, GenerationSettings, KbChunk, KbDocument, KnowledgeBase,
+                             LlmCallRecord, ModelDownload, PromptTemplate, PublishedService, WikiPageLink, Workflow,
+                             WorkflowNodeRecord, WorkflowRun)
+from app.llm.vectors import PgVectorStore
 from app.models import Base, Project, utcnow
 from app.scheduling.backend import backend_from_env
 from app.scheduling.models import Job
@@ -114,10 +118,42 @@ def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
         delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id.in_(datasets)),
         delete(TabularColumnView).where(TabularColumnView.dataset_id.in_(datasets)),
         delete(TabularDataset).where(TabularDataset.project_id == project_id),
+        *_llm_deletes(session, project_id),
     ):
         session.execute(statement.execution_options(synchronize_session=False))
     session.flush()
     session.expire_all()
+
+
+def _llm_deletes(session: Session, project_id: int) -> list:
+    """LLM 資料：子表先刪，再刪專案範圍的表。向量片段只以數字參照知識庫（沒有外鍵），要明確刪除；
+    pgvector 的向量表只在使用 pgvector 時存在。模型下載紀錄是核准與稽核依據（TC-D01-03），保留並解除專案關聯。
+    Wiki.js 上的頁面不在平台資料庫，不在此刪除。"""
+    kbs = select(KnowledgeBase.id).where(KnowledgeBase.project_id == project_id)
+    chats = select(ChatSession.id).where(ChatSession.project_id == project_id)
+    runs = select(WorkflowRun.id).where(WorkflowRun.project_id == project_id)
+    statements = [
+        delete(KbChunk).where(KbChunk.kb_id.in_(kbs)),
+        delete(KbDocument).where(KbDocument.kb_id.in_(kbs)),
+        delete(ChatMessage).where(ChatMessage.session_id.in_(chats)),
+        delete(WorkflowNodeRecord).where(WorkflowNodeRecord.run_id.in_(runs)),
+        delete(WorkflowRun).where(WorkflowRun.project_id == project_id),
+        delete(Workflow).where(Workflow.project_id == project_id),
+        delete(ChatSession).where(ChatSession.project_id == project_id),
+        delete(LlmCallRecord).where(LlmCallRecord.project_id == project_id),
+        delete(PublishedService).where(PublishedService.project_id == project_id),
+        delete(PromptTemplate).where(PromptTemplate.project_id == project_id),
+        delete(GenerationSettings).where(GenerationSettings.project_id == project_id),
+        delete(WikiPageLink).where(WikiPageLink.project_id == project_id),
+        update(ModelDownload).where(ModelDownload.project_id == project_id).values(project_id=None),
+    ]
+    if inspect(session.connection()).has_table(PgVectorStore.TABLE):   # 用交易內的連線，另借連線會在歸還時回滾
+        statements.insert(0, text(f"DELETE FROM {PgVectorStore.TABLE} WHERE kb_id IN "
+                                  "(SELECT id FROM llm_knowledge_bases WHERE project_id = :pid)")
+                          .bindparams(pid=project_id))
+    # 知識庫最後刪：前面的子查詢都靠它
+    statements.append(delete(KnowledgeBase).where(KnowledgeBase.project_id == project_id))
+    return statements
 
 
 def _run_one(session: Session, task: StorageCleanupTask, store, orthanc, fhir, jobs) -> tuple[str, int]:
