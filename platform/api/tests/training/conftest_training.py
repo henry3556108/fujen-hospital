@@ -248,3 +248,58 @@ def run_container(client, backend, headers, run: dict, workdir: Path) -> dict:
         job.spec = replace(job.spec, fail=True)
     backend.advance(60)
     return ok(client.get(f"/api/projects/{run['project_id']}/training/runs/{run['id']}", headers=headers))
+
+
+# ---------- 模擬批次推論的 Job 容器 ----------
+
+def batch_job(backend, record: dict):
+    return next(j for j in backend._jobs.values() if dict(j.spec.env).get("INFERENCE_ID") == str(record["id"]))
+
+
+def batch_env(backend, record: dict) -> dict:
+    return dict(batch_job(backend, record).spec.env)
+
+
+def batch_headers(backend, record: dict) -> dict:
+    return {"X-Job-Token": batch_env(backend, record)["JOB_IO_TOKEN"]}
+
+
+def stub_load(meta: dict, root: Path):
+    """結構式用真的預測器（scikit-learn 在平台 API 的環境裡）；影像用記憶體假實作（這裡沒有 TensorFlow）。"""
+    from trainer.batch import load_predictor
+
+    from app.training.inference import FakeInferenceBackend, ImageInput
+
+    if meta["format"] == "pkl":
+        return load_predictor(meta, root)
+
+    class Images:
+        def __init__(self):
+            self.fake = FakeInferenceBackend()
+            self.fake.models[0] = {"card": meta["card"]}
+
+        def predict(self, files):
+            return self.fake.predict_images(0, [ImageInput(name=n, data=d, format=f) for n, d, f in files])
+
+    return Images()
+
+
+def run_batch(client, backend, headers, record: dict, workdir: Path, *, load=stub_load, advance=True) -> dict:
+    """用真正的批次推論進入點（trainer.batch）執行 Job，推進排程時間，回傳推論紀錄的最新狀態。"""
+    from dataclasses import replace
+
+    from trainer.batch import BatchIO, run_batch as entry
+
+    env = batch_env(backend, record)
+    path = "/api/job-io/inference/" + env["JOB_IO_URL"].rsplit("/api/job-io/inference/", 1)[1]
+    if entry(BatchIO(client, path, env["JOB_IO_TOKEN"]), workdir, load=load) != 0:
+        job = batch_job(backend, record)
+        job.spec = replace(job.spec, fail=True)
+    if advance:
+        backend.advance(60)
+    return ok(client.get(f"/api/projects/{record['project_id']}/inference/{record['id']}", headers=headers))
+
+
+def batch(client, headers, pid: int, model_id: int, subset: str = "test", status: int = 202) -> dict:
+    return ok(client.post(f"/api/projects/{pid}/models/{model_id}/inference/batch", headers=headers,
+                          json={"subset": subset}), status)

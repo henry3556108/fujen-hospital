@@ -12,10 +12,10 @@ from app import admin_service
 from app.db import make_engine, make_sessionmaker
 from app.models import Base, Membership, Project, User
 from app.scheduling.models import Job
-from app.training.models import (DatasetVersion, Deployment, InferenceRecord, TrainedModel, TrainingRun,
-                                 TrainingSetting)
+from app.training.models import (DatasetVersion, Deployment, InferenceBatch, InferenceRecord, TrainedModel,
+                                 TrainingRun, TrainingSetting)
 
-TABLES = (Job, TrainingSetting, DatasetVersion, TrainingRun, TrainedModel, Deployment, InferenceRecord)
+TABLES = (Job, TrainingSetting, DatasetVersion, TrainingRun, TrainedModel, Deployment, InferenceRecord, InferenceBatch)
 PG_URL = os.environ.get("TEST_POSTGRES_URL")
 
 
@@ -68,6 +68,13 @@ def fill(s, name: str) -> int:
     s.flush()
     s.add(InferenceRecord(project_id=project.id, model_id=model.id, deployment_id=deployment.id, mode="online",
                           status="succeeded", user="u"))
+    # 排隊中的批次推論：工作列、推論紀錄、批次列都要跟著專案刪除（之後 Job 以 token 下載只會得到 401）
+    batch_job = Job(project_id=project.id, user=user.username, kind="inference", queue="gpu-exclusive",
+                    k8s_name=f"job-{name}-batch")
+    queued = InferenceRecord(project_id=project.id, model_id=model.id, mode="batch", status="queued", user="u")
+    s.add_all([batch_job, queued])
+    s.flush()
+    s.add(InferenceBatch(record_id=queued.id, project_id=project.id, job_id=batch_job.id, io_token_hash="0" * 64))
     s.commit()
     return project.id
 
@@ -80,8 +87,9 @@ def counts(s, project_id: int) -> dict[str, int]:
 def test_deleting_a_project_removes_its_jobs_and_training_rows(sessions):
     with sessions() as s:
         doomed, kept = fill(s, "p1"), fill(s, "p2")
-        assert set(counts(s, doomed).values()) == {1}
+        before = counts(s, kept)
+        assert set(counts(s, doomed).values()) >= {1}
         admin_service.delete_project(s, actor="admin01", project_id=doomed)
     with sessions() as s:
         assert set(counts(s, doomed).values()) == {0}
-        assert set(counts(s, kept).values()) == {1}, "其他專案不受影響"
+        assert counts(s, kept) == before, "其他專案不受影響"

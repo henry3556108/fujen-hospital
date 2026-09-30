@@ -12,8 +12,9 @@ from app.deps import ProjectContext, client_ip, current_user, get_session, requi
 from app.models import User
 from app.permissions import Permission
 from app.scheduling.backend import JobBackend
+from app.scheduling.backend import backend_from_env
 from app.scheduling.router import get_backend
-from app.training import config as cfg, service, snapshot
+from app.training import batch, config as cfg, service, snapshot
 
 router = APIRouter()
 
@@ -214,14 +215,33 @@ class BatchIn(BaseModel):
     subset: str = "test"
 
 
-@router.post(BASE + "/models/{model_id}/inference/batch", status_code=201)
+def _optional_backend(request: Request) -> JobBackend | None:
+    """查詢推論時同步批次狀態用；沒有設定排程後端時不同步（上傳、線上推論不需要排程）。"""
+    backend = getattr(request.app.state, "job_backend", None)
+    if backend is None:
+        backend = backend_from_env()
+        if backend is not None:
+            request.app.state.job_backend = backend
+    return backend
+
+
+@router.post(BASE + "/models/{model_id}/inference/batch", status_code=202)
 def batch_inference(model_id: int, request: Request, body: BatchIn | None = None,
-                    ctx: ProjectContext = Depends(can_predict)) -> dict:
+                    ctx: ProjectContext = Depends(can_predict), backend: JobBackend = Depends(get_backend)) -> dict:
+    """送出批次推論，立即回傳推論紀錄（status: queued）。之後以 GET /inference/{id} 查狀態與結果。"""
     with _errors():
         model = service.get_model(ctx.session, ctx.project.id, model_id)
-        row = service.batch_inference(ctx, request.app.state, model=model, subset=(body or BatchIn()).subset,
-                                      source_ip=client_ip(request))
+        row = batch.submit(ctx, request.app.state, backend, model=model, subset=(body or BatchIn()).subset,
+                           source_ip=client_ip(request))
         return service.result_view(request.app.state.store, row)
+
+
+@router.post(BASE + "/inference/{record_id}/cancel")
+def cancel_inference(record_id: int, request: Request, ctx: ProjectContext = Depends(can_predict),
+                     backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        row = service.get_record(ctx.session, ctx.project.id, record_id)
+        return service.record_out(batch.cancel(ctx, backend, row, source_ip=client_ip(request)))
 
 
 def _scan(request: Request, model, uploads: list[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[dict]]:
@@ -269,16 +289,19 @@ def upload_inference(model_id: int, request: Request, files: list[UploadFile] = 
 
 
 @router.get(BASE + "/models/{model_id}/inference")
-def inference_history(model_id: int, ctx: ProjectContext = Depends(can_predict)) -> list[dict]:
+def inference_history(model_id: int, request: Request, ctx: ProjectContext = Depends(can_predict)) -> list[dict]:
     with _errors():
         model = service.get_model(ctx.session, ctx.project.id, model_id)
-        return [service.record_out(r) for r in service.list_records(ctx.session, model)]
+        rows = service.list_records(ctx.session, model)
+        batch.sync_all(ctx.session, _optional_backend(request), rows)
+        return [service.record_out(r) for r in rows]
 
 
 @router.get(BASE + "/inference/{record_id}")
 def inference_result(record_id: int, request: Request, ctx: ProjectContext = Depends(can_predict)) -> dict:
     with _errors():
         row = service.get_record(ctx.session, ctx.project.id, record_id)
+        batch.sync_all(ctx.session, _optional_backend(request), [row])
         return service.result_view(request.app.state.store, row)
 
 
@@ -286,6 +309,7 @@ def inference_result(record_id: int, request: Request, ctx: ProjectContext = Dep
 def inference_download(record_id: int, request: Request, ctx: ProjectContext = Depends(can_predict)) -> Response:
     with _errors():
         row = service.get_record(ctx.session, ctx.project.id, record_id)
+        batch.sync_all(ctx.session, _optional_backend(request), [row])
         data = service.result_bytes(request.app.state.store, row)
     media = "text/csv; charset=utf-8" if row.result_format == "csv" else "application/json"
     return _download(data, f"inference-{row.id}.{row.result_format}", media)
@@ -403,3 +427,36 @@ def io_complete(body: CompleteIn = Body(...), found=Depends(io_run)) -> dict:
     with _errors():
         service.io_complete(session, run, status=body.status, message=body.message)
     return {"run_id": run.id, "reported": run.reported}
+
+
+# ---------------------------------------------------------------- 批次推論的工作 I/O（只給 Job 容器）
+
+def io_inference(record_id: int, x_job_token: str | None = Header(default=None),
+                 session: Session = Depends(get_session)):
+    with _errors():
+        return batch.io_record(session, record_id, x_job_token), session
+
+
+@router.get("/api/job-io/inference/{record_id}/bundle")
+def io_inference_bundle(request: Request, found=Depends(io_inference)) -> Response:
+    row, session = found
+    with _errors():
+        data = batch.io_bundle(session, request.app.state.store, row)
+    return Response(content=data, media_type="application/x-tar")
+
+
+class BatchCompleteIn(BaseModel):
+    status: str
+    message: str = ""
+    answer: dict[str, Any] | None = None
+
+
+@router.post("/api/job-io/inference/{record_id}/complete")
+def io_inference_complete(request: Request, body: BatchCompleteIn = Body(...), found=Depends(io_inference)) -> dict:
+    row, session = found
+    if int(request.headers.get("content-length") or 0) > batch.MAX_ANSWER_BYTES:
+        raise HTTPException(413, f"推論結果超過上限 {batch.MAX_ANSWER_BYTES // 1024 // 1024} MB")
+    with _errors():
+        batch.io_complete(session, request.app.state.store, row, status=body.status, message=body.message,
+                          answer=body.answer)
+    return {"inference_id": row.id, "status": row.status}
