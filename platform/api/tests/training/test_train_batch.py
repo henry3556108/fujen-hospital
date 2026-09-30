@@ -245,3 +245,24 @@ def test_bundle_download_marks_the_batch_running(client, pi, project, backend, t
                       headers=batch_headers(backend, record)).status_code == 200
     row = client.app.state.sessionmaker().get(InferenceRecord, record["id"])
     assert row.status == "running" and row.batch.started_at is not None
+
+
+def test_deleting_the_project_cancels_its_batch_jobs(client, pi, admin, project, backend, tabular_model, image_model,
+                                                    session):
+    """刪除專案時，排隊與執行中的批次推論 Job 由專案清理流程從叢集取消（與訓練相同）；之後 token 一律 401。"""
+    running, queued = batch(client, pi, project.id, image_model["id"]), batch(client, pi, project.id,
+                                                                               tabular_model["id"])
+    names = {r["id"]: batch_job(backend, r).spec.name for r in (running, queued)}
+    tokens = {r["id"]: batch_headers(backend, r) for r in (running, queued)}
+    assert client.delete(f"/api/admin/projects/{project.id}", headers=admin).status_code == 204
+    for record in (running, queued):
+        assert backend.get(names[record["id"]]) is None, "已從叢集取消"
+        assert client.get(f"/api/job-io/inference/{record['id']}/bundle",
+                          headers=tokens[record["id"]]).status_code == 401
+
+
+def test_missing_model_file_is_a_clear_error_for_the_job(client, pi, project, backend, tabular_model, app):
+    record = batch(client, pi, project.id, tabular_model["id"])
+    app.state.store.delete(next(k for k in app.state.store.list(f"projects/{project.id}/") if k.endswith("model.pkl")))
+    response = client.get(f"/api/job-io/inference/{record['id']}/bundle", headers=batch_headers(backend, record))
+    assert response.status_code == 409 and "已不存在" in response.json()["detail"]

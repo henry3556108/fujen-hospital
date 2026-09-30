@@ -21,12 +21,12 @@ from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
-from app.models import utcnow
+from app.models import Project, utcnow
 from app.scheduling import service as scheduling
 from app.scheduling.backend import JobBackend, Workload
 from app.scheduling.models import Job
 from app.scheduling.states import TERMINAL, JobStatus
-from app.storage import ObjectStore
+from app.storage import ObjectNotFound, ObjectStore
 from app.training import config as cfg, snapshot
 from app.training.inference import InferenceError
 from app.training.models import DatasetVersion, InferenceBatch, InferenceRecord, TrainedModel, TrainingRun
@@ -207,6 +207,8 @@ def io_record(session: Session, record_id: int, token: str | None) -> InferenceR
     ok = bool(token) and hmac.compare_digest(_token_hash(token or ""), expected)
     if job_batch is None or not ok or not job_batch.io_token_hash:
         raise Unauthorized("工作憑證無效")
+    if session.get(Project, row.project_id) is None:     # 專案已刪除（資料列由外鍵 CASCADE 或清理流程移除）
+        raise Unauthorized("工作憑證無效")
     if job_batch.io_closed or row.status in DONE:
         raise Unauthorized("工作憑證已失效（推論已結束）")
     return row
@@ -219,6 +221,13 @@ def _add(archive: tarfile.TarFile, name: str, data: bytes) -> None:
 
 
 def io_bundle(session: Session, store: ObjectStore, row: InferenceRecord) -> bytes:
+    try:
+        return _bundle(session, store, row)
+    except ObjectNotFound as exc:
+        raise Conflict(f"推論 {row.id} 的模型或輸入資料已不存在") from exc
+
+
+def _bundle(session: Session, store: ObjectStore, row: InferenceRecord) -> bytes:
     model = session.get(TrainedModel, row.model_id)
     run = session.get(TrainingRun, model.run_id)
     manifest = snapshot.load_manifest(store, _version(session, model))
