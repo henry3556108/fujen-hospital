@@ -260,6 +260,21 @@ def test_tc_b06_01_batch_inference_twenty_or_more(trained, env):
     assert len(audit("inference", "inference.batch", mark)) == 2 and audit("inference", "job.submit", mark)
 
 
+def test_batch_inference_cancelled_while_queued_in_kind(trained, env):
+    """取消剛送出的批次推論：Kubernetes Job 被刪除，紀錄為已取消，之後下載 404、不會再變成成功。"""
+    c, pid, h = env["c"], env["pid"], headers("pi01")
+    mark = last_audit_id()
+    record = submit_batch(c, pid, model_id(trained, "image_classification"), "all")
+    out = ok(c.post(f"/api/projects/{pid}/inference/{record['id']}/cancel", headers=h))
+    assert out["status"] == "cancelled" and "pi01" in out["message"]
+    assert ok(c.get(f"/api/projects/{pid}/jobs/{record['job_id']}", headers=h))["status"] == "cancelled"
+    time.sleep(5)
+    assert ok(c.get(f"/api/projects/{pid}/inference/{record['id']}", headers=h))["status"] == "cancelled"
+    assert c.get(f"/api/projects/{pid}/inference/{record['id']}/download", headers=h).status_code == 404
+    assert [r["result"] for r in audit("inference", "inference.batch.cancel", mark)] == ["cancelled"]
+    assert audit("inference", "job.cancel", mark)
+
+
 def test_tc_b06_02_upload_ten_times(trained, env):
     c, pid, h = env["c"], env["pid"], headers("pi01")
     csv_bytes = (env["synth"] / "tabular" / "cohort_03.csv").read_bytes()
