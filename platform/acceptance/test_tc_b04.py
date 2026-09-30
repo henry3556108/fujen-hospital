@@ -34,6 +34,20 @@ def test_tc_b04_01_describe_and_preview(api, ds, synth):
     assert [r[0] for r in preview["rows"]] == [r["patient_id"] for r in rows[:5]]
 
 
+def test_tc_b04_02_hidden_columns_follow_the_account(api, ds, auth):
+    """欄位顯示設定存在伺服器：同一帳號重新登入（另一台電腦＝新的 token、沒有瀏覽器狀態）讀到相同設定；各帳號各自一份。"""
+    base, pi, vw = ds
+    assert api.get(f"{base}/column-view", headers=pi).json() == {"hidden": [], "saved": False}
+    saved = api.put(f"{base}/column-view", headers=pi, json={"hidden": ["patient_id", "bmi", "smoker"]})
+    assert saved.status_code == 200, saved.text
+    again = auth("pi01")
+    assert api.get(f"{base}/column-view", headers=again).json() == {"hidden": ["patient_id", "bmi", "smoker"],
+                                                                    "saved": True}
+    assert api.get(f"{base}/column-view", headers=vw).json() == {"hidden": [], "saved": False}
+    bad = api.put(f"{base}/column-view", headers=vw, json={"hidden": ["no_such_column"]})
+    assert bad.status_code == 422 and "no_such_column" in bad.json()["detail"]
+
+
 def test_tc_b04_03_target_feature_round_trip(api, ds):
     base, pi, vw = ds
     configs = [

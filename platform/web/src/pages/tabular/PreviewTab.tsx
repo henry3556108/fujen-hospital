@@ -1,35 +1,71 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { withQuery } from '../../api/client';
 import { useResource } from '../../api/useResource';
 import { useMe, useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { DataTable } from './DataTable';
 import { useDataset } from './DatasetLayout';
-import { loadHidden, saveHidden } from './hiddenColumns';
+import { clearLegacyHidden, loadLegacyHidden, type ColumnView } from './hiddenColumns';
 import type { Preview } from './types';
 
 const PAGE = 50;
 
-/** TC-B04-02 預覽：可隱藏欄位；隱藏狀態重新載入後仍在。 */
+/** TC-B04-02 預覽：可隱藏欄位；隱藏狀態存在伺服器（每位使用者一份），重新載入或換電腦後仍在。 */
 export function PreviewTab() {
   const { api } = useSession();
   const me = useMe();
   const { dataset, base } = useDataset();
   const all = dataset.columns.map((c) => c.name);
-  const [hidden, setHidden] = useState(() => loadHidden(me.username, dataset.project_id, dataset.id).filter((c) => all.includes(c)));
+  const [hidden, setHidden] = useState<string[] | null>(null);
+  const [viewError, setViewError] = useState<unknown>(null);
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
   const [offset, setOffset] = useState(0);
-  const visible = all.filter((c) => !hidden.includes(c));
+  const shown = hidden ?? [];
+  const visible = all.filter((c) => !shown.includes(c));
+  const viewPath = `${base}/column-view`;
+
+  useEffect(() => {
+    let live = true;
+    const known = (cols: string[]) => cols.filter((c) => all.includes(c));
+    setHidden(null);
+    setViewError(null);
+    (async () => {
+      let next: string[] = [];
+      try {
+        const view = await api.get<ColumnView>(viewPath);
+        next = known(view.hidden);
+        if (!view.saved) {
+          const legacy = known(loadLegacyHidden(me.username, dataset.project_id, dataset.id));
+          if (legacy.length) {
+            next = legacy;
+            await api.put<ColumnView>(viewPath, { hidden: legacy });
+          }
+          clearLegacyHidden(me.username, dataset.project_id, dataset.id);
+        }
+      } catch (e) {
+        if (live) setViewError(e);
+      }
+      if (live) setHidden(next);
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewPath, me.username]);
+
   const preview = useResource(
     () =>
-      visible.length === 0
+      hidden === null || visible.length === 0
         ? Promise.resolve(null)
-        : api.get<Preview>(withQuery(`${base}/preview`, { offset, limit: PAGE, columns: hidden.length ? visible : undefined })),
-    [base, offset, hidden.join('\u0001')],
+        : api.get<Preview>(withQuery(`${base}/preview`, { offset, limit: PAGE, columns: shown.length ? visible : undefined })),
+    [base, offset, hidden === null ? null : hidden.join('\u0001')],
   );
 
   function update(next: string[]) {
     setHidden(next);
-    saveHidden(me.username, dataset.project_id, dataset.id, next);
+    setViewError(null);
+    // 依序送出，伺服器上留下的一定是最後一次的選擇
+    saving.current = saving.current.then(() => api.put<ColumnView>(viewPath, { hidden: next }).catch(setViewError));
   }
 
   const total = preview.data?.total_rows ?? dataset.valid_rows;
@@ -44,22 +80,24 @@ export function PreviewTab() {
             <label key={c} className="checkbox">
               <input
                 type="checkbox"
-                checked={!hidden.includes(c)}
-                onChange={(e) => update(e.target.checked ? hidden.filter((h) => h !== c) : [...hidden, c])}
+                checked={!shown.includes(c)}
+                disabled={hidden === null}
+                onChange={(e) => update(e.target.checked ? shown.filter((h) => h !== c) : [...shown, c])}
               />
               {c}
             </label>
           ))}
         </div>
         <div className="row-actions">
-          <button type="button" className="btn btn--secondary btn--small" onClick={() => update([])} disabled={hidden.length === 0}>
+          <button type="button" className="btn btn--secondary btn--small" onClick={() => update([])} disabled={shown.length === 0}>
             全部顯示
           </button>
         </div>
         <p role="status" className="text-muted">
-          {hidden.length === 0 ? `顯示全部 ${all.length} 個欄位` : `顯示 ${visible.length} 個欄位，已隱藏 ${hidden.length} 個：${hidden.join('、')}`}
-          。這個設定存在這台電腦的瀏覽器。
+          {shown.length === 0 ? `顯示全部 ${all.length} 個欄位` : `顯示 ${visible.length} 個欄位，已隱藏 ${shown.length} 個：${shown.join('、')}`}
+          。這個設定存在你的帳號，換電腦也一樣。
         </p>
+        <ApiErrorAlert error={viewError} />
       </fieldset>
 
       <ApiErrorAlert error={preview.error} />

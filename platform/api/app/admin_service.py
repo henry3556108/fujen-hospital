@@ -67,18 +67,19 @@ def _revoke_memberships(session: Session, condition, *, actor: str, reason: str,
 
 
 def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None,
-                   store=None, orthanc=None) -> None:
-    """刪除專案與它的索引；commit 之後才清 Orthanc 影像與物件儲存檔案（失敗可重試，見 app.project_cleanup）。"""
+                   store=None, orthanc=None, fhir=None, jobs=None) -> None:
+    """刪除專案與它的索引；commit 之後才清 Orthanc 影像、物件儲存檔案與 FHIR 租戶，並取消叢集中的工作
+    （失敗可重試，見 app.project_cleanup）。"""
     project = _get(session, Project, project_id)
     name = project.name
     _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
                         source_ip=source_ip)
-    project_cleanup.stage(session, project_id)
+    project_cleanup.stage(session, project_id, fhir=fhir is not None)
     session.delete(session.get(Project, project_id))
     record(session, actor=actor, category=AuditCategory.PROJECT, action="delete",
            target=f"project:{project_id}", source_ip=source_ip, detail={"name": name})
     session.commit()
-    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip)
+    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip, fhir=fhir, jobs=jobs)
 
 
 def _commit_after_idp(session: Session, idp_call) -> None:

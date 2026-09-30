@@ -81,6 +81,25 @@ def delete_dataset(request: Request, ds: TabularDataset = Depends(_dataset),
     return Response(status_code=204)
 
 
+# ------------------------------------------------------------------ 欄位顯示設定（TC-B04-02）
+
+class ColumnViewIn(BaseModel):
+    hidden: list[str]
+
+
+@router.get("/datasets/{dataset_id}/column-view")
+def get_column_view(ds: TabularDataset = Depends(_dataset), ctx: ProjectContext = Depends(read_access)) -> dict:
+    """目前使用者在這個資料集隱藏的欄位；saved=false 表示還沒存過。"""
+    return service.get_column_view(ctx, ds)
+
+
+@router.put("/datasets/{dataset_id}/column-view")
+def put_column_view(body: ColumnViewIn, ds: TabularDataset = Depends(_dataset),
+                    ctx: ProjectContext = Depends(read_access),
+                    frames: service.FrameCache = Depends(_frames)) -> dict:
+    return service.save_column_view(ctx, frames, ds, body.hidden)
+
+
 # ------------------------------------------------------------------ 探索（TC-B04-01、02、05、08）
 
 def _frame(ds: TabularDataset = Depends(_dataset), frames: service.FrameCache = Depends(_frames)) -> pd.DataFrame:

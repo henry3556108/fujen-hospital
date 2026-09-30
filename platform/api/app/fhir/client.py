@@ -3,6 +3,8 @@
 - InMemoryFhir：記憶體版，語意與 HAPI 相同的部分——租戶隔離、條件式 upsert、條件式參照、
   Transaction 整批成功或整批不寫；可注入中斷（fail_after_entries、offline）供原子性測試。
 - HttpFhir：HAPI FHIR JPA Server（URL 式多租戶：/fhir/{tenant}/...，tenant＝專案編號）。
+
+delete_tenant：刪專案時清掉該租戶的所有資料（由 app.project_cleanup 在 commit 後呼叫，失敗會重試）。
 """
 import copy
 import os
@@ -38,6 +40,7 @@ class FhirClient(Protocol):
                count: int = 50, offset: int = 0) -> tuple[int, list[dict]]: ...
     def count(self, tenant: int, resource_type: str) -> int: ...
     def validate(self, tenant: int, resource: dict) -> list[str]: ...
+    def delete_tenant(self, tenant: int) -> int: ...
 
 
 def parse_condition(url: str) -> tuple[str, str, str] | None:
@@ -188,6 +191,12 @@ class InMemoryFhir:
         self._store(tenant)
         return validate_resource(resource)
 
+    def delete_tenant(self, tenant):
+        """刪除租戶與它的所有資源，回傳刪除的資源數；租戶不存在視為已清空。"""
+        self._check_online()
+        removed = self._tenants.pop(tenant, {})
+        return sum(len(rows) for rows in removed.values())
+
 
 def _outcome_errors(body) -> list[str]:
     if not isinstance(body, dict):
@@ -196,8 +205,24 @@ def _outcome_errors(body) -> list[str]:
             for i in body.get("issue") or [] if i.get("severity") in ("error", "fatal")]
 
 
+# 刪除租戶時最後才刪的型別（常被其他資源參照）；其他型別先刪
+_REFERENCED_LAST = ("Encounter", "EpisodeOfCare", "Group", "Device", "Location", "PractitionerRole", "Practitioner",
+                    "Organization", "Patient")
+
+
+class _MissingPartition(Exception):
+    pass
+
+
+def _missing_partition(response: httpx.Response) -> bool:
+    return response.status_code in (400, 404) and "is not valid" in " ".join(
+        _outcome_errors(HttpFhir._json(response)))
+
+
 class HttpFhir:
-    def __init__(self, base_url: str, *, timeout: float = 30.0, transport: httpx.BaseTransport | None = None):
+    def __init__(self, base_url: str, *, timeout: float = 30.0, transport: httpx.BaseTransport | None = None,
+                 delete_batch: int = 500):
+        self._delete_batch = delete_batch
         self._http = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout, transport=transport,
                                   headers={"Accept": "application/fhir+json",
                                            "Cache-Control": "no-cache"})   # 不用 HAPI 的搜尋結果快取
@@ -272,6 +297,86 @@ class HttpFhir:
         if response.status_code >= 400 and not errors:
             errors = [f"FHIR 服務拒絕請求（HTTP {response.status_code}）"]
         return errors
+
+
+    def delete_tenant(self, tenant: int) -> int:
+        """刪專案時清掉租戶：刪除所有資源 → $expunge（實體刪除歷史版本）→ 刪除分割區。回傳刪除的資源數。
+
+        資源型別取自該租戶的 CapabilityStatement，逐型別計數（系統層 _history 的總數有快取，不可靠）。
+        以 Transaction 的 DELETE 分批刪除；HAPI 在 Transaction 結束時才檢查參照，同一批互相參照沒問題，
+        跨批被擋（409）的留到下一輪。分割區不存在視為已清空。任何一步失敗都拋例外，由呼叫端重試。
+        """
+        response = self._send("GET", f"/{tenant}/metadata")
+        if _missing_partition(response):
+            self._tenants.discard(tenant)
+            return 0
+        if response.status_code >= 300:
+            raise self._fail(response)
+        types = [r.get("type") for rest in (self._json(response) or {}).get("rest") or []
+                 for r in rest.get("resource") or [] if r.get("type")]
+        order = {name: index for index, name in enumerate(_REFERENCED_LAST, start=1)}
+        types.sort(key=lambda t: order.get(t, 0))
+        deleted = 0
+        while True:
+            try:
+                keys = [f"{t}/{rid}" for t in types for rid in self._live_ids(tenant, t)]
+            except _MissingPartition:      # HAPI 的 metadata 不檢查分割區，第一次查詢才知道
+                self._tenants.discard(tenant)
+                return deleted
+            if not keys:
+                break
+            progress, last_error = 0, None
+            for start in range(0, len(keys), self._delete_batch):
+                chunk = keys[start:start + self._delete_batch]
+                bundle = {"resourceType": "Bundle", "type": "transaction",
+                          "entry": [{"request": {"method": "DELETE", "url": key}} for key in chunk]}
+                result = self._send("POST", f"/{tenant}", json=bundle,
+                                    headers={"Content-Type": "application/fhir+json"})
+                if result.status_code in (409, 412):      # 還被其他批次的資源參照：下一輪再刪
+                    last_error = self._fail(result)
+                    continue
+                if result.status_code >= 300:
+                    raise self._fail(result)
+                progress += len(chunk)
+            if progress == 0:
+                raise FhirError(f"租戶 {tenant} 的資源無法刪除：{last_error.message if last_error else '沒有進度'}",
+                                last_error.status if last_error else None)
+            deleted += progress
+        expunge = {"resourceType": "Parameters", "parameter": [
+            {"name": "expungeDeletedResources", "valueBoolean": True},
+            {"name": "expungePreviousVersions", "valueBoolean": True}]}
+        response = self._send("POST", f"/{tenant}/$expunge", json=expunge,
+                              headers={"Content-Type": "application/fhir+json"})
+        if response.status_code >= 300:
+            raise self._fail(response)
+        body = {"resourceType": "Parameters", "parameter": [{"name": "id", "valueInteger": tenant}]}
+        response = self._send("POST", "/DEFAULT/$partition-management-delete-partition", json=body,
+                              headers={"Content-Type": "application/fhir+json"})
+        if response.status_code >= 300 and "does not exist" not in " ".join(_outcome_errors(self._json(response))):
+            raise self._fail(response)
+        self._tenants.discard(tenant)
+        return deleted
+
+    def _live_ids(self, tenant: int, resource_type: str) -> list[str]:
+        response = self._send("GET", f"/{tenant}/{resource_type}", params={"_summary": "count"})
+        if _missing_partition(response):
+            raise _MissingPartition()
+        if response.status_code >= 300:
+            raise self._fail(response)
+        total = int((self._json(response) or {}).get("total", 0))
+        ids: list[str] = []
+        while len(ids) < total:
+            response = self._send("GET", f"/{tenant}/{resource_type}",
+                                  params={"_elements": "id", "_count": str(self._delete_batch),
+                                          "_offset": str(len(ids)), "_sort": "_id"})
+            if response.status_code >= 300:
+                raise self._fail(response)
+            page = [e["resource"]["id"] for e in (self._json(response) or {}).get("entry") or []
+                    if e.get("resource", {}).get("resourceType") == resource_type]
+            if not page:
+                break
+            ids.extend(page)
+        return ids
 
 
 def fhir_from_env(env: Mapping[str, str] = os.environ) -> FhirClient | None:

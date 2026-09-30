@@ -35,3 +35,16 @@ class TabularTargetFeature(Base):
     config: Mapped[dict] = mapped_column(JSON)
     updated_by: Mapped[str] = mapped_column(String(64))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TabularColumnView(Base):
+    """TC-B04-02 預覽的欄位顯示設定：每位使用者、每個資料集一份（個人檢視偏好，換電腦也一致）。
+    以帳號名稱為鍵（與 created_by 相同），不設帳號外鍵；刪資料集、刪專案時一併刪除。"""
+
+    __tablename__ = "tabular_column_views"
+    __table_args__ = (UniqueConstraint("dataset_id", "username"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dataset_id: Mapped[int] = mapped_column(ForeignKey("tabular_datasets.id", ondelete="CASCADE"), index=True)
+    username: Mapped[str] = mapped_column(String(64))
+    hidden: Mapped[list] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

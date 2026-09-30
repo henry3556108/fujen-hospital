@@ -1,11 +1,16 @@
-// TC-B04-02 欄位顯示／隱藏：後端沒有保存這個狀態的 API（preview 只接受「目前可見欄位」），
-// 所以存在瀏覽器的 localStorage，以帳號＋專案＋資料集為鍵。換瀏覽器或換電腦不會帶過去。
-const key = (username: string, projectId: number, datasetId: number) =>
+// TC-B04-02 欄位顯示／隱藏：設定存在伺服器（GET／PUT .../datasets/{id}/column-view，每位使用者、每個資料集一份）。
+// 舊版把設定存在瀏覽器 localStorage（鍵：帳號＋專案＋資料集）；第一次開啟時若伺服器還沒有設定，搬到伺服器後清掉本機值。
+const legacyKey = (username: string, projectId: number, datasetId: number) =>
   `ai-platform.tabular.hidden.${username}.${projectId}.${datasetId}`;
 
-export function loadHidden(username: string, projectId: number, datasetId: number): string[] {
+export interface ColumnView {
+  hidden: string[];
+  saved: boolean;
+}
+
+export function loadLegacyHidden(username: string, projectId: number, datasetId: number): string[] {
   try {
-    const raw = window.localStorage.getItem(key(username, projectId, datasetId));
+    const raw = window.localStorage.getItem(legacyKey(username, projectId, datasetId));
     const value: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
   } catch {
@@ -13,11 +18,10 @@ export function loadHidden(username: string, projectId: number, datasetId: numbe
   }
 }
 
-export function saveHidden(username: string, projectId: number, datasetId: number, hidden: string[]): void {
+export function clearLegacyHidden(username: string, projectId: number, datasetId: number): void {
   try {
-    if (hidden.length === 0) window.localStorage.removeItem(key(username, projectId, datasetId));
-    else window.localStorage.setItem(key(username, projectId, datasetId), JSON.stringify(hidden));
+    window.localStorage.removeItem(legacyKey(username, projectId, datasetId));
   } catch {
-    /* 儲存空間不可用時，狀態只維持到離開頁面 */
+    /* 儲存空間不可用：沒有舊值可清 */
   }
 }

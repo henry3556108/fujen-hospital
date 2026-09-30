@@ -84,7 +84,7 @@ describe('研究列表', () => {
     const r = await rows();
     expect(r).toHaveLength(count);
     expect(r.filter((x) => !matches(x))).toEqual([]);
-    expect(seen.at(-1)).toBe(`?${query}`);
+    expect(seen.at(-1)).toBe(`?${query}&limit=50`);
     server.events.removeAllListeners();
   });
 
@@ -121,6 +121,77 @@ describe('研究列表', () => {
     expect(dateRange('2024-01-05', '')).toBe('20240105-');
     expect(dateRange('', '2024-02-01')).toBe('-20240201');
     expect(dateRange('2024-01-05', '2024-02-01')).toBe('20240105-20240201');
+  });
+});
+
+describe('研究列表分頁', () => {
+  const many = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      study_instance_uid: `1.2.3.${i + 1}`,
+      accession_number: `ACC${String(i + 1).padStart(4, '0')}`,
+      patient_id: `PAT${i + 1}`,
+      patient_sex: 'F',
+      study_date: '20240105',
+      study_description: 'CT CHEST',
+      modalities: ['CT'],
+      series: [],
+      instances: 1,
+    }));
+
+  function pagedApi(total: number, seen: string[]) {
+    const all = many(total);
+    server.use(
+      http.get('*/api/projects/:pid/imaging/studies', ({ request }) => {
+        const q = new URL(request.url).searchParams;
+        seen.push(decodeURIComponent(new URL(request.url).search));
+        const limit = Number(q.get('limit'));
+        const offset = Number(q.get('offset') ?? 0);
+        return HttpResponse.json({ items: all.slice(offset, offset + limit), total, offset, limit });
+      }),
+    );
+  }
+
+  it('shows 50 studies per page and moves between pages', async () => {
+    const seen: string[] = [];
+    pagedApi(120, seen);
+    const { user } = await renderApp('/data/imaging', 'vw01');
+    await screen.findByText('共 120 個研究，第 1–50 個');
+    expect(await rows()).toHaveLength(50);
+    expect(seen.at(-1)).toBe('?limit=50');
+    expect(screen.getByRole('button', { name: '上一頁' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '下一頁' }));
+    await screen.findByText('共 120 個研究，第 51–100 個');
+    expect(seen.at(-1)).toBe('?limit=50&offset=50');
+    expect((await rows())[0][1]).toBe('ACC0051');
+
+    await user.click(screen.getByRole('button', { name: '下一頁' }));
+    await screen.findByText('共 120 個研究，第 101–120 個');
+    expect(await rows()).toHaveLength(20);
+    expect(screen.getByRole('button', { name: '下一頁' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '上一頁' }));
+    await screen.findByText('共 120 個研究，第 51–100 個');
+  });
+
+  it('the page is in the URL (survives a reload) and a new filter starts again at page 1', async () => {
+    const seen: string[] = [];
+    pagedApi(120, seen);
+    const { user } = await renderApp('/data/imaging?modality=CT&page=3', 'vw01');
+    await screen.findByText('共 120 個研究（已套用 1 個篩選條件），第 101–120 個');
+    expect(seen.at(-1)).toBe('?modality=CT&limit=50&offset=100');
+    await user.selectOptions(screen.getByLabelText("Patient's Sex"), 'F');
+    await user.click(screen.getByRole('button', { name: '套用篩選' }));
+    await screen.findByText('共 120 個研究（已套用 2 個篩選條件），第 1–50 個');
+    expect(seen.at(-1)).toBe('?modality=CT&patient_sex=F&limit=50');
+  });
+
+  it('a page past the end falls back to the last page', async () => {
+    const seen: string[] = [];
+    pagedApi(60, seen);
+    await renderApp('/data/imaging?page=9', 'vw01');
+    await screen.findByText('共 60 個研究，第 51–60 個');
+    expect(seen.at(-1)).toBe('?limit=50&offset=50');
   });
 });
 

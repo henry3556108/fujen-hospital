@@ -81,7 +81,7 @@ test.describe('研究列表篩選', () => {
     };
     const clear = async () => {
       await page.getByRole('button', { name: '清除篩選' }).click();
-      await expect(page.getByText(/^共 6 個研究$/)).toBeVisible();
+      await expect(page.getByText(/^共 6 個研究，第 1–6 個$/)).toBeVisible();
     };
 
     await page.getByLabel('Modality').selectOption('MR');

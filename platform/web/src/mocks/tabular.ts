@@ -15,7 +15,7 @@ import type {
   ValidationReport,
 } from '../pages/tabular/types';
 import { CATALOGUE, COHORT_CSV, COHORT_SCHEMA, STATS_FIXTURES } from './tabularData';
-import { API, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject, tabularError } from './support';
+import { API, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject, tabularError, validation } from './support';
 
 interface Frame {
   columns: string[];
@@ -33,6 +33,8 @@ interface StoredDataset extends Dataset {
 interface State {
   datasets: StoredDataset[];
   nextId: number;
+  /** TC-B04-02 欄位顯示設定：`${datasetId}:${username}` → 隱藏的欄位 */
+  columnViews?: Record<string, string[]>;
 }
 
 class MockError extends Error {
@@ -646,6 +648,7 @@ export const tabularHandlers = [
     if (r instanceof Response) return r;
     const s = state();
     s.datasets = s.datasets.filter((x) => x.id !== r.d.id);
+    if (s.columnViews) s.columnViews = Object.fromEntries(Object.entries(s.columnViews).filter(([k]) => !k.startsWith(`${r.d.id}:`)));
     return noContent();
   }),
 
@@ -701,6 +704,27 @@ export const tabularHandlers = [
         preview: preview(out, Number(b.offset ?? 0), Number(b.limit ?? 50), (b.columns as string[] | null) ?? null),
       };
     });
+  }),
+
+  http.get(`${DS}/column-view`, ({ request, params }) => {
+    const r = dataset(request, params);
+    if (r instanceof Response) return r;
+    const saved = state().columnViews?.[`${r.d.id}:${r.ctx.user.username}`];
+    return json({ hidden: saved ?? [], saved: saved !== undefined });
+  }),
+
+  http.put(`${DS}/column-view`, async ({ request, params }) => {
+    const r = dataset(request, params);
+    if (r instanceof Response) return r;
+    const b = await jsonBody(request);
+    const hidden = b.hidden as unknown;
+    if (!Array.isArray(hidden) || hidden.some((c) => typeof c !== 'string')) return validation('hidden', 'Input should be a valid list', 'list_type');
+    if (new Set(hidden).size !== hidden.length) return detail(422, '隱藏欄位有重複的名稱');
+    const unknown = hidden.filter((c) => !r.d.frame.columns.includes(c as string));
+    if (unknown.length) return detail(422, `資料集沒有這些欄位：${unknown.join('、')}`);
+    const s = state();
+    s.columnViews = { ...(s.columnViews ?? {}), [`${r.d.id}:${r.ctx.user.username}`]: [...(hidden as string[])] };
+    return json({ hidden, saved: true });
   }),
 
   http.get(`${DS}/target-feature`, ({ request, params }) => {

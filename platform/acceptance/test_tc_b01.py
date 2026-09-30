@@ -337,6 +337,20 @@ def test_tc_b01_08_dicomweb_bypass_attempts_denied(api, auth, p1, manifest, p1_a
 
 # ---------- TC-B01-09 ----------
 
+def test_tc_b01_09_study_list_pages(api, auth, p1, dicom_imported):
+    """研究清單分頁：帶 limit 回 {items, total, offset, limit}；各頁依序接起來＝不分頁的完整清單。"""
+    ra = auth("ra01")
+    everything = [s["study_instance_uid"] for s in _studies(api, ra, p1)]
+    assert len(everything) >= 20
+    paged = []
+    for offset in range(0, len(everything), 7):
+        body = _studies(api, ra, p1, limit=7, offset=offset)
+        assert (body["total"], body["offset"], body["limit"]) == (len(everything), offset, 7)
+        paged += [s["study_instance_uid"] for s in body["items"]]
+    assert paged == everything
+    assert api.get(f"/api/projects/{p1}/imaging/studies", headers=ra, params={"limit": 0}).status_code == 422
+
+
 def test_tc_b01_09_five_field_filters(api, auth, p1, manifest, dicom_imported):
     ra = auth("ra01")
     ours = {s["study_instance_uid"]: s for s in manifest["studies"]}
