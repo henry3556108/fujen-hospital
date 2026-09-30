@@ -2,7 +2,7 @@
 // 路徑、權限、狀態碼、錯誤訊息照 platform/api/app/training；設定的正規化照 config.py（存檔 → 重新載入逐欄相同）。
 // 只在 dev server 與單元測試使用。
 //
-// 訓練狀態：送出後是「排隊中」；之後查詢（清單或單筆）第 2 次變執行中、第 3 次完成。
+// 訓練狀態：送出後是「排隊中」；之後查詢（清單或單筆）第 2 次變執行中、第 3 次完成，每個狀態至少停留 trainingMockOptions.stepMs。
 // 設定名稱含「失敗」的訓練會以失敗結束，用來示範失敗訊息。
 import { http, HttpResponse } from 'msw';
 import type { Model } from '../pages/inference/api';
@@ -259,6 +259,8 @@ export const CATALOGUE: Catalogue = {
 interface StoredRun extends TrainingRun {
   ticks: number;
   fail: boolean;
+  /** 上一次狀態改變的時間（毫秒） */
+  changedMs: number;
 }
 
 interface StoredModel extends Model {
@@ -308,11 +310,16 @@ function metricsFor(kind: TrainingKind, id: number): Record<string, unknown> {
   }
 }
 
+/** 瀏覽器裡每個狀態至少停留 stepMs，畫面上看得到排隊中與執行中；單元測試設為 0，只看查詢次數。 */
+export const trainingMockOptions = { stepMs: 1200 };
+
 /** 查詢時往前推一步：排隊中 → 執行中 → 完成（或失敗）。 */
 function advance(run: StoredRun) {
   if (!['queued', 'running'].includes(run.status)) return;
+  if (Date.now() - run.changedMs < trainingMockOptions.stepMs) return;
   run.ticks += 1;
   if (run.ticks === 1) return; // 第一次查詢仍在排隊，畫面上看得到「排隊中」
+  run.changedMs = Date.now();
   if (run.ticks === 2) {
     run.status = 'running';
     run.started_at = isoNow();
@@ -342,7 +349,7 @@ function advance(run: StoredRun) {
   run.model_id = model.id;
 }
 
-const runOut = ({ ticks: _t, fail: _f, ...run }: StoredRun): TrainingRun => run;
+const runOut = ({ ticks: _t, fail: _f, changedMs: _c, ...run }: StoredRun): TrainingRun => run;
 
 function configError(fn: () => Response): Response {
   try {
@@ -367,7 +374,7 @@ function newRun(ctx: { user: { username: string }; project: { id: number } }, fr
     status: 'queued', message: '', seed: from.config.seed, config: JSON.parse(JSON.stringify(from.config)) as TrainingConfig,
     dataset_version_id: id, job_id: 100 + id, parent_run_id: from.parent_run_id, metrics: {}, artifacts: {},
     created_by: ctx.user.username, created_at: isoNow(), started_at: null, finished_at: null, custom_source: false, model_id: null,
-    ticks: 0, fail: from.name.includes('失敗'),
+    ticks: 0, fail: from.name.includes('失敗'), changedMs: Date.now(),
   };
   s.runs.push(run);
   return run;

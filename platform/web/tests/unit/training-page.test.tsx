@@ -2,9 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
-import { trainingMock } from '../../src/mocks/training';
+import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingKind } from '../../src/pages/training/api';
 import { renderApp } from '../render';
+
+// 單元測試不等待：每次查詢就往前推一個狀態
+trainingMockOptions.stepMs = 0;
 
 async function openForm(user: UserEvent) {
   await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));

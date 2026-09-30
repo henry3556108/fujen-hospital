@@ -2,7 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, createApiClient } from '../../src/api/client';
 import { createTrainingApi, parseUsers, type TrainingConfig } from '../../src/pages/training/api';
-import { normalise } from '../../src/mocks/training';
+import { normalise, trainingMockOptions } from '../../src/mocks/training';
+
+// 單元測試不等待：每次查詢就往前推一個狀態
+trainingMockOptions.stepMs = 0;
 
 function client(username: string) {
   const token = async () => `test-token:${username}`;
