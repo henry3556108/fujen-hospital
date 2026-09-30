@@ -2,7 +2,7 @@
 // 路徑、權限、狀態碼、錯誤訊息照 platform/api/app/training；設定的正規化照 config.py（存檔 → 重新載入逐欄相同）。
 // 只在 dev server 與單元測試使用。
 //
-// 訓練狀態：送出後是「排隊中」，之後每查詢一次（清單或單筆）往前一步：執行中 → 完成。
+// 訓練狀態：送出後是「排隊中」；之後查詢（清單或單筆）第 2 次變執行中、第 3 次完成。
 // 設定名稱含「失敗」的訓練會以失敗結束，用來示範失敗訊息。
 import { http, HttpResponse } from 'msw';
 import type { Model } from '../pages/inference/api';
@@ -312,7 +312,8 @@ function metricsFor(kind: TrainingKind, id: number): Record<string, unknown> {
 function advance(run: StoredRun) {
   if (!['queued', 'running'].includes(run.status)) return;
   run.ticks += 1;
-  if (run.ticks === 1) {
+  if (run.ticks === 1) return; // 第一次查詢仍在排隊，畫面上看得到「排隊中」
+  if (run.ticks === 2) {
     run.status = 'running';
     run.started_at = isoNow();
     return;

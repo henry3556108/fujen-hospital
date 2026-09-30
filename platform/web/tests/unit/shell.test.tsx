@@ -151,7 +151,7 @@ describe('app shell', () => {
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
-  it('建模管理 placeholder links to the project job list', async () => {
+  it('建模管理 links to the project job list', async () => {
     const { user } = await renderApp('/training', 'pi01');
     await user.click(await screen.findByRole('link', { name: /專案工作/ }));
     expect(await screen.findByRole('heading', { level: 1, name: '專案工作' })).toBeInTheDocument();

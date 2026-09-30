@@ -52,6 +52,7 @@ describe('training api client', () => {
     const setting = await api.createSetting('s', IMAGE);
     const run = await api.submit(setting.id, 'template');
     expect(run.status).toBe('queued');
+    expect((await api.run(run.id)).status).toBe('queued');
     expect((await api.run(run.id)).status).toBe('running');
     const done = await api.run(run.id);
     expect(done.status).toBe('succeeded');
@@ -64,6 +65,7 @@ describe('training api client', () => {
     const api = client('pi01');
     const setting = await api.createSetting('s', IMAGE);
     const run = await api.submit(setting.id, 'fake');
+    await api.runs();
     await api.runs();
     const done = (await api.runs())[0];
     const file = await api.downloadModel(done.model_id!);
