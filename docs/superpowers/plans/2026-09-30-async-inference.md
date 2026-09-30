@@ -107,3 +107,42 @@ platform/deploy/kind/load-trainer-image.sh   預設也載入 cpu-data 節點
 | TC-B06-04 結果呈現 | 結構式 20 筆、影像 9 筆（上傳，不變）；網頁：批次送出 → 輪詢 → 20 列預測欄 | 同左＋Playwright `inference.spec.ts` |
 | TC-B06-06 線上部署 | 不變 | 不變 |
 | 非同步行為 | `test_train_batch.py`：狀態流轉、容器回報失敗、Job 失敗未回報、Job 成功未回報、取消（排隊中、已結束 409）、token 範圍與失效、環境變數無憑證、刪除專案後 token 401、稽核與狀態同交易、影像→GPU 群組／結構式→cpu-data、沒綁 GPU 群組 409、subset 422 | 驗收中檢查送出請求在數秒內回應、狀態序列 queued→…→succeeded、`inference` 稽核 |
+
+## 結果（2026-09-30）
+
+| 範圍 | 指令 | 結果 |
+|---|---|---|
+| 平台 API 全套（合併 integration/wp5-8 兩次後） | `cd platform/api && uv run pytest` | 1026 passed, 5 skipped（新增 `test_train_batch.py` 20、`test_sched_inference_kinds.py` 6） |
+| 訓練範本、推論服務、批次進入點 | `cd platform/training && uv run --extra keras pytest` | 56 passed（新增 `test_batch.py` 8，含 Keras） |
+| 網頁單元 | `cd platform/web && npx vitest run` | 370 passed |
+| Playwright（Chromium＋Edge） | `PW_PORT=5887 npx playwright test --workers=2` | 156 passed（兩次合併後各跑一次，都全過） |
+| S0 smoke | `cd platform/api && uv run pytest ../smoke/s0` | 17 passed, 1 skipped（kind 監控） |
+| 經 Gateway＋kind | `test_tc_b05_b06.py`（`ai-async` 堆疊） | 最終程式碼 14 passed（3 分 07 秒）；前兩次 13 passed、14 passed |
+
+經 Gateway＋kind 驗收（compose.yaml＋compose.kind.yaml＋compose.training.yaml，Job 映像 `platform-trainer:async-inference` 載入 worker2（cpu-data）與 worker3（gpu-exclusive））：
+
+- 送出批次推論一律在 10 秒內回 202；結構式批次排進 `cpu-data`、影像批次排進 P1 綁定的 `gpu-exclusive`。
+- 最後一次 12 筆批次推論全部成功，從送出到定案 3～6 秒（Job 啟動占大部分）；1 筆在排隊中取消，叢集內的 Job 被刪除、狀態 `cancelled`。
+- `inference` 稽核：`inference.batch`、`inference.batch.finish`、`inference.batch.cancel`、`job.submit`、`job.cancel`。
+- 第一次執行抓到的問題（已修正並加測試）：小批次在兩次輪詢之間就跑完，紀錄沒有開始時間。改為 Job 下載輸入包時就記為執行中並記下開始時間。
+- 驗收結束後 `docker compose -p ai-async down -v`，刪除本堆疊建立的 Kubernetes Job（依資料庫的 `k8s_name` 清單），並移除 kind 節點上的 `platform-trainer:async-inference`。
+
+裁定：
+
+- **批次推論在 Kubernetes Job 執行，不在 API 旁另起 worker。** 沿用 WP4 排程與 WP5b 映像：排隊、GPU 配額、取消、共享池時限、Dashboard 都已存在；影像大批量需要 GPU，就應排進專案綁定的群組。結構式模型（scikit-learn）排進 `cpu-data`，不占 GPU 卡。
+- **沒有保留同步的批次路徑。** 批次的輸入是凍結資料，大小沒有上限；兩條路徑要各自測試與維護。小批次多出的代價是 Job 啟動的數秒。
+- **上傳推論與線上推論維持同步**：輸入有上限（50 MB、1000 筆），呼叫端期待當下的答案；兩者仍經推論服務。批次推論不經推論服務，推論服務故障不影響批次。
+- **結果由 API 組裝**：容器只回報原始預測，API 加預測欄、存結果，格式與舊版同步結果完全相同；歷史、檢視、下載端點不變，只多 `job_id`、`started_at`、`finished_at`。
+- **稽核一律 `inference`**，包括批次推論的排程工作 `job.submit`／`job.cancel`（WP4 原本全部記為 `training`；訓練與資料清洗工作不變）。送出、定案、取消的稽核與狀態變更同一個交易；取消時 `job.cancel` 也在同一個交易（`scheduling.mark_cancelled` 不 commit）。
+- **失敗**：容器回報的原因原樣記錄；Job 失敗未回報記排程的原因；Job 成功但沒有回報記「工作結束，但沒有回報推論結果」；回報筆數與輸入不符記為失敗；模型或輸入檔已不存在時輸入包回 409，容器回報失敗。
+- **取消**：`prediction` 權限即可取消同專案內任何人的批次推論（與送出權限相同）；已結束 409，非批次 409。
+- **刪除專案**：排隊或執行中的批次 Job 由專案清理流程（backend-gaps 合併的 `cluster_job`）從叢集取消；推論紀錄與批次列隨專案刪除；之後 Job 的 token 一律 401（專案不存在也拒絕，不依賴外鍵是否生效）。沒有單獨刪除模型的功能，模型只隨專案刪除。
+- **資料表**：新增 `inference_batches`，不改 `inference_records` 的欄位（平台以 `create_all` 建表，既有資料庫加欄位不會生效）。
+- **token**：只對一筆推論有效，資料庫只存雜湊，定案（成功、失敗、取消）即失效；與訓練的 token 互不通用。
+
+未完成或限制：
+
+- 批次推論的結果在容器回報時就定案，`jobs` 表的狀態要等下一次查詢工作清單才同步成已結束（與訓練相同的「查詢時同步」）。
+- 網頁「專案工作」頁的工作種類名稱沒有 `inference`／`inference-cpu` 的中文標示，顯示原始代碼（改它會動到共用的排程頁，留給排程頁的負責人）。
+- 容器以一次 JSON 回報全部預測（上限 `INFERENCE_MAX_ANSWER_MB`，預設 256 MB）；影像結果含預覽圖，數萬張以上的批次要改為分段上傳。
+- 甲方叢集的 Job 映像、`cpu-data` 容量與 GPU 上的推論時間需在甲方環境確認。
