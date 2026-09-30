@@ -8,6 +8,7 @@ import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
 import { KIND_NAMES } from '../inference/api';
 import { JOB_STATUS_LABELS } from '../scheduling/types';
 import type { RunStatus, TrainingApi, TrainingRun } from './api';
+import { ModelExport } from './ModelExport';
 
 export const POLL_MS = 1500;
 
@@ -193,6 +194,7 @@ function RunDetail({ api, run, onChanged, onSelect }: { api: TrainingApi; run: T
           {log || '（還沒有輸出）'}
         </pre>
       ) : null}
+      {run.status === 'succeeded' && run.model_id !== null ? <ModelExport api={api} run={run} /> : null}
       {cancelling ? (
         <ConfirmDialog title="取消訓練" confirmLabel="確定取消"
           onConfirm={() => void act(async () => { await api.cancel(run.id); onChanged(); }).finally(() => setCancelling(false))}

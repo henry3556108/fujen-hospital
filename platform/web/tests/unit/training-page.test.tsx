@@ -1,5 +1,5 @@
 // 建模管理頁（元件層級，MSW 模擬）。TC-B05-01、02、03；權限。
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
 import { trainingMock } from '../../src/mocks/training';
@@ -232,5 +232,54 @@ describe('建模管理：送出訓練與狀態', () => {
     await user.click(screen.getByRole('button', { name: '以同一資料版本與種子重跑' }));
     await screen.findByRole('heading', { name: '訓練 #2：cls' });
     expect(trainingMock().runs[1]).toMatchObject({ parent_run_id: 1, seed: 1, dataset_version_id: 1 });
+  });
+});
+
+describe('模型匯出', () => {
+  const saved: string[] = [];
+  beforeEach(() => {
+    saved.length = 0;
+    // jsdom 沒有 Blob URL；下載只檢查存檔的檔名
+    URL.createObjectURL = () => 'blob:mock';
+    URL.revokeObjectURL = () => undefined;
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function finishedRun(username: string, kind: TrainingKind, name: string) {
+    seedSetting(kind, name);
+    const utils = await renderApp('/training', username);
+    await utils.user.click(await screen.findByRole('button', { name: `送出訓練「${name}」` }));
+    await utils.user.click(await screen.findByRole('button', { name: '重新整理' }));
+    await utils.user.click(screen.getByRole('button', { name: '重新整理' }));
+    await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
+    return utils;
+  }
+
+  it('TC-B05-06 downloads the Keras H5 of a finished image run and shows its sha256', async () => {
+    const { user } = await finishedRun('pi01', 'image_detection', 'det');
+    await user.click(screen.getByRole('button', { name: '下載模型（H5）' }));
+    expect(await screen.findByText(/^已下載 det-run1\.h5（SHA-256：[0-9a-f]{64}）$/)).toBeInTheDocument();
+    expect(saved).toEqual(['det-run1.h5']);
+  });
+
+  it('TC-B05-05 / 06 tabular run: pkl download and source export with Coding permission', async () => {
+    const { user } = await finishedRun('pi01', 'tabular_classification', 'cls');
+    await user.click(screen.getByRole('button', { name: '下載模型（PKL）' }));
+    await screen.findByText(/^已下載 cls-run1\.pkl/);
+    for (let i = 0; i < 3; i += 1) {
+      await user.click(screen.getByRole('button', { name: '匯出原始碼' }));
+      await screen.findByText('已下載 training-run-1-source.zip');
+    }
+    expect(saved).toEqual(['cls-run1.pkl', 'training-run-1-source.zip', 'training-run-1-source.zip', 'training-run-1-source.zip']);
+  });
+
+  it('without Coding the source export is hidden and explained', async () => {
+    await finishedRun('ra01', 'tabular_regression', 'reg');
+    expect(screen.getByRole('button', { name: '下載模型（PKL）' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '匯出原始碼' })).toBeNull();
+    expect(screen.getByText(/匯出原始碼需要 Coding 權限/)).toBeInTheDocument();
   });
 });
