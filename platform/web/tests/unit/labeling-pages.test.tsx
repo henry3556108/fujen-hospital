@@ -5,6 +5,7 @@ import { HOTKEYS } from '../../src/pages/labeling/WorkbenchPage';
 import { createTrainingJob, trainingSetting } from '../../src/pages/labeling/api';
 import { hotkeyId } from '../../src/pages/labeling/useHotkeys';
 import { MOCK_STUDIES, MOCK_STUDY_COUNT, labelingMock } from '../../src/mocks/labeling';
+import { trainingMock } from '../../src/mocks/training';
 import { renderApp } from '../render';
 
 const STUDY = MOCK_STUDIES[0];
@@ -91,7 +92,7 @@ describe('labeling index', () => {
     await within(form).findByLabelText(/nodule/);
     await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('影像分類至少需要 2 種 Label');
-    expect(labelingMock().jobs).toHaveLength(0);
+    expect(trainingMock().runs).toHaveLength(0);
   });
 
   it('TC-B02-06 creates a training task from the labeling page with type and parameters', async () => {
@@ -105,7 +106,8 @@ describe('labeling index', () => {
     await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
     const table = await screen.findByRole('table', { name: '已建立的訓練任務' });
     expect(within(table).getByRole('row', { name: /#1.*排隊中/ })).toBeInTheDocument();
-    expect(labelingMock().jobs).toEqual([expect.objectContaining({ kind: 'training', training_type: 'classification', user: 'ra01', project_id: 1 })]);
+    expect(trainingMock().runs).toEqual([expect.objectContaining({ kind: 'image_classification', created_by: 'ra01', project_id: 1, status: 'queued' })]);
+    expect(trainingMock().runs[0].config).toMatchObject({ seed: 7, source: { label_source: { provider: 'annotations' } } });
   });
 
   it('createTrainingJob saves a training setting from the labels and submits a training run (WP5b)', async () => {
