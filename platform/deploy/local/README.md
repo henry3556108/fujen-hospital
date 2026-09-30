@@ -100,7 +100,7 @@ docker compose down -v     # 連同資料庫一起清掉
 疊加 `compose.training.yaml`：MLflow（訓練紀錄）與推論服務，兩者都不對主機開連接埠。訓練工作跑在 kind 叢集，所以同時要疊加 `compose.kind.yaml`：
 
 ```bash
-../kind/load-trainer-image.sh                  # 建 platform-trainer 映像（約 6 GB）並載入 kind 的 GPU 節點
+../kind/load-trainer-image.sh                  # 建 platform-trainer 映像（約 6 GB）並載入 kind 的 GPU 節點與 cpu-data 節點
 JOB_IO_BASE_URL=http://ai-platform-api-1:8000 \
   docker compose -f compose.yaml -f compose.kind.yaml -f compose.training.yaml up -d --build
 ```

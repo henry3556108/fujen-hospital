@@ -8,7 +8,8 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       INFERENCE_URL: http://inference:8000
       INFERENCE_ADMIN_TOKEN: inference-admin-dev
-      TRAINING_IMAGE: platform-trainer:dev
+      # 訓練與批次推論 Job 的映像（kind 節點上要先載入：../kind/load-trainer-image.sh）
+      TRAINING_IMAGE: ${TRAINING_IMAGE:-platform-trainer:dev}
       # kind 內的 Job 容器回連平台 API 的位址（api 容器在 kind 網路上的名稱）
       JOB_IO_BASE_URL: ${JOB_IO_BASE_URL:-http://api:8000}
     depends_on:

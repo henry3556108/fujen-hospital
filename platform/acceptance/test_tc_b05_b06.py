@@ -1,4 +1,5 @@
 """B-05 自動訓練與模型匯出、B-06 模型部署與推論服務：經 Gateway，訓練真的在 kind 叢集內以 platform-trainer 映像執行。
+批次推論也是 kind 內的 Job（trainer.batch）：影像模型在 P1 綁定的 gpu-exclusive、結構式模型在 cpu-data；送出後輪詢。
 
 堆疊：docker compose -f compose.yaml -f compose.kind.yaml -f compose.training.yaml，並已執行
 deploy/kind/load-trainer-image.sh 與 seed。訓練在 P1（綁定 gpu-exclusive）。
@@ -211,14 +212,52 @@ def model_id(trained, kind):
     return trained[kind][0]["model_id"]
 
 
+def submit_batch(c, pid: int, mid: int, subset: str) -> dict:
+    """送出批次推論：不論批量大小都在數秒內回應（202，排隊中）。"""
+    started = time.monotonic()
+    out = ok(c.post(f"/api/projects/{pid}/models/{mid}/inference/batch", headers=headers("pi01"),
+                    json={"subset": subset}, timeout=30), 202)
+    assert time.monotonic() - started < 10, "送出批次推論不等推論完成"
+    assert out["status"] == "queued" and out["job_id"] and out["result"] is None
+    return out
+
+
+def wait_batches(c, pid: int, records: list[dict], timeout: float = 900) -> tuple[list[dict], list[list[str]]]:
+    """同時輪詢多筆批次推論到結束，回傳最終結果與各自看到的狀態序列。"""
+    final, seen = list(records), [[r["status"]] for r in records]
+    deadline = time.monotonic() + timeout
+    while True:
+        for i, record in enumerate(records):
+            if final[i]["status"] in ("succeeded", "failed", "cancelled"):
+                continue
+            final[i] = ok(c.get(f"/api/projects/{pid}/inference/{record['id']}", headers=headers("pi01")))
+            if seen[i][-1] != final[i]["status"]:
+                seen[i].append(final[i]["status"])
+        if all(f["status"] in ("succeeded", "failed", "cancelled") for f in final):
+            return final, seen
+        assert time.monotonic() < deadline, f"批次推論超過 {timeout} 秒仍未結束：{[f['status'] for f in final]}"
+        time.sleep(1)
+
+
 def test_tc_b06_01_batch_inference_twenty_or_more(trained, env):
     c, pid, h = env["c"], env["pid"], headers("pi01")
-    out = ok(c.post(f"/api/projects/{pid}/models/{model_id(trained, 'tabular_classification')}/inference/batch",
-                    headers=h, json={"subset": "test"}, timeout=120), 201)
-    assert out["status"] == "succeeded" and out["count"] >= 20
-    image = ok(c.post(f"/api/projects/{pid}/models/{model_id(trained, 'image_classification')}/inference/batch",
-                      headers=h, json={"subset": "test"}, timeout=300), 201)
+    mark = last_audit_id()
+    tab = submit_batch(c, pid, model_id(trained, "tabular_classification"), "test")
+    img = submit_batch(c, pid, model_id(trained, "image_classification"), "test")
+    jobs = {r["id"]: ok(c.get(f"/api/projects/{pid}/jobs/{r['job_id']}", headers=h)) for r in (tab, img)}
+    assert (jobs[tab["id"]]["queue"], jobs[img["id"]]["queue"]) == ("cpu-data", "gpu-exclusive")
+    (out, image), seen = wait_batches(c, pid, [tab, img])
+    for record, states in zip((out, image), seen):
+        assert record["status"] == "succeeded", record["message"]
+        assert states[0] == "queued" and states[-1] == "succeeded", states
+        assert record["started_at"] and record["finished_at"]
+    assert out["count"] >= 20 and len(out["result"]["rows"]) == out["count"]
+    assert out["result"]["columns"][-2:] == ["prediction", "prediction_note"]
     assert image["count"] >= 20 and all(r["label"] in ("CT", "MR") for r in image["result"]["results"])
+    finished = audit("inference", "inference.batch.finish", mark)
+    assert {r["target"] for r in finished} == {f"inference:{tab['id']}", f"inference:{img['id']}"}
+    assert all(r["result"] == "success" for r in finished)
+    assert len(audit("inference", "inference.batch", mark)) == 2 and audit("inference", "job.submit", mark)
 
 
 def test_tc_b06_02_upload_ten_times(trained, env):
@@ -242,10 +281,14 @@ def test_tc_b06_02_upload_ten_times(trained, env):
 def test_tc_b06_03_history_sampled_and_downloaded(trained, env):
     c, pid, h = env["c"], env["pid"], headers("pi01")
     mid = model_id(trained, "tabular_classification")
-    for _ in range(10):
-        ok(c.post(f"/api/projects/{pid}/models/{mid}/inference/batch", headers=h, json={"subset": "all"}), 201)
+    records = [submit_batch(c, pid, mid, "all") for _ in range(10)]
+    early = c.get(f"/api/projects/{pid}/inference/{records[-1]['id']}/download", headers=h)
+    assert early.status_code in (200, 409), "還沒完成時下載回 409"
+    final, _ = wait_batches(c, pid, records)
+    assert [f["status"] for f in final] == ["succeeded"] * 10, [f["message"] for f in final]
     history = ok(c.get(f"/api/projects/{pid}/models/{mid}/inference", headers=h))
     sample = history[:10]
+    assert {r["id"] for r in sample} == {r["id"] for r in records}, "最新的 10 筆就是剛送出的 10 筆"
     assert len(sample) == 10 and all(r["has_result"] and r["status"] == "succeeded" for r in sample)
     for record in sample[:5]:
         response = c.get(f"/api/projects/{pid}/inference/{record['id']}/download", headers=h)
