@@ -81,7 +81,9 @@ def test_project_delete_cleans_orthanc_and_object_storage(api, auth, tmp_path):
                  f"where action = 'project.data_cleanup' and target = 'project:{pid}'")
     result, detail = audit.split(" ", 1)
     assert result == "success"
-    assert json.loads(detail) == {"objects_deleted": 5, "orthanc_deleted": len(slices), "failed": 0}
+    # 堆疊有 FHIR 時多一個 fhir_deleted（這個專案沒有 FHIR 資料：0）
+    assert json.loads(detail) in ({"objects_deleted": 5, "orthanc_deleted": len(slices), "failed": 0},
+                                  {"objects_deleted": 5, "orthanc_deleted": len(slices), "failed": 0, "fhir_deleted": 0})
 
 
 def test_api_storage_account_is_not_root():
