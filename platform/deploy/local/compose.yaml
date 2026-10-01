@@ -15,7 +15,7 @@ services:
       retries: 20
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak:26.8.0
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: kcadmin
@@ -27,6 +27,8 @@ services:
       KC_HOSTNAME: http://localhost:8080
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HEALTH_ENABLED: "true"
+      # 26.6 起 start-dev 預設只聽 localhost，容器內要明確聽所有介面，api 與 Gateway 才連得到
+      KC_HTTP_HOST: 0.0.0.0
     volumes:
       - ./keycloak/realm-ai-platform.json:/opt/keycloak/data/import/realm-ai-platform.json:ro
     ports: ["${KEYCLOAK_HOST_PORT:-8080}:8080"]
@@ -67,7 +69,7 @@ services:
       minio-init: {condition: service_completed_successfully}
 
   apisix:
-    image: apache/apisix:3.11.0-debian
+    image: apache/apisix:3.19.0-debian
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
