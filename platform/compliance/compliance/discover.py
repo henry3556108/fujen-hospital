@@ -3,6 +3,8 @@
 來源：
 - compose 檔（`compose*.y*ml`、`docker-compose*.y*ml`，含疊加檔）：`image:`、`build:`、名稱以 `_IMAGE` 結尾的環境變數
 - Kubernetes 部署檔（kind 目錄下所有 YAML）：任何層級的 `image:`
+- Kustomize（deploy/k8s）：`images:` 清單的實際映像；manifest 裡的邏輯名稱 `ai-platform/<服務>` 不算映像，
+  平台自己建置的 `platform-*`（Dockerfile 另外列入）也不算外部映像
 - 部署腳本（*.sh）裡 `kubectl apply -f https://…yaml` 的遠端部署檔
 - Dockerfile 的 `FROM`
 - 程式碼裡讀取名稱以 `_IMAGE` 結尾的環境變數時給的預設映像
@@ -233,6 +235,28 @@ def _images_in(node, found: list[str]) -> None:
             _images_in(item, found)
 
 
+KUSTOMIZE_LOGICAL = "ai-platform/"     # deploy/k8s 的 manifest 只寫邏輯名稱，實際映像在 Kustomize 的 images:
+PLATFORM_BUILT = re.compile(r"^platform-[a-z0-9-]+$")
+
+
+def kustomize_images(text: str) -> list[str]:
+    """Kustomize（kustomization.yaml、Component）的 images: 清單 → 實際映像。平台自己建置的映像不列入。"""
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(doc, dict) or not str(doc.get("kind", "")).startswith(("Kustomization", "Component")):
+        return []
+    out = []
+    for entry in doc.get("images") or []:
+        name = entry.get("newName") or entry.get("name")
+        if not name or PLATFORM_BUILT.match(name):
+            continue
+        ref = name + (f":{entry['newTag']}" if entry.get("newTag") else "")
+        out.append(ref + (f"@{entry['digest']}" if entry.get("digest") else ""))
+    return out
+
+
 def manifest_images(text: str) -> list[str]:
     found: list[str] = []
     try:
@@ -275,8 +299,12 @@ def discover(root: Path, *, fetch: Callable[[str], str] | None = None) -> Invent
         if _is_compose(path):
             _compose(inv, path)
         elif path.suffix in (".yaml", ".yml"):
-            for image in manifest_images(path.read_text(encoding="utf-8", errors="replace")):
-                inv.add_image(image, f"manifest:{rel}")
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for image in manifest_images(text):
+                if not image.startswith(KUSTOMIZE_LOGICAL):
+                    inv.add_image(image, f"manifest:{rel}")
+            for image in kustomize_images(text):
+                inv.add_image(image, f"kustomize:{rel}")
         elif path.suffix == ".sh":
             _script(inv, path, fetch)
         elif path.suffix == ".py" and "/tests/" not in f"/{rel}" and not path.name.startswith("test_"):

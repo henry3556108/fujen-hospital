@@ -148,3 +148,22 @@ def test_dockerfile_stage_alias_is_not_an_image(tmp_path):
 
 def test_manifest_images_tolerates_bad_yaml():
     assert manifest_images("a: [unclosed") == []
+
+
+def test_kustomize_images_replace_logical_names(tmp_path):
+    write(tmp_path / "deploy/k8s/components/images/kustomization.yaml", """
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - {name: ai-platform/postgres, newName: pgvector/pgvector, newTag: pg16}
+  - {name: ai-platform/minio, newName: cgr.dev/chainguard/minio, newTag: latest, digest: "sha256:abc"}
+  - {name: ai-platform/api, newName: platform-api, newTag: dev}
+""")
+    write(tmp_path / "deploy/k8s/base/postgres.yaml", """
+kind: StatefulSet
+spec: {template: {spec: {containers: [{name: p, image: ai-platform/postgres}]}}}
+""")
+    inv = discover(tmp_path)
+    assert set(inv.images) == {"docker.io/pgvector/pgvector:pg16", "cgr.dev/chainguard/minio:latest@sha256:abc"}
+    assert inv.images["docker.io/pgvector/pgvector:pg16"].used_by == {
+        "kustomize:deploy/k8s/components/images/kustomization.yaml"}
