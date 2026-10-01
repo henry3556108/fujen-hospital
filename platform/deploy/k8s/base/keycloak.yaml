@@ -1,0 +1,78 @@
+# Keycloak：狀態都在 PostgreSQL，所以是 Deployment。第一次啟動時匯入 realm（之後改 realm 要重新匯入，見 README）。
+# realm 檔的 client secret、admin01 密碼、網址都是 ${VAR} 佔位，Keycloak 匯入時以環境變數替換。
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector: {app: keycloak}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: keycloak}
+  template:
+    metadata:
+      labels: {app: keycloak, platform/db-client: "true"}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: keycloak
+          image: ai-platform/keycloak
+          args: ["start", "--import-realm"]
+          env:
+            - {name: KC_DB, value: postgres}
+            - {name: KC_DB_URL, value: "jdbc:postgresql://postgres:5432/keycloak"}
+            - {name: KC_DB_USERNAME, value: platform}
+            - name: KC_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+            - {name: KC_BOOTSTRAP_ADMIN_USERNAME, value: kcadmin}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: KC_BOOTSTRAP_ADMIN_PASSWORD}}
+            # 瀏覽器用的固定網址；token 的 issuer 由它決定，平台 API 的 OIDC_ISSUER 由同一個值組成
+            - name: KC_HOSTNAME
+              valueFrom: {configMapKeyRef: {name: platform-urls, key: KC_HOSTNAME}}
+            # 平台 API 在叢集內以 http://keycloak:8080 取 JWKS 與呼叫管理 API
+            - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true"}
+            - {name: KC_HTTP_ENABLED, value: "true"}
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=40 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=256m"}
+            # realm 匯入的佔位值
+            - name: KC_API_CLIENT_SECRET
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: KC_API_CLIENT_SECRET}}
+            - name: KC_ADMIN01_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: KC_ADMIN01_PASSWORD}}
+            - name: WEB_PUBLIC_URL
+              valueFrom: {configMapKeyRef: {name: platform-urls, key: WEB_PUBLIC_URL}}
+            - name: OHIF_PUBLIC_URL
+              valueFrom: {configMapKeyRef: {name: platform-urls, key: OHIF_PUBLIC_URL}}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: management, containerPort: 9000}
+          startupProbe:
+            httpGet: {path: /health/started, port: 9000}
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet: {path: /health/ready, port: 9000}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health/live, port: 9000}
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 100m, memory: 640Mi}
+            limits: {cpu: 750m, memory: 1280Mi}
+          volumeMounts:
+            - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
+      volumes:
+        - name: realm
+          configMap: {name: keycloak-realm}

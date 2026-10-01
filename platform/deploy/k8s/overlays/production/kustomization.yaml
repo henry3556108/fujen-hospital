@@ -1,0 +1,66 @@
+# 甲方正式環境的範本。部署前要替換所有 *.example.invalid 與 CHANGE-ME 佔位（見 ../../README.md「正式環境」）：
+# - 網域：KEYCLOAK_HOST、PLATFORM_HOST、VIEWER_HOST（platform-urls、ingress.yaml、config/app-config.js 的 authority）
+# - TLS：ingress.yaml 的 secretName（甲方憑證，kubectl create secret tls ...）、ingressClassName
+# - 真實服務：LLM（vLLM）、自動標註工具、SMTP、醫院 PACS
+# - 密碼：../../create-secrets.sh（隨機產生，不進版控）
+# 與 kind 的差別：沒有假服務、模擬 PACS、Mailpit、種子工作；Keycloak 所有 public client 關閉密碼授權；
+# admin01 第一次登入必須改密碼；不給 nodes/status 權限（GPU 份數由 NVIDIA device plugin 管）。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ingress.yaml
+  - networkpolicy-production.yaml
+components:
+  - ../../components/images
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: ai-platform-namespace
+      namespace: ai-platform
+    unsetOnly: true
+configMapGenerator:
+  - name: platform-urls
+    behavior: merge
+    literals:
+      - KC_HOSTNAME=https://keycloak.example.invalid
+      - WEB_PUBLIC_URL=https://platform.example.invalid
+      - OHIF_PUBLIC_URL=https://viewer.example.invalid
+      # Gateway /api/* 的 CORS：網頁的正式網域（多個以逗號分隔）
+      - CORS_ALLOW_ORIGINS=https://platform.example.invalid
+      # DICOMweb 的 CORS（標註工作台直接取影像）：正式網域的正規表示式
+      - DICOMWEB_CORS_REGEX=^https://platform\.example\.invalid$
+  - name: api-env
+    behavior: merge
+    literals:
+      - LLM_BASE_URL=http://CHANGE-ME-vllm:8000/v1
+      - LLM_CHAT_MODEL=CHANGE-ME
+      - LLM_EMBED_MODEL=CHANGE-ME
+      - AUTOLABEL_URL=http://CHANGE-ME-monai-label:8000
+      - ALERT_SMTP_HOST=CHANGE-ME-smtp.example.invalid
+      - ALERT_SMTP_PORT=25
+      - ALERT_EMAIL_FROM=ai-platform@example.invalid
+      - ALERT_EMAIL_TO=ops@example.invalid
+  - name: pacs
+    behavior: merge
+    literals:
+      - PACS_AET=CHANGE-ME
+      - PACS_HOST=CHANGE-ME-pacs.example.invalid
+      - PACS_PORT=104
+  - name: keycloak-realm
+    behavior: replace
+    files:
+      # 與 base 相同，另外關閉所有 public client 的密碼授權、admin01 第一次登入要改密碼（render-config.py 產生）
+      - realm-ai-platform.json=config/realm-ai-platform.json
+  - name: ohif-config
+    files:
+      - app-config.js=config/app-config.js
+patches:
+  # Keycloak 在甲方的 TLS 反向代理（Ingress）之後：信任 X-Forwarded-*
+  - target: {kind: Deployment, name: keycloak}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: KC_PROXY_HEADERS, value: xforwarded}

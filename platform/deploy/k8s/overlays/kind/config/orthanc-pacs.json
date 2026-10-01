@@ -1,0 +1,24 @@
+{
+  "Name": "simulated-hospital-pacs",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "Plugins": [],
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers": {
+    "pacs-admin": "${PACS_ADMIN_PASSWORD}"
+  },
+  "WebDavEnabled": false,
+  "DicomServerEnabled": true,
+  "DicomAet": "PACS",
+  "DicomPort": 4242,
+  "DicomCheckCalledAet": false,
+  "DicomModalities": {
+    "platform": [
+      "PLATFORM",
+      "orthanc",
+      4242
+    ]
+  },
+  "ConcurrentJobs": 2
+}

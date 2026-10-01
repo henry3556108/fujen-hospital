@@ -1,0 +1,15 @@
+# 醫院 PACS 以 C-STORE 回送 C-MOVE 取回的影像到平台 Orthanc（4242）。CIDR 換成 PACS 的位址；
+# PACS 要連得到 Orthanc 的 4242，需另以 NodePort／LoadBalancer 開放（依甲方網路設計，本範本不含）。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orthanc-dicom-from-hospital-pacs
+spec:
+  podSelector:
+    matchLabels: {app: orthanc}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock: {cidr: 192.0.2.10/32}   # CHANGE-ME：醫院 PACS（192.0.2.0/24 是文件用的保留位址）
+      ports:
+        - {port: 4242, protocol: TCP}

@@ -1,0 +1,26 @@
+# 由 platform/deploy/k8s/render-config.py 從 platform/deploy/local/apisix/config.yaml 產生，請改原始檔後重新產生
+# Gateway 另開 9081 給 OHIF 檢視器（compose.labeling.yaml 才對主機開放；路由見 apisix.yaml 的 WP5a 區塊）
+apisix:
+  node_listen:
+    - 9080
+    - 9081
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+# WP6：上游以叢集 DNS 做服務發現（headless Service）（FHIR 水平擴充用）。只查 A 記錄
+discovery:
+  dns:
+    servers:
+      - "${{DNS_SERVER}}:53"
+    order:
+      - last
+      - A
+# Kubernetes：apisix.yaml 內以 ${{VAR}} 引用的環境變數，nginx worker 要宣告才讀得到
+nginx_config:
+  worker_processes: 2   # 預設依 CPU 數開 worker，每個約 30 MB；平台節點記憶體有限
+  envs:
+    - DNS_SERVER
+    - ORTHANC_GATEWAY_AUTH
+    - CORS_ALLOW_ORIGINS
+    - DICOMWEB_CORS_REGEX

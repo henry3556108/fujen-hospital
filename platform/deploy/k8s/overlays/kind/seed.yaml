@@ -1,0 +1,48 @@
+# 測試基線（3 個專案、8 個帳號）：python -m app.seed。只在開發與驗收環境；會清掉既有專案與帳號（admin01 除外）。
+#   kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed     （deploy.sh kind 會執行一次）
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seed
+spec:
+  suspend: true
+  schedule: "@yearly"
+  jobTemplate:
+    spec:
+      backoffLimit: 10
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: {app: seed, platform/backend: "true", platform/db-client: "true"}
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: {platform/pool: cpu-web}
+          serviceAccountName: platform-api
+          enableServiceLinks: false
+          securityContext: {runAsNonRoot: true, runAsUser: 10001}
+          containers:
+            - name: seed
+              image: ai-platform/api
+              command: ["/app/.venv/bin/python", "-m", "app.seed"]
+              envFrom:
+                - configMapRef: {name: api-env}
+                - configMapRef: {name: platform-images}
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+                - {name: DATABASE_URL, value: "postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@postgres:5432/platform"}
+                - name: KC_HOSTNAME
+                  valueFrom: {configMapKeyRef: {name: platform-urls, key: KC_HOSTNAME}}
+                - {name: OIDC_ISSUER, value: "$(KC_HOSTNAME)/realms/ai-platform"}
+                - name: KEYCLOAK_CLIENT_SECRET
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: KC_API_CLIENT_SECRET}}
+                - name: S3_ACCESS_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_ACCESS_KEY}}
+                - name: S3_SECRET_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_SECRET_KEY}}
+                - name: ORTHANC_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_API_PASSWORD}}
+              resources:
+                requests: {cpu: 10m, memory: 256Mi}
+                limits: {cpu: 500m, memory: 1Gi}
+              securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}

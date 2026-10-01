@@ -1,0 +1,36 @@
+{
+  "Name": "platform",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "Plugins": [
+    "/usr/local/share/orthanc/plugins/libOrthancDicomWeb.so"
+  ],
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "AuthenticationEnabled": true,
+  "RegisteredUsers": {
+    "platform-api": "${ORTHANC_API_PASSWORD}",
+    "gateway": "${ORTHANC_GATEWAY_PASSWORD}"
+  },
+  "OrthancExplorerEnabled": false,
+  "WebDavEnabled": false,
+  "DicomServerEnabled": true,
+  "DicomAet": "PLATFORM",
+  "DicomPort": 4242,
+  "DicomCheckCalledAet": false,
+  "DicomModalities": {
+    "pacs": [
+      "${PACS_AET}",
+      "${PACS_HOST}",
+      ${PACS_PORT}
+    ]
+  },
+  "DicomAlwaysAllowStore": true,
+  "DicomScuTimeout": 30,
+  "ConcurrentJobs": 2,
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/",
+    "EnableWado": false,
+    "Ssl": false
+  }
+}

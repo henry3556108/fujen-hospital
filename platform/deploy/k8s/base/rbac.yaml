@@ -1,0 +1,61 @@
+# 平台 API 以叢集內 ServiceAccount 送工作（不用 kubeconfig）。只給 app/scheduling/kube.py 實際呼叫的權限：
+#   platform-jobs：Job 建立／讀取／刪除（cancel 用 Background 刪除，Pod 由 GC 回收）、Pod 讀取（找節點、算 GPU 配置）
+#   叢集：Node 讀取（節點清單、GPU 容量）、Kueue ClusterQueue gpu-shared 讀取與修改（共享份數同步配額）
+# kind overlay 另給 nodes/status patch（假 GPU 的份數）；甲方由 NVIDIA device plugin 管份數，不給。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-api
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-platform-api
+  namespace: platform-jobs
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-platform-api
+  namespace: platform-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-platform-api
+subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: ai-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ai-platform-api
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["kueue.x-k8s.io"]
+    resources: ["clusterqueues"]
+    resourceNames: ["gpu-shared"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ai-platform-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ai-platform-api
+subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: ai-platform

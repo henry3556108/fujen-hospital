@@ -1,0 +1,43 @@
+# kind 對外的 NodePort。叢集建立後不能再加 extraPortMappings，所以由 ../../kind/expose.sh 從主機 127.0.0.1 轉送：
+#   38980→30980 Gateway、38981→30981 OHIF（Gateway 9081）、38180→30880 Keycloak、38943→30943 模擬 PACS、38925→30925 Mailpit
+# 平台 API、Orthanc、HAPI、MinIO、推論服務都沒有 NodePort。
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix-nodeport
+spec:
+  type: NodePort
+  selector: {app: apisix}
+  ports:
+    - {name: gateway, port: 9080, targetPort: 9080, nodePort: 30980}
+    - {name: viewer, port: 9081, targetPort: 9081, nodePort: 30981}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-nodeport
+spec:
+  type: NodePort
+  selector: {app: keycloak}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080, nodePort: 30880}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orthanc-pacs-nodeport
+spec:
+  type: NodePort
+  selector: {app: orthanc-pacs}
+  ports:
+    - {name: http, port: 8042, targetPort: 8042, nodePort: 30943}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit-nodeport
+spec:
+  type: NodePort
+  selector: {app: mailpit}
+  ports:
+    - {name: http, port: 8025, targetPort: 8025, nodePort: 30925}

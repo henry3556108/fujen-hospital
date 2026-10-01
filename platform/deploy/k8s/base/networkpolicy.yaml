@@ -1,0 +1,128 @@
+# 進入流量白名單（TC-SS-05：不經 Gateway 連不到平台 API、推論、HAPI、Orthanc、MinIO、資料庫）。
+# 命名空間預設全部拒絕；命名空間外只能連 Gateway（apisix）與 Keycloak（瀏覽器登入）。
+# 標籤：
+#   platform/backend=true    執行平台程式的 Pod（api、fhir-worker、一次性工作），可連內部服務
+#   platform/db-client=true  可連 PostgreSQL
+# 只管進入流量；對外連線（LLM、PACS、SMTP）由甲方的出口政策管。kubelet 探針不受影響。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-from-anywhere
+spec:
+  podSelector:
+    matchLabels: {app: apisix}
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - {port: 9080, protocol: TCP}
+        - {port: 9081, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-from-anywhere
+spec:
+  podSelector:
+    matchLabels: {app: keycloak}
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - {port: 8080, protocol: TCP}
+---
+# 平台 API：Gateway（含 forward-auth）、平台後端、platform-jobs 內的訓練與推論 Job（以一次性 token 回連工作 I/O）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+spec:
+  podSelector:
+    matchLabels: {app: api}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: apisix}}
+        - podSelector: {matchLabels: {platform/backend: "true"}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: platform-jobs}}
+      ports:
+        - {port: 8000, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres
+spec:
+  podSelector:
+    matchLabels: {app: postgres}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {platform/db-client: "true"}}
+      ports:
+        - {port: 5432, protocol: TCP}
+---
+# Orthanc：DICOMweb 只經 Gateway；平台後端以 REST 管理；PACS 以 C-STORE 回送 C-MOVE 的影像（pacs-dicom 由 overlay 定義來源）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orthanc
+spec:
+  podSelector:
+    matchLabels: {app: orthanc}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: apisix}}
+        - podSelector: {matchLabels: {platform/backend: "true"}}
+      ports:
+        - {port: 8042, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hapi
+spec:
+  podSelector:
+    matchLabels: {app: hapi}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: apisix}}
+        - podSelector: {matchLabels: {platform/backend: "true"}}
+      ports:
+        - {port: 8080, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ohif
+spec:
+  podSelector:
+    matchLabels: {app: ohif}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: apisix}}
+      ports:
+        - {port: 80, protocol: TCP}
+---
+# 只有平台後端連得到的服務
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-only
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [minio, clamav, inference, mlflow, wiki, fake-llm, autolabel]}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {platform/backend: "true"}}

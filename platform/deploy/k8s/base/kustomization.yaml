@@ -1,0 +1,105 @@
+# 平台在 Kubernetes 上的共同部分。直接部署請用 overlay（overlays/kind 或 overlays/production），不要直接 apply base。
+# 命名空間固定為 ai-platform：Job 回連平台 API 的網址、APISIX 的上游位址、ClusterRoleBinding 都依賴它。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs: {app.kubernetes.io/part-of: ai-platform}
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - networkpolicy.yaml
+  - postgres.yaml
+  - keycloak.yaml
+  - apisix.yaml
+  - api.yaml
+  - fhir-worker.yaml
+  - orthanc.yaml
+  - minio.yaml
+  - clamav.yaml
+  - hapi.yaml
+  - wiki.yaml
+  - mlflow.yaml
+  - inference.yaml
+  - ohif.yaml
+  - jobs.yaml
+# 只替沒寫命名空間的資源補上 ai-platform；platform-jobs 內的 Role 保留自己的命名空間
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: ai-platform-namespace
+      namespace: ai-platform
+    unsetOnly: true
+configMapGenerator:
+  # 以下設定檔都由 render-config.py 從 compose 的原始檔產生，不含密碼（密碼以環境變數佔位，由 Secret 注入）
+  - name: apisix-config
+    files:
+      - config.yaml=config/apisix-config.yaml
+      - apisix.yaml=config/apisix.yaml
+  - name: keycloak-realm
+    files:
+      - realm-ai-platform.json=config/realm-ai-platform.json
+  - name: orthanc-config
+    files:
+      - orthanc.json=config/orthanc.json
+  - name: clamav-config
+    files:
+      - clamd.conf=config/clamd.conf
+  # 瀏覽器看到的網址：每個 overlay 以 behavior: merge 覆寫。token 的 issuer＝KC_HOSTNAME/realms/ai-platform
+  - name: platform-urls
+    literals:
+      - KC_HOSTNAME=http://localhost:8080
+      - WEB_PUBLIC_URL=http://localhost:5173
+      - OHIF_PUBLIC_URL=http://localhost:9081
+      - CORS_ALLOW_ORIGINS=http://localhost:5173
+      - DICOMWEB_CORS_REGEX=^http://localhost(:[0-9]+)?$
+  # 平台 API、排程 worker、種子工作共用的設定（不含密碼）
+  - name: api-env
+    literals:
+      - OIDC_AUDIENCE=ai-platform
+      - OIDC_JWKS_URL=http://keycloak:8080/realms/ai-platform/protocol/openid-connect/certs
+      - KEYCLOAK_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=ai-platform
+      - KEYCLOAK_CLIENT_ID=ai-platform-api
+      - STORAGE_ROOT=/data/objects
+      - STORAGE_BACKEND=s3
+      - S3_ENDPOINT=minio:9000
+      - S3_BUCKET=platform
+      - ORTHANC_URL=http://orthanc:8042
+      - ORTHANC_USERNAME=platform-api
+      - ORTHANC_PACS_MODALITY=pacs
+      - CLAMAV_HOST=clamav
+      - CLAMAV_PORT=3310
+      - FHIR_URL=http://hapi:8080/fhir
+      - FHIR_TIMEOUT_SECONDS=60
+      - FHIR_ALERT_THRESHOLD=120
+      - FHIR_WORKER_POLL_SECONDS=5
+      - GATEWAY_ROUTES_FILE=/etc/platform/gateway/apisix.yaml
+      - AUTOLABEL_TIMEOUT_SECONDS=25
+      - LLM_TIMEOUT_SECONDS=25
+      - LLM_MODEL_DIR=/data/objects/llm-models
+      - VECTOR_STORE=pgvector
+      - WIKI_URL=http://wiki:3000
+      - WIKI_ADMIN_EMAIL=wiki-svc@example.org
+      - LANGSMITH_TRACING=false
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - INFERENCE_URL=http://inference:8000
+      # 排程：叢集內 ServiceAccount（沒有 KUBECONFIG，kube.py 先試 in-cluster config）
+      - JOB_BACKEND=kubernetes
+      - JOB_NAMESPACE=platform-jobs
+      - JOB_IO_BASE_URL=http://api.ai-platform.svc.cluster.local:8000
+  # 醫院 PACS（平台 Orthanc 的 DicomModalities.pacs）；overlay 覆寫
+  - name: pacs
+    literals:
+      - PACS_AET=PACS
+      - PACS_HOST=pacs.invalid
+      - PACS_PORT=104
+  # ClamAV：false＝容器自己定期以 freshclam 更新病毒碼；離線環境改 true 並預載病毒碼（offline/README）
+  - name: clamav-env
+    literals:
+      - CLAMAV_NO_FRESHCLAMD=false
+  # db-init 建立的資料庫（kind 另加模擬 HIS 的 his）
+  - name: db-init
+    literals:
+      - DATABASES=keycloak wiki hapi

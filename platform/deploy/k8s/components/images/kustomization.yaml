@@ -1,0 +1,59 @@
+# 平台在 Kubernetes 上用到的所有映像：唯一的清單。
+# manifest 只寫邏輯名稱 ai-platform/<服務>；版本、digest 只改這裡。
+# build-and-load.sh 與離線安裝包（offline/bundle.sh）也從這個檔讀清單。
+# 上游映像要與 compose 檔（platform/deploy/local/compose*.yaml）一致，platform/compliance/tests/test_k8s_manifests.py 會比對。
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  # ---- 上游映像 ----
+  - name: ai-platform/postgres
+    newName: pgvector/pgvector
+    newTag: pg16
+  - name: ai-platform/keycloak
+    newName: quay.io/keycloak/keycloak
+    newTag: "26.0"
+  - name: ai-platform/apisix
+    newName: apache/apisix
+    newTag: 3.11.0-debian
+  - name: ai-platform/orthanc
+    newName: jodogne/orthanc-plugins
+    newTag: 1.13.0
+  - name: ai-platform/minio
+    newName: cgr.dev/chainguard/minio
+    newTag: latest      # 只為與 compose 的寫法一致；有 digest 時 Kustomize 只用 digest
+    digest: sha256:71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9
+  - name: ai-platform/clamav
+    newName: clamav/clamav
+    newTag: 1.5.4
+  - name: ai-platform/hapi
+    newName: hapiproject/hapi
+    newTag: v8.12.0-1
+  - name: ai-platform/wiki
+    newName: ghcr.io/requarks/wiki
+    newTag: "2.5"
+  - name: ai-platform/mlflow
+    newName: ghcr.io/mlflow/mlflow
+    newTag: v3.16.1
+  - name: ai-platform/ohif
+    newName: ohif/app
+    newTag: v3.13.10
+  - name: ai-platform/mailpit
+    newName: axllent/mailpit
+    newTag: v1.22
+  # ---- 平台自己建置的映像（build-and-load.sh；Dockerfile 在 platform/api、platform/fakes、platform/training）----
+  - name: ai-platform/api
+    newName: platform-api
+    newTag: dev
+  - name: ai-platform/fakes
+    newName: platform-fakes
+    newTag: dev
+  - name: ai-platform/trainer
+    newName: platform-trainer
+    newTag: dev
+# 平台 API 送到叢集的 Job 用的映像（環境變數，不是 Pod 的 image 欄位，所以放在 ConfigMap）。
+# 這兩個映像要載入工作節點（cpu-data、GPU 池），不是平台節點。
+configMapGenerator:
+  - name: platform-images
+    literals:
+      - TRAINING_IMAGE=platform-trainer:dev
+      - JOB_IMAGE=busybox:1.36

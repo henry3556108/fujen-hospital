@@ -1,0 +1,82 @@
+# 假模型服務（platform/fakes）：fake-llm（OpenAI 相容）、fake-autolabel（MONAI Label 介面子集）。只供開發與測試。
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-llm
+spec:
+  selector: {app: fake-llm}
+  ports:
+    - {name: http, port: 8101, targetPort: 8101}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: autolabel
+spec:
+  selector: {app: autolabel}
+  ports:
+    - {name: http, port: 8102, targetPort: 8102}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: fake-llm}
+  template:
+    metadata:
+      labels: {app: fake-llm}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: fake-llm
+          image: ai-platform/fakes
+          env:
+            - {name: FAKE_SERVICE, value: llm}
+          ports:
+            - {name: http, containerPort: 8101}
+          readinessProbe:
+            tcpSocket: {port: 8101}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: 8101}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {cpu: 250m, memory: 256Mi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autolabel
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: autolabel}
+  template:
+    metadata:
+      labels: {app: autolabel}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: autolabel
+          image: ai-platform/fakes
+          env:
+            - {name: FAKE_SERVICE, value: autolabel}
+          ports:
+            - {name: http, containerPort: 8102}
+          readinessProbe:
+            tcpSocket: {port: 8102}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: 8102}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {cpu: 250m, memory: 256Mi}

@@ -1,0 +1,109 @@
+# 由 platform/deploy/k8s/render-config.py 從 platform/deploy/local/apisix/apisix.yaml 產生，請改原始檔後重新產生
+routes:
+  - id: platform-api
+    uri: /api/*
+    plugins:
+      cors:
+        allow_origins: "${{CORS_ALLOW_ORIGINS}}"
+        allow_methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        allow_headers: "Authorization,Content-Type"
+        max_age: 600
+    upstream:
+      type: roundrobin
+      nodes:
+        "api.ai-platform.svc.cluster.local:8000": 1
+  # WP2：DICOMweb 只經這裡。forward-auth 把原始 URI／方法交給平台 API 檢查
+  # （專案權限、研究在專案內、Accession 清單、canonical-or-deny），通過後改寫到 Orthanc /dicom-web/，
+  # 由 Gateway 換上 Orthanc 的 Basic 認證。唯讀：只開 GET/HEAD。
+  # 注意：proxy-rewrite 在 rewrite 階段、forward-auth 在 access 階段，若用 proxy-rewrite 換 Authorization，
+  # forward-auth 會收到 Basic 而不是使用者的 Bearer；所以換認證放在 access 階段最後的 serverless-post-function。
+  - id: dicomweb
+    uri: /dicomweb/projects/*
+    methods: ["GET", "HEAD", "OPTIONS"]   # OPTIONS 只給 CORS 預檢，由 cors 外掛直接回應，不會到 Orthanc
+    plugins:
+      # WP5a：標註工作台（網頁，不同源）直接取 metadata 與 frame。開發環境放行 localhost 任意埠；甲方環境改成正式網域。
+      cors:
+        allow_origins_by_regex: ["${{DICOMWEB_CORS_REGEX}}"]
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "Authorization,Accept"
+        expose_headers: "Content-Type"
+        max_age: 600
+      # WP5a：Orthanc 回的 BulkDataURI 是它自己的位址（http://<host>/dicom-web/...），用戶端連不到也不該連；
+      # 這裡改寫成 Gateway 的專案範圍位址，讓 bulk data 一樣經過 forward-auth。只處理 JSON 回應。
+      response-rewrite:
+        vars: [["upstream_http_content_type", "~~", "json"]]
+        headers:
+          remove: ["Content-Length"]
+      serverless-pre-function:
+        phase: body_filter
+        functions:
+          - |
+            return function(conf, ctx)
+              local ct = ngx.header["Content-Type"] or ""
+              if not ct:find("json", 1, true) then return end
+              local core = require("apisix.core")
+              local body = core.response.hold_body_chunk(ctx)
+              if not body then return end
+              local pid = ngx.var.request_uri:match("^/dicomweb/projects/(%d+)/")
+              if pid then
+                local root = ngx.var.scheme .. "://" .. ngx.var.http_host .. "/dicomweb/projects/" .. pid .. "/"
+                body = ngx.re.gsub(body, [["https?://[^"/]+/dicom-web/]], '"' .. root, "jo")
+              end
+              ngx.arg[1] = body
+            end
+      forward-auth:
+        uri: http://api.ai-platform.svc.cluster.local:8000/authz/check
+        request_method: GET
+        request_headers: ["Authorization"]
+        upstream_headers: ["X-User"]
+      proxy-rewrite:
+        regex_uri: ["^/dicomweb/projects/[0-9]+/(.*)$", "/dicom-web/$1"]
+      serverless-post-function:
+        phase: access
+        functions:
+          - "return function(conf, ctx) ngx.req.set_header('Authorization', '${{ORTHANC_GATEWAY_AUTH}}') end"
+    upstream:
+      type: roundrobin
+      nodes:
+        "orthanc.ai-platform.svc.cluster.local:8042": 1
+  # ---- WP5a 影像標註：OHIF 檢視器 ----
+  # 只在 Gateway 的 9081 埠（Kubernetes：apisix Service 的 9081 埠）；/api/* 與 /dicomweb/* 優先序較高，
+  # 所以 OHIF 與 DICOMweb 同源，OHIF 帶著使用者的 Bearer token 走上面的 dicomweb 路由。
+  - id: ohif
+    uri: /*
+    priority: -10
+    methods: ["GET", "HEAD"]
+    vars: [["server_port", "==", "9081"]]
+    upstream:
+      type: roundrobin
+      nodes:
+        "ohif.ai-platform.svc.cluster.local:80": 1
+  # ---- WP6 FHIR（C-03）----
+  # FHIR REST 只經這裡：/fhir/projects/{pid}/{FHIR 路徑} → forward-auth（專案權限、路由政策、稽核、流量計數）
+  # → HAPI /fhir/{pid}/{FHIR 路徑}（租戶＝專案編號）。X-Forwarded-Prefix 讓 HAPI 回應內的網址維持對外路徑。
+  # 上游用 DNS 服務發現（config.yaml 的 discovery.dns）：HAPI 擴充成多份時自動分流。
+  # 使用者的 Bearer token 不往上游送；對外連接埠取自 Host 標頭（容器內看不到主機對應的連接埠）。
+  # 需要 compose.fhir.yaml；沒啟動 HAPI 時這條路由回 503，不影響其他路由。
+  - id: fhir-rest
+    uri: /fhir/projects/*
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
+    plugins:
+      forward-auth:
+        uri: http://api.ai-platform.svc.cluster.local:8000/authz/check
+        request_method: GET
+        request_headers: ["Authorization"]
+        upstream_headers: ["X-User"]
+      proxy-rewrite:
+        regex_uri: ["^/fhir/projects/([0-9]+)(/.*)?$", "/fhir/$1$2"]
+        headers:
+          set:
+            X-Forwarded-Prefix: /fhir/projects
+      serverless-post-function:
+        phase: access
+        functions:
+          - "return function(conf, ctx) local core = require('apisix.core'); core.request.set_header(ctx, 'Authorization', nil); local port = string.match(ngx.var.http_host or '', ':(%d+)$'); if port then core.request.set_header(ctx, 'X-Forwarded-Port', port) end end"
+    upstream:
+      type: roundrobin
+      discovery_type: dns
+      service_name: "hapi.ai-platform.svc.cluster.local:8080"
+#END
