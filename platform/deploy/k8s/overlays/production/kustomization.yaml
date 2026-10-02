@@ -49,6 +49,12 @@ configMapGenerator:
       - PACS_AET=CHANGE-ME
       - PACS_HOST=CHANGE-ME-pacs.example.invalid
       - PACS_PORT=104
+  # 甲方環境可上網：ClamAV 容器內的 freshclam 直接向 ClamAV 官方更新病毒碼（每天數次）。
+  # 若甲方要求經代理或內部鏡像站，改 clamav 的 freshclam.conf（DatabaseMirror／HTTPProxyServer）
+  - name: clamav-env
+    behavior: merge
+    literals:
+      - CLAMAV_NO_FRESHCLAMD=false
   - name: keycloak-realm
     behavior: replace
     files:
