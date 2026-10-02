@@ -1,6 +1,6 @@
 # 平台部署到 Kubernetes
 
-整個平台（Gateway、Keycloak、平台 API、FHIR worker、Orthanc、MinIO、ClamAV、HAPI FHIR、Wiki.js、MLflow、推論服務、OHIF、PostgreSQL）
+整個平台（網頁前端、Gateway、Keycloak、平台 API、FHIR worker、Orthanc、MinIO、ClamAV、HAPI FHIR、Wiki.js、MLflow、推論服務、OHIF、PostgreSQL）
 跑在命名空間 `ai-platform`；訓練與推論 Job 仍在 `platform-jobs`，由平台 API 以叢集內 ServiceAccount 送出（沒有 kubeconfig）。
 manifest 全部以 Kustomize（kubectl 內建）管理；部署時包成一個 Helm release（`ai-platform`），只為了版本紀錄與 rollback。
 部署步驟與演練見 `docs/delivery/部署說明.md`。
@@ -33,6 +33,7 @@ cd platform/deploy/k8s
 
 | 服務 | 主機位址 | NodePort |
 |---|---|---|
+| 網頁前端（Gateway 9082，與 /api 同源） | http://localhost:38982 | 30982 |
 | Gateway（平台 API、DICOMweb、FHIR） | http://localhost:38980 | 30980 |
 | OHIF（Gateway 9081） | http://localhost:38981 | 30981 |
 | Keycloak | http://localhost:38180 | 30880 |
@@ -138,3 +139,15 @@ chart 沒有樣板，外掛把 chart 的（空）輸出換成 `kubectl kustomize
 - 退回只回復 manifest（Deployment、ConfigMap、RBAC 等）；資料庫內容、PVC、Secret 不會退回。Keycloak 26.8 這類會遷移資料庫結構的升級，
   退回映像前要先還原資料庫備份（`platform/compliance/scripts/restore.sh` 的做法）。
 - 一次性工作（db-init、seed…）是 CronJob 範本，屬於 release；實際執行的 Job 由 `deploy.sh` 建立，不屬於 release。
+
+## 網頁前端
+
+`platform/web/Dockerfile`：Node 建置打包檔，`nginxinc/nginx-unprivileged`（非 root，8080）提供靜態檔。
+
+- **經 Gateway 的 9082 埠**（與 OHIF 用 9081 同樣的做法）：`/api/*`、`/dicomweb/*`、`/fhir/*` 的路由優先序較高，所以網頁與平台 API 同源，
+  `WEB_API_BASE` 為空字串，不需要 CORS；9080 不提供網頁，未知路徑照舊 404（TC-SS-05 的檢查不變）。甲方的 Ingress 把平台網域送到 9082。
+- **一個映像用在每個環境**：網址不在打包時寫死。容器啟動時 `/docker-entrypoint.d/40-platform-config.sh` 把 `WEB_*` 環境變數寫成 `/config.js`
+  （`window.__PLATFORM_CONFIG__`），`index.html` 在主程式之前載入，蓋過打包期的 `VITE_*`（`src/runtimeConfig.ts`）。只接受網址字元。
+  Kubernetes 的值來自 `platform-urls`（`KC_HOSTNAME`、`OHIF_PUBLIC_URL`）；Keycloak 的 `ai-platform-web` 只允許 `WEB_PUBLIC_URL`。
+- 打包檔與 `/config.js` 只有公開設定：`compliance secrets --web-dist <目錄>` 檢查（TC-SS-04）。
+- 真瀏覽器端對端：`cd platform/web && WEB_URL=http://localhost:38982 npm run test:e2e:real`（經 Keycloak 登入）。
