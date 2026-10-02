@@ -74,7 +74,7 @@ wait_ready statefulset/minio
 run_job minio-init
 wait_ready deployment/keycloak statefulset/orthanc deployment/hapi statefulset/clamav statefulset/mlflow \
   deployment/inference deployment/wiki
-wait_ready deployment/api deployment/fhir-worker deployment/apisix deployment/ohif
+wait_ready deployment/api deployment/fhir-worker deployment/apisix deployment/ohif deployment/web
 if [ "$OVERLAY" = kind ]; then
   wait_ready deployment/fake-llm deployment/autolabel deployment/mailpit statefulset/orthanc-pacs
   if [ -z "${SKIP_SEED:-}" ]; then run_job seed; else run_job bootstrap-admin; fi
@@ -84,6 +84,6 @@ fi
 run_job wiki-setup
 if [ "$OVERLAY" = kind ]; then
   kind/expose.sh
-  log "Gateway http://localhost:38980  OHIF http://localhost:38981  Keycloak http://localhost:38180  PACS http://127.0.0.1:38943  Mailpit http://127.0.0.1:38925"
+  log "網頁 http://localhost:38982  Gateway http://localhost:38980  OHIF http://localhost:38981  Keycloak http://localhost:38180  PACS http://127.0.0.1:38943  Mailpit http://127.0.0.1:38925"
 fi
 log "完成"
