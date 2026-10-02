@@ -51,12 +51,14 @@ git -C "$REPO" archive --format=tar -o "$OUT/source.tar" HEAD
 
 if [ -z "${SKIP_PACKAGES:-}" ]; then
   export UV_CACHE_DIR="$OUT/packages/uv-cache"
-  for proj in api fakes libs/tabular acceptance compliance; do
+  # 裝進臨時的虛擬環境：專案既有的 .venv 已同步時 uv 什麼都不下載，快取會是空的
+  venvs=$(mktemp -d)
+  for proj in api fakes libs/tabular acceptance compliance training; do
     log "Python 套件：$proj"
-    (cd "$PLATFORM_DIR/$proj" && uv sync --frozen -q)
+    extra=(); [ "$proj" = training ] && extra=(--extra keras)
+    (cd "$PLATFORM_DIR/$proj" && UV_PROJECT_ENVIRONMENT="$venvs/${proj//\//-}" uv sync --frozen -q "${extra[@]}")
   done
-  log "Python 套件：training（含 keras）"
-  (cd "$PLATFORM_DIR/training" && uv sync --frozen -q --extra keras)
+  rm -rf "$venvs"
   if [ -f "$PLATFORM_DIR/web/package-lock.json" ]; then
     log "Node 套件：web"
     tmp=$(mktemp -d)
