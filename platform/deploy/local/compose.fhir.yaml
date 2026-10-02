@@ -80,5 +80,5 @@ services:
 
   # 告警信收件匣（開發用）。網頁與 API 只綁 127.0.0.1
   mailpit:
-    image: axllent/mailpit:v1.22
+    image: axllent/mailpit:v1.31.3
     ports: ["127.0.0.1:${MAILPIT_HOST_PORT:-8025}:8025"]

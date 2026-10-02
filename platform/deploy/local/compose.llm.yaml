@@ -9,7 +9,10 @@
 services:
   postgres:
     # 與 postgres:16 相同，多了 pgvector 外掛。既有的資料卷是 alpine 映像建立的，換映像前請先 down -v
-    image: pgvector/pgvector:pg16
+    # 用 Debian 13（trixie）版：與預設的 bookworm 版同一個 pgvector 與 PostgreSQL 版本，作業系統漏洞少得多。
+    # 由 bookworm 版建立的資料卷改用這版時，PostgreSQL 會提示定序版本不同（glibc 2.36 → 2.41），
+    # 依提示執行 REINDEX 與 ALTER DATABASE ... REFRESH COLLATION VERSION 即可；開發機直接 down -v 重建較快
+    image: pgvector/pgvector:0.8.7-pg16-trixie
     volumes:
       - ./postgres/init-wiki.sql:/docker-entrypoint-initdb.d/init-wiki.sql:ro
 
