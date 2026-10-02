@@ -11,17 +11,29 @@ NODES=$(kind get nodes --name "$CLUSTER")
 V4=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | tr ' ' '\n' | grep -v : | head -1)
 V6=$(docker network inspect kind -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' | tr ' ' '\n' | grep : | head -1 || true)
 
-rules() {  # rules <-I|-D>
-  local n=$1 op=$2
+# 叢集內部的流量也走 eth0：節點之間的 Pod 網段（kindnet 直接路由）與 Service 網段（kube-proxy DNAT 前後），都要放行，
+# 否則 API server 呼叫 webhook（例如 Kueue）、跨節點的 Pod 連線都會被擋（第一次演練就因此失敗）
+POD_CIDR="${POD_CIDR:-$(kubectl get nodes -o jsonpath='{.items[0].spec.podCIDR}' | sed 's#\.[0-9]*\.0/24$#.0.0/16#')}"
+SVC_CIDR="${SVC_CIDR:-$(kubectl -n kube-system get pod -l component=kube-apiserver -o yaml | grep -o 'service-cluster-ip-range=[^ "]*' | head -1 | cut -d= -f2)}"
+rules() {  # rules <節點>：先加 REJECT，再把放行規則插在它前面
+  local n=$1 dst
   for chain in OUTPUT FORWARD; do
-    docker exec "$n" iptables "$op" "$chain" -o eth0 ! -d "$V4" -m comment --comment "$TAG" -j REJECT
-    [ -z "$V6" ] || docker exec "$n" ip6tables "$op" "$chain" -o eth0 ! -d "$V6" -m comment --comment "$TAG" -j REJECT
+    docker exec "$n" iptables -I "$chain" -o eth0 -m comment --comment "$TAG" -j REJECT
+    for dst in "$V4" "$POD_CIDR" "$SVC_CIDR"; do
+      docker exec "$n" iptables -I "$chain" -o eth0 -d "$dst" -m comment --comment "$TAG" -j ACCEPT
+    done
+    if [ -n "$V6" ]; then
+      docker exec "$n" ip6tables -I "$chain" -o eth0 -m comment --comment "$TAG" -j REJECT
+      docker exec "$n" ip6tables -I "$chain" -o eth0 -d "$V6" -m comment --comment "$TAG" -j ACCEPT
+    fi
   done
 }
 case "${1:-}" in
   on)
-    for n in $NODES; do rules "$n" -I; done
-    echo "已在 $(echo $NODES | wc -w) 個節點擋掉對外連線（保留 $V4${V6:+、$V6}）"
+    [ -n "$POD_CIDR" ] && [ -n "$SVC_CIDR" ] || { echo "找不到 Pod 或 Service 網段" >&2; exit 1; }
+    "$0" off >/dev/null
+    for n in $NODES; do rules "$n"; done
+    echo "已在 $(echo $NODES | wc -w) 個節點擋掉對外連線（放行 kind 網路 $V4、Pod $POD_CIDR、Service $SVC_CIDR${V6:+、$V6}）"
     ;;
   off)
     for n in $NODES; do
@@ -42,7 +54,9 @@ case "${1:-}" in
       echo "節點 $n 仍能拉取外部映像" >&2; exit 1; fi
     if docker exec "$n" timeout 10 curl -sS -m 8 -o /dev/null https://database.clamav.net 2>/dev/null; then
       echo "節點 $n 仍能連外部 HTTPS" >&2; exit 1; fi
-    echo "節點 $n：拉取外部映像與外部 HTTPS 都失敗（離線）"
+    # 對照組：叢集內部仍然正常（API server 經 Service 呼叫 webhook、跨節點的 Pod）
+    kubectl get --raw /readyz >/dev/null
+    echo "節點 $n：拉取外部映像與外部 HTTPS 都失敗（離線）；叢集內部正常"
     ;;
   *) echo "用法：$0 on|off|check" >&2; exit 2 ;;
 esac
