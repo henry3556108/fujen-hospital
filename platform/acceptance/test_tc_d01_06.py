@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import platform_exec as pe
+
 from tabular_support import p2, synth, upload  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,15 +17,11 @@ PROJECT = os.environ.get("COMPOSE_PROJECT")
 
 
 def _scanner_configured() -> bool:
-    if not PROJECT:
-        return False
-    out = subprocess.run(["docker", "compose", "-p", PROJECT, "exec", "-T", "api", "printenv", "CLAMAV_HOST"],
-                         capture_output=True, text=True, timeout=60)
-    return out.returncode == 0 and bool(out.stdout.strip())
+    return pe.AVAILABLE and bool(pe.env_of("api", "CLAMAV_HOST"))
 
 
 pytestmark = pytest.mark.skipif(not _scanner_configured(),
-                                reason="api 未設定 CLAMAV_HOST：以 compose.compliance.yaml 疊加檔啟動並設定 COMPOSE_PROJECT")
+                                reason="api 未設定 CLAMAV_HOST：以 compose.compliance.yaml 疊加檔啟動並設定 COMPOSE_PROJECT（或 K8S_NAMESPACE）")
 
 
 def eicar() -> bytes:
@@ -31,10 +29,7 @@ def eicar() -> bytes:
 
 
 def _sql(query: str) -> str:
-    out = subprocess.run(["docker", "compose", "-p", PROJECT, "exec", "-T", "postgres", "psql", "-U", "platform",
-                          "-d", "platform", "-tAc", query], capture_output=True, text=True, timeout=60)
-    assert out.returncode == 0, out.stderr
-    return out.stdout.strip()
+    return pe.sql(query)
 
 
 def test_tc_d01_06_eicar_upload_is_blocked_clean_upload_passes(api, p2, synth, tmp_path):

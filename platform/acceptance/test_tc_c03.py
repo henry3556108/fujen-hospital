@@ -5,7 +5,7 @@
     docker compose exec -T api /app/.venv/bin/python -m app.seed
     cd platform/acceptance && COMPOSE_PROJECT=ai-platform uv run pytest test_tc_c03.py
 
-環境變數：GATEWAY_URL、KEYCLOAK_URL（見 conftest）、COMPOSE_PROJECT（必填，用來載入模擬 HIS 資料庫、查稽核表、
+環境變數：GATEWAY_URL、KEYCLOAK_URL（見 conftest）、COMPOSE_PROJECT 或 K8S_NAMESPACE（必填其一，用來載入模擬 HIS 資料庫、查稽核表、
 模擬中斷與水平擴充）、MAILPIT_URL（預設 http://127.0.0.1:8025）、SYNTH_DIR（已產生的合成資料）。
 FHIR_SKIP_SLOW=1 時略過排程（約 2.5 分鐘）與水平擴充（約 3 分鐘）。
 """
@@ -25,9 +25,10 @@ import httpx
 import pytest
 
 import fhir_support as fs
+import platform_exec as pe
 from conftest import GATEWAY, login
 
-pytestmark = pytest.mark.skipif(not fs.COMPOSE_PROJECT, reason="設定 COMPOSE_PROJECT 才能跑 FHIR 驗收")
+pytestmark = pytest.mark.skipif(not fs.AVAILABLE, reason="設定 COMPOSE_PROJECT 或 K8S_NAMESPACE 才能跑 FHIR 驗收")
 SLOW = pytest.mark.skipif(os.environ.get("FHIR_SKIP_SLOW") == "1", reason="FHIR_SKIP_SLOW=1")
 REPORTS = Path(__file__).parent / "reports" / datetime.now().strftime("%Y-%m-%d")
 
@@ -240,9 +241,14 @@ def test_tc_c03_02_through_gateway_20_times_and_bypass_10_times(http, tokens, te
 
     attempts = []
     # 1–3：HAPI 沒有對主機開放的連接埠
-    ports = fs.compose("ps", "--format", "json", "hapi").stdout
-    published = [p for line in ports.splitlines() if line.strip() for p in json.loads(line).get("Publishers") or []
-                 if p.get("PublishedPort")]
+    if fs.K8S_NAMESPACE:   # Kubernetes：選到 HAPI 的 Service 都不是 NodePort／LoadBalancer
+        services = json.loads(pe.kubectl("get", "service", "-o", "json").stdout)["items"]
+        published = [s["metadata"]["name"] for s in services if (s["spec"].get("selector") or {}).get("app") == "hapi"
+                     and s["spec"].get("type") in ("NodePort", "LoadBalancer")]
+    else:
+        ports = fs.compose("ps", "--format", "json", "hapi").stdout
+        published = [p for line in ports.splitlines() if line.strip()
+                     for p in json.loads(line).get("Publishers") or [] if p.get("PublishedPort")]
     assert published == []
     for url in (f"http://127.0.0.1:8080/fhir/{pid}/Patient", f"http://localhost:8080/fhir/DEFAULT/metadata",
                 f"http://127.0.0.1:8888/fhir/{pid}/Patient"):
@@ -250,12 +256,20 @@ def test_tc_c03_02_through_gateway_20_times_and_bypass_10_times(http, tokens, te
             attempts.append(fhir_success(httpx.get(url, timeout=3)))
         except httpx.TransportError:
             attempts.append(False)
-    # 4–6：從另一個 Docker 網路直接連 HAPI 容器位址（模擬網路上的其他主機）
-    address = fs.container_address(fs.container_ids("hapi")[0])
-    inside = fs.fetch_from_network(f"{fs.COMPOSE_PROJECT}_default", f"http://{address}:8080/fhir/DEFAULT/metadata")
-    assert "CapabilityStatement" in inside.stdout          # 對照組：同一個網路內連得到，代表位址沒錯
+    # 4–6：從另一個 Docker 網路（Kubernetes：另一個命名空間）直接連 HAPI 的位址（模擬網路上的其他主機）
+    if fs.K8S_NAMESPACE:
+        address = pe.pod_addresses("hapi")[0]
+        # 對照組：平台後端（NetworkPolicy 允許的用戶端）連得到，代表位址沒錯
+        inside = pe.fetch_from_namespace(fs.K8S_NAMESPACE, f"http://{address}:8080/fhir/DEFAULT/metadata",
+                                         timeout=20, labels={"platform/backend": "true"})
+        outside = lambda url: pe.fetch_from_namespace("default", url, timeout=3)  # noqa: E731
+    else:
+        address = fs.container_address(fs.container_ids("hapi")[0])
+        inside = fs.fetch_from_network(f"{fs.COMPOSE_PROJECT}_default", f"http://{address}:8080/fhir/DEFAULT/metadata")
+        outside = lambda url: fs.fetch_from_network("bridge", url, timeout=3)  # noqa: E731
+    assert "CapabilityStatement" in inside.stdout
     for path in (f"/fhir/{pid}/Patient", "/fhir/DEFAULT/metadata", f"/fhir/{pid}/Observation"):
-        probe = fs.fetch_from_network("bridge", f"http://{address}:8080{path}", timeout=3)
+        probe = outside(f"http://{address}:8080{path}")
         attempts.append(probe.returncode == 0 and "resourceType" in probe.stdout)
     # 7–10：經 Gateway 但不帶 token、帶錯的 token、或用 HAPI 的內部路徑
     attempts.append(fhir_success(http.get(f"{fhir(pid)}/Patient")))
@@ -573,9 +587,10 @@ def test_tc_c03_07_three_interruptions_are_all_or_nothing(http, tokens, tenants,
         finished_early = True
     except httpx.TransportError:
         finished_early = False
-    fs.compose("kill", "hapi")
+    pe.kill("hapi")
     killed_after = time.monotonic() - started
-    fs.compose("up", "-d", "--no-deps", "--no-recreate", "hapi")
+    if not fs.K8S_NAMESPACE:   # Kubernetes 由 Deployment 自動重建 Pod
+        fs.compose("up", "-d", "--no-deps", "--no-recreate", "hapi")
     fs.wait_until(lambda: http.get(f"{fhir(pid)}/metadata", headers=tokens("admin01")).status_code == 200,
                   timeout=300, interval=5, what="HAPI 重新啟動")
     outcomes.append((f"寫入中強制關閉（送出後 {killed_after:.1f} 秒，寫入{'已' if finished_early else '未'}完成）",
@@ -633,25 +648,36 @@ def test_tc_c03_06_three_schedules_run_on_time(http, tokens, tenants, loaded):
 def test_tc_c03_11_scale_to_two_replicas_and_load_test(http, tokens, tenants, loaded):
     from scripts import fhir_loadtest
     admin, pid = tokens("admin01"), tenants["a"]
-    fs.compose("up", "-d", "--no-deps", "--no-recreate", "--scale", "hapi=2", "hapi", timeout=600)
+    if fs.K8S_NAMESPACE:   # Kubernetes：Deployment 擴成 2 份，等兩份都 Ready（readinessProbe 打 /fhir/DEFAULT/metadata）
+        pe.start("hapi", replicas=2)
+    else:
+        fs.compose("up", "-d", "--no-deps", "--no-recreate", "--scale", "hapi=2", "hapi", timeout=600)
     try:
-        containers = fs.container_ids("hapi")
-        assert len(containers) == 2
-        addresses = [fs.container_address(c) for c in containers]
+        if fs.K8S_NAMESPACE:
+            addresses = pe.pod_addresses("hapi")
+            assert len(addresses) == 2
+        else:
+            containers = fs.container_ids("hapi")
+            assert len(containers) == 2
+            addresses = [fs.container_address(c) for c in containers]
 
-        def both_ready():
-            return all("CapabilityStatement" in fs.fetch_from_network(
-                f"{fs.COMPOSE_PROJECT}_default", f"http://{a}:8080/fhir/DEFAULT/metadata").stdout for a in addresses)
-        fs.wait_until(both_ready, timeout=420, interval=10, what="兩份 HAPI 都就緒")
+            def both_ready():
+                return all("CapabilityStatement" in fs.fetch_from_network(
+                    f"{fs.COMPOSE_PROJECT}_default", f"http://{a}:8080/fhir/DEFAULT/metadata").stdout
+                    for a in addresses)
+            fs.wait_until(both_ready, timeout=420, interval=10, what="兩份 HAPI 都就緒")
         time.sleep(35)                                           # 等 Gateway 的 DNS 服務發現更新節點清單
         mark = datetime.now().astimezone().isoformat(timespec="seconds")
         load = fhir_loadtest.run(GATEWAY, login("admin01"), pid, requests=400, concurrency=8)
-        logs = subprocess.run(["docker", "logs", "--since", mark, fs.container_ids("apisix")[0]],
-                              capture_output=True, text=True).stdout
+        logs = pe.logs_since("apisix", mark) if fs.K8S_NAMESPACE else subprocess.run(
+            ["docker", "logs", "--since", mark, fs.container_ids("apisix")[0]], capture_output=True, text=True).stdout
         replicas = {a: len(re.findall(rf'"GET /fhir/projects/{pid}/[^"]*" 200 .*{re.escape(a)}:8080', logs))
                     for a in addresses}
     finally:
-        fs.compose("up", "-d", "--no-deps", "--no-recreate", "--scale", "hapi=1", "hapi", timeout=300)
+        if fs.K8S_NAMESPACE:
+            pe.start("hapi", replicas=1)
+        else:
+            fs.compose("up", "-d", "--no-deps", "--no-recreate", "--scale", "hapi=1", "hapi", timeout=300)
     report = fhir_loadtest.write_report(REPORTS / "TC-C03-11", load, accuracy=loaded["accuracy"].summary(),
                                         replicas=replicas)
     assert report.is_file() and (report.parent / "report.json").is_file()

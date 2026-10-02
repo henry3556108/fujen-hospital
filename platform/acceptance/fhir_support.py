@@ -12,10 +12,14 @@ from pathlib import Path
 
 import httpx
 
+import platform_exec as pe
+
 ROOT = Path(__file__).resolve().parents[1]
 SYNTH = ROOT / "tools" / "synth"
 LOCAL = ROOT / "deploy" / "local"
 COMPOSE_PROJECT = os.environ.get("COMPOSE_PROJECT")
+K8S_NAMESPACE = pe.K8S_NAMESPACE          # Kubernetes 部署（platform/deploy/k8s）：設定後優先使用
+AVAILABLE = pe.AVAILABLE
 MAILPIT = os.environ.get("MAILPIT_URL", "http://127.0.0.1:8025")
 HIS_DSN = os.environ.get("HIS_DSN", "postgresql+psycopg://platform:platform-dev@postgres:5432/his")
 
@@ -54,8 +58,7 @@ def fetch_from_network(network: str, url: str, timeout: int = 5) -> subprocess.C
 
 
 def psql(database: str, sql: str) -> str:
-    return compose("exec", "-T", "postgres", "psql", "-U", "platform", "-d", database, "-v", "ON_ERROR_STOP=1",
-                   "-qtA", "-f", "-", stdin=sql).stdout
+    return pe.psql(database, sql)
 
 
 def synth(out: Path, *args: str) -> None:

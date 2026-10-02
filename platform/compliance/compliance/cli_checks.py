@@ -106,16 +106,23 @@ def _token(keycloak: str, user: str, password: str) -> str:
     return r.json()["access_token"]
 
 
-def _openapi_paths(compose_project: str) -> list[str]:
-    proc = subprocess.run(["docker", "compose", "-p", compose_project, "exec", "-T", "api", "/app/.venv/bin/python", "-c",
-                           "import json; from app.main import create_app; print(json.dumps(create_app().openapi()))"],
-                          capture_output=True, text=True, timeout=120, check=True)
+OPENAPI = "import json; from app.main import create_app; print(json.dumps(create_app().openapi()))"
+
+
+def _openapi_paths(compose_project: str, kube_namespace: str | None = None) -> list[str]:
+    if kube_namespace:   # Kubernetes 部署（platform/deploy/k8s）：在平台 API 的 Pod 內執行
+        cmd = ["kubectl", "-n", kube_namespace, "exec", "deploy/api", "--", "/app/.venv/bin/python", "-c", OPENAPI]
+    else:
+        cmd = ["docker", "compose", "-p", compose_project, "exec", "-T", "api", "/app/.venv/bin/python", "-c", OPENAPI]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=True)
     spec = json.loads(proc.stdout.strip().splitlines()[-1])
     return sorted(p for p, ops in spec["paths"].items() if "get" in ops)
 
 
 def cmd_secrets(args) -> int:
     secrets = secrets_scan.discover_secrets(PLATFORM)
+    if args.kube_namespace:   # 叢集實際使用的機密值（甲方是隨機產生的，不在任何部署檔裡）
+        secrets = secrets_scan.merge(secrets, secrets_scan.kube_secrets(args.kube_namespace))
     if not secrets:
         line("FAIL", "TC-SS-04", "找不到任何要比對的機密值，無法驗證")
         return 1
@@ -128,7 +135,7 @@ def cmd_secrets(args) -> int:
             line("FAIL", "TC-SS-04", f"前端打包目錄 {args.web_dist} 是空的")
             return 1
     if args.gateway:
-        paths = _openapi_paths(args.compose_project)
+        paths = _openapi_paths(args.compose_project, args.kube_namespace)
         headers = {"Authorization": f"Bearer {_token(args.keycloak, args.user, args.password)}"}
         responses = 0
         with httpx.Client(base_url=args.gateway, timeout=20) as client:
@@ -185,6 +192,7 @@ def register(sub) -> None:
     p.add_argument("--gateway")
     p.add_argument("--keycloak", default="http://localhost:8080")
     p.add_argument("--compose-project", default="ai-platform")
+    p.add_argument("--kube-namespace", help="Kubernetes 部署：端點清單與機密值取自這個命名空間（取代 --compose-project）")
     p.add_argument("--user", default="admin01")
     p.add_argument("--password", default="Admin01-dev!")
     p.set_defaults(func=cmd_secrets)

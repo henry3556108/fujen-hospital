@@ -12,6 +12,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+import platform_exec as pe
+
 from labeling_support import ROOT, SYNTH, gateway, headers, p1_id  # noqa: F401
 
 PROJECT = os.environ.get("COMPOSE_PROJECT")
@@ -84,11 +86,9 @@ def wait_all(c: httpx.Client, runs: list[dict], who: str = "pi01", timeout: floa
 
 
 def psql(query: str) -> str:
-    if not PROJECT:
-        pytest.skip("設定 COMPOSE_PROJECT 才能查資料庫中的稽核")
-    out = subprocess.run(["docker", "compose", "-p", PROJECT, "exec", "-T", "postgres", "psql", "-U", "platform",
-                          "-d", "platform", "-tAc", query], capture_output=True, text=True, check=True)
-    return out.stdout.strip()
+    if not pe.AVAILABLE:
+        pytest.skip(pe.REASON)
+    return pe.sql(query)
 
 
 def audit(category: str, action: str, since_id: int = 0) -> list[dict]:

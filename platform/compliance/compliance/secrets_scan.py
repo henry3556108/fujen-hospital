@@ -55,8 +55,31 @@ def discover_secrets(platform: Path) -> list[Secret]:
         realm = json.loads(path.read_text(encoding="utf-8"))
         for client in realm.get("clients", []):
             value = client.get("secret")
-            if isinstance(value, str) and len(value) >= MIN_LENGTH:
+            if isinstance(value, str) and len(value) >= MIN_LENGTH and "${" not in value:   # k8s 的佔位不是值
                 found.setdefault(value, Secret(f"{path.name}:client {client.get('clientId')} secret", value))
+    return sorted(found.values(), key=lambda s: s.name)
+
+
+def kube_secrets(namespace: str, name: str = "platform-secrets") -> list[Secret]:
+    """Kubernetes 部署的 Secret（platform/deploy/k8s/create-secrets.sh 建立）裡的值。"""
+    import subprocess
+
+    proc = subprocess.run(["kubectl", "-n", namespace, "get", "secret", name, "-o", "json"],
+                          capture_output=True, text=True, timeout=60, check=True)
+    data = json.loads(proc.stdout).get("data") or {}
+    out = []
+    for key, encoded in sorted(data.items()):
+        value = base64.b64decode(encoded).decode("utf-8", errors="replace")
+        if len(value) >= MIN_LENGTH and not NOT_SECRET_NAMES.search(key):
+            out.append(Secret(f"secret/{name}:{key}", value))
+    return out
+
+
+def merge(*groups: list[Secret]) -> list[Secret]:
+    found: dict[str, Secret] = {}
+    for group in groups:
+        for s in group:
+            found.setdefault(s.value, s)
     return sorted(found.values(), key=lambda s: s.name)
 
 

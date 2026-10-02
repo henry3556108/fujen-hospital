@@ -9,6 +9,8 @@ import time
 
 import pytest
 
+import platform_exec as pe
+
 from llm_support import FAKE_TOKEN, PRELOAD, content_hash, documents, llm, unique  # noqa: F401
 
 
@@ -169,15 +171,11 @@ def test_tc_b07_07_published_api_through_gateway(api, llm, auth, documents):
 
 
 def test_tc_b07_08_model_service_down(api, llm):
-    project = os.environ.get("COMPOSE_PROJECT")
-    if not project:
-        pytest.skip("設定 COMPOSE_PROJECT 才能停掉模型服務")
-
-    def compose(*args):
-        subprocess.run(["docker", "compose", "-p", project, *args], check=True, capture_output=True, timeout=120)
+    if not pe.AVAILABLE:
+        pytest.skip(pe.REASON)
 
     started = api.post(f"{llm.base}/chat", headers=llm.ca, json={"mode": "free", "message": "先問一題"}).json()
-    compose("stop", "fake-llm")
+    pe.stop("fake-llm")
     try:
         begin = time.monotonic()
         answer = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=35,
@@ -189,7 +187,7 @@ def test_tc_b07_08_model_service_down(api, llm):
         # 平台其他功能不受影響
         assert api.get(f"{llm.base}/prompts", headers=llm.ca).status_code == 200
     finally:
-        compose("start", "fake-llm")
+        pe.start("fake-llm")
     for _ in range(30):
         again = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=35,
                          json={"mode": "free", "message": "恢復了嗎", "session_id": started["session_id"]})

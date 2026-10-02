@@ -10,16 +10,17 @@ from pathlib import Path
 
 import pytest
 
+import platform_exec as pe
+
 ROOT = Path(__file__).resolve().parents[1]
 SYNTH = ROOT / "tools" / "synth"
 PROJECT = os.environ.get("COMPOSE_PROJECT")
 
-pytestmark = pytest.mark.skipif(not PROJECT, reason="設定 COMPOSE_PROJECT 才能查資料庫、影像節點與物件儲存")
+pytestmark = pytest.mark.skipif(not pe.AVAILABLE, reason=pe.REASON)
 
 
 def _exec(service: str, *command: str) -> str:
-    out = subprocess.run(["docker", "compose", "-p", PROJECT, "exec", "-T", service, *command],
-                         capture_output=True, text=True, cwd=ROOT / "deploy" / "local", timeout=120)
+    out = pe.exec_in(service, *command, timeout=120, check=False)
     assert out.returncode == 0, out.stdout + out.stderr
     return out.stdout.strip()
 
