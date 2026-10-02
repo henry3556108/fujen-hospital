@@ -2,7 +2,8 @@
 # 部署平台到 Kubernetes（命名空間 ai-platform）。可重複執行：已存在的資源就地更新，一次性工作重跑（都可重複執行）。
 #   ./deploy.sh kind          本機 kind 叢集：開發密碼、假服務、模擬 PACS；最後跑測試基線（seed）並啟動主機連接埠轉送
 #   ./deploy.sh production    甲方：先改好 overlays/production 的佔位、建好 Secret（./create-secrets.sh）與 TLS 憑證
-# 環境變數：SKIP_SEED=1（kind 不重設測試基線）、TIMEOUT（等待每個服務的上限，預設 900s）
+# 環境變數：SKIP_SEED=1（kind 不重設測試基線）、TIMEOUT（等待每個服務的上限，預設 900s）、
+#           OFFLINE=1（離線安裝：clamav 不跑 freshclam，病毒碼由 offline/install.sh 預載）
 # 映像要先在叢集裡：kind 用 ./build-and-load.sh；甲方推到內部 registry（README「正式環境」）。
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -29,6 +30,9 @@ fi
 
 log "套用 overlays/$OVERLAY"
 kubectl apply -k "overlays/$OVERLAY" | grep -v unchanged || true
+if [ -n "${OFFLINE:-}" ]; then   # 離線安裝（offline/install.sh）：病毒碼已預載，容器內不跑 freshclam
+  kubectl -n "$NS" set env statefulset/clamav CLAMAV_NO_FRESHCLAMD=true >/dev/null
+fi
 
 wait_ready() {  # wait_ready <kind/name>...
   for r in "$@"; do
