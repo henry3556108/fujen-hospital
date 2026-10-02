@@ -1,0 +1,170 @@
+# 一次性工作。寫成「暫停的 CronJob」當作工作範本：不會自己執行，由 deploy.sh 以
+#   kubectl create job <名稱>-<時間> --from=cronjob/<名稱>
+# 建立 Job。這樣每次部署都能重跑（Job 的 Pod 範本建立後不能改，直接 apply Job 會失敗），而且 Job 與服務用同一份設定。
+# 全部可重複執行。順序：db-init → minio-init → bootstrap-admin（Keycloak 就緒後）→ wiki-setup（Wiki.js 就緒後）。
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-init
+spec:
+  suspend: true
+  schedule: "@yearly"   # 不使用；suspend 為 true 時不會排程
+  jobTemplate:
+    spec:
+      backoffLimit: 10
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: {app: db-init, platform/db-client: "true"}
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: {platform/pool: cpu-web}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          containers:
+            - name: db-init
+              image: ai-platform/postgres
+              env:
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+                - name: DATABASES
+                  valueFrom: {configMapKeyRef: {name: db-init, key: DATABASES}}
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -e
+                  until pg_isready -h postgres -U platform; do sleep 2; done
+                  for db in $DATABASES; do
+                    psql -h postgres -U platform -d platform -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+                      || psql -h postgres -U platform -d platform -c "CREATE DATABASE $db"
+                  done
+                  # Wiki.js 的 PostgreSQL 檢索引擎需要 pg_trgm（與 compose 的 init-wiki.sql 相同）
+                  psql -h postgres -U platform -d wiki -c "CREATE EXTENSION IF NOT EXISTS pg_trgm"
+                  echo "資料庫：$DATABASES"
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {cpu: 250m, memory: 128Mi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-init
+spec:
+  suspend: true
+  schedule: "@yearly"
+  jobTemplate:
+    spec:
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: {app: minio-init, platform/backend: "true"}
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: {platform/pool: cpu-web}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext: {runAsNonRoot: true, runAsUser: 10001}
+          containers:
+            # 建立 bucket 與平台 API 的最小權限帳號（app/storage_init.py）。root 金鑰只出現在 minio 與這個工作
+            - name: minio-init
+              image: ai-platform/api
+              command: ["/app/.venv/bin/python", "-m", "app.storage_init"]
+              env:
+                - {name: MINIO_ENDPOINT, value: "minio:9000"}
+                - {name: S3_BUCKET, value: platform}
+                - name: MINIO_ROOT_USER
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: MINIO_ROOT_USER}}
+                - name: MINIO_ROOT_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: MINIO_ROOT_PASSWORD}}
+                - name: S3_ACCESS_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_ACCESS_KEY}}
+                - name: S3_SECRET_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_SECRET_KEY}}
+              resources:
+                requests: {cpu: 10m, memory: 128Mi}
+                limits: {cpu: 500m, memory: 384Mi}
+              securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+---
+# Wiki.js 首次設定（建立服務帳號、改用 PostgreSQL 檢索）。app/llm/wiki_setup.py，可重複執行
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wiki-setup
+spec:
+  suspend: true
+  schedule: "@yearly"
+  jobTemplate:
+    spec:
+      backoffLimit: 6
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: {app: wiki-setup, platform/backend: "true"}
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: {platform/pool: cpu-web}
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext: {runAsNonRoot: true, runAsUser: 10001}
+          containers:
+            - name: wiki-setup
+              image: ai-platform/api
+              command: ["/app/.venv/bin/python", "-m", "app.llm.wiki_setup"]
+              env:
+                - {name: WIKI_URL, value: "http://wiki:3000"}
+                - {name: WIKI_ADMIN_EMAIL, value: wiki-svc@example.org}
+                - name: WIKI_ADMIN_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: WIKI_ADMIN_PASSWORD}}
+              resources:
+                requests: {cpu: 10m, memory: 128Mi}
+                limits: {cpu: 500m, memory: 384Mi}
+              securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+---
+# 把 realm 匯入時建立的初始管理者 admin01 登記為平台 Admin（app/bootstrap_admin.py）。不建立測試資料
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bootstrap-admin
+spec:
+  suspend: true
+  schedule: "@yearly"
+  jobTemplate:
+    spec:
+      backoffLimit: 10
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels: {app: bootstrap-admin, platform/backend: "true", platform/db-client: "true"}
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector: {platform/pool: cpu-web}
+          serviceAccountName: platform-api
+          enableServiceLinks: false
+          securityContext: {runAsNonRoot: true, runAsUser: 10001}
+          containers:
+            - name: bootstrap-admin
+              image: ai-platform/api
+              command: ["/app/.venv/bin/python", "-m", "app.bootstrap_admin"]
+              envFrom:
+                - configMapRef: {name: api-env}
+                - configMapRef: {name: platform-images}
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+                - {name: DATABASE_URL, value: "postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@postgres:5432/platform"}
+                - name: KC_HOSTNAME
+                  valueFrom: {configMapKeyRef: {name: platform-urls, key: KC_HOSTNAME}}
+                - {name: OIDC_ISSUER, value: "$(KC_HOSTNAME)/realms/ai-platform"}
+                - name: KEYCLOAK_CLIENT_SECRET
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: KC_API_CLIENT_SECRET}}
+                - name: S3_ACCESS_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_ACCESS_KEY}}
+                - name: S3_SECRET_KEY
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: S3_SECRET_KEY}}
+                - name: ORTHANC_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_API_PASSWORD}}
+              resources:
+                requests: {cpu: 10m, memory: 256Mi}
+                limits: {cpu: 500m, memory: 768Mi}
+              securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}

@@ -6,6 +6,8 @@ import time
 
 import pytest
 
+import platform_exec as pe
+
 from labeling_support import ensure_images, gateway, headers, p1_id
 
 PROJECT = os.environ.get("COMPOSE_PROJECT")
@@ -55,15 +57,14 @@ def test_tc_b03_02_stored_and_visible_time_is_recorded(env):
     c.delete(f"/api/projects/{pid}/labels/annotations/{annotation_id}", headers=headers("md01"))
 
 
-@pytest.mark.skipif(not PROJECT, reason="需要 COMPOSE_PROJECT 才能停止自動標註服務")
+@pytest.mark.skipif(not pe.AVAILABLE, reason=pe.REASON)
 def test_tc_b03_05_service_stopped_clear_error_and_nothing_stored(env):
     c, pid, studies = env
     s = studies[0]
     base = f"/api/projects/{pid}/labels"
     before = len(c.get(f"{base}/annotations", headers=headers("md01")).json())
     runs_before = len(c.get(f"{base}/autolabel/runs", headers=headers("md01")).json())
-    container = f"{PROJECT}-autolabel-1"
-    subprocess.run(["docker", "stop", container], check=True, capture_output=True)
+    pe.stop("autolabel")
     try:
         r = _submit(c, pid, "fake_detection", s["study_instance_uid"], s["sop_instance_uids"][0])
         assert r.status_code == 503
@@ -71,7 +72,7 @@ def test_tc_b03_05_service_stopped_clear_error_and_nothing_stored(env):
         assert len(c.get(f"{base}/annotations", headers=headers("md01")).json()) == before
         assert len(c.get(f"{base}/autolabel/runs", headers=headers("md01")).json()) == runs_before
     finally:
-        subprocess.run(["docker", "start", container], check=True, capture_output=True)
+        pe.start("autolabel")
     for _ in range(30):
         if c.get(f"{base}/autolabel/models", headers=headers("md01")).status_code == 200:
             break

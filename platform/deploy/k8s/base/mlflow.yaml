@@ -1,0 +1,59 @@
+# MLflow（訓練紀錄）。只有平台 API 連得到。--allowed-hosts 只認服務名稱，所以探針用 TCP。
+apiVersion: v1
+kind: Service
+metadata:
+  name: mlflow
+spec:
+  selector: {app: mlflow}
+  ports:
+    - {name: http, port: 5000, targetPort: 5000}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mlflow
+spec:
+  serviceName: mlflow
+  replicas: 1
+  selector:
+    matchLabels: {app: mlflow}
+  template:
+    metadata:
+      labels: {app: mlflow}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: mlflow
+          image: ai-platform/mlflow
+          command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000",
+                    "--backend-store-uri", "sqlite:////mlflow/mlflow.db", "--default-artifact-root", "/mlflow/artifacts",
+                    "--workers", "1", "--allowed-hosts", "mlflow,mlflow:5000,localhost,127.0.0.1"]
+          env:
+            # 平台只用訓練紀錄；MLflow 3 預設另起約 10 個 GenAI 背景程序，各約 85 MB，關掉
+            - {name: MLFLOW_SERVER_ENABLE_JOB_EXECUTION, value: "false"}
+          ports:
+            - {name: http, containerPort: 5000}
+          readinessProbe:
+            tcpSocket: {port: 5000}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 5000}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /mlflow}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 10Gi}

@@ -1,0 +1,63 @@
+# 模擬醫院 PACS（AET PACS）：平台 Orthanc 以 C-FIND／C-MOVE 查詢取像。REST 經 NodePort 30943（主機 38943），
+# 只給驗收測試放入研究（與 compose 的 127.0.0.1:8043 相同用途）。甲方環境沒有這個服務。
+apiVersion: v1
+kind: Service
+metadata:
+  name: orthanc-pacs
+spec:
+  selector: {app: orthanc-pacs}
+  ports:
+    - {name: http, port: 8042, targetPort: 8042}
+    - {name: dicom, port: 4242, targetPort: 4242}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: orthanc-pacs
+spec:
+  serviceName: orthanc-pacs
+  replicas: 1
+  selector:
+    matchLabels: {app: orthanc-pacs}
+  template:
+    metadata:
+      labels: {app: orthanc-pacs}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: orthanc
+          image: ai-platform/orthanc
+          env:
+            - name: PACS_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: PACS_ADMIN_PASSWORD}}
+          ports:
+            - {name: http, containerPort: 8042}
+            - {name: dicom, containerPort: 4242}
+          readinessProbe:
+            tcpSocket: {port: 8042}
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 8042}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/orthanc, readOnly: true}
+            - {name: data, mountPath: /var/lib/orthanc/db}
+      volumes:
+        - name: config
+          configMap: {name: orthanc-pacs-config}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 5Gi}

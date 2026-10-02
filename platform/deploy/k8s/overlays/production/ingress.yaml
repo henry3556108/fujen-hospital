@@ -1,0 +1,36 @@
+# 對外只有三個網域：Gateway（平台 API、DICOMweb、FHIR）、OHIF（Gateway 的 9081）、Keycloak。TLS 在 Ingress 終止。
+# 網頁前端（platform/web 的打包檔）由甲方的網頁伺服器提供，或另加路由；本範本不含。
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-platform
+  annotations:
+    # 上傳檔案上限 512 MB（IMAGING_MAX_FILE_MB）；依甲方 Ingress controller 調整
+    nginx.ingress.kubernetes.io/proxy-body-size: 600m
+spec:
+  ingressClassName: CHANGE-ME
+  tls:
+    - hosts: [platform.example.invalid, viewer.example.invalid, keycloak.example.invalid]
+      secretName: ai-platform-tls      # kubectl -n ai-platform create secret tls ai-platform-tls --cert=... --key=...
+  rules:
+    - host: platform.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: apisix, port: {number: 9080}}
+    - host: viewer.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: apisix, port: {number: 9081}}
+    - host: keycloak.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: keycloak, port: {number: 8080}}

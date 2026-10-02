@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-platform
+  labels:
+    # 平台服務都不需要特權；Orthanc、ClamAV、PostgreSQL 映像以 root 啟動，所以用 baseline 而不是 restricted
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline

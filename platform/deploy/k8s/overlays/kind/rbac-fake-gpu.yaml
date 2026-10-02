@@ -1,0 +1,22 @@
+# 只在 kind：假 GPU 的份數以 node status patch 宣告（kube.py configure_shared）。甲方由 NVIDIA device plugin 管，不給這個權限。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ai-platform-api-fake-gpu
+rules:
+  - apiGroups: [""]
+    resources: ["nodes/status"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ai-platform-api-fake-gpu
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ai-platform-api-fake-gpu
+subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: ai-platform

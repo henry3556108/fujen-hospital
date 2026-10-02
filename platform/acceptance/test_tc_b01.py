@@ -14,6 +14,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+import platform_exec as pe
+
 from conftest import DEV_PASSWORD, GATEWAY, KEYCLOAK
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,14 +130,10 @@ def test_tc_b01_02_dicom_batch_import_counts(api, auth, p1, manifest, dicom_impo
 
 
 def test_tc_b01_02_dataset_audit_recorded(dicom_imported):
-    project = os.environ.get("COMPOSE_PROJECT")
-    if not project:
-        pytest.skip("設定 COMPOSE_PROJECT 才能查稽核表")
+    if not pe.AVAILABLE:
+        pytest.skip(pe.REASON)
     sql = "select count(*) from audit_log where category='dataset' and action like 'imaging.import_%' and actor='ra01'"
-    out = subprocess.run(["docker", "compose", "-p", project, "exec", "-T", "postgres", "psql", "-U", "platform",
-                          "-d", "platform", "-tAc", sql], capture_output=True, text=True, check=True,
-                         cwd=ROOT / "deploy" / "local")
-    assert int(out.stdout.strip()) >= 1
+    assert int(pe.sql(sql)) >= 1
 
 
 # ---------- TC-B01-03 ----------

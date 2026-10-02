@@ -1,0 +1,87 @@
+# 本機 kind 叢集 ai-platform（platform/deploy/kind）：開發值、假 LLM 與假自動標註、Mailpit、模擬 PACS、NodePort。
+#   ../../create-secrets.sh --dev && kubectl apply -k .     （完整流程用 ../../deploy.sh kind）
+# 主機連接埠（kind/expose.sh 轉送到 NodePort，只綁 127.0.0.1）：
+#   Keycloak 38180、Gateway 38980、OHIF 38981、模擬 PACS REST 38943、Mailpit 38925
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - fakes.yaml
+  - mailpit.yaml
+  - orthanc-pacs.yaml
+  - nodeports.yaml
+  - seed.yaml
+  - rbac-fake-gpu.yaml
+  - networkpolicy-kind.yaml
+# 映像清單（唯一）：overlay 才套用，所以 overlay 自己的資源也會被替換
+components:
+  - ../../components/images
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: ai-platform-namespace
+      namespace: ai-platform
+    unsetOnly: true
+configMapGenerator:
+  - name: platform-urls
+    behavior: merge
+    literals:
+      # 與 compose 相同的做法：issuer 固定為瀏覽器用的網址（經 expose.sh 的 38180），不隨測試連線的位址改變
+      - KC_HOSTNAME=http://localhost:38180
+      - WEB_PUBLIC_URL=http://localhost:5173
+      - OHIF_PUBLIC_URL=http://localhost:38981
+      - CORS_ALLOW_ORIGINS=http://localhost:5173
+      - DICOMWEB_CORS_REGEX=^http://(localhost|127\.0\.0\.1)(:[0-9]+)?$
+  - name: api-env
+    behavior: merge
+    literals:
+      # 假服務（platform/fakes），只供開發與測試
+      - AUTOLABEL_URL=http://autolabel:8102
+      - LLM_BASE_URL=http://fake-llm:8101/v1
+      - LLM_CHAT_MODEL=fake-llm-small
+      - LLM_EMBED_MODEL=fake-embed-small
+      - LLM_MODEL_SOURCE=fake
+      - LLM_PRELOAD_DIR=/opt/llm-preload
+      - ALERT_SMTP_HOST=mailpit
+      - ALERT_SMTP_PORT=1025
+      - ALERT_EMAIL_FROM=ai-platform@localhost
+      - ALERT_EMAIL_TO=ops@ai-platform.test
+  - name: pacs
+    behavior: merge
+    literals:
+      - PACS_AET=PACS
+      - PACS_HOST=orthanc-pacs
+      - PACS_PORT=4242
+  - name: db-init
+    behavior: merge
+    literals:
+      - DATABASES=keycloak wiki hapi his
+  - name: ohif-config
+    files:
+      - app-config.js=config/app-config.js
+  - name: orthanc-pacs-config
+    files:
+      - orthanc.json=config/orthanc-pacs.json
+  # LLM 離線預載目錄的範例（只有設定檔，沒有權重）：compose 的 llm/preload/offline-small
+  - name: llm-preload
+    files:
+      - config.json=config/llm-preload-config.json
+      - manifest.json=config/llm-preload-manifest.json
+patches:
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: llm-preload
+          configMap:
+            name: llm-preload
+      # 逐檔 subPath 掛載：整個 ConfigMap 掛成目錄會多出 ..data 等隱藏項目，模型內容的 hash 就與白名單不同
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: llm-preload, mountPath: /opt/llm-preload/offline-small/config.json, subPath: config.json, readOnly: true}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: llm-preload, mountPath: /opt/llm-preload/offline-small/manifest.json, subPath: manifest.json, readOnly: true}

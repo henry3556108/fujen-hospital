@@ -11,11 +11,13 @@ import pytest
 
 COMPLIANCE = Path(__file__).resolve().parents[1] / "compliance"
 PROJECT = os.environ.get("COMPOSE_PROJECT")
+K8S_NAMESPACE = os.environ.get("K8S_NAMESPACE")   # Kubernetes 部署：另比對叢集 Secret 的實際值
 
 
-@pytest.mark.skipif(not PROJECT, reason="設定 COMPOSE_PROJECT 才能列出 API 端點")
+@pytest.mark.skipif(not (PROJECT or K8S_NAMESPACE), reason="設定 COMPOSE_PROJECT 或 K8S_NAMESPACE 才能列出 API 端點")
 def test_tc_ss_04_no_secret_in_api_responses_or_bundle():
-    cmd = ["uv", "run", "-q", "python", "-m", "compliance", "secrets", "--compose-project", PROJECT,
+    target = ["--kube-namespace", K8S_NAMESPACE] if K8S_NAMESPACE else ["--compose-project", PROJECT]
+    cmd = ["uv", "run", "-q", "python", "-m", "compliance", "secrets", *target,
            "--gateway", os.environ.get("GATEWAY_URL", "http://localhost:9080"),
            "--keycloak", os.environ.get("KEYCLOAK_URL", "http://localhost:8080")]
     if os.environ.get("WEB_DIST"):

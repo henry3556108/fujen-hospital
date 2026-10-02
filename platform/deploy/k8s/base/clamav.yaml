@@ -1,0 +1,67 @@
+# 上傳掃毒（D-01）。病毒碼存在 PVC；第一次啟動由 freshclam 下載（數百 MB），離線環境見 offline/README。
+# 平台 API 設了 CLAMAV_HOST，掃毒服務連不上時拒絕上傳（fail closed）。
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+spec:
+  selector: {app: clamav}
+  ports:
+    - {name: clamd, port: 3310, targetPort: 3310}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: clamav
+spec:
+  serviceName: clamav
+  replicas: 1
+  selector:
+    matchLabels: {app: clamav}
+  template:
+    metadata:
+      labels: {app: clamav}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: clamav
+          image: ai-platform/clamav
+          env:
+            - name: CLAMAV_NO_FRESHCLAMD
+              valueFrom: {configMapKeyRef: {name: clamav-env, key: CLAMAV_NO_FRESHCLAMD}}
+            - {name: CLAMAV_NO_MILTERD, value: "true"}
+          ports:
+            - {name: clamd, containerPort: 3310}
+          # 映像內建的 clamdcheck.sh 連 localhost 會解析成 IPv6；clamd 只聽 IPv4
+          startupProbe:
+            exec: {command: ["sh", "-c", "[ \"$(echo PING | nc 127.0.0.1 3310)\" = PONG ]"]}
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            exec: {command: ["sh", "-c", "[ \"$(echo PING | nc 127.0.0.1 3310)\" = PONG ]"]}
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec: {command: ["sh", "-c", "[ \"$(echo PING | nc 127.0.0.1 3310)\" = PONG ]"]}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 100m, memory: 1280Mi}
+            limits: {cpu: 750m, memory: 1792Mi}
+          volumeMounts:
+            - {name: config, mountPath: /etc/clamav/clamd.conf, subPath: clamd.conf, readOnly: true}
+            - {name: db, mountPath: /var/lib/clamav}
+      volumes:
+        - name: config
+          configMap: {name: clamav-config}
+  volumeClaimTemplates:
+    - metadata:
+        name: db
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: {storage: 2Gi}

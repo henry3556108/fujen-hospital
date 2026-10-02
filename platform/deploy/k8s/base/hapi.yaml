@@ -1,0 +1,70 @@
+# HAPI FHIR（C-03）。資料在 PostgreSQL 的 hapi 資料庫，所以是 Deployment，可水平擴充（TC-C03-11）：
+# headless Service 讓 Gateway 以 DNS 服務發現把請求分給每一份；FHIR REST 只能經 Gateway 的 /fhir/projects/{pid}/。
+apiVersion: v1
+kind: Service
+metadata:
+  name: hapi
+spec:
+  clusterIP: None
+  selector: {app: hapi}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: hapi}
+  template:
+    metadata:
+      labels: {app: hapi, platform/db-client: "true"}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      containers:
+        - name: hapi
+          image: ai-platform/hapi
+          env:
+            - {name: JAVA_TOOL_OPTIONS, value: "-Xmx640m -XX:MaxMetaspaceSize=256m -XX:+UseSerialGC"}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+            - {name: spring.datasource.url, value: "jdbc:postgresql://postgres:5432/hapi"}
+            - {name: spring.datasource.username, value: platform}
+            - {name: spring.datasource.password, value: "$(POSTGRES_PASSWORD)"}
+            - {name: spring.datasource.driverClassName, value: org.postgresql.Driver}
+            - {name: spring.jpa.properties.hibernate.dialect, value: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect}
+            - {name: spring.jpa.properties.hibernate.search.enabled, value: "false"}
+            - {name: hapi.fhir.fhir_version, value: R4}
+            # URL 式多租戶：/fhir/{租戶}/...，租戶＝平台專案編號；參照不可跨租戶（與 compose.fhir.yaml 相同）
+            - {name: hapi.fhir.partitioning.allow_references_across_partitions, value: "false"}
+            - {name: hapi.fhir.partitioning.database_partition_mode_enabled, value: "true"}
+            - {name: hapi.fhir.partitioning.default_partition_id, value: "0"}
+            - {name: hapi.fhir.use_apache_address_strategy, value: "true"}
+            - {name: hapi.fhir.reuse_cached_search_results_millis, value: "0"}
+            - {name: hapi.fhir.validation.requests_enabled, value: "true"}
+            - {name: hapi.fhir.validation.responses_enabled, value: "false"}
+            - {name: hapi.fhir.cr.enabled, value: "false"}
+            - {name: hapi.fhir.mdm_enabled, value: "false"}
+            - {name: hapi.fhir.subscription.resthook_enabled, value: "false"}
+          ports:
+            - {name: http, containerPort: 8080}
+          startupProbe:
+            tcpSocket: {port: 8080}
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /fhir/DEFAULT/metadata, port: 8080}
+            periodSeconds: 30
+            timeoutSeconds: 20
+          livenessProbe:
+            tcpSocket: {port: 8080}
+            periodSeconds: 30
+            failureThreshold: 6
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 896Mi}
+            limits: {cpu: 750m, memory: 1280Mi}

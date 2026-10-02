@@ -12,7 +12,7 @@ import pytest
 
 import fhir_support as fs
 
-pytestmark = pytest.mark.skipif(not fs.COMPOSE_PROJECT, reason="設定 COMPOSE_PROJECT 才能查 HAPI 資料庫與稽核表")
+pytestmark = pytest.mark.skipif(not fs.AVAILABLE, reason="設定 COMPOSE_PROJECT 或 K8S_NAMESPACE 才能查 HAPI 資料庫與稽核表")
 TAG = "urn:ai-platform:tenant"
 
 

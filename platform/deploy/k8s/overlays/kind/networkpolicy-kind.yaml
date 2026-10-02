@@ -1,0 +1,46 @@
+# kind 才有的服務：模擬 PACS 與平台 Orthanc 之間的 DICOM、測試用的 PACS REST 與 Mailpit 網頁、平台寄告警信
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orthanc-dicom-from-pacs
+spec:
+  podSelector:
+    matchLabels: {app: orthanc}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: orthanc-pacs}}
+      ports:
+        - {port: 4242, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orthanc-pacs
+spec:
+  podSelector:
+    matchLabels: {app: orthanc-pacs}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: orthanc}}
+      ports:
+        - {port: 4242, protocol: TCP}
+    - ports:   # REST：驗收測試從主機放入研究
+        - {port: 8042, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mailpit
+spec:
+  podSelector:
+    matchLabels: {app: mailpit}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {platform/backend: "true"}}
+      ports:
+        - {port: 1025, protocol: TCP}
+    - ports:
+        - {port: 8025, protocol: TCP}
