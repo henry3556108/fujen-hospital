@@ -78,6 +78,10 @@ patches:
           name: llm-preload
           configMap:
             name: llm-preload
+      # 逐檔 subPath 掛載：整個 ConfigMap 掛成目錄會多出 ..data 等隱藏項目，模型內容的 hash 就與白名單不同
       - op: add
         path: /spec/template/spec/containers/0/volumeMounts/-
-        value: {name: llm-preload, mountPath: /opt/llm-preload/offline-small, readOnly: true}
+        value: {name: llm-preload, mountPath: /opt/llm-preload/offline-small/config.json, subPath: config.json, readOnly: true}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: llm-preload, mountPath: /opt/llm-preload/offline-small/manifest.json, subPath: manifest.json, readOnly: true}
