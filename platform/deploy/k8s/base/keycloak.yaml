@@ -1,4 +1,5 @@
-# Keycloak：狀態都在 PostgreSQL，所以是 Deployment。第一次啟動時匯入 realm（之後改 realm 要重新匯入，見 README）。
+# Keycloak：狀態都在 PostgreSQL，所以是 Deployment。26.8 第一次啟動會遷移資料庫結構，不能退回舊版。
+# 第一次啟動時匯入 realm（之後改 realm 要重新匯入，見 README）。
 # realm 檔的 client secret、admin01 密碼、網址都是 ${VAR} 佔位，Keycloak 匯入時以環境變數替換。
 apiVersion: v1
 kind: Service
@@ -43,6 +44,8 @@ spec:
             # 平台 API 在叢集內以 http://keycloak:8080 取 JWKS 與呼叫管理 API
             - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true"}
             - {name: KC_HTTP_ENABLED, value: "true"}
+            # 與 compose 相同：明確聽所有介面（26.6 起 start-dev 預設只聽 localhost）
+            - {name: KC_HTTP_HOST, value: 0.0.0.0}
             - {name: KC_HEALTH_ENABLED, value: "true"}
             - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=40 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=256m"}
             # realm 匯入的佔位值

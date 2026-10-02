@@ -52,8 +52,8 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
-            requests: {cpu: 50m, memory: 96Mi}
-            limits: {cpu: 750m, memory: 320Mi}
+            requests: {cpu: 50m, memory: 384Mi}
+            limits: {cpu: 750m, memory: 640Mi}   # 3.19 閒置約比 3.11 多 280 MB
           volumeMounts:
             - {name: config, mountPath: /usr/local/apisix/conf/config.yaml, subPath: config.yaml, readOnly: true}
             - {name: config, mountPath: /usr/local/apisix/conf/apisix.yaml, subPath: apisix.yaml, readOnly: true}

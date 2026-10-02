@@ -8,13 +8,13 @@ images:
   # ---- 上游映像 ----
   - name: ai-platform/postgres
     newName: pgvector/pgvector
-    newTag: pg16
+    newTag: 0.8.7-pg16-trixie
   - name: ai-platform/keycloak
     newName: quay.io/keycloak/keycloak
-    newTag: "26.0"
+    newTag: 26.8.0
   - name: ai-platform/apisix
     newName: apache/apisix
-    newTag: 3.11.0-debian
+    newTag: 3.19.0-debian
   - name: ai-platform/orthanc
     newName: jodogne/orthanc-plugins
     newTag: 1.13.0
@@ -39,7 +39,7 @@ images:
     newTag: v3.13.10
   - name: ai-platform/mailpit
     newName: axllent/mailpit
-    newTag: v1.22
+    newTag: v1.31.3
   # ---- 平台自己建置的映像（build-and-load.sh；Dockerfile 在 platform/api、platform/fakes、platform/training）----
   - name: ai-platform/api
     newName: platform-api
