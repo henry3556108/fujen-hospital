@@ -1,0 +1,10 @@
+# Helm 4 的 post-renderer 外掛：忽略 chart 的輸出（chart 沒有樣板），改輸出 kubectl kustomize <overlay>。
+# 安裝：helm plugin install platform/deploy/k8s/helm/kustomize-postrenderer（deploy.sh 會自動安裝）
+apiVersion: v1
+type: postrenderer/v1
+name: kustomize-overlay
+version: 1.0.0
+runtime: subprocess
+runtimeConfig:
+  platformCommand:
+    - command: ${HELM_PLUGIN_DIR}/render.sh

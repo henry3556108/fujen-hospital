@@ -15,6 +15,7 @@ import type {
   LabelSummary,
   NewAnnotation,
 } from './types';
+import { platformEnv } from '../../runtimeConfig';
 
 export interface TrainingRequest {
   /** 訓練型態：影像分類、分割、物件偵測 */
@@ -86,8 +87,8 @@ export interface LabelingApi {
   train(request: TrainingRequest): Promise<TrainingJob>;
 }
 
-const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
-export const OHIF_BASE: string = import.meta.env.VITE_OHIF_BASE ?? 'http://localhost:9081';
+const API_BASE: string = platformEnv().VITE_API_BASE ?? '';
+export const OHIF_BASE: string = platformEnv().VITE_OHIF_BASE ?? 'http://localhost:9081';
 
 export function ohifUrl(projectId: number, studyUid: string): string {
   return `${OHIF_BASE}/viewer?StudyInstanceUIDs=${encodeURIComponent(studyUid)}&project=${projectId}`;

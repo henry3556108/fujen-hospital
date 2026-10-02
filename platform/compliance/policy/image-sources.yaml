@@ -36,6 +36,8 @@ approved:
     reason: MLflow 專案官方映像（B-05 訓練紀錄）
   - pattern: ghcr.io/requarks/wiki
     reason: Wiki.js 作者（Requarks）官方映像（B-08 知識庫）
+  - pattern: docker.io/nginxinc/nginx-unprivileged
+    reason: NGINX 官方（NGINX Inc.／F5）維護的非 root 版 nginx，網頁前端映像的基底（platform/web/Dockerfile）
 
 # 這些命名空間的 Pod 來自節點映像本身（kindest/node 內建），比對執行中的映像時歸在節點映像名下。
 bundled_namespaces: [kube-system, local-path-storage]

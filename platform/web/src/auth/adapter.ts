@@ -47,5 +47,6 @@ export async function createAuthAdapter(): Promise<AuthAdapter> {
     return new TestAuthAdapter();
   }
   const { OidcAuthAdapter } = await import('./oidcAdapter');
-  return new OidcAuthAdapter(window.location.origin, import.meta.env);
+  const { platformEnv } = await import('../runtimeConfig');
+  return new OidcAuthAdapter(window.location.origin, platformEnv());
 }

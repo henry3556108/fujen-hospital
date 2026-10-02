@@ -1,8 +1,9 @@
 # 平台部署到 Kubernetes
 
-整個平台（Gateway、Keycloak、平台 API、FHIR worker、Orthanc、MinIO、ClamAV、HAPI FHIR、Wiki.js、MLflow、推論服務、OHIF、PostgreSQL）
+整個平台（網頁前端、Gateway、Keycloak、平台 API、FHIR worker、Orthanc、MinIO、ClamAV、HAPI FHIR、Wiki.js、MLflow、推論服務、OHIF、PostgreSQL）
 跑在命名空間 `ai-platform`；訓練與推論 Job 仍在 `platform-jobs`，由平台 API 以叢集內 ServiceAccount 送出（沒有 kubeconfig）。
-以 Kustomize（kubectl 內建）管理，不需要另外安裝工具。部署步驟與演練見 `docs/delivery/部署說明.md`。
+manifest 全部以 Kustomize（kubectl 內建）管理；部署時包成一個 Helm release（`ai-platform`），只為了版本紀錄與 rollback。
+部署步驟與演練見 `docs/delivery/部署說明.md`。
 
 ## 目錄
 
@@ -15,10 +16,12 @@
 | `render-config.py` | 產生設定檔；`--check` 檢查是否與 compose 原始檔同步（manifest 測試會跑） |
 | `create-secrets.sh` | 建立 Secret `platform-secrets`（`--dev` 開發值；預設隨機產生） |
 | `build-and-load.sh` | 建置平台映像、拉上游映像、匯入 kind 節點 |
-| `deploy.sh` | 套用 overlay、依序等服務就緒、跑一次性工作 |
+| `deploy.sh` | 以 Helm release 部署 overlay、依序等服務就緒、跑一次性工作 |
+| `helm/chart` | 沒有樣板的 chart（只有 `Chart.yaml` 與 NOTES） |
+| `helm/kustomize-postrenderer` | Helm 4 post-renderer 外掛：輸出 `kubectl kustomize <overlay>` |
 | `scale.sh` | 全部縮到 0／恢復 1 份 |
 | `kind/expose.sh` | 主機 127.0.0.1 連接埠轉送到 NodePort（kind 建立後不能再加 extraPortMappings） |
-| `offline/` | 離線安裝包（`bundle.sh`）與離線安裝（`install.sh`） |
+| `offline/` | **選用**：離線安裝包（`bundle.sh`）、離線安裝（`install.sh`）、演練用的節點對外連線阻擋（`block-egress.sh`）。甲方環境可上網，正式部署不需要 |
 
 ## 本機 kind
 
@@ -30,6 +33,7 @@ cd platform/deploy/k8s
 
 | 服務 | 主機位址 | NodePort |
 |---|---|---|
+| 網頁前端（Gateway 9082，與 /api 同源） | http://localhost:38982 | 30982 |
 | Gateway（平台 API、DICOMweb、FHIR） | http://localhost:38980 | 30980 |
 | OHIF（Gateway 9081） | http://localhost:38981 | 30981 |
 | Keycloak | http://localhost:38180 | 30880 |
@@ -92,7 +96,7 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 ## 正式環境（甲方）
 
 1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址
-   （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。離線環境見 `offline/`。
+   （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。甲方環境可上網，節點直接向來源 registry 拉取亦可（照 `components/images` 的版本與 digest）；離線安裝包只在不能上網的環境使用。
 2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（vLLM、自動標註、SMTP）、`pacs`、
    `ingress.yaml`（ingressClassName、TLS Secret）、`networkpolicy-production.yaml`（PACS 位址）、`config/app-config.js`（Keycloak 網域）。
    `deploy.sh production` 發現還有 `CHANGE-ME` 或 `example.invalid` 就停止。
@@ -102,3 +106,48 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 
 更換密碼：PostgreSQL 與 Keycloak 只在第一次初始化時採用 Secret 的值。先在服務內改（`ALTER USER`、Keycloak 管理台），
 再 `kubectl -n ai-platform edit secret platform-secrets`，最後 `kubectl -n ai-platform rollout restart deployment,statefulset`。
+
+## Helm（版本紀錄與 rollback）
+
+所有 YAML 仍在 Kustomize；Helm 只負責「每次部署是一個版本、可以退回」。做法是 **post-renderer**：
+`helm upgrade --install ai-platform helm/chart --post-renderer kustomize-overlay --post-renderer-args <overlay 目錄>`，
+chart 沒有樣板，外掛把 chart 的（空）輸出換成 `kubectl kustomize <overlay>`。Helm 把最後的 manifest 存在 release 紀錄
+（命名空間內的 Secret `sh.helm.release.v1.ai-platform.v<N>`），`helm rollback` 直接套用舊版本的 manifest。
+
+為什麼不把 Kustomize 的輸出當成 chart 的樣板：設定檔裡有 APISIX 的 `${{VAR}}`、OHIF 與 Lua 的大括號，放進 Helm 樣板會被 Go template 解析，
+得逐一跳脫；產生的樣板檔也會變成第二份要審查的 YAML。post-renderer 不經過樣板引擎，審查的永遠是 `base/`、`overlays/` 本身。
+
+- **版本**：固定 Helm **v4.3.0**（`deploy.sh` 檢查；`ALLOW_HELM_VERSION=1` 可略過）。Helm 4 的 `--post-renderer` 只接受外掛，
+  `deploy.sh` 第一次執行會 `helm plugin install helm/kustomize-postrenderer`。
+- **安裝 Helm**（Linux amd64；甲方主機）：
+  ```bash
+  V=v4.3.0
+  curl -fsSLO https://get.helm.sh/helm-$V-linux-amd64.tar.gz
+  curl -fsSL https://get.helm.sh/helm-$V-linux-amd64.tar.gz.sha256sum | sha256sum -c   # 86584a54…94f54fb
+  tar xzf helm-$V-linux-amd64.tar.gz && sudo install -m 755 linux-amd64/helm /usr/local/bin/helm
+  helm version     # v4.3.0
+  ```
+- **命名空間不在 release 內**：release 紀錄存在 `ai-platform` 命名空間，所以命名空間由 `deploy.sh` 先 `kubectl apply -f base/namespace.yaml`。
+  `helm uninstall` 不會刪命名空間、PVC 與 Secret（Secret 本來就不在 release 內）。
+- **第一次改用 Helm**：之前以 `kubectl apply -k` 部署的資源，`deploy.sh` 以 `--take-ownership` 接手，不必重建。
+- **常用指令**：
+  ```bash
+  helm history ai-platform -n ai-platform              # 版本清單
+  helm rollback ai-platform <版本> -n ai-platform       # 退回（產生一個新版本）
+  helm get manifest ai-platform -n ai-platform          # 某版本實際套用的 YAML
+  ```
+- 退回只回復 manifest（Deployment、ConfigMap、RBAC 等）；資料庫內容、PVC、Secret 不會退回。Keycloak 26.8 這類會遷移資料庫結構的升級，
+  退回映像前要先還原資料庫備份（`platform/compliance/scripts/restore.sh` 的做法）。
+- 一次性工作（db-init、seed…）是 CronJob 範本，屬於 release；實際執行的 Job 由 `deploy.sh` 建立，不屬於 release。
+
+## 網頁前端
+
+`platform/web/Dockerfile`：Node 建置打包檔，`nginxinc/nginx-unprivileged`（非 root，8080）提供靜態檔。
+
+- **經 Gateway 的 9082 埠**（與 OHIF 用 9081 同樣的做法）：`/api/*`、`/dicomweb/*`、`/fhir/*` 的路由優先序較高，所以網頁與平台 API 同源，
+  `WEB_API_BASE` 為空字串，不需要 CORS；9080 不提供網頁，未知路徑照舊 404（TC-SS-05 的檢查不變）。甲方的 Ingress 把平台網域送到 9082。
+- **一個映像用在每個環境**：網址不在打包時寫死。容器啟動時 `/docker-entrypoint.d/40-platform-config.sh` 把 `WEB_*` 環境變數寫成 `/config.js`
+  （`window.__PLATFORM_CONFIG__`），`index.html` 在主程式之前載入，蓋過打包期的 `VITE_*`（`src/runtimeConfig.ts`）。只接受網址字元。
+  Kubernetes 的值來自 `platform-urls`（`KC_HOSTNAME`、`OHIF_PUBLIC_URL`）；Keycloak 的 `ai-platform-web` 只允許 `WEB_PUBLIC_URL`。
+- 打包檔與 `/config.js` 只有公開設定：`compliance secrets --web-dist <目錄>` 檢查（TC-SS-04）。
+- 真瀏覽器端對端：`cd platform/web && WEB_URL=http://localhost:38982 npm run test:e2e:real`（經 Keycloak 登入）。

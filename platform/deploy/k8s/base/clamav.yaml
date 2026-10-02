@@ -1,4 +1,4 @@
-# 上傳掃毒（D-01）。病毒碼存在 PVC；第一次啟動由 freshclam 下載（數百 MB），離線環境見 offline/README。
+# 上傳掃毒（D-01）。病毒碼存在 PVC；第一次啟動由 freshclam 下載（數百 MB），甲方環境可上網，freshclam 直接更新；不能上網時才用選用的 offline/。
 # 平台 API 設了 CLAMAV_HOST，掃毒服務連不上時拒絕上傳（fail closed）。
 apiVersion: v1
 kind: Service

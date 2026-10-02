@@ -4,6 +4,7 @@
 import { useMemo } from 'react';
 import { ApiError, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
+import { platformEnv } from '../../runtimeConfig';
 
 export type ModelKind =
   | 'image_classification'
@@ -201,7 +202,7 @@ export async function waitForRecord(
   }
 }
 
-const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
+const API_BASE: string = platformEnv().VITE_API_BASE ?? '';
 
 export function useInferenceApi(): InferenceApi | null {
   const { api, auth, project } = useSession();

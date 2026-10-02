@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 部署平台到 Kubernetes（命名空間 ai-platform）。可重複執行：已存在的資源就地更新，一次性工作重跑（都可重複執行）。
+# 以 Helm release「ai-platform」部署（每次部署一個版本，可 helm rollback）；manifest 全部來自 Kustomize overlay。
 #   ./deploy.sh kind          本機 kind 叢集：開發密碼、假服務、模擬 PACS；最後跑測試基線（seed）並啟動主機連接埠轉送
 #   ./deploy.sh production    甲方：先改好 overlays/production 的佔位、建好 Secret（./create-secrets.sh）與 TLS 憑證
 # 環境變數：SKIP_SEED=1（kind 不重設測試基線）、TIMEOUT（等待每個服務的上限，預設 900s）、
@@ -28,8 +29,22 @@ else
   fi
 fi
 
-log "套用 overlays/$OVERLAY"
-kubectl apply -k "overlays/$OVERLAY" | grep -v unchanged || true
+# Helm 只做版本紀錄與 rollback：chart 沒有樣板，manifest 由 post-renderer 外掛以 kubectl kustomize 產生（helm/README）
+HELM_VERSION_REQUIRED="${HELM_VERSION_REQUIRED:-v4.3.0}"
+have=$(helm version --template '{{.Version}}' 2>/dev/null || true)
+[ "$have" = "$HELM_VERSION_REQUIRED" ] || [ -n "${ALLOW_HELM_VERSION:-}" ] \
+  || { echo "需要 Helm $HELM_VERSION_REQUIRED（目前：${have:-未安裝}）；安裝方式見 README「Helm」" >&2; exit 2; }
+helm plugin list 2>/dev/null | grep -q '^kustomize-overlay' || helm plugin install helm/kustomize-postrenderer >/dev/null
+# OVERLAY_DIR：另一個以此 overlay 為基礎的 Kustomize 目錄（例如 rollback 演練）；它引用 overlay 時要用相對路徑
+OVERLAY_DIR="${OVERLAY_DIR:-$PWD/overlays/$OVERLAY}"
+kubectl kustomize "$OVERLAY_DIR" >/dev/null   # 先在這裡失敗並顯示原因（post-renderer 失敗時 Helm 不顯示 kustomize 的錯誤）
+
+kubectl apply -f base/namespace.yaml >/dev/null
+log "Helm 部署 overlays/$OVERLAY（release ai-platform）"
+# --take-ownership：第一次改用 Helm 時接手先前以 kubectl apply -k 建立的資源
+helm upgrade --install ai-platform helm/chart -n "$NS" --history-max 10 --take-ownership \
+  --post-renderer kustomize-overlay --post-renderer-args "$OVERLAY_DIR" >/dev/null
+helm history ai-platform -n "$NS" --max 1 | tail -1
 if [ -n "${OFFLINE:-}" ]; then   # 離線安裝（offline/install.sh）：病毒碼已預載，容器內不跑 freshclam
   kubectl -n "$NS" set env statefulset/clamav CLAMAV_NO_FRESHCLAMD=true >/dev/null
 fi
@@ -59,7 +74,7 @@ wait_ready statefulset/minio
 run_job minio-init
 wait_ready deployment/keycloak statefulset/orthanc deployment/hapi statefulset/clamav statefulset/mlflow \
   deployment/inference deployment/wiki
-wait_ready deployment/api deployment/fhir-worker deployment/apisix deployment/ohif
+wait_ready deployment/api deployment/fhir-worker deployment/apisix deployment/ohif deployment/web
 if [ "$OVERLAY" = kind ]; then
   wait_ready deployment/fake-llm deployment/autolabel deployment/mailpit statefulset/orthanc-pacs
   if [ -z "${SKIP_SEED:-}" ]; then run_job seed; else run_job bootstrap-admin; fi
@@ -69,6 +84,6 @@ fi
 run_job wiki-setup
 if [ "$OVERLAY" = kind ]; then
   kind/expose.sh
-  log "Gateway http://localhost:38980  OHIF http://localhost:38981  Keycloak http://localhost:38180  PACS http://127.0.0.1:38943  Mailpit http://127.0.0.1:38925"
+  log "網頁 http://localhost:38982  Gateway http://localhost:38980  OHIF http://localhost:38981  Keycloak http://localhost:38180  PACS http://127.0.0.1:38943  Mailpit http://127.0.0.1:38925"
 fi
 log "完成"

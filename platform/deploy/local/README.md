@@ -61,6 +61,17 @@ cd platform/acceptance && COMPOSE_PROJECT=ai-platform uv run pytest -q test_tc_b
 - DICOMweb 的 CORS 在開發環境放行 `localhost` 任意埠，甲方環境改成正式網域。
 - 改了 `keycloak/realm-ai-platform.json`（新增 `ai-platform-ohif`）的既有環境，要照下方「已知狀況」重新匯入 realm。
 
+## 網頁前端（正式映像）
+
+```bash
+docker compose -f compose.yaml -f compose.web.yaml up -d --build      # 網頁在 http://localhost:9082
+cd ../../web && WEB_URL=http://localhost:9082 npm run test:e2e:real   # 真瀏覽器經 Keycloak 登入
+```
+
+`platform/web/Dockerfile`：Node 建置、nginx（非 root）提供靜態檔。網頁經 Gateway 的 9082 埠，`/api` 在同一個 Gateway 上，所以與 API 同源、不需要 CORS。
+網址在容器啟動時寫成 `/config.js`（`WEB_OIDC_AUTHORITY`、`WEB_OHIF_BASE` 等），同一個映像用在每個環境。
+既有環境要重新匯入 realm（`ai-platform-web` 新增了 `http://localhost:9082`），見下方「已知狀況」。
+
 ## 與共用環境並行啟動第二套
 
 主機連接埠可用環境變數改掉，搭配不同的 compose 專案名稱：

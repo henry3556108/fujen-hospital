@@ -24,6 +24,7 @@ spec:
     - ports:
         - {port: 9080, protocol: TCP}
         - {port: 9081, protocol: TCP}
+        - {port: 9082, protocol: TCP}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -96,6 +97,20 @@ spec:
     - from:
         - podSelector: {matchLabels: {app: apisix}}
         - podSelector: {matchLabels: {platform/backend: "true"}}
+      ports:
+        - {port: 8080, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: apisix}}
       ports:
         - {port: 8080, protocol: TCP}
 ---

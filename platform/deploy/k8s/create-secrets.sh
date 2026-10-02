@@ -13,7 +13,7 @@ KEYS=(POSTGRES_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD KC_API_CLIENT_SECRET KC_ADMI
 MODE="${1:-random}"
 if [ "$MODE" = "--print-keys" ]; then printf '%s\n' "${KEYS[@]}"; exit 0; fi
 
-kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl create namespace "$NAMESPACE" >/dev/null
+kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl apply -f "$(dirname "$0")/base/namespace.yaml" >/dev/null
 if kubectl -n "$NAMESPACE" get secret platform-secrets >/dev/null 2>&1; then
   echo "platform-secrets 已存在，不覆寫（$NAMESPACE）"
   exit 0

@@ -40,7 +40,7 @@ images:
   - name: ai-platform/mailpit
     newName: axllent/mailpit
     newTag: v1.31.3
-  # ---- 平台自己建置的映像（build-and-load.sh；Dockerfile 在 platform/api、platform/fakes、platform/training）----
+  # ---- 平台自己建置的映像（build-and-load.sh；Dockerfile 在 platform/api、platform/fakes、platform/training、platform/web）----
   - name: ai-platform/api
     newName: platform-api
     newTag: dev
@@ -49,6 +49,9 @@ images:
     newTag: dev
   - name: ai-platform/trainer
     newName: platform-trainer
+    newTag: dev
+  - name: ai-platform/web
+    newName: platform-web
     newTag: dev
 # 平台 API 送到叢集的 Job 用的映像（環境變數，不是 Pod 的 image 欄位，所以放在 ConfigMap）。
 # 這兩個映像要載入工作節點（cpu-data、GPU 池），不是平台節點。

@@ -49,6 +49,12 @@ configMapGenerator:
       - PACS_AET=CHANGE-ME
       - PACS_HOST=CHANGE-ME-pacs.example.invalid
       - PACS_PORT=104
+  # 甲方環境可上網：ClamAV 容器內的 freshclam 直接向 ClamAV 官方更新病毒碼（每天數次）。
+  # 若甲方要求經代理或內部鏡像站，改 clamav 的 freshclam.conf（DatabaseMirror／HTTPProxyServer）
+  - name: clamav-env
+    behavior: merge
+    literals:
+      - CLAMAV_NO_FRESHCLAMD=false
   - name: keycloak-realm
     behavior: replace
     files:
@@ -58,6 +64,12 @@ configMapGenerator:
     files:
       - app-config.js=config/app-config.js
 patches:
+  # 網頁的監控連結（Grafana 等）：甲方的監控網址
+  - target: {kind: Deployment, name: web}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: WEB_GRAFANA_URL, value: "https://CHANGE-ME-grafana.example.invalid"}
   # Keycloak 在甲方的 TLS 反向代理（Ingress）之後：信任 X-Forwarded-*
   - target: {kind: Deployment, name: keycloak}
     patch: |-

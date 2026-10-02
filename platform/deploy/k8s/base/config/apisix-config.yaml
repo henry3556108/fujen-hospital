@@ -1,9 +1,11 @@
 # 由 platform/deploy/k8s/render-config.py 從 platform/deploy/local/apisix/config.yaml 產生，請改原始檔後重新產生
 # Gateway 另開 9081 給 OHIF 檢視器（compose.labeling.yaml 才對主機開放；路由見 apisix.yaml 的 WP5a 區塊）
+# 9082 給網頁前端（compose.web.yaml 才對主機開放）：網頁與 /api 同源，不需要 CORS
 apisix:
   node_listen:
     - 9080
     - 9081
+    - 9082
 deployment:
   role: data_plane
   role_data_plane:
