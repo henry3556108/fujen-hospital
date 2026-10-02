@@ -108,6 +108,10 @@ def test_long_running_services_have_probes(rendered):
             continue
         for c in pod_spec(d)["containers"]:
             assert "readinessProbe" in c and "livenessProbe" in c, d["metadata"]["name"]
+            # 主機忙碌時 1 秒的預設逾時會讓健康的服務被重啟（開發機實際發生過）
+            for probe in ("readinessProbe", "livenessProbe"):
+                assert c[probe].get("timeoutSeconds", 1) >= 5, (d["metadata"]["name"], probe)
+            assert c["livenessProbe"].get("failureThreshold", 3) >= 6, d["metadata"]["name"]
 
 
 def test_only_the_api_and_its_jobs_get_a_service_account_token(rendered):

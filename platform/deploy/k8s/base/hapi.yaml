@@ -64,6 +64,7 @@ spec:
             tcpSocket: {port: 8080}
             periodSeconds: 30
             failureThreshold: 6
+            timeoutSeconds: 5
           resources:
             requests: {cpu: 100m, memory: 896Mi}
             limits: {cpu: 750m, memory: 1280Mi}

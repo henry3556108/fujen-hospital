@@ -38,10 +38,13 @@ spec:
           readinessProbe:
             tcpSocket: {port: 8042}
             periodSeconds: 5
+            timeoutSeconds: 5
           livenessProbe:
             tcpSocket: {port: 8042}
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests: {cpu: 20m, memory: 64Mi}
             limits: {cpu: 500m, memory: 512Mi}

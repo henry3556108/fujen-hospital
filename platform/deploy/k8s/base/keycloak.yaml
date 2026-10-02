@@ -64,10 +64,12 @@ spec:
           readinessProbe:
             httpGet: {path: /health/ready, port: 9000}
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: {path: /health/live, port: 9000}
             periodSeconds: 20
             failureThreshold: 6
+            timeoutSeconds: 5
           resources:
             requests: {cpu: 100m, memory: 640Mi}
             limits: {cpu: 750m, memory: 1280Mi}

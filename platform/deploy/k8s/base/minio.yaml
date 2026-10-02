@@ -41,10 +41,13 @@ spec:
           readinessProbe:
             httpGet: {path: /minio/health/ready, port: 9000}
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: {path: /minio/health/live, port: 9000}
             initialDelaySeconds: 10
             periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests: {cpu: 50m, memory: 192Mi}
             limits: {cpu: 750m, memory: 512Mi}

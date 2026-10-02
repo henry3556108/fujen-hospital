@@ -40,11 +40,13 @@ spec:
           readinessProbe:
             httpGet: {path: /healthz, port: 3000}
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet: {path: /healthz, port: 3000}
             initialDelaySeconds: 60
             periodSeconds: 30
             failureThreshold: 6
+            timeoutSeconds: 5
           resources:
             requests: {cpu: 50m, memory: 192Mi}
             limits: {cpu: 750m, memory: 448Mi}
