@@ -80,7 +80,8 @@ def apisix_routes() -> str:
     text = replace(text, 'service_name: "hapi:8080"', f'service_name: "hapi{SVC}:8080"', count=1)
     text = replace(text, 'allow_origins: "http://localhost:5173"', 'allow_origins: "${{CORS_ALLOW_ORIGINS}}"', count=1)
     text = replace(text, 'allow_origins_by_regex: ["^http://(localhost|127\\\\.0\\\\.0\\\\.1)(:[0-9]+)?$"]',
-                   'allow_origins_by_regex: ["${{DICOMWEB_CORS_REGEX}}"]', count=1)
+                   # 單引號：APISIX 3.19 先在原文替換環境變數再解析 YAML，正規表示式的反斜線在雙引號內是無效的跳脫
+                   "allow_origins_by_regex: ['${{DICOMWEB_CORS_REGEX}}']", count=1)
     text = replace(text, "ngx.req.set_header('Authorization', 'Basic Z2F0ZXdheTpvcnRoYW5jLWd3LWRldg==')",
                    "ngx.req.set_header('Authorization', '${{ORTHANC_GATEWAY_AUTH}}')", count=1)
     text = replace(text, "（compose.labeling.yaml 才會開）", "（Kubernetes：apisix Service 的 9081 埠）")

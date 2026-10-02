@@ -57,8 +57,12 @@ k8s_empty() {
   kubectl delete namespace "$K8S_NAMESPACE" --ignore-not-found --wait=true --timeout=600s >/dev/null
   kubectl delete clusterrole,clusterrolebinding -l app.kubernetes.io/part-of=ai-platform --ignore-not-found >/dev/null
   kubectl -n platform-jobs delete role,rolebinding -l app.kubernetes.io/part-of=ai-platform --ignore-not-found >/dev/null
-  ! kubectl get namespace "$K8S_NAMESPACE" >/dev/null 2>&1 \
-    && [ -z "$(kubectl get pv -o jsonpath="{range .items[?(@.spec.claimRef.namespace=='$K8S_NAMESPACE')]}{.metadata.name}{end}")" ]
+  ! kubectl get namespace "$K8S_NAMESPACE" >/dev/null 2>&1 || return 1
+  for _ in $(seq 60); do   # local-path 刪除 PV 要幾秒
+    [ -z "$(kubectl get pv -o jsonpath="{range .items[?(@.spec.claimRef.namespace=='$K8S_NAMESPACE')]}{.metadata.name}{end}")" ] && return 0
+    sleep 2
+  done
+  return 1
 }
 k8s_seeded() {   # deploy.sh kind 的最後一步就是種子；這裡確認種子工作成功
   kubectl -n "$K8S_NAMESPACE" get jobs -o jsonpath='{range .items[*]}{.metadata.name} {.status.succeeded}{"\n"}{end}' | grep -q '^seed-.* 1$'

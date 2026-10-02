@@ -23,7 +23,7 @@ routes:
     plugins:
       # WP5a：標註工作台（網頁，不同源）直接取 metadata 與 frame。開發環境放行 localhost 任意埠；甲方環境改成正式網域。
       cors:
-        allow_origins_by_regex: ["${{DICOMWEB_CORS_REGEX}}"]
+        allow_origins_by_regex: ['${{DICOMWEB_CORS_REGEX}}']
         allow_methods: "GET,HEAD,OPTIONS"
         allow_headers: "Authorization,Accept"
         expose_headers: "Content-Type"
