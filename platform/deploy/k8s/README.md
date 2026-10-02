@@ -1,0 +1,104 @@
+# 平台部署到 Kubernetes
+
+整個平台（Gateway、Keycloak、平台 API、FHIR worker、Orthanc、MinIO、ClamAV、HAPI FHIR、Wiki.js、MLflow、推論服務、OHIF、PostgreSQL）
+跑在命名空間 `ai-platform`；訓練與推論 Job 仍在 `platform-jobs`，由平台 API 以叢集內 ServiceAccount 送出（沒有 kubeconfig）。
+以 Kustomize（kubectl 內建）管理，不需要另外安裝工具。部署步驟與演練見 `docs/delivery/部署說明.md`。
+
+## 目錄
+
+| 路徑 | 內容 |
+|---|---|
+| `base/` | 共同的 manifest；`base/config/` 由 `render-config.py` 從 compose 的設定原始檔產生 |
+| `overlays/kind/` | 本機 kind：開發密碼、fake-llm、fake-autolabel、Mailpit、模擬 PACS、NodePort、種子工作 |
+| `overlays/production/` | 甲方範本：沒有假服務與模擬 PACS；網域、TLS、外部服務是佔位（`CHANGE-ME`、`*.example.invalid`） |
+| `components/images/` | **唯一的映像清單**。manifest 只寫 `ai-platform/<服務>`，版本與 digest 只改這裡 |
+| `render-config.py` | 產生設定檔；`--check` 檢查是否與 compose 原始檔同步（manifest 測試會跑） |
+| `create-secrets.sh` | 建立 Secret `platform-secrets`（`--dev` 開發值；預設隨機產生） |
+| `build-and-load.sh` | 建置平台映像、拉上游映像、匯入 kind 節點 |
+| `deploy.sh` | 套用 overlay、依序等服務就緒、跑一次性工作 |
+| `scale.sh` | 全部縮到 0／恢復 1 份 |
+| `kind/expose.sh` | 主機 127.0.0.1 連接埠轉送到 NodePort（kind 建立後不能再加 extraPortMappings） |
+| `offline/` | 離線安裝包（`bundle.sh`）與離線安裝（`install.sh`） |
+
+## 本機 kind
+
+```bash
+cd platform/deploy/k8s
+./build-and-load.sh          # 第一次約 10 分鐘（匯入映像）；之後只匯入有變的
+./deploy.sh kind             # 套用、db-init、minio-init、seed、wiki-setup、啟動 expose.sh
+```
+
+| 服務 | 主機位址 | NodePort |
+|---|---|---|
+| Gateway（平台 API、DICOMweb、FHIR） | http://localhost:38980 | 30980 |
+| OHIF（Gateway 9081） | http://localhost:38981 | 30981 |
+| Keycloak | http://localhost:38180 | 30880 |
+| 模擬 PACS REST（驗收放入研究） | http://127.0.0.1:38943 | 30943 |
+| Mailpit（告警信） | http://127.0.0.1:38925 | 30925 |
+
+主機連接埠由 `kind/expose.sh` 的轉送容器 `ai-platform-k8s-expose` 提供（只綁 127.0.0.1），流量照樣經 kube-proxy 與 NetworkPolicy。
+不想多一個容器時改用 `kubectl port-forward`（會繞過 NetworkPolicy），指令寫在 `kind/expose.sh` 開頭。
+
+token 的 issuer 固定為 `KC_HOSTNAME/realms/ai-platform`（kind 是 `http://localhost:38180`），平台 API 的 `OIDC_ISSUER` 由同一個值組成，
+所以經哪個位址取 token 都一樣（與 compose 的做法相同）；JWKS 與管理 API 走叢集內的 `http://keycloak:8080`。
+
+### 驗收
+
+```bash
+cd platform/acceptance
+export K8S_NAMESPACE=ai-platform GATEWAY_URL=http://localhost:38980 KEYCLOAK_URL=http://localhost:38180 \
+       PACS_URL=http://127.0.0.1:38943 MAILPIT_URL=http://127.0.0.1:38925 OHIF_URL=http://localhost:38981
+uv run pytest -q test_k8s_deploy.py          # TC-SS-05（叢集版本）、RBAC、ServiceAccount、對外連接埠
+uv run pytest -q                              # 經 Gateway 全套（kind 標記的測試另外跑）
+```
+
+設了 `K8S_NAMESPACE` 時，原本以 `docker compose exec` 查資料庫、看環境變數、停服務的測試改用 `kubectl`（`platform_exec.py`）。
+
+### 記憶體
+
+整套平台在 kind 上的工作集約 3.8 GB（ClamAV 約 1 GB、HAPI 約 0.85 GB、Keycloak 約 0.4 GB）。開發機只有 12 GB，與 compose 堆疊同時跑會進入 swap：
+
+```bash
+./scale.sh down    # 全部縮到 0（保留 PVC、Secret、manifest）
+./scale.sh up      # 恢復
+```
+
+### 改了 realm 檔
+
+Keycloak 只在第一次啟動時匯入 realm。重新匯入：
+
+```bash
+kubectl -n ai-platform scale deployment/keycloak --replicas=0
+kubectl -n ai-platform exec statefulset/postgres -- psql -U platform -c "DROP DATABASE keycloak" -c "CREATE DATABASE keycloak"
+kubectl -n ai-platform scale deployment/keycloak --replicas=1
+kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # kind；甲方改 bootstrap-admin
+```
+
+## 設計重點
+
+- **設定與密碼分開**：realm、APISIX 路由、Orthanc 設定裡的密碼都是環境變數佔位（Keycloak `${VAR}`、Orthanc `${VAR}`、APISIX `${{VAR}}`），
+  值只在 Secret `platform-secrets`。ConfigMap 不含任何密碼（`platform/compliance/tests/test_k8s_manifests.py` 檢查）。
+- **一次性工作**寫成暫停的 CronJob（工作範本），由 `deploy.sh` 以 `kubectl create job --from=cronjob/<名稱>` 建立：
+  `db-init`、`minio-init`、`bootstrap-admin`、`wiki-setup`，kind 另有 `seed`。全部可重複執行；Job 建立後 Pod 範本不能改，直接 apply Job 會失敗，所以不這樣做。
+- **放置**：所有平台 Pod `nodeSelector: platform/pool=cpu-web`。推論服務也在 cpu-web（映像約 6 GB，`build-and-load.sh` 會匯入）。
+- **NetworkPolicy**：命名空間預設拒絕所有進入流量；命名空間外只能連 Gateway 與 Keycloak。平台 API 另接受 `platform-jobs`（Job 以一次性 token 回連工作 I/O）。
+  標籤 `platform/backend=true`（平台程式的 Pod）可連內部服務，`platform/db-client=true` 可連 PostgreSQL。只管進入流量。
+- **RBAC**（`base/rbac.yaml`）：`platform-jobs` 的 Job 建立／讀取／刪除、Pod 讀取；Node 讀取；Kueue ClusterQueue `gpu-shared` 讀取與修改。
+  kind 另給 `nodes/status` patch（假 GPU 份數），甲方不給。
+- **探針**：逾時 5 秒、存活探針連續 6 次失敗才重啟（主機忙碌時 1 秒逾時會讓健康的服務被重啟，開發機實際發生過）。
+- **記憶體上限**：Keycloak `-XX:MaxRAMPercentage=40`、HAPI `-Xmx640m`、MinIO 與 Mailpit `GOMEMLIMIT`、APISIX 2 個 worker、
+  ClamAV `ConcurrentDatabaseReload no`（重載病毒碼時不同時保留兩份）。CPU 上限不超過 0.75 核（監控的 HighPodCpu 門檻是 0.8 核）。
+
+## 正式環境（甲方）
+
+1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址
+   （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。離線環境見 `offline/`。
+2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（vLLM、自動標註、SMTP）、`pacs`、
+   `ingress.yaml`（ingressClassName、TLS Secret）、`networkpolicy-production.yaml`（PACS 位址）、`config/app-config.js`（Keycloak 網域）。
+   `deploy.sh production` 發現還有 `CHANGE-ME` 或 `example.invalid` 就停止。
+3. `./create-secrets.sh`（隨機產生，不進版控；`--print-keys` 列出所有鍵）；`kubectl -n ai-platform create secret tls ai-platform-tls --cert=… --key=…`。
+4. `./deploy.sh production`：不跑種子，改跑 `bootstrap-admin` 把 realm 匯入的 `admin01` 登記為平台 Admin；admin01 第一次登入必須改密碼。
+5. 正式 realm 關閉所有 public client 的密碼授權（`directAccessGrantsEnabled`），匯入 CLI 用 device-code。
+
+更換密碼：PostgreSQL 與 Keycloak 只在第一次初始化時採用 Secret 的值。先在服務內改（`ALTER USER`、Keycloak 管理台），
+再 `kubectl -n ai-platform edit secret platform-secrets`，最後 `kubectl -n ai-platform rollout restart deployment,statefulset`。
