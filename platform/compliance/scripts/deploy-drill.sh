@@ -53,7 +53,7 @@ unauthenticated_blocked() { [ "$(curl -s -o /dev/null -w '%{http_code}' "$GATEWA
 TOKEN_FILE=$(mktemp)
 
 k8s_tools() {
-  for t in docker kubectl kind python3 uv; do command -v "$t" >/dev/null || { echo "缺少 $t"; return 1; }; done
+  for t in docker kubectl kind helm python3 uv; do command -v "$t" >/dev/null || { echo "缺少 $t"; return 1; }; done
   [ "$(kubectl config current-context)" = kind-ai-platform ] && kubectl get nodes >/dev/null
 }
 k8s_empty() {
@@ -89,7 +89,7 @@ remove_platform_images() {   # cpu-web 節點上刪掉安裝包裡的映像，�
 }
 if [ "$DRILL_TARGET" = k8s-offline ]; then
   [ -n "${KEEP_BLOCKED:-}" ] || trap '"$BLOCK" off >/dev/null 2>&1 || true' EXIT
-  step "確認工具：docker、kubectl、kind、python3、uv；叢集 kind-ai-platform 可連" k8s_tools
+  step "確認工具：docker、kubectl、kind、helm、python3、uv；叢集 kind-ai-platform 可連" k8s_tools
   step "確認離線安裝包完整（SHA256SUMS）" offline_bundle_ok
   step "清空環境（刪除命名空間 $K8S_NAMESPACE、它的 PVC 與平台的 RBAC）" k8s_empty
   step "刪除平台節點上的平台映像" remove_platform_images
@@ -99,7 +99,7 @@ if [ "$DRILL_TARGET" = k8s-offline ]; then
   step "等待 Keycloak 就緒" wait_keycloak
   step "建立測試基線（seed 工作已完成）" k8s_seeded
 elif [ "$DRILL_TARGET" = k8s ]; then
-  step "確認工具：docker、kubectl、kind、python3、uv；叢集 kind-ai-platform 可連" k8s_tools
+  step "確認工具：docker、kubectl、kind、helm、python3、uv；叢集 kind-ai-platform 可連" k8s_tools
   step "清空環境（刪除命名空間 $K8S_NAMESPACE、它的 PVC 與平台的 RBAC）" k8s_empty
   step "建置平台映像並匯入叢集節點（build-and-load.sh）" "$K8S_DIR/build-and-load.sh"
   step "部署（deploy.sh kind：Secret、套用、一次性工作、主機連接埠）" "$K8S_DIR/deploy.sh" kind

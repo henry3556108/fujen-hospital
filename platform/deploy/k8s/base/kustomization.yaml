@@ -4,8 +4,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 labels:
   - pairs: {app.kubernetes.io/part-of: ai-platform}
+# namespace.yaml 不在這裡：Helm 的版本紀錄存在這個命名空間內，所以命名空間由 deploy.sh 先建立（kubectl apply -f base/namespace.yaml），
+# 不屬於 Helm release（否則 helm uninstall 會連同紀錄與 PVC 一起刪掉）
 resources:
-  - namespace.yaml
   - rbac.yaml
   - networkpolicy.yaml
   - postgres.yaml

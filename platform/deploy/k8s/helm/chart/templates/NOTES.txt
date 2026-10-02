@@ -1,0 +1,3 @@
+AI 醫療平台已部署到命名空間 {{ .Release.Namespace }}（第 {{ .Release.Revision }} 版）。
+版本紀錄：helm history {{ .Release.Name }} -n {{ .Release.Namespace }}
+退回：    helm rollback {{ .Release.Name }} <版本> -n {{ .Release.Namespace }}

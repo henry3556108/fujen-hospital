@@ -1,0 +1,8 @@
+# 只為 Helm 的版本紀錄與 rollback：這個 chart 沒有任何樣板。實際的 manifest 由 post-renderer
+# （../kustomize-postrenderer）以 kubectl kustomize 產生，所有 YAML 都維持在 Kustomize（../../base、../../overlays）。
+apiVersion: v2
+name: ai-platform
+description: AI 醫療平台（Kustomize overlay 經 Helm post-renderer 部署）
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
