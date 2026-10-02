@@ -16,33 +16,18 @@
   },
   {
     "kind": "image",
-    "name": "docker.io/apache/apisix:3.11.0-debian",
-    "file": "image-docker.io_apache_apisix_3.11.0-debian.csv",
-    "components": 172,
+    "name": "docker.io/apache/apisix:3.19.0-debian",
+    "file": "image-docker.io_apache_apisix_3.19.0-debian.csv",
+    "components": 180,
     "used_by": [
       "compose:deploy/local/compose.yaml#apisix"
     ],
     "pinned": true,
     "repo_digests": [
-      "apache/apisix@sha256:178d1f79c2c39834f50213bf6ace90284f6b985dc8189cc50f3666d9fb1037ad"
+      "apache/apisix@sha256:9a7e45dc943fbf10ec916d1232bae4cda9302ae28a4696cfb83c2da01d261141"
     ],
     "architecture": "amd64",
-    "os": "Debian GNU/Linux 11.11"
-  },
-  {
-    "kind": "image",
-    "name": "docker.io/axllent/mailpit:v1.22",
-    "file": "image-docker.io_axllent_mailpit_v1.22.csv",
-    "components": 65,
-    "used_by": [
-      "compose:deploy/local/compose.fhir.yaml#mailpit"
-    ],
-    "pinned": true,
-    "repo_digests": [
-      "axllent/mailpit@sha256:f7f7c31de4de59540ad6515a0ca057a77525bca2069b6e747d873ca66c10fe08"
-    ],
-    "architecture": "amd64",
-    "os": "Alpine Linux 3.21.3"
+    "os": "Debian GNU/Linux 12.15"
   },
   {
     "kind": "image",
@@ -50,6 +35,7 @@
     "file": "image-docker.io_axllent_mailpit_v1.31.3.csv",
     "components": 71,
     "used_by": [
+      "compose:deploy/local/compose.fhir.yaml#mailpit",
       "manifest:deploy/kind/monitoring/mailpit.yaml"
     ],
     "pinned": true,
@@ -165,7 +151,7 @@
     ],
     "pinned": true,
     "repo_digests": [
-      "platform-trainer@sha256:198830313362700da4c9dded4baed264825ddb5da3a4af272a0603486b34881e"
+      "platform-trainer@sha256:e9b465c5defb039e5708de43f7940e3e15316e32b55da9f00d7dc6755b2d621e"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 12.13"
@@ -188,11 +174,27 @@
   },
   {
     "kind": "image",
-    "name": "docker.io/library/python:3.12-slim",
-    "file": "image-docker.io_library_python_3.12-slim.csv",
-    "components": 90,
+    "name": "docker.io/library/python:3.12-alpine",
+    "file": "image-docker.io_library_python_3.12-alpine.csv",
+    "components": 41,
     "used_by": [
       "dockerfile:fakes/Dockerfile"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "python@sha256:0687a6bc9716edc2a6ee0fbfb0f87e7ee358b262b67c9215de91bc9b2d38ba71"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/library/python:3.12-slim-trixie",
+    "file": "image-docker.io_library_python_3.12-slim-trixie.csv",
+    "components": 90,
+    "used_by": [
+      "dockerfile:api/Dockerfile",
+      "dockerfile:training/Dockerfile"
     ],
     "pinned": true,
     "repo_digests": [
@@ -218,34 +220,18 @@
   },
   {
     "kind": "image",
-    "name": "docker.io/pgvector/pgvector:pg16",
-    "file": "image-docker.io_pgvector_pgvector_pg16.csv",
-    "components": 148,
+    "name": "docker.io/pgvector/pgvector:0.8.7-pg16-trixie",
+    "file": "image-docker.io_pgvector_pgvector_0.8.7-pg16-trixie.csv",
+    "components": 146,
     "used_by": [
       "compose:deploy/local/compose.llm.yaml#postgres"
     ],
     "pinned": true,
     "repo_digests": [
-      "pgvector/pgvector@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+      "pgvector/pgvector@sha256:40d828eda66737aaacb934387a337babf1455ebd56e9bdd13fc08e211257c972"
     ],
     "architecture": "amd64",
-    "os": "Debian GNU/Linux 12.15"
-  },
-  {
-    "kind": "image",
-    "name": "ghcr.io/astral-sh/uv:python3.12-bookworm-slim",
-    "file": "image-ghcr.io_astral-sh_uv_python3.12-bookworm-slim.csv",
-    "components": 108,
-    "used_by": [
-      "dockerfile:api/Dockerfile",
-      "dockerfile:training/Dockerfile"
-    ],
-    "pinned": true,
-    "repo_digests": [
-      "ghcr.io/astral-sh/uv@sha256:e5b65587bce7de595f299855d7385fe7fca39b8a74baa261ba1b7147afa78e58"
-    ],
-    "architecture": "amd64",
-    "os": "Debian GNU/Linux 12.13"
+    "os": "Debian GNU/Linux 13.7"
   },
   {
     "kind": "image",
@@ -279,18 +265,18 @@
   },
   {
     "kind": "image",
-    "name": "quay.io/keycloak/keycloak:26.0",
-    "file": "image-quay.io_keycloak_keycloak_26.0.csv",
-    "components": 483,
+    "name": "quay.io/keycloak/keycloak:26.8.0",
+    "file": "image-quay.io_keycloak_keycloak_26.8.0.csv",
+    "components": 554,
     "used_by": [
       "compose:deploy/local/compose.yaml#keycloak"
     ],
     "pinned": true,
     "repo_digests": [
-      "quay.io/keycloak/keycloak@sha256:09a381c715ab0b111835b70f2905955274843a219c6f27efb348e4d9f4086858"
+      "quay.io/keycloak/keycloak@sha256:b0f60d489d51c5d113390bdf5461d4c06e6051be026c05549f2e1e10ec352bcc"
     ],
     "architecture": "amd64",
-    "os": "Red Hat Enterprise Linux 9.5"
+    "os": "Red Hat Enterprise Linux 9.8"
   },
   {
     "kind": "image",
@@ -356,46 +342,49 @@
     "kind": "build",
     "name": "自建映像 api",
     "file": "build-api.csv",
-    "components": 238,
+    "components": 192,
     "used_by": [
       "compose:deploy/local/compose.fhir.yaml#fhir-worker",
       "compose:deploy/local/compose.yaml#api",
       "compose:deploy/local/compose.yaml#minio-init"
     ],
     "base_images": [
-      "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
-    ],
-    "architecture": "amd64",
-    "os": "Debian GNU/Linux 12.13"
-  },
-  {
-    "kind": "build",
-    "name": "自建映像 fakes",
-    "file": "build-fakes.csv",
-    "components": 612,
-    "used_by": [
-      "compose:deploy/local/compose.labeling.yaml#autolabel",
-      "compose:deploy/local/compose.llm.yaml#fake-llm"
-    ],
-    "base_images": [
-      "docker.io/library/python:3.12-slim"
+      "docker.io/library/python:3.12-slim-trixie",
+      "docker.io/library/python:3.12-slim-trixie"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 13.7"
   },
   {
     "kind": "build",
+    "name": "自建映像 fakes",
+    "file": "build-fakes.csv",
+    "components": 52,
+    "used_by": [
+      "compose:deploy/local/compose.labeling.yaml#autolabel",
+      "compose:deploy/local/compose.llm.yaml#fake-llm"
+    ],
+    "base_images": [
+      "docker.io/library/python:3.12-alpine",
+      "docker.io/library/python:3.12-alpine"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "build",
     "name": "自建映像 training",
     "file": "build-training.csv",
-    "components": 212,
+    "components": 187,
     "used_by": [
       "compose:deploy/local/compose.training.yaml#inference"
     ],
     "base_images": [
-      "ghcr.io/astral-sh/uv:python3.12-bookworm-slim"
+      "docker.io/library/python:3.12-slim-trixie",
+      "docker.io/library/python:3.12-slim-trixie"
     ],
     "architecture": "amd64",
-    "os": "Debian GNU/Linux 12.13"
+    "os": "Debian GNU/Linux 13.7"
   },
   {
     "kind": "python",
