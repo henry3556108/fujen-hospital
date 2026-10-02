@@ -1,3 +1,4 @@
+import { platformEnv } from '../../runtimeConfig';
 import { SchedulingPage } from './SchedulingRoutes';
 
 export interface MonitoringLink {
@@ -8,7 +9,7 @@ export interface MonitoringLink {
 }
 
 /** 監控工具位址：預設是 kind 叢集對外的連接埠（platform/deploy/kind），正式環境以環境變數指定。 */
-export function monitoringLinks(env: Record<string, string | undefined> = import.meta.env): MonitoringLink[] {
+export function monitoringLinks(env: Record<string, string | undefined> = platformEnv()): MonitoringLink[] {
   return [
     {
       key: 'grafana',

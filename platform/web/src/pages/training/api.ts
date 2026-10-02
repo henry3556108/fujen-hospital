@@ -6,6 +6,7 @@ import { useSession } from '../../auth/SessionContext';
 import type { Study } from '../imaging/types';
 import type { Dataset, DatasetDetail, Step, TargetFeature } from '../tabular/types';
 import type { Model, ModelKind } from '../inference/api';
+import { platformEnv } from '../../runtimeConfig';
 
 export type TrainingKind = ModelKind;
 export const IMAGE_KINDS: readonly TrainingKind[] = ['image_classification', 'image_segmentation', 'image_detection'];
@@ -232,7 +233,7 @@ export function parseUsers(text: string): string[] {
   return [...new Set(text.split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean))];
 }
 
-const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
+const API_BASE: string = platformEnv().VITE_API_BASE ?? '';
 
 export function useTrainingApi(): TrainingApi | null {
   const { api, auth, project } = useSession();
