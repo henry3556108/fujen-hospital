@@ -20,6 +20,8 @@ if [ -z "${SKIP_BUILD:-}" ]; then
   docker build -q -f "$PLATFORM_DIR/api/Dockerfile" -t "$(ref_for platform-api)" "$PLATFORM_DIR" >/dev/null
   log "建置 $(ref_for platform-fakes)（假服務，只給 kind）"
   docker build -q -t "$(ref_for platform-fakes)" "$PLATFORM_DIR/fakes" >/dev/null
+  log "建置 $(ref_for platform-web)（網頁前端）"
+  docker build -q -t "$(ref_for platform-web)" "$PLATFORM_DIR/web" >/dev/null
   log "建置 $(ref_for platform-trainer)（約 6 GB）"
   docker build -q -f "$PLATFORM_DIR/training/Dockerfile" -t "$(ref_for platform-trainer)" "$PLATFORM_DIR" >/dev/null
 fi

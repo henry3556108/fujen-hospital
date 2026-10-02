@@ -77,6 +77,18 @@ routes:
       type: roundrobin
       nodes:
         "ohif:80": 1
+  # ---- 網頁前端（platform/web 的正式映像）----
+  # 只在 Gateway 的 9082 埠（compose.web.yaml 才會開）；/api/*、/dicomweb/*、/fhir/* 優先序較高，
+  # 所以網頁與平台 API 同源（API base 為空字串），不經 CORS。9080 不提供網頁，未知路徑照舊回 404。
+  - id: web
+    uri: /*
+    priority: -10
+    methods: ["GET", "HEAD"]
+    vars: [["server_port", "==", "9082"]]
+    upstream:
+      type: roundrobin
+      nodes:
+        "web:8080": 1
   # ---- WP6 FHIR（C-03）----
   # FHIR REST 只經這裡：/fhir/projects/{pid}/{FHIR 路徑} → forward-auth（專案權限、路由政策、稽核、流量計數）
   # → HAPI /fhir/{pid}/{FHIR 路徑}（租戶＝專案編號）。X-Forwarded-Prefix 讓 HAPI 回應內的網址維持對外路徑。

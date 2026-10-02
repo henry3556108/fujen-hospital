@@ -22,6 +22,7 @@ resources:
   - mlflow.yaml
   - inference.yaml
   - ohif.yaml
+  - web.yaml
   - jobs.yaml
 # 只替沒寫命名空間的資源補上 ai-platform；platform-jobs 內的 Role 保留自己的命名空間
 transformers:

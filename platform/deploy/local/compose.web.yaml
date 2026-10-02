@@ -1,0 +1,18 @@
+# 疊加檔：網頁前端的正式映像（platform/web/Dockerfile：Node 建置、nginx 非 root 提供靜態檔）。
+#   docker compose -f compose.yaml -f compose.web.yaml up -d --build
+# 網頁經 Gateway 的 9082 埠（WEB_HOST_PORT 可改）；/api 在同一個 Gateway 上，所以網頁與 API 同源、不需要 CORS。
+# 網址在執行期設定（容器啟動時寫出 /config.js），同一個映像用在每個環境。開發時仍可用 npm run dev（5173）。
+# 已存在的環境要重新匯入 Keycloak realm（ai-platform-web 新增 http://localhost:9082 的 redirect），見 README「已知狀況」。
+services:
+  web:
+    build:
+      context: ../../web
+    environment:
+      WEB_API_BASE: ""
+      WEB_OIDC_AUTHORITY: http://localhost:8080/realms/ai-platform
+      WEB_OIDC_CLIENT_ID: ai-platform-web
+      WEB_OHIF_BASE: http://localhost:${OHIF_HOST_PORT:-9081}
+
+  apisix:
+    ports: ["${WEB_HOST_PORT:-9082}:9082"]   # 9082 的監聽設定在 apisix/config.yaml
+    depends_on: [web]

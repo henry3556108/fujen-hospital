@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 
 COMPONENT = Path(__file__).resolve().parent / "components/images/kustomization.yaml"
-BUILT = {"ai-platform/api", "ai-platform/fakes", "ai-platform/trainer"}
+BUILT = {"ai-platform/api", "ai-platform/fakes", "ai-platform/trainer", "ai-platform/web"}
 
 
 def entries() -> list[tuple[str, str]]:

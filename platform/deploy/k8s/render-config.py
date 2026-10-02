@@ -77,6 +77,8 @@ def apisix_routes() -> str:
     text = replace(text, "uri: http://api:8000/authz/check", f"uri: http://api{SVC}:8000/authz/check", count=2)
     text = replace(text, '"orthanc:8042": 1', f'"orthanc{SVC}:8042": 1', count=1)
     text = replace(text, '"ohif:80": 1', f'"ohif{SVC}:80": 1', count=1)
+    text = replace(text, '"web:8080": 1', f'"web{SVC}:8080": 1', count=1)
+    text = replace(text, "（compose.web.yaml 才會開）", "（Kubernetes：apisix Service 的 9082 埠）")
     text = replace(text, 'service_name: "hapi:8080"', f'service_name: "hapi{SVC}:8080"', count=1)
     text = replace(text, 'allow_origins: "http://localhost:5173"', 'allow_origins: "${{CORS_ALLOW_ORIGINS}}"', count=1)
     text = replace(text, 'allow_origins_by_regex: ["^http://(localhost|127\\\\.0\\\\.0\\\\.1)(:[0-9]+)?$"]',
