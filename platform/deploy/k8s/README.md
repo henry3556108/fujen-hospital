@@ -18,7 +18,7 @@
 | `deploy.sh` | 套用 overlay、依序等服務就緒、跑一次性工作 |
 | `scale.sh` | 全部縮到 0／恢復 1 份 |
 | `kind/expose.sh` | 主機 127.0.0.1 連接埠轉送到 NodePort（kind 建立後不能再加 extraPortMappings） |
-| `offline/` | 離線安裝包（`bundle.sh`）與離線安裝（`install.sh`） |
+| `offline/` | **選用**：離線安裝包（`bundle.sh`）、離線安裝（`install.sh`）、演練用的節點對外連線阻擋（`block-egress.sh`）。甲方環境可上網，正式部署不需要 |
 
 ## 本機 kind
 
@@ -92,7 +92,7 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 ## 正式環境（甲方）
 
 1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址
-   （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。離線環境見 `offline/`。
+   （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。甲方環境可上網，節點直接向來源 registry 拉取亦可（照 `components/images` 的版本與 digest）；離線安裝包只在不能上網的環境使用。
 2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（vLLM、自動標註、SMTP）、`pacs`、
    `ingress.yaml`（ingressClassName、TLS Secret）、`networkpolicy-production.yaml`（PACS 位址）、`config/app-config.js`（Keycloak 網域）。
    `deploy.sh production` 發現還有 `CHANGE-ME` 或 `example.invalid` 就停止。

@@ -95,7 +95,8 @@ configMapGenerator:
       - PACS_AET=PACS
       - PACS_HOST=pacs.invalid
       - PACS_PORT=104
-  # ClamAV：false＝容器自己定期以 freshclam 更新病毒碼；離線環境改 true 並預載病毒碼（offline/README）
+  # ClamAV：false＝容器自己定期以 freshclam 更新病毒碼（甲方環境可上網，這是預設）。
+  # 不能上網的環境才改 true 並預載病毒碼（選用的 offline/install.sh）
   - name: clamav-env
     literals:
       - CLAMAV_NO_FRESHCLAMD=false
