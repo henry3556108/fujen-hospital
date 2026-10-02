@@ -81,7 +81,11 @@ remove_platform_images() {   # cpu-web 節點上刪掉安裝包裡的映像，�
       docker exec "$n" ctr -n k8s.io images rm "$name" >/dev/null
     done
   done < "$OFFLINE_BUNDLE/images.txt"
-  ! docker exec "$n" crictl images -q platform-api:dev 2>/dev/null | grep -q .
+  # ctr import --digests 留下的 import-<日期>@sha256 別名也刪掉（只是別名，內容沒有被其他名稱引用就會回收）
+  for name in $(docker exec "$n" ctr -n k8s.io images ls -q | grep '^import-' || true); do
+    docker exec "$n" ctr -n k8s.io images rm "$name" >/dev/null
+  done
+  ! docker exec "$n" crictl inspecti docker.io/library/platform-api:dev >/dev/null 2>&1
 }
 if [ "$DRILL_TARGET" = k8s-offline ]; then
   [ -n "${KEEP_BLOCKED:-}" ] || trap '"$BLOCK" off >/dev/null 2>&1 || true' EXIT
