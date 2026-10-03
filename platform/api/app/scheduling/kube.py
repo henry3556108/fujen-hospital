@@ -101,6 +101,34 @@ def build_job_manifest(spec: JobSpec, *, namespace: str, image: str) -> dict:
     }
 
 
+def job_times(job, pods) -> tuple["datetime | None", "datetime | None"]:
+    """叢集實際的開始與結束時間。開始＝最早的容器啟動時間（Kueue 放行、映像拉完之後，與「執行中」一致），
+    沒有容器狀態時用 Pod 的 start_time；結束＝Job 的 completion_time 或 Failed 條件的時間，沒有就用容器結束時間。"""
+    starts, ends = [], []
+    for p in pods:
+        statuses = (p.status.container_statuses or []) if p.status else []
+        for c in statuses:
+            state = c.state
+            if state and state.running and state.running.started_at:
+                starts.append(state.running.started_at)
+            if state and state.terminated:
+                if state.terminated.started_at:
+                    starts.append(state.terminated.started_at)
+                if state.terminated.finished_at:
+                    ends.append(state.terminated.finished_at)
+        if not statuses and p.status and p.status.start_time:
+            starts.append(p.status.start_time)
+    status = job.status
+    finished = status.completion_time if status else None
+    if finished is None and status:
+        failed = [c.last_transition_time for c in (status.conditions or [])
+                  if c.type == "Failed" and c.status == "True" and c.last_transition_time]
+        finished = failed[0] if failed else None
+    if finished is None and ends and job_state(job)[0] in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+        finished = max(ends)
+    return (min(starts) if starts else None), finished
+
+
 def job_state(job) -> tuple[JobStatus, str]:
     status = job.status
     for cond in (status.conditions or []) if status else []:
@@ -186,7 +214,8 @@ class KubernetesJobBackend:
         state, message = job_state(job)
         pods = self.core.list_namespaced_pod(self.namespace, label_selector=f"job-name={name}").items
         node = next((p.spec.node_name for p in pods if p.spec and p.spec.node_name), None)
-        return BackendJob(state=state, node=node, message=message)
+        started, finished = job_times(job, pods)
+        return BackendJob(state=state, node=node, message=message, started_at=started, finished_at=finished)
 
     def cancel(self, name: str) -> None:
         from kubernetes.client.exceptions import ApiException

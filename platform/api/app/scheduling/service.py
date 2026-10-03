@@ -9,7 +9,7 @@ from app.audit import AuditCategory, record
 from app.models import Project, utcnow
 from collections.abc import Callable
 
-from app.scheduling.backend import JobBackend, JobSpec, Workload
+from app.scheduling.backend import BackendJob, JobBackend, JobSpec, Workload
 from app.scheduling.models import GpuGroup, Job, SharedSchedulingSettings
 from app.scheduling.states import TERMINAL, InvalidTransition, JobStatus, check_transition, path_to
 
@@ -249,14 +249,15 @@ def submit_job(session: Session, backend: JobBackend, *, project: Project, actor
     return job
 
 
-def _apply(job: Job, status: JobStatus) -> None:
+def _apply(job: Job, status: JobStatus, observed: BackendJob | None = None) -> None:
+    """observed：後端回報的實際開始／結束時間（叢集時間）；沒有才用現在（例如平台自己取消）。"""
     check_transition(JobStatus(job.status), status)
     job.status = status.value
     now = utcnow()
     if status == JobStatus.RUNNING and job.started_at is None:
-        job.started_at = now
+        job.started_at = (observed.started_at if observed else None) or now
     if status in TERMINAL:
-        job.finished_at = now
+        job.finished_at = (observed.finished_at if observed else None) or now
 
 
 def sync_job(backend: JobBackend, job: Job) -> None:
@@ -276,7 +277,7 @@ def sync_job(backend: JobBackend, job: Job) -> None:
         log.info("工作 %s（%s）忽略後端回報的狀態 %s（目前 %s）", job.id, job.k8s_name, target.value, current.value)
         return
     for step in steps:
-        _apply(job, step)
+        _apply(job, step, observed)
     if message:
         job.message = message
 

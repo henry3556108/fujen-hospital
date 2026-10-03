@@ -211,3 +211,18 @@ def test_label_values_are_sanitised(client, backend, p1, member):
     submit(client, p1, headers)
     (row,) = backend.allocations()
     assert row.labels["platform/user"] == "Dr.Wang-hospital"
+
+
+def test_tc_c01_05_times_come_from_the_backend_not_from_polling(client, backend, p1, ra):
+    """開始與結束時間是後端（叢集）回報的時間：輪詢晚了也不會變。"""
+    from datetime import datetime
+    first = submit(client, p1, ra, duration_seconds=10)
+    second = submit(client, p1, ra, duration_seconds=10)
+    third = submit(client, p1, ra, duration_seconds=10)   # 獨占池 2 張卡：第 3 件排隊
+    backend.advance(25)                                   # 平台這段時間都沒輪詢
+    got = {j["id"]: j for j in client.get(jobs_url(p1), headers=ra).json()}
+    at = lambda j, key: datetime.fromisoformat(got[j["id"]][key])  # noqa: E731
+    assert (at(second, "started_at") - at(first, "started_at")).total_seconds() == 0
+    assert (at(first, "finished_at") - at(first, "started_at")).total_seconds() == 10
+    assert (at(third, "started_at") - at(first, "started_at")).total_seconds() == 10   # 第 1 件結束才輪到
+    assert (at(third, "finished_at") - at(third, "started_at")).total_seconds() == 10
