@@ -372,3 +372,6 @@
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
+
+/* 0／1 欄位：「整數」下方的「（0／1，是／否）」 */
+.schema-table__binary { display: block; white-space: nowrap; }

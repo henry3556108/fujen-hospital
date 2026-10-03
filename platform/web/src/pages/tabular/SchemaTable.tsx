@@ -90,6 +90,7 @@ export function SchemaTable({
                   <select
                     className="select"
                     aria-label={`${c.name} 的型態`}
+                    aria-describedby={c.type === 'int' && isBinary(s) ? `schema-binary-${i}` : undefined}
                     value={c.type}
                     onChange={(e) => {
                       const type = e.target.value;
@@ -105,10 +106,16 @@ export function SchemaTable({
                   >
                     {TYPE_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value} title={o.hint}>
-                        {o.value === 'int' && isBinary(s) ? binaryLabel('int') : o.label}
+                        {o.label}
                       </option>
                     ))}
                   </select>
+                  {c.type === 'int' && isBinary(s) ? (
+                    // 與資料頁同一個名稱「整數（0／1，是／否）」；放在選單下方，選單不加寬，表格不必橫向捲動
+                    <span id={`schema-binary-${i}`} className="field__hint schema-table__binary" data-testid={`schema-binary-${c.name}`}>
+                      {binaryLabel('int').replace(/^整數/, '')}
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   <input type="checkbox" aria-label={`${c.name} 必填`} checked={!!c.required} onChange={(e) => update(i, { required: e.target.checked })} />
