@@ -125,6 +125,25 @@ export function plainSentence(run: TrainingRun, split: string, name: string, val
   return '';
 }
 
+/** 一句話：這次訓練用了幾位病人、哪些沒用與原因、補了幾位的缺值（metrics.data；與報表的 data_text 相同）。 */
+export function dataSentence(run: TrainingRun): string {
+  const data = obj(run.metrics.data);
+  if (!Object.keys(data).length) return '';
+  const used = numbers(data.used);
+  const names: Record<string, string> = { train: '訓練', validation: '驗證', test: '測試' };
+  const parts = ['train', 'validation', 'test'].filter((k) => used[k]).map((k) => `${names[k]} ${used[k]} 位`).join('、');
+  let text = `共 ${Number(data.total ?? Object.values(used).reduce((a, b) => a + b, 0))} 位病人，${parts}。`;
+  const left = Object.values(obj(data.left_out)).map(numbers);
+  const target = left.reduce((a, v) => a + (v.missing_target ?? 0), 0);
+  const feature = left.reduce((a, v) => a + (v.missing_feature ?? 0), 0);
+  const filled = Object.values(numbers(data.filled)).reduce((a, b) => a + b, 0);
+  const columns = Object.entries(numbers(data.missing_columns)).map(([c, n]) => `${c} ${n} 位`).join('、');
+  if (target) text += `目標欄位缺值的 ${target} 位沒有使用。`;
+  if (feature) text += `特徵有缺值的 ${feature} 位沒有使用（缺值：${columns}）。`;
+  if (filled) text += `有 ${filled} 位的缺值（${columns}）已用訓練資料的中位數或最常見的值補上。`;
+  return text;
+}
+
 /** 結果的提醒：測試人數少、驗證與測試差很多、只記住訓練資料、沒有比基準好。 */
 export function warnings(run: TrainingRun): string[] {
   const out: string[] = [];

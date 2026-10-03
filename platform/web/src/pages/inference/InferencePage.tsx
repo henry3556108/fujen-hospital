@@ -332,9 +332,26 @@ function ResultView({
   );
 }
 
+/** 結構式推論的一句話摘要：幾位有預測、幾位補過缺值、幾位無法預測與原因。 */
+export function tableSummary(result: { columns: string[]; rows: string[][]; prediction_column: string }): string {
+  const at = result.columns.indexOf(result.prediction_column);
+  const noteAt = result.columns.indexOf(`${result.prediction_column}_note`);
+  const missing = result.rows.filter((r) => (r[at] ?? '') === '');
+  const filled = result.rows.filter((r) => (r[at] ?? '') !== '' && noteAt >= 0 && (r[noteAt] ?? '').includes('缺值，已用訓練資料'));
+  let text = `共 ${result.rows.length} 位，${result.rows.length - missing.length} 位有預測結果。`;
+  if (filled.length) text += `其中 ${filled.length} 位有缺值，已用訓練資料的中位數或最常見的值補上後預測。`;
+  if (missing.length) {
+    const reasons = [...new Set(missing.map((r) => (noteAt >= 0 ? r[noteAt] : '') || '無法預測'))];
+    text += `${missing.length} 位無法預測（${reasons.join('、')}）。`;
+  }
+  return text;
+}
+
 function TableResult({ result }: { result: { columns: string[]; rows: string[][]; prediction_column: string } }) {
   const at = result.columns.indexOf(result.prediction_column);
   return (
+    <>
+    <p data-testid="table-summary">{tableSummary(result)}</p>
     <div className="table-wrap inference-table">
       <table className="table" aria-label="結構式推論結果">
         <thead>
@@ -359,6 +376,7 @@ function TableResult({ result }: { result: { columns: string[]; rows: string[][]
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

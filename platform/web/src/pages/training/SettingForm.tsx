@@ -5,6 +5,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import type { ParamSpec, TrainingApi, TrainingKind, TrainingSetting, Catalogue } from './api';
 import { isImageKind } from './api';
 import type { ColumnInfo } from '../tabular/types';
+import { MissingChoiceField } from '../tabular/MissingChoiceField';
 import {
   changeAlgorithm,
   changeKind,
@@ -372,7 +373,8 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
     api.targetFeature(Number(form.datasetId)).then(
       (tf) => {
         if (cancelled || !tf) return;
-        setForm((f) => (f.target ? f : { ...f, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps }));
+        setForm((f) => (f.target ? f : { ...f, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps,
+          missing: tf.config.missing ?? f.missing }));
         setPrefilled(form.datasetId);
       },
       () => undefined,
@@ -397,6 +399,12 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
     .filter((c) => !form.steps.some((st) => st.id === 'onehot' && (st.columns ?? []).includes(c.name)))
     .map((c) => c.name);
   const encoded = choices.filter((c) => c.encoded && choiceChecked(c, form.features));
+  // 選到的 Feature 有缺值時說出來，並讓使用者選補值或不使用（One-Hot 產生的欄位以原始欄位計）
+  const gaps = (processed ?? []).filter((c) => c.missing > 0 && form.features.includes(c.name));
+  const gapColumns = [...new Map(gaps.map((c) => {
+    const owner = choices.find((ch) => ch.columns.includes(c.name))?.name ?? c.name;
+    return [owner, { name: owner, missing: c.missing }] as const;
+  })).values()];
 
   return (
     <fieldset>
@@ -470,6 +478,7 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
             {encoded.map((c) => `${c.name} 已在資料集設定轉成 ${c.columns.join('、')}`).join('；')}（One-Hot：把每個類別變成一個 0／1 欄位）。勾選「{encoded[0].name}」就會用到這些欄位。
           </p>
         ) : null}
+        <MissingChoiceField id="ts" columns={gapColumns} value={form.missing} onChange={(v) => setForm((f) => ({ ...f, missing: v }))} />
         {unknown.length ? (
           <Alert tone="warning">
             <span data-testid="feature-problems">

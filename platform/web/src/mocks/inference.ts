@@ -78,12 +78,16 @@ function imageResult(model: Model, name: string): ImageResult {
 function tabular(model: Model, rows: Record<string, string>[], columns: string[]) {
   const features = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
   const classify = model.kind === 'tabular_classification';
+  const impute = model.card.missing === 'impute';
   const out = rows.map((r) => {
-    const missing = features.some((f) => (r[f] ?? '') === '');
+    const gaps = features.filter((f) => (r[f] ?? '') === '');
+    const missing = gaps.length > 0 && !impute;
+    const filled = gaps.map((f) => `${f} 缺值，已用訓練資料的中位數補上`).join('；');
     const h = hash(JSON.stringify(r));
     const prediction = missing ? '' : classify ? String(h % 2) : String(100 + (h % 50));
     const probability = missing ? '' : String(0.5 + (h % 50) / 100);
-    const note = missing ? '特徵含缺值，無法預測' : classify ? `預測為「${prediction}」的機率 ${Math.round(Number(probability) * 100)}%` : '';
+    const note = missing ? '特徵含缺值，無法預測'
+      : classify ? `預測為「${prediction}」的機率 ${Math.round(Number(probability) * 100)}%${filled ? `（${filled}）` : ''}` : filled;
     return [...columns.map((c) => r[c] ?? ''), prediction, ...(classify ? [probability] : []), note];
   });
   return { columns: [...columns, 'prediction', ...(classify ? ['prediction_probability'] : []), 'prediction_note'], rows: out, prediction_column: 'prediction' };

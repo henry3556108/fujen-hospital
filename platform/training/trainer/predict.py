@@ -32,7 +32,10 @@ class TabularPredictor:
             return pd.read_csv(io.BytesIO(data))
         # 推論資料只需要模型用到的欄位：其餘欄位（目標欄、病歷號…）驗證時視為非必填
         needed = set(tabularkit.needed_columns(self.preprocess))
-        columns = [c.__dict__ if c.name in needed else {**c.__dict__, "required": False, "unique": False}
+        # 補值的模型：特徵可以空白（以訓練資料的中位數或最常見的值補上）
+        fills = self.preprocess.get("missing") == "impute"
+        columns = [c.__dict__ if c.name in needed and not fills else
+                   {**c.__dict__, "required": False, "unique": c.unique and c.name in needed}
                    for c in self.schema.columns]
         schema = Schema.from_dict({"columns": columns})
         report, frame = validate_and_load(io.BytesIO(data), schema)

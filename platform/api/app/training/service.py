@@ -684,8 +684,8 @@ def _tabular_result(header: list[str], rows: list[list[str]], answer: dict[str, 
     out_header = header + [column] + ([f"{column}_probability"] if with_probability else []) + [f"{column}_note"]
     out_rows = []
     for row, p, prob, note in zip(rows, predictions, probabilities, notes):
-        if not note and p is not None and prob is not None:
-            note = f"預測為「{p}」的機率 {prob:.0%}"
+        if p is not None and prob is not None:   # 補過缺值的列：機率後面附上補了什麼
+            note = f"預測為「{p}」的機率 {prob:.0%}" + (f"（{note}）" if note else "")
         out_rows.append(row + ["" if p is None else p] + (["" if prob is None else prob] if with_probability else [])
                         + [note or ""])
     unpredicted = sum(1 for p in predictions if p is None)

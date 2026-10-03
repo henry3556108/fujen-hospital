@@ -86,3 +86,15 @@ def test_validate_against_reports_missing_columns(patients_df):
 def test_from_dict_rejects_malformed(bad):
     with pytest.raises(TabularError):
         TargetFeatureConfig.from_dict(bad)
+
+
+def test_missing_choice_is_optional_and_round_trips():
+    """缺值處理（使用性測試第二輪）：impute 補值或 drop 不使用；沒選時 to_dict 沒有這個鍵（舊設定不變）。"""
+    assert "missing" not in TargetFeatureConfig("y", ["x"]).to_dict()
+    for choice in ("impute", "drop"):
+        cfg = TargetFeatureConfig.from_dict({"target": "y", "features": ["x"], "missing": choice})
+        assert cfg.missing == choice and cfg.to_dict()["missing"] == choice
+        assert TargetFeatureConfig.from_dict(cfg.to_dict()) == cfg
+    with pytest.raises(TabularError) as exc:
+        TargetFeatureConfig.from_dict({"target": "y", "features": ["x"], "missing": "mean"})
+    assert "缺值處理" in exc.value.message

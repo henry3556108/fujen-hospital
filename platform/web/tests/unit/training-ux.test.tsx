@@ -271,7 +271,7 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     await user.type(within(tryForm).getByLabelText('age'), '61');
     await user.selectOptions(within(tryForm).getByLabelText('sex'), 'M');
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
-    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis：[01]（模型認為的機率 \d+%）$/);
+    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「([01])」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
   });
 });
 

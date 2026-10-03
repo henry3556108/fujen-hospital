@@ -41,7 +41,7 @@ async function formFromDataset(api: TrainingApi, cat: Catalogue, datasetId: numb
   const kind = target ? suggestKind(column?.kind, distinct) : 'tabular_classification';
   const form = emptyForm(cat, kind);
   Object.assign(form, { name: `${dataset.name} 訓練`, datasetId: String(datasetId) });
-  if (tf) Object.assign(form, { target, features: [...tf.config.features], steps: tf.config.steps });
+  if (tf) Object.assign(form, { target, features: [...tf.config.features], steps: tf.config.steps, missing: tf.config.missing ?? form.missing });
   const kindName = cat.kinds.find((k) => k.kind === kind)?.name ?? kind;
   const notice = tf
     ? `已帶入資料集「${dataset.name}」的 Target（${target}）、${tf.config.features.length} 個 Feature 與 ${tf.config.steps.length} 個前處理步驟，並依目標欄位預選「${kindName}」。請確認後按「儲存設定」。`

@@ -805,9 +805,13 @@ export const tabularHandlers = [
       if (features.includes(b.target)) throw new MockError('invalid_config', `目標欄位「${b.target}」不可同時作為特徵欄位`);
       const steps = validateSteps(b.steps ?? []);
       requireColumns(applyPipeline(r.d.frame, steps), [b.target, ...features]);
+      const missing = b.missing as unknown;
+      if (missing !== undefined && missing !== null && missing !== 'impute' && missing !== 'drop') {
+        throw new MockError('invalid_config', '缺值處理必須是 impute（補上缺值）或 drop（不使用有缺值的病人）');
+      }
       r.d.targetFeature = {
         dataset_id: r.d.id,
-        config: { version: 1, target: b.target, features: [...features], steps },
+        config: { version: 1, target: b.target, features: [...features], steps, ...(missing ? { missing: missing as 'impute' | 'drop' } : {}) },
         updated_by: r.ctx.user.username,
         updated_at: isoNow(),
       };

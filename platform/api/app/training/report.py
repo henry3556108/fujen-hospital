@@ -270,6 +270,28 @@ svg { max-width: 100%; height: auto; display: block; margin: 8px 0; }
 """
 
 
+def data_text(data: dict | None) -> str:
+    """一句話說明這次訓練用了幾位病人、哪些沒用與原因、補了幾位的缺值（metrics.json 的 data）。"""
+    if not isinstance(data, dict):
+        return ""
+    used = data.get("used") or {}
+    names = {"train": "訓練", "validation": "驗證", "test": "測試"}
+    parts = "、".join(f"{names[k]} {used[k]} 位" for k in ("train", "validation", "test") if used.get(k))
+    text = f"共 {data.get('total', sum(used.values()))} 位病人，{parts}。"
+    left = data.get("left_out") or {}
+    target = sum(v.get("missing_target", 0) for v in left.values())
+    feature = sum(v.get("missing_feature", 0) for v in left.values())
+    filled = sum((data.get("filled") or {}).values())
+    columns = "、".join(f"{c} {n} 位" for c, n in (data.get("missing_columns") or {}).items())
+    if target:
+        text += f"目標欄位缺值的 {target} 位沒有使用。"
+    if feature:
+        text += f"特徵有缺值的 {feature} 位沒有使用（缺值：{columns}）。"
+    if filled:
+        text += f"有 {filled} 位的缺值（{columns}）已用訓練資料的中位數或最常見的值補上。"
+    return text
+
+
 def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None) -> str:
     """run 為 service.run_out() 的結果。"""
     config, metrics = run["config"], run.get("metrics") or {}
@@ -304,6 +326,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
 <h2>設定</h2>
 <table><tbody>{fact_rows}</tbody></table>
 <h2>模型表現</h2>
+{f'<p class="data-usage">{_e(data_text(metrics.get("data")))}</p>' if metrics.get("data") else ''}
 {_metric_rows(metrics)}
 {f'<h2>K 折交叉驗證</h2>{_cv_rows(cv)}' if isinstance(cv, dict) else ''}
 <h2>圖表</h2>

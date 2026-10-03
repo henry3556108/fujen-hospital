@@ -39,6 +39,8 @@ export interface Model {
     /** 推論時要填的原始欄位（2026-10 起的結構式模型；舊模型沒有，改用 features） */
     inputs?: ModelInput[];
     classes?: string[];
+    /** 缺值處理：impute＝特徵可留白（以訓練資料的中位數或最常見的值補上）；drop 或沒有＝含缺值的列不預測 */
+    missing?: 'impute' | 'drop';
   };
 }
 

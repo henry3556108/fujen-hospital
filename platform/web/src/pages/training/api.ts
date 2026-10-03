@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { ApiError, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
 import type { Study } from '../imaging/types';
-import type { ColumnInfo, Dataset, DatasetDetail, Step, TargetFeature } from '../tabular/types';
+import type { ColumnInfo, Dataset, DatasetDetail, MissingChoice, Step, TargetFeature } from '../tabular/types';
 import type { Model, ModelKind } from '../inference/api';
 import { platformEnv } from '../../runtimeConfig';
 
@@ -81,7 +81,8 @@ export interface TrainingConfig {
   /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例切分 */
   validation?: Validation;
   image?: { resize: [number, number] | number[]; labels: string[] | null };
-  tabular?: { target: string; features: string[]; steps: Step[]; algorithm: string };
+  /** missing：缺值處理（impute 補值、drop 不使用有缺值的病人）；沒有＝drop */
+  tabular?: { target: string; features: string[]; steps: Step[]; algorithm: string; missing?: MissingChoice };
   augmentation?: Augmentation;
   hyperparameters: Hyperparameters;
 }

@@ -15,6 +15,7 @@ import {
   formatMetric,
   metricLabel,
   plainSentence,
+  dataSentence,
   rowsOf,
   sortMetrics,
   splitScores,
@@ -57,6 +58,12 @@ export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun })
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
       {fake ? <Alert tone="info">這是「快速測試」，沒有真正訓練，以下數字沒有意義。</Alert> : null}
+      {dataSentence(run) ? (
+        <p className="data-usage" data-testid="data-usage">
+          <strong>用了哪些病人：</strong>
+          {dataSentence(run)}
+        </p>
+      ) : null}
       {keys.length ? (
         <>
           <p className="text-muted">

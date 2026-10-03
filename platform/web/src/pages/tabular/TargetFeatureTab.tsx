@@ -7,7 +7,8 @@ import { useProjectAccess } from '../data/access';
 import { collapseFeatures, encode, encodedColumns, expandFeatures, facts, hints, isTextual, typeLabel, unencode } from './columnOverview';
 import { useDataset } from './DatasetLayout';
 import { StepsEditor, stepSummary } from './StepsEditor';
-import type { Describe, PipelinePreview, TargetFeature } from './types';
+import { MissingChoiceField } from './MissingChoiceField';
+import type { Describe, MissingChoice, PipelinePreview, TargetFeature } from './types';
 
 /** TC-B04-03 Target 與 Feature：欄位總覽表上選 Target（單選）與 Feature（勾選）；需要 Training 權限才能儲存。 */
 export function TargetFeatureTab() {
@@ -22,6 +23,7 @@ export function TargetFeatureTab() {
   const [target, setTarget] = useState(saved?.config.target ?? '');
   const [features, setFeatures] = useState<string[]>(initial.columns);
   const [extra, setExtra] = useState(initial.other.join(', '));
+  const [missingChoice, setMissing] = useState<MissingChoice>(saved?.config.missing ?? 'impute');
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,7 @@ export function TargetFeatureTab() {
   const table = facts(dataset.columns, dataset.valid_rows, dataset.schema.columns, describe.data?.columns ?? []);
   const encoded = encodedColumns(steps);
   const unencodedText = table.filter((f) => features.includes(f.name) && isTextual(f) && !encoded.has(f.name));
+  const gaps = table.filter((f) => features.includes(f.name) && f.missing > 0).map((f) => ({ name: f.name, missing: f.missing }));
 
   function toggleEncoding(name: string, on: boolean) {
     const f = table.find((x) => x.name === name)!;
@@ -55,10 +58,11 @@ export function TargetFeatureTab() {
         const expanded = expandFeatures(chosen, names, after.columns.map((c) => c.name));
         chosen = [...expanded.features, ...expanded.unresolved]; // 對不到的交給伺服器回清楚的錯誤
       }
-      const tf = await api.put<TargetFeature>(`${base}/target-feature`, { target, features: chosen, steps });
+      const tf = await api.put<TargetFeature>(`${base}/target-feature`, { target, features: chosen, steps, missing: missingChoice });
       setSaved(tf);
       setTarget(tf.config.target);
       setSteps(tf.config.steps);
+      setMissing(tf.config.missing ?? 'impute');
       const back = collapseFeatures(tf.config.features, names, encodedColumns(tf.config.steps));
       setFeatures(back.columns);
       setExtra(back.other.join(', '));
@@ -80,6 +84,12 @@ export function TargetFeatureTab() {
             <dd data-testid="saved-target">{saved.config.target}</dd>
             <dt>Feature</dt>
             <dd data-testid="saved-features">{saved.config.features.join('、')}</dd>
+            {saved.config.missing ? (
+              <>
+                <dt>有缺值的病人</dt>
+                <dd data-testid="saved-missing">{saved.config.missing === 'impute' ? '補上缺值後使用' : '不使用'}</dd>
+              </>
+            ) : null}
             <dt>前處理步驟</dt>
             <dd data-testid="saved-steps">
               {saved.config.steps.length ? saved.config.steps.map((s) => stepSummary(s, catalogue)).join(' → ') : '無'}
@@ -183,6 +193,7 @@ export function TargetFeatureTab() {
               </tbody>
             </table>
           </div>
+          <MissingChoiceField id="tf" columns={gaps} value={missingChoice} onChange={setMissing} />
           <details>
             <summary>進階：其他 Feature</summary>
             <div className="field">

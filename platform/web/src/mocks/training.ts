@@ -247,7 +247,7 @@ function source(value: unknown, kind: TrainingKind) {
 
 function tabular(value: unknown, kind: TrainingKind) {
   const raw = dict(value, '結構式設定');
-  const extra = unknownKeys(raw, ['target', 'features', 'steps', 'algorithm']);
+  const extra = unknownKeys(raw, ['target', 'features', 'steps', 'algorithm', 'missing']);
   if (extra.length) throw new ConfigError(`不支援的結構式設定：${extra.join('、')}`);
   const algorithms = ALGORITHMS[kind]!;
   const algorithm = (raw.algorithm as string) || Object.keys(algorithms)[0];
@@ -257,7 +257,9 @@ function tabular(value: unknown, kind: TrainingKind) {
   if (!Array.isArray(features) || features.length === 0) throw new ConfigError('請至少選擇一個特徵欄位（Feature）');
   if (features.includes(raw.target)) throw new ConfigError(`目標欄位「${raw.target}」不可同時作為特徵欄位`);
   const steps = Array.isArray(raw.steps) ? raw.steps : [];
-  return { value: { target: raw.target, features: [...features], steps, algorithm }, allowed: algorithms[algorithm] };
+  const missing = raw.missing;
+  if (missing !== undefined && missing !== 'impute' && missing !== 'drop') throw new ConfigError('缺值處理必須是 impute（補上缺值）或 drop（不使用有缺值的病人）');
+  return { value: { target: raw.target, features: [...features], steps, algorithm, ...(missing ? { missing } : {}) }, allowed: algorithms[algorithm] };
 }
 
 export function normalise(data: unknown): TrainingConfig {
@@ -361,7 +363,20 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       return [n, { mean: r4(mean), std: r4(std), values }];
     })),
   });
-  const rows = kfold ? { train: 80, validation: 0, test: 20 } : { train: 60, validation: 20, test: 20 };
+  const full = kfold ? { train: 80, validation: 0, test: 20 } : { train: 60, validation: 20, test: 20 };
+  // 模擬資料的 glucose 有 5 位缺值（訓練 3、驗證 1、測試 1；K 折時訓練 4、測試 1）
+  const gaps = (run.config.tabular?.features ?? []).includes('glucose')
+    ? (kfold ? { train: 4, validation: 0, test: 1 } : { train: 3, validation: 1, test: 1 })
+    : { train: 0, validation: 0, test: 0 };
+  const impute = run.config.tabular?.missing === 'impute';
+  const splitNames = ['train', 'validation', 'test'] as const;
+  const rows = impute ? full : Object.fromEntries(splitNames.map((k) => [k, full[k] - gaps[k]])) as typeof full;
+  const data = {
+    missing: impute ? 'impute' : 'drop', total: 100, used: rows,
+    left_out: Object.fromEntries(splitNames.map((k) => [k, { missing_target: 0, missing_feature: impute ? 0 : gaps[k] }])),
+    filled: Object.fromEntries(splitNames.map((k) => [k, impute ? gaps[k] : 0])),
+    missing_columns: gaps.train + gaps.test ? { glucose: 5 } : {},
+  };
   switch (kind) {
     case 'image_classification':
       return { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score } };
@@ -373,13 +388,13 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       const test = { accuracy: score, f1_macro: r4(score - 0.05), auc: r4(Math.min(0.99, score + 0.05)), sensitivity: 0.7, specificity: 0.75, baseline_accuracy: 0.55 };
       const train = { ...test, accuracy: r4(Math.min(1, score + 0.05)) };
       return {
-        rows, train, ...(kfold ? {} : { validation: test }), test, labels: { majority: '0', positive: '1' },
+        rows, data, train, ...(kfold ? {} : { validation: test }), test, labels: { majority: '0', positive: '1' },
         ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
       };
     }
     default: {
       const test = { r2: r4(score - 0.3), mae: 9.8, rmse: 12.5, baseline_rmse: 16.2 };
-      return { rows, test, ...(kfold ? { cv: cv([['r2', score - 0.3], ['mae', 9.8], ['rmse', 12.5]]) } : {}) };
+      return { rows, data, test, ...(kfold ? { cv: cv([['r2', score - 0.3], ['mae', 9.8], ['rmse', 12.5]]) } : {}) };
     }
   }
 }
@@ -447,8 +462,10 @@ function advance(run: StoredRun) {
       ? { label_names: run.config.image.labels ?? ['A', 'B'], input: { resize: [...run.config.image.resize] }, metrics: run.metrics }
       : {
           target: run.config.tabular?.target, features: run.config.tabular?.features, metrics: run.metrics,
+          missing: run.config.tabular?.missing ?? 'drop',
           ...(run.kind === 'tabular_classification' ? { classes: ['0', '1'] } : {}),
-          inputs: (run.config.tabular?.features ?? []).map((name) =>
+          // 推論時給原始欄位：One-Hot 產生的 sex_F、smoker_never… 對回 sex、smoker
+          inputs: [...new Set((run.config.tabular?.features ?? []).map((f) => f.replace(/^(sex|smoker)_.*$/, '$1')))].map((name) =>
             ['sex', 'smoker'].includes(name)
               ? { name, type: 'category' as const, values: name === 'sex' ? ['F', 'M'] : ['current', 'former', 'never'] }
               : { name, type: 'number' as const, min: 0, max: 200 }),

@@ -96,3 +96,66 @@ describe('1 One-Hot 欄位在訓練表單', () => {
     await waitFor(() => expect(within(form).queryByTestId('feature-problems')).toBeNull());
   });
 });
+
+async function finish(user: Awaited<ReturnType<typeof renderApp>>['user'], name: string) {
+  await user.click(await screen.findByRole('button', { name: `送出訓練「${name}」` }));
+  await user.click(await screen.findByRole('button', { name: '重新整理' }));
+  await user.click(screen.getByRole('button', { name: '重新整理' }));
+  await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
+}
+
+describe('2 缺值', () => {
+  it('the Target/Feature overview names the feature with gaps and saves the one-click choice', async () => {
+    const { user } = await renderApp('/data/tabular/2/target', 'pi01');
+    const form = await screen.findByRole('form', { name: '設定 Target 與 Feature' }, { timeout: 10_000 });
+    await user.click(within(form).getByRole('radio', { name: '以 diagnosis 為 Target' }));
+    await user.click(within(form).getByRole('checkbox', { name: 'age' }));
+    expect(within(form).queryByTestId('tf-missing')).toBeNull();
+    await user.click(within(form).getByRole('checkbox', { name: 'glucose' }));
+    const choice = within(form).getByTestId('tf-missing');
+    expect(choice).toHaveTextContent(/glucose 有 \d+ 位病人沒有資料（缺值）/);
+    expect(within(choice).getByRole('radio', { name: /^補上缺值，所有病人都使用（建議）/ })).toBeChecked();
+    await user.click(within(choice).getByRole('radio', { name: /^不使用這些病人/ }));
+    await user.click(within(form).getByRole('button', { name: '儲存設定' }));
+    expect(await screen.findByTestId('saved-missing')).toHaveTextContent('不使用');
+  });
+
+  it('the training form carries the dataset choice, shows it next to the features and saves it in the setting', async () => {
+    await saveTargetFeature('diagnosis', ['age', 'glucose'], [], { missing: 'impute' });
+    const { user } = await renderApp('/training?dataset=2', 'pi01');
+    const form = await screen.findByRole('form', { name: '新增訓練設定' });
+    const choice = await within(form).findByTestId('ts-missing');
+    expect(choice).toHaveTextContent(/glucose 有 \d+ 位病人沒有資料/);
+    expect(within(choice).getByRole('radio', { name: /^補上缺值/ })).toBeChecked();
+    await user.click(within(form).getByRole('button', { name: '儲存設定' }));
+    await screen.findByText(/已新增訓練設定/);
+    expect(trainingMock().settings[0].config.tabular!.missing).toBe('impute');
+  });
+
+  it('results say how many patients were used and why some were left out', async () => {
+    seed('排除', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'drop' }));
+    const { user } = await renderApp('/training', 'pi01');
+    await finish(user, '排除');
+    expect(screen.getByTestId('data-usage')).toHaveTextContent(
+      '共 100 位病人，訓練 57 位、驗證 19 位、測試 19 位。特徵有缺值的 5 位沒有使用（缺值：glucose 5 位）。');
+  });
+
+  it('results of a filled run say how many patients had values filled', async () => {
+    seed('補值', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'impute' }));
+    const { user } = await renderApp('/training', 'pi01');
+    await finish(user, '補值');
+    expect(screen.getByTestId('data-usage')).toHaveTextContent('訓練 60 位、驗證 20 位、測試 20 位。有 5 位的缺值（glucose 5 位）已用訓練資料的中位數或最常見的值補上。');
+  });
+
+  it('try-out prediction of a filled model accepts a blank value', async () => {
+    seed('補值試用', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'impute' }));
+    const { user } = await renderApp('/training', 'pi01');
+    await finish(user, '補值試用');
+    await user.click(screen.getByRole('link', { name: '部署此模型' }));
+    const tryForm = await screen.findByRole('form', { name: '試用預測' });
+    expect(tryForm).toHaveTextContent('沒有的資料可以留白');
+    await user.type(within(tryForm).getByLabelText('age'), '61');
+    await user.click(within(tryForm).getByRole('button', { name: '預測' }));
+    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/glucose 缺值，已用訓練資料的中位數補上/);
+  });
+});

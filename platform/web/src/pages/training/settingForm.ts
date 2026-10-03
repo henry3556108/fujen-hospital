@@ -1,6 +1,6 @@
 // 訓練設定表單的狀態與 API 設定（config）的雙向轉換。表單數值一律存成字串，送出時才轉型；
 // 從 API 讀回的設定轉成表單、再轉回 config，必須逐欄相同（TC-B05-02）。
-import type { Step } from '../tabular/types';
+import type { MissingChoice, Step } from '../tabular/types';
 import {
   isImageKind,
   type Catalogue,
@@ -33,6 +33,8 @@ export interface FormState {
   features: string[];
   steps: Step[];
   algorithm: string;
+  /** 有缺值的病人：補值或不使用（新設定預設補值；舊設定沒有＝不使用） */
+  missing: MissingChoice;
   /** 結構式的驗證方式（舊設定沒有＝固定比例切分） */
   validationMethod: 'holdout' | 'kfold';
   folds: string;
@@ -93,6 +95,7 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
     features: [],
     steps: [],
     algorithm,
+    missing: 'impute',
     validationMethod: 'holdout',
     folds: '5',
     train: pct(catalogue.default_split.train),
@@ -107,7 +110,7 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
 export function changeKind(catalogue: Catalogue, form: FormState, kind: TrainingKind): FormState {
   const fresh = emptyForm(catalogue, kind);
   return { ...fresh, name: form.name, train: form.train, validation: form.validation, test: form.test, seed: form.seed,
-    datasetId: form.datasetId, target: form.target, features: form.features, steps: form.steps,
+    datasetId: form.datasetId, target: form.target, features: form.features, steps: form.steps, missing: form.missing,
     validationMethod: form.validationMethod, folds: form.folds };
 }
 
@@ -150,6 +153,7 @@ export function formFromSetting(catalogue: Catalogue, setting: TrainingSetting):
     form.features = [...c.tabular.features];
     form.steps = c.tabular.steps;
     form.algorithm = c.tabular.algorithm;
+    form.missing = c.tabular.missing ?? 'drop';
     if (c.validation?.method === 'kfold') {
       form.validationMethod = 'kfold';
       form.folds = String(c.validation.folds);
@@ -185,7 +189,7 @@ export function configFromForm(catalogue: Catalogue, form: FormState): TrainingC
       ...base,
       source: { type: 'tabular', dataset_id: Number(form.datasetId) },
       validation: kfold ? { method: 'kfold', folds: Number(form.folds) } : { method: 'holdout' },
-      tabular: { target: form.target, features: form.features, steps: form.steps, algorithm: form.algorithm },
+      tabular: { target: form.target, features: form.features, steps: form.steps, algorithm: form.algorithm, missing: form.missing },
     };
   }
   const labels = list(form.labels);
