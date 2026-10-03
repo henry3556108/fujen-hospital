@@ -5,14 +5,16 @@
   tabular.algorithm                 linear_regression｜random_forest｜gradient_boosting
   hyperparameters                   傳給演算法的參數
   split、seed                       訓練／驗證／測試比例與亂數種子
+  validation                        {"method": "holdout"}（預設）或 {"method": "kfold", "folds": 5}
+
+產出：model.pkl、preprocess.pkl、metrics.json（K 折時含 cv 的平均與標準差）、charts.json（預測值對實際值、
+殘差分布、特徵重要性）、splits.json、model_card.json。
 """
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 import runtime
 import tabularkit
@@ -30,18 +32,23 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     if not pd.api.types.is_numeric_dtype(y_train):
         raise ValueError(f"目標欄位「{config['tabular']['target']}」不是數值，無法訓練迴歸模型")
     algorithm = config["tabular"]["algorithm"]
-    model = ALGORITHMS[algorithm](int(config["seed"]), config.get("hyperparameters") or {})
-    model.fit(x_train, y_train.astype("float64"))
+    seed, hyper = int(config["seed"]), config.get("hyperparameters") or {}
+
+    def fit(x, y):
+        model = ALGORITHMS[algorithm](seed, hyper)
+        model.fit(x, y.astype("float64"))
+        return model
 
     metrics = {"rows": {name: len(part[0]) for name, part in prepared["data"].items()}}
+    if prepared["folds"]:
+        metrics["cv"] = tabularkit.cross_validate(
+            config, prepared, lambda xt, yt, xv, yv: tabularkit.regression_metrics(fit(xt, yt), xv, yv))
+    model = fit(x_train, y_train)
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
-            predicted = model.predict(x)
-            y = y.astype("float64")
-            metrics[name] = {"r2": float(r2_score(y, predicted)) if len(x) > 1 else None,
-                             "mae": float(mean_absolute_error(y, predicted)),
-                             "rmse": float(np.sqrt(mean_squared_error(y, predicted)))}
-    return tabularkit.save(out_dir, config=config, prepared=prepared, model=model, metrics=metrics, card={})
+            metrics[name] = tabularkit.regression_metrics(model, x, y)
+    return tabularkit.save(out_dir, config=config, prepared=prepared, model=model, metrics=metrics, card={},
+                           charts=tabularkit.charts(config, prepared, model))
 
 
 if __name__ == "__main__":

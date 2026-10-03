@@ -5,12 +5,15 @@
   tabular.algorithm                 logistic_regression｜random_forest｜gradient_boosting
   hyperparameters                   傳給演算法的參數（例如 {"C": 1.0} 或 {"n_estimators": 50}）
   split、seed                       訓練／驗證／測試比例與亂數種子
+  validation                        {"method": "holdout"}（預設）或 {"method": "kfold", "folds": 5}
+
+產出：model.pkl、preprocess.pkl、metrics.json（K 折時含 cv 的平均與標準差）、charts.json（混淆矩陣、
+ROC 曲線〔二元分類〕、特徵重要性）、splits.json、model_card.json。
 """
 from pathlib import Path
 
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, f1_score
 
 import runtime
 import tabularkit
@@ -22,24 +25,36 @@ ALGORITHMS = {
 }
 
 
+def fit(make, x, y, *, where="訓練資料"):
+    y = y.astype(str)
+    if y.nunique() < 2:
+        raise ValueError(f"{where}的目標欄位只有一種類別，無法訓練分類模型")
+    model = make()
+    model.fit(x, y)
+    return model
+
+
 def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     prepared = tabularkit.prepare(config, data_dir)
-    x_train, y_train, _ = prepared["data"]["train"]
-    y_train = y_train.astype(str)
-    if y_train.nunique() < 2:
-        raise ValueError("訓練資料的目標欄位只有一種類別，無法訓練分類模型")
     algorithm = config["tabular"]["algorithm"]
-    model = ALGORITHMS[algorithm](int(config["seed"]), config.get("hyperparameters") or {})
-    model.fit(x_train, y_train)
+    seed, hyper = int(config["seed"]), config.get("hyperparameters") or {}
+
+    def make():
+        return ALGORITHMS[algorithm](seed, hyper)
 
     metrics = {"rows": {name: len(part[0]) for name, part in prepared["data"].items()}}
+    if prepared["folds"]:
+        metrics["cv"] = tabularkit.cross_validate(
+            config, prepared, lambda xt, yt, xv, yv: tabularkit.classification_metrics(
+                fit(make, xt, yt, where="交叉驗證某一折的訓練資料"), xv, yv))
+    x_train, y_train, _ = prepared["data"]["train"]
+    model = fit(make, x_train, y_train)
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
-            predicted = model.predict(x)
-            metrics[name] = {"accuracy": float(accuracy_score(y.astype(str), predicted)),
-                             "f1_macro": float(f1_score(y.astype(str), predicted, average="macro", zero_division=0))}
+            metrics[name] = tabularkit.classification_metrics(model, x, y)
     return tabularkit.save(out_dir, config=config, prepared=prepared, model=model, metrics=metrics,
-                           card={"classes": [str(c) for c in model.classes_]})
+                           card={"classes": [str(c) for c in model.classes_]},
+                           charts=tabularkit.charts(config, prepared, model))
 
 
 if __name__ == "__main__":

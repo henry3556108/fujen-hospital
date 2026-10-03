@@ -22,7 +22,8 @@ import httpx
 
 PACKAGE = Path(__file__).resolve().parent
 TEMPLATES = PACKAGE / "templates"
-UPLOADS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json")
+UPLOADS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json",
+           "charts.json")
 # 子程序可以看到的環境變數：只有執行 Python 所需的
 PASS_THROUGH = ("PATH", "LANG", "LC_ALL", "TRAIN_THREADS", "TF_CPP_MIN_LOG_LEVEL", "CUDA_VISIBLE_DEVICES",
                 "LD_LIBRARY_PATH", "NVIDIA_VISIBLE_DEVICES")
