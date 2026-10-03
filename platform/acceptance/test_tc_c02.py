@@ -189,8 +189,12 @@ def test_tc_c02_04_alerts_delivered_once_each(kube, tmp_path):
         except AssertionError:
             raise AssertionError(f"Mailpit 沒有收齊 3 類告警：{[m['Subject'] for m in mails()]}")
         # 告警持續中，再等超過 group_interval（1 分鐘）＋評估週期：同一告警不可重寄
-        firing = {a["labels"]["alertname"] for a in httpx.get(f"{ALERTMANAGER}/api/v2/alerts", timeout=10).json()}
-        assert set(expected) <= firing
+        alerts = httpx.get(f"{ALERTMANAGER}/api/v2/alerts", timeout=10).json()
+        assert set(expected) <= {a["labels"]["alertname"] for a in alerts}
+        # 3 類事件各走自己的發送規則（Alertmanager 依 category 分 3 條路由）
+        categories = {a["labels"]["alertname"]: a["labels"].get("category") for a in alerts
+                      if a["labels"]["alertname"] in expected}
+        assert categories == {"PlatformJobFailed": "job-failure", "HighPodCpu": "resource", "NodeNotReady": "node"}
         time.sleep(90)
         counts = {a: len(mails_about(a, m)) for a, m in expected.items()}
         assert counts == {a: 1 for a in expected}, counts

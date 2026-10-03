@@ -59,14 +59,20 @@ kind 不支援擴充既有叢集，所以 `add-node.sh` 用與 kind worker 相�
   以及平台（`ai-platform`）有 `/metrics` 的服務：api、apisix、keycloak、minio（工作 `ai-platform-pods`，依 Pod 註記探索，見 `platform/deploy/k8s/README.md`「監控」）。
   抓取工作名稱與 Deployment／StatefulSet 同名，方便比對覆蓋率。沒有 `/metrics` 的服務（Mailpit、web-echo、平台的 postgres、orthanc 等）
   以 cAdvisor 的容器指標覆蓋，清單與原因在 `platform/compliance/policy/monitoring.yaml`。覆蓋檢查：`cd platform/compliance && uv run python -m compliance monitoring`。
-- 告警規則（`monitoring/prometheus.yaml`）：
+- 告警：**3 類事件、3 條發送規則**（合約 C-02「定義告警事件分類 3 類、告警發送規則 3 條並各觸發測試 1 次」）。
+  告警規則（`monitoring/prometheus.yaml`）以 `category` 標籤分類；Alertmanager（`monitoring/alertmanager.yaml`）的 `route.routes`
+  一類一條路由，都寄到維運信箱（開發環境 Mailpit 的 `ops@ai-platform.local`，甲方換成甲方告警信箱），各自設定分組與重寄間隔：
 
-  | 規則 | 條件 |
-  |---|---|
-  | `PlatformJobFailed` | `platform-jobs` 內有 Job 在最近 15 分鐘內失敗（失敗的 Job 保留 24 小時供查紀錄，15 分鐘後告警自動解除，每次失敗只寄一封） |
-  | `NodeNotReady` | 節點 Ready≠true 持續 10 秒（controller-manager 的 node-monitor-grace-period 設為 20 秒） |
-  | `HighPodCpu` | 單一 Pod CPU 使用超過 0.8 核持續 20 秒 |
+  | 類別（`category`） | 告警規則 | 條件 | 發送規則（路由）的分組 | 重寄間隔 |
+  |---|---|---|---|---|
+  | `job-failure` 平台工作失敗 | `PlatformJobFailed`（warning） | `platform-jobs` 內有 Job 在最近 15 分鐘內失敗（失敗的 Job 保留 24 小時供查紀錄，15 分鐘後告警自動解除，每次失敗只寄一封） | `alertname, namespace, job_name`：每個 Job 一封 | 4 小時 |
+  | `resource` 資源異常 | `HighPodCpu`（warning） | 單一 Pod CPU 使用超過 0.8 核持續 20 秒 | `alertname, namespace, pod, node`：每個 Pod 一封 | 4 小時 |
+  | `node` 節點失聯 | `NodeNotReady`（critical） | 節點 Ready≠true 持續 10 秒（controller-manager 的 node-monitor-grace-period 設為 20 秒） | `alertname, node`：每個節點一封 | 4 小時 |
 
+  三條路由的 `group_wait` 5 秒、`group_interval` 1 分鐘；一則告警只走一條路由（不設 `continue`），所以只寄一封。
+  沒有 `category` 的告警走最上層的預設路由，仍會寄出。靜態檢查（`platform/compliance/tests/test_monitoring_config.py`）以 amtool
+  確認每類告警走到自己的路由，並以 promtool 驗證 `PlatformJobFailed` 只在失敗當下觸發；TC-C02-04（`platform/acceptance/test_tc_c02.py`）
+  在叢集上 3 類各觸發 1 次，每類恰好 1 封。
 - 重複抑制（`monitoring/alertmanager.yaml`）：同一告警群組只寄一次，`repeat_interval` 4 小時內不重寄、不寄「已解除」；
   節點未就緒時抑制同節點上的 warning。`HighPodCpu` 另設 `keep_firing_for: 5m`、`NodeNotReady` 設 1 分鐘：條件短暫低於門檻再回來
   （例如 CPU 在 0.8 核上下抖動）不會被 Alertmanager 當成新事件重寄。反過來說，同一節點在這段時間內再次失聯也算同一件事，不會再寄。

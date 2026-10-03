@@ -143,8 +143,8 @@ FAILED = 'kube_job_status_failed{namespace="platform-jobs",job_name="%s",reason=
 
 
 def job_failed_alert(job: str) -> dict:
-    return {"exp_labels": {"alertname": "PlatformJobFailed", "severity": "warning", "namespace": "platform-jobs",
-                           "job_name": job, "reason": "BackoffLimitExceeded"},
+    return {"exp_labels": {"alertname": "PlatformJobFailed", "severity": "warning", "category": "job-failure",
+                           "namespace": "platform-jobs", "job_name": job, "reason": "BackoffLimitExceeded"},
             "exp_annotations": {"summary": f"平台工作 {job} 失敗"}}
 
 
@@ -162,7 +162,7 @@ def test_platform_job_failed_fires_once_per_failure_and_ignores_old_failures(tmp
             {"eval_time": "21m", "alertname": "PlatformJobFailed",
              "exp_alerts": [job_failed_alert("job-new"),
                             {"exp_labels": {"alertname": "PlatformJobFailed", "severity": "warning",
-                                            "namespace": "platform-jobs", "job_name": "job-flip"},
+                                            "category": "job-failure", "namespace": "platform-jobs", "job_name": "job-flip"},
                              "exp_annotations": {"summary": "平台工作 job-flip 失敗"}}]},
             # 15 分鐘後自動解除：Alertmanager 只寄過一次（不寄已解除），不會每 4 小時重寄
             {"eval_time": "36m", "alertname": "PlatformJobFailed", "exp_alerts": []},
@@ -171,3 +171,43 @@ def test_platform_job_failed_fires_once_per_failure_and_ignores_old_failures(tmp
     }]
     result = promtool_rules(tmp_path, tests)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# 合約：「定義告警事件分類 3 類、告警發送規則 3 條並各觸發測試 1 次」。一類事件一條發送路由（Alertmanager route），
+# 由告警規則的 category 標籤對應；每條路由寄到維運信箱，各自設定分組與重寄間隔。
+CATEGORIES = {"PlatformJobFailed": "job-failure", "HighPodCpu": "resource", "NodeNotReady": "node"}
+
+
+def alertmanager_config() -> dict:
+    docs = list(yaml.safe_load_all((MONITORING / "alertmanager.yaml").read_text(encoding="utf-8")))
+    [cm] = [d for d in docs if d and d["kind"] == "ConfigMap" and d["metadata"]["name"] == "alertmanager-config"]
+    return yaml.safe_load(cm["data"]["alertmanager.yml"])
+
+
+def test_three_alert_rules_in_three_categories():
+    rules = [r for g in yaml.safe_load(prometheus_config()["rules.yml"])["groups"] for r in g["rules"]]
+    assert {r["alert"]: r["labels"].get("category") for r in rules} == CATEGORIES
+
+
+def test_three_mail_routes_one_per_category():
+    config = alertmanager_config()
+    routes = config["route"]["routes"]
+    assert [r["matchers"] for r in routes] == [[f"category = {c}"] for c in CATEGORIES.values()]
+    mail = {r["name"] for r in config["receivers"] if r.get("email_configs")}
+    for r in routes:
+        assert r["receiver"] in mail
+        assert r.get("continue", False) is False   # 一則告警只走一條路由，只寄一封
+        for key in ("group_by", "group_wait", "group_interval", "repeat_interval"):
+            assert key in r, (r["matchers"], key)
+
+
+def test_amtool_routes_each_category_to_its_own_route(tmp_path):
+    (tmp_path / "alertmanager.yml").write_text(yaml.safe_dump(alertmanager_config(), allow_unicode=True),
+                                               encoding="utf-8")
+    check = run_tool("amtool", ALERTMANAGER_IMAGE, tmp_path, "check-config", "alertmanager.yml")
+    assert check.returncode == 0, check.stdout + check.stderr
+    for alert, category in CATEGORIES.items():
+        result = run_tool("amtool", ALERTMANAGER_IMAGE, tmp_path, "config", "routes", "test",
+                          "--config.file=alertmanager.yml", "--tree", f"alertname={alert}", f"category={category}")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert f'{{category="{category}"}}' in result.stdout, result.stdout

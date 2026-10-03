@@ -1,4 +1,4 @@
-# Prometheus：抓取平台監控目標，評估 3 條告警規則，送到 Alertmanager。
+# Prometheus：抓取平台監控目標，評估 3 條告警規則（3 類事件，以 category 標籤區分），送到 Alertmanager。
 # 抓取工作（job）名稱與被監控的 Deployment／StatefulSet 同名，TC-C02-01 直接用名稱比對覆蓋率。
 apiVersion: v1
 kind: ServiceAccount
@@ -101,7 +101,7 @@ data:
             expr: |
               kube_job_status_failed{namespace="platform-jobs"} > 0
                 unless kube_job_status_failed{namespace="platform-jobs"} offset 15m > 0
-            labels: { severity: warning }
+            labels: { severity: warning, category: job-failure }
             annotations:
               summary: "平台工作 {{ $labels.job_name }} 失敗"
           - alert: NodeNotReady
@@ -109,14 +109,14 @@ data:
             for: 10s
             # 條件短暫消失再出現會被 Alertmanager 視為新事件而重寄；維持 1 分鐘吸收節點心跳抖動
             keep_firing_for: 1m
-            labels: { severity: critical }
+            labels: { severity: critical, category: node }
             annotations:
               summary: "節點 {{ $labels.node }} 未就緒"
           - alert: HighPodCpu
             expr: sum by (namespace, pod, node) (rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[1m])) > 0.8
             for: 20s
             keep_firing_for: 5m
-            labels: { severity: warning }
+            labels: { severity: warning, category: resource }
             annotations:
               summary: "{{ $labels.namespace }}/{{ $labels.pod }} CPU 使用率超過 0.8 核"
 ---
@@ -134,7 +134,7 @@ spec:
       labels: { app: prometheus }
       annotations:
         # 設定變更時手動 rollout restart；這裡只記錄版本
-        platform/config-version: "3"
+        platform/config-version: "4"
     spec:
       serviceAccountName: prometheus
       nodeSelector: { platform/pool: cpu-web }
