@@ -43,7 +43,8 @@ def test_tc_b06_01_batch_inference_on_test_split(client, pi, project, backend, t
     assert out["status"] == "succeeded" and out["count"] == 20 and out["mode"] == "batch"
     result = out["result"]
     assert result["prediction_column"] == "prediction" and result["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"]
-    assert "diagnosis" not in result["columns"], "不把答案送進推論"
+    # 送進模型的輸入不含答案（見 test_train_batch 的 input.csv）；結果把實際值放回原位置，方便對照預測對不對
+    assert result["columns"].index("diagnosis") < result["columns"].index("prediction")
     assert all(r[-2] != "" or r[-1] for r in result["rows"])
     everything = run_batch(client, backend, pi, batch(client, pi, project.id, tabular_model["id"], "all"),
                            tmp_path / "all")

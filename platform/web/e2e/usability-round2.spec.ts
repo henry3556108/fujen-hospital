@@ -49,7 +49,7 @@ test.describe('使用性第二輪', () => {
 
     await page.goto('/inference');
     await page.getByRole('button', { name: '選擇 lung-clinical 訓練-run1' }).click();
-    await page.getByRole('form', { name: '批次推論' }).getByRole('button', { name: '批次推論' }).click();
+    await page.getByRole('form', { name: '多位病人一起預測' }).getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-summary')).toContainText('共 20 位，20 位有預測結果。其中 1 位有缺值');
     await expectNoHorizontalOverflow(page);
   });

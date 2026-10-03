@@ -190,7 +190,7 @@ test.describe('AI 模型部署', () => {
     const shared = page.getByRole('table', { name: '模型清單' }).getByRole('row', { name: /diagnosis-rf-run1/ });
     await expect(shared).toContainText('pi01 分享給你');
     await expect(shared.getByRole('button', { name: '已選擇' })).toBeDisabled();
-    await page.getByRole('form', { name: '批次推論' }).getByRole('button', { name: '批次推論' }).click();
+    await page.getByRole('form', { name: '多位病人一起預測' }).getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-summary')).toContainText(/^共 20 位/);
     await snap(page, testInfo.project.name, 'deployment/md01-inference');
 

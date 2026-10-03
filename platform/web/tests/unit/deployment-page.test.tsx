@@ -103,7 +103,7 @@ describe('AI 模型部署', () => {
     const row = within(models).getByRole('row', { name: /心臟科訓練（模型名稱：心臟科訓練-run1）/ });
     expect(row).toHaveTextContent('pi01 分享給你');
     expect(within(row).getByRole('button', { name: '已選擇' })).toBeDisabled();
-    await second.user.click(screen.getByRole('button', { name: '批次推論' }));
+    await second.user.click(screen.getByRole('button', { name: '多位病人一起預測' }));
     expect(await screen.findByTestId('table-summary', {}, { timeout: 10_000 })).toHaveTextContent(/^共 20 位/);
   });
 

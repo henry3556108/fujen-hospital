@@ -226,11 +226,11 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByRole('heading', { level: 1, name: '推論服務管理' })).toBeVisible();
     await page.getByRole('button', { name: '選擇 modality-cnn-run2' }).click();
     await page.getByLabel('影像檔').setInputFiles([DICOM(0), DICOM(1)]);
-    await page.getByRole('button', { name: '上傳並推論' }).click();
+    await page.getByRole('button', { name: '上傳並預測' }).click();
     const cards = page.getByTestId('image-result');
     await expect(cards).toHaveCount(2);
     await expect(cards.first().getByTestId('result-label')).toHaveText(/^分類：(CT|MR)（\d+%）$/);
-    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
+    await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
   });
 
   test('段落 5：FHIR 資料來源、對應規則、排程', async ({ page }) => {

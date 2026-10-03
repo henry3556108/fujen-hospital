@@ -153,8 +153,11 @@ const inferenceHandlers = [
       const results = Array.from({ length: 20 }, (_, i) => imageResult(model, `study_${String(i + 1).padStart(4, '0')}/IM0001.dcm`));
       return json(view(store(ctx, model, 'batch', { results, label_names: model.card.label_names ?? [] })), 202);
     }
-    const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120' }));
-    return json(view(store(ctx, model, 'batch', tabular(model, rows, ['patient_id', ...FEATURES]))), 202);
+    // 結果保留實際值（照 batch._result：送進模型的輸入不含答案，結果把實際值放回原位置）
+    const target = model.card.target;
+    const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120',
+      ...(target ? { [target]: String(hash(`P${1000 + i}`) % 2) } : {}) }));
+    return json(view(store(ctx, model, 'batch', tabular(model, rows, ['patient_id', ...FEATURES, ...(target ? [target] : [])]))), 202);
   }),
   http.post(`${API}/models/:mid/inference/upload`, async ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');

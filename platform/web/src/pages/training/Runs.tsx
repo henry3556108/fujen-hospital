@@ -211,11 +211,16 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
       {run.status === 'succeeded' && run.model_id !== null ? (
         <div className="row-actions">
           {canDeploy ? (
-            <Link className="btn btn--primary" to={`/deployment?model=${run.model_id}`}>
-              分享給同事使用
-            </Link>
+            <>
+              <Link className="btn btn--primary" to={`/inference?model=${run.model_id}`}>
+                用這個模型預測病人
+              </Link>
+              <Link className="btn btn--secondary" to={`/deployment?model=${run.model_id}`}>
+                分享給同事使用
+              </Link>
+            </>
           ) : (
-            <span className="text-muted">分享模型需要 Prediction 權限，請聯絡專案負責人。</span>
+            <span className="text-muted">預測病人與分享模型需要 Prediction 權限，請聯絡專案負責人。</span>
           )}
         </div>
       ) : null}

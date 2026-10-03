@@ -7,6 +7,9 @@ import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingConfig, TrainingKind, TrainingRun } from '../../src/pages/training/api';
 import { verdict, warnings } from '../../src/pages/training/metrics';
 import { renderApp } from '../render';
+import { resetInferenceMock } from '../../src/mocks/inference';
+import { inferencePolling, type Model } from '../../src/pages/inference/api';
+import { correctness } from '../../src/pages/inference/InferencePage';
 import { createApiClient } from '../../src/api/client';
 import { featureCountText } from '../../src/pages/tabular/columnOverview';
 import { savedSummary } from '../../src/pages/tabular/TargetFeatureTab';
@@ -186,5 +189,55 @@ describe('4 數目與使用者的操作一致', () => {
       .toBeInTheDocument();
     expect(screen.getByText(/前處理步驟 1 個（在「數據管理」的資料集設定）：One-Hot 編碼：sex/)).toBeInTheDocument();
     expect(screen.queryByText(/：onehot/)).toBeNull();
+  });
+});
+
+describe('5 在結果旁預測病人', () => {
+  beforeEach(() => Object.assign(inferencePolling, { firstMs: 1, maxMs: 5 }));
+  afterEach(() => {
+    resetInferenceMock();
+    Object.assign(inferencePolling, { firstMs: 1000, maxMs: 5000 });
+  });
+
+  it('a finished run links to prediction with the model already chosen', async () => {
+    seed('cls', tabularConfig('tabular_classification'));
+    const { user } = await renderApp('/training', 'pi01');
+    await finish(user, 'cls');
+    const link = screen.getByRole('link', { name: '用這個模型預測病人' });
+    const id = trainingMock().runs[0].model_id;
+    expect(link).toHaveAttribute('href', `/inference?model=${id}`);
+  });
+
+  it('the prediction page opens on that model with one patient and many patients; the batch result shows right or wrong', async () => {
+    const { user } = await renderApp('/inference?model=102', 'pi01');
+    expect(await screen.findByRole('heading', { name: '預測：modality-cnn-run2' })).toBeInTheDocument();
+    expect(screen.getByText('用模型預測病人')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '推論服務管理' })).toBeInTheDocument();
+    await user.click(within(screen.getByRole('table', { name: '模型清單' })).getByRole('button', { name: '選擇 diagnosis-rf-run1' }));
+
+    // 一位病人：模型已選好，不必再選
+    const one = await screen.findByRole('form', { name: '一位病人' });
+    expect(within(one).getByLabelText('模型', { selector: 'select' }).closest('[hidden]')).not.toBeNull();
+    for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
+    await user.click(within(one).getByRole('button', { name: '預測' }));
+    expect(await within(one).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「[01]」的機率 \d+%/);
+    expect(await within(await screen.findByRole('table', { name: '預測紀錄' })).findByRole('row', { name: /#1/ })).toBeInTheDocument();
+
+    // 多位病人：測試資料含實際的 diagnosis → 預測對／錯與一行統計
+    await user.click(screen.getByRole('button', { name: '多位病人一起預測' }));
+    const table = await screen.findByRole('table', { name: '預測結果' });
+    expect(await screen.findByTestId('table-correct')).toHaveTextContent(/^有實際的 diagnosis 可以對照：\d+ 位中預測對 \d+ 位（\d+%）。$/);
+    const marks = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[4].textContent);
+    expect(marks.every((m) => m === '對' || m === '錯' || m === '—')).toBe(true);
+    expect(within(table).queryByRole('columnheader', { name: 'prediction' })).toBeNull();
+  });
+
+  it('correctness compares numbers and text, and skips rows without a prediction', () => {
+    const model = { kind: 'tabular_classification', card: { target: 'diagnosis' } } as Model;
+    const result = { columns: ['id', 'diagnosis', 'prediction', 'prediction_note'], prediction_column: 'prediction',
+      rows: [['a', '1', '1.0', ''], ['b', '0', '1', ''], ['c', '1', '', '特徵含缺值，無法預測'], ['d', 'yes', 'yes', '']] };
+    expect(correctness(result, model)).toEqual({ column: 'diagnosis', marks: ['對', '錯', '', '對'], right: 2, total: 3 });
+    expect(correctness({ ...result, columns: ['id', 'x', 'prediction', 'prediction_note'] }, model)).toBeNull();
+    expect(correctness(result, { ...model, kind: 'tabular_regression' } as Model)).toBeNull();
   });
 });
