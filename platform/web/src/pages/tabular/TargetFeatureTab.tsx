@@ -1,29 +1,45 @@
 import { useState, type FormEvent } from 'react';
+import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
 import { useProjectAccess } from '../data/access';
+import { collapseFeatures, encode, encodedColumns, expandFeatures, facts, hints, isTextual, typeLabel, unencode } from './columnOverview';
 import { useDataset } from './DatasetLayout';
 import { StepsEditor, stepSummary } from './StepsEditor';
-import type { TargetFeature } from './types';
+import type { Describe, PipelinePreview, TargetFeature } from './types';
 
-/** TC-B04-03 Target 與 Feature：儲存後以伺服器回傳的設定為準；需要 Training 權限才能儲存。 */
+/** TC-B04-03 Target 與 Feature：欄位總覽表上選 Target（單選）與 Feature（勾選）；需要 Training 權限才能儲存。 */
 export function TargetFeatureTab() {
   const { api } = useSession();
   const { can, missing } = useProjectAccess();
   const { dataset, base, catalogue, steps, setSteps, saved, setSaved } = useDataset();
   const writable = can('training');
+  const describe = useResource(() => api.get<Describe>(`${base}/describe`), [base]);
+  const names = dataset.columns.map((c) => c.name);
+  // 已儲存的 Feature 對回原始欄位（sex_F、sex_M → sex），只在第一次顯示時還原
+  const [initial] = useState(() => collapseFeatures(saved?.config.features ?? [], names, encodedColumns(saved?.config.steps ?? [])));
   const [target, setTarget] = useState(saved?.config.target ?? '');
-  const [features, setFeatures] = useState<string[]>(saved?.config.features ?? []);
-  const [extra, setExtra] = useState('');
+  const [features, setFeatures] = useState<string[]>(initial.columns);
+  const [extra, setExtra] = useState(initial.other.join(', '));
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const names = dataset.columns.map((c) => c.name);
-  // 已儲存的設定可能含前處理產生的欄位（例如 One-Hot 後的 sex_M），不在原始欄位清單內
-  const derived = [...new Set([saved?.config.target, ...(saved?.config.features ?? [])].filter((c): c is string => !!c && !names.includes(c)))];
-  const options = [...names, ...derived];
+  const table = facts(dataset.columns, dataset.valid_rows, dataset.schema.columns, describe.data?.columns ?? []);
+  const encoded = encodedColumns(steps);
+  const unencodedText = table.filter((f) => features.includes(f.name) && isTextual(f) && !encoded.has(f.name));
+
+  function toggleEncoding(name: string, on: boolean) {
+    const f = table.find((x) => x.name === name)!;
+    setSteps(on ? encode(steps, name, f.kind === 'numeric') : unencode(steps, name));
+  }
+
+  function chooseTarget(name: string) {
+    setTarget(name);
+    setFeatures((fs) => fs.filter((x) => x !== name));
+    if (encoded.has(name)) setSteps(unencode(steps, name)); // Target 不做 One-Hot
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,16 +48,20 @@ export function TargetFeatureTab() {
     setNotice(null);
     const typed = extra.split(/[,，\s]+/).filter(Boolean);
     try {
-      const tf = await api.put<TargetFeature>(`${base}/target-feature`, {
-        target,
-        features: [...new Set([...features, ...typed])].filter((f) => f !== target),
-        steps,
-      });
+      // One-Hot 等步驟會把原欄位換成新欄位：以前處理後的欄位為準，Feature 跟著換
+      let chosen = [...new Set([...features, ...typed])].filter((f) => f !== target);
+      if (steps.length) {
+        const after = await api.post<PipelinePreview>(`${base}/preprocess/preview`, { steps, offset: 0, limit: 1 });
+        const expanded = expandFeatures(chosen, names, after.columns.map((c) => c.name));
+        chosen = [...expanded.features, ...expanded.unresolved]; // 對不到的交給伺服器回清楚的錯誤
+      }
+      const tf = await api.put<TargetFeature>(`${base}/target-feature`, { target, features: chosen, steps });
       setSaved(tf);
       setTarget(tf.config.target);
-      setFeatures(tf.config.features);
       setSteps(tf.config.steps);
-      setExtra('');
+      const back = collapseFeatures(tf.config.features, names, encodedColumns(tf.config.steps));
+      setFeatures(back.columns);
+      setExtra(back.other.join(', '));
       setNotice(`已儲存：Target ${tf.config.target}，${tf.config.features.length} 個 Feature，${tf.config.steps.length} 個前處理步驟`);
     } catch (err) {
       setError(err);
@@ -75,53 +95,103 @@ export function TargetFeatureTab() {
       </section>
 
       {notice && <Alert tone="success">{notice}</Alert>}
-      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} />}
       {writable ? (
         <form aria-label="設定 Target 與 Feature" className="card section" onSubmit={submit} noValidate>
-          <h3>設定</h3>
+          <h3>欄位總覽與設定</h3>
+          <ul className="text-muted">
+            <li>
+              <strong>Target</strong>：要預測的欄位（例如是否診斷為疾病），只能選一個。
+            </li>
+            <li>
+              <strong>Feature</strong>：用來預測的欄位（例如年齡、血壓），可選多個。
+            </li>
+            <li>
+              <strong>當作類別</strong>：把類別拆成多個 0／1 欄位（One-Hot 編碼），模型才能使用文字或代碼欄位；例如性別 sex 變成 sex_F、sex_M。
+            </li>
+          </ul>
           <ApiErrorAlert error={error} />
-          <div className="field">
-            <label htmlFor="tf-target">Target（目標欄位）</label>
-            <select
-              id="tf-target"
-              className="select"
-              value={target}
-              onChange={(e) => {
-                setTarget(e.target.value);
-                setFeatures((f) => f.filter((x) => x !== e.target.value));
-              }}
-            >
-              <option value="">請選擇</option>
-              {options.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+          <ApiErrorAlert error={describe.error} />
+          {unencodedText.length > 0 && (
+            <Alert tone="warning" title="有 Feature 還不能用來訓練">
+              <p>{unencodedText.map((f) => f.name).join('、')} 是文字或類別，需要先轉成 One-Hot（0／1 欄位）。</p>
+              <button
+                type="button"
+                className="btn btn--secondary btn--small"
+                onClick={() => setSteps(unencodedText.reduce((s, f) => encode(s, f.name, false), steps))}
+              >
+                全部轉成 One-Hot
+              </button>
+            </Alert>
+          )}
+          <div className="table-wrap">
+            <table aria-label="欄位總覽">
+              <thead>
+                <tr>
+                  <th scope="col">欄名</th>
+                  <th scope="col">型態</th>
+                  <th scope="col" className="num">
+                    缺值
+                  </th>
+                  <th scope="col" className="num">
+                    不同值
+                  </th>
+                  <th scope="col">Target</th>
+                  <th scope="col">Feature</th>
+                  <th scope="col">當作類別</th>
+                  <th scope="col">提示</th>
+                </tr>
+              </thead>
+              <tbody>
+                {table.map((f) => {
+                  const role = f.name === target ? 'target' : features.includes(f.name) ? 'feature' : 'none';
+                  const isOn = encoded.has(f.name);
+                  return (
+                    <tr key={f.name}>
+                      <th scope="row">{f.name}</th>
+                      <td>{typeLabel(f)}</td>
+                      <td className="num">{f.missing}</td>
+                      <td className="num">{f.unique}</td>
+                      <td>
+                        <input type="radio" name="tf-target" aria-label={`以 ${f.name} 為 Target`} checked={f.name === target} onChange={() => chooseTarget(f.name)} />
+                      </td>
+                      <td>
+                        {f.name !== target && (
+                          <input
+                            type="checkbox"
+                            aria-label={f.name}
+                            checked={features.includes(f.name)}
+                            onChange={(e) => setFeatures(e.target.checked ? [...features, f.name] : features.filter((x) => x !== f.name))}
+                          />
+                        )}
+                      </td>
+                      <td>
+                        {f.name !== target && f.kind !== 'datetime' && f.kind !== 'boolean' && (
+                          <input type="checkbox" role="switch" aria-label={`${f.name} 當作類別`} checked={isOn} onChange={(e) => toggleEncoding(f.name, e.target.checked)} />
+                        )}
+                      </td>
+                      <td>
+                        {hints(f, role, isOn).map((h) => (
+                          <div key={h.text} className={`column-hint${h.warn ? ' column-hint--warn' : ''}`}>
+                            {h.warn ? '⚠ ' : ''}
+                            {h.text}
+                          </div>
+                        ))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <fieldset>
-            <legend>Feature（特徵欄位）</legend>
-            <div className="col-picker">
-              {options
-                .filter((c) => c !== target)
-                .map((c) => (
-                  <label key={c} className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={features.includes(c)}
-                      onChange={(e) => setFeatures(e.target.checked ? [...features, c] : features.filter((f) => f !== c))}
-                    />
-                    {c}
-                  </label>
-                ))}
-            </div>
+          <details>
+            <summary>進階：其他 Feature</summary>
             <div className="field">
               <label htmlFor="tf-extra">其他 Feature（前處理產生的新欄位，以逗號分隔）</label>
               <input id="tf-extra" className="input" value={extra} onChange={(e) => setExtra(e.target.value)} />
             </div>
-          </fieldset>
+          </details>
           <p className="text-muted">
-            會一起儲存的前處理步驟：{steps.length ? steps.map((s) => stepSummary(s, catalogue)).join(' → ') : '無'}
+            會一起儲存的前處理步驟：{steps.length ? steps.map((s) => stepSummary(s, catalogue)).join(' → ') : '無'}。儲存時 Feature 會自動換成 One-Hot 產生的欄位。
           </p>
           <div className="row-actions">
             <button type="submit" className="btn btn--primary" disabled={busy}>
@@ -134,6 +204,7 @@ export function TargetFeatureTab() {
           {missing('training', '儲存 Target 與 Feature 設定')}
         </Alert>
       )}
+      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} />}
     </>
   );
 }
