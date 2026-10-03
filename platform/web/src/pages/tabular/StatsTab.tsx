@@ -219,13 +219,19 @@ export function StatsTab() {
   const [busy, setBusy] = useState(false);
   const survival = model === 'kaplan-meier' || model === 'cox';
   const picksVariables = model !== 'kaplan-meier';
+  // 只排除「目前模型」用到的欄位：迴歸排除結果欄位，存活分析排除時間與事件欄位。
+  // 其他模型選過的欄位（例如 Linear 的結果 sbp）切到 Cox 後要能當共變項。
+  const excluded = survival ? [duration, event] : [target];
+  const candidates = names.filter((c) => !excluded.includes(c));
 
   async function run(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     setResult(null);
-    const vars = [...new Set([...features, ...extra.split(/[,，\s]+/).filter(Boolean)])];
+    // 勾選過、但在目前模型被排除的欄位（例如切回 Linear 後成為結果欄位）不送出
+    const chosen = features.filter((c) => !excluded.includes(c));
+    const vars = [...new Set([...chosen, ...extra.split(/[,，\s]+/).filter(Boolean)])];
     const applied = useSteps ? steps : [];
     const body =
       model === 'kaplan-meier'
@@ -298,9 +304,7 @@ export function StatsTab() {
           <fieldset className="section">
             <legend>{model === 'cox' ? '共變項' : '特徵欄位'}</legend>
             <div className="col-picker">
-              {names
-                .filter((c) => c !== target && c !== duration && c !== event)
-                .map((c) => (
+              {candidates.map((c) => (
                   <label key={c} className="checkbox">
                     <input
                       type="checkbox"

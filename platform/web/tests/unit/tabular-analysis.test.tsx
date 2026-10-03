@@ -327,6 +327,30 @@ describe('統計分析', () => {
     expect(within(forest).getByRole('img', { name: /^age：HR 1\.04/ })).toBeInTheDocument();
   });
 
+  it('a column used as the outcome in one model is offered again in the next model (B-04 known issue 2)', async () => {
+    const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
+    const coefficients = async () =>
+      bodyRows(within(await screen.findByRole('region', { name: '分析結果' })).getByRole('table', { name: '係數' })).map((r) => r[0]);
+    const form = await run(user, 'Linear 迴歸', async (f) => {
+      await user.selectOptions(within(f).getByLabelText('結果欄位'), 'sbp');
+      await user.click(within(f).getByRole('checkbox', { name: 'age' }));
+    });
+    expect(await coefficients()).toEqual(['截距（const）', 'age']);
+    // Cox 不用「結果欄位」：sbp 要回到共變項清單，存活時間與事件欄位才不列
+    await user.selectOptions(within(form).getByLabelText('模型'), 'Cox 比例風險模型');
+    const cox = within(within(form).getByRole('group', { name: '共變項' }));
+    expect(cox.queryByRole('checkbox', { name: 'time_to_event' })).toBeNull();
+    expect(cox.queryByRole('checkbox', { name: 'event' })).toBeNull();
+    await user.click(cox.getByRole('checkbox', { name: 'sbp' }));
+    await user.click(within(form).getByRole('button', { name: '執行分析' }));
+    expect(await coefficients()).toEqual(['age', 'sbp']);
+    // 回到 Linear：sbp 又是結果欄位，不列在特徵，也不會被送成特徵
+    await user.selectOptions(within(form).getByLabelText('模型'), 'Linear 迴歸');
+    expect(within(within(form).getByRole('group', { name: '特徵欄位' })).queryByRole('checkbox', { name: 'sbp' })).toBeNull();
+    await user.click(within(form).getByRole('button', { name: '執行分析' }));
+    expect(await coefficients()).toEqual(['截距（const）', 'age']);
+  });
+
   it('TC-B04-08 text and empty columns give a clear message instead of a server error', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
     const form = await run(user, 'Linear 迴歸', async (f) => {
