@@ -79,7 +79,9 @@ describe('1 One-Hot 欄位在訓練表單', () => {
     const { user } = await renderApp('/training', 'pi01');
     await user.click(await screen.findByRole('button', { name: '編輯「舊設定」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「舊設定」' });
-    expect(await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' })).toBeChecked();
+    // 前處理後的欄位載入後才換成產生的欄位：等它換好（整套平行執行時較慢）
+    const sex = await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' });
+    await waitFor(() => expect(sex).toBeChecked());
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
     await screen.findByText('已儲存訓練設定「舊設定」的修改。');
     expect(trainingMock().settings[0].config.tabular!.features).toEqual(['age', 'sex_F', 'sex_M']);
