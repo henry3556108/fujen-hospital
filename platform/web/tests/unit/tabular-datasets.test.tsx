@@ -182,10 +182,15 @@ describe('描述統計與分布', () => {
     const table = await screen.findByRole('table', { name: '描述統計' });
     const row = (name: string) => cellsOf(within(table).getByRole('row', { name: new RegExp(`^${name} `) }));
     // 欄位, 類型, 筆數, 缺值, 相異值, 平均, 標準差, 最小, P25, 中位數, P75, 最大, 最常見值, 次數
-    expect(row('age')).toEqual(['age', '數值', '100', '0', '51', '59.15', '19.7987', '25', '41.75', '61', '77', '89', '—', '—']);
+    expect(row('age')).toEqual(['age', '整數', '100', '0', '51', '59.15', '19.7987', '25', '41.75', '61', '77', '89', '—', '—']);
     expect(row('glucose').slice(2, 4)).toEqual(['95', '5']);
     expect(row('sex')).toEqual(['sex', '類別', '100', '0', '2', '—', '—', '—', '—', '—', '—', '—', 'M', '51']);
     expect(screen.getByText('共 100 列、12 欄')).toBeInTheDocument();
+    // 0／1 欄位顯示為是／否與比例；識別碼不顯示無意義的統計
+    expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '是／否（0／1）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
+    expect(row('patient_id').slice(0, 2)).toEqual(['patient_id', '識別碼']);
+    expect(row('patient_id')[12]).toBe('—');
+    expect(screen.getByText('表頭說明')).toBeInTheDocument();
   });
 
   it('draws a histogram for a numeric column and category counts for a categorical one', async () => {
