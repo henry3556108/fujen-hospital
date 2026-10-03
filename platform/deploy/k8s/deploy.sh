@@ -45,6 +45,14 @@ log "Helm 部署 overlays/$OVERLAY（release ai-platform）"
 helm upgrade --install ai-platform helm/chart -n "$NS" --history-max 10 --take-ownership \
   --post-renderer kustomize-overlay --post-renderer-args "$OVERLAY_DIR" >/dev/null
 helm history ai-platform -n "$NS" --max 1 | tail -1
+# kind 的平台映像標籤固定為 :dev，只換內容時 Helm 看不出差異、不會重啟 Pod（2026-10-04 網頁因此一直是舊版）。
+# 所以 kind 上部署後重啟所有用 platform-*:dev 映像的 Deployment；正式環境以版本標籤區分，Helm 會自行更新。
+if [ "$OVERLAY" = "kind" ] && [ -z "${NO_RESTART:-}" ]; then
+  for d in $(kubectl -n "$NS" get deploy -o jsonpath='{range .items[*]}{.metadata.name}{"="}{.spec.template.spec.containers[*].image}{"\n"}{end}' \
+             | awk -F= '$2 ~ /(^|[ \/])platform-[a-z]+:dev/ {print $1}'); do
+    kubectl -n "$NS" rollout restart "deploy/$d" >/dev/null && log "重啟 $d（映像內容可能已更新）"
+  done
+fi
 if [ -n "${OFFLINE:-}" ]; then   # 離線安裝（offline/install.sh）：病毒碼已預載，容器內不跑 freshclam
   kubectl -n "$NS" set env statefulset/clamav CLAMAV_NO_FRESHCLAMD=true >/dev/null
 fi
