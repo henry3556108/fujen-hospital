@@ -30,8 +30,21 @@ export interface Model {
   filename: string;
   created_by: string;
   created_at: string;
-  card: { label_names?: string[]; input?: { resize?: number[] }; target?: string; features?: string[]; metrics?: Record<string, unknown> };
+  card: {
+    label_names?: string[];
+    input?: { resize?: number[] };
+    target?: string;
+    features?: string[];
+    metrics?: Record<string, unknown>;
+    /** 推論時要填的原始欄位（2026-10 起的結構式模型；舊模型沒有，改用 features） */
+    inputs?: ModelInput[];
+    classes?: string[];
+  };
 }
+
+export type ModelInput =
+  | { name: string; type: 'number'; min: number | null; max: number | null }
+  | { name: string; type: 'category'; values: string[] };
 
 export interface ImageResult {
   name: string;

@@ -94,3 +94,52 @@ describe('training api client', () => {
     expect(parseUsers('md01, pi01、ra01  md01')).toEqual(['md01', 'pi01', 'ra01']);
   });
 });
+
+// ---------------------------------------------------------------- 2026-10-03 B 組：K 折、說明、圖表、報表
+
+const TABULAR: TrainingConfig = {
+  kind: 'tabular_classification',
+  source: { type: 'tabular', dataset_id: 2 },
+  split: { train: 0.8, validation: 0, test: 0.2 },
+  seed: 7,
+  validation: { method: 'kfold', folds: 5 },
+  tabular: { target: 'diagnosis', features: ['age', 'bmi'], steps: [], algorithm: 'random_forest' },
+  hyperparameters: {},
+};
+
+describe('validation (K-fold) in the training mock', () => {
+  it('keeps kfold, defaults to holdout and rejects bad values in Chinese', () => {
+    expect(normalise(TABULAR).validation).toEqual({ method: 'kfold', folds: 5 });
+    const { validation: _v, ...old } = TABULAR;
+    expect(normalise(old).validation).toEqual({ method: 'holdout' });
+    expect(() => normalise({ ...TABULAR, validation: { method: 'kfold', folds: 11 } })).toThrow('「交叉驗證折數（K）」必須介於 2 與 10 之間');
+    expect(() => normalise({ ...IMAGE, validation: { method: 'kfold', folds: 5 } })).toThrow('影像訓練目前只支援固定比例切分');
+  });
+
+  it('catalogue explains every parameter and lists the validation methods for tabular kinds', async () => {
+    const cat = await client('ra01').catalogue();
+    const params = cat.kinds.flatMap((k) => [...(k.hyperparameters ?? []), ...(k.algorithms ?? []).flatMap((a) => a.hyperparameters)]);
+    expect(params.every((p) => p.help && typeof p.advanced === 'boolean')).toBe(true);
+    const tabular = cat.kinds.find((k) => k.kind === 'tabular_regression')!;
+    expect(tabular.validation_methods?.map((m) => m.method)).toEqual(['holdout', 'kfold']);
+    expect(cat.kinds.find((k) => k.kind === 'image_classification')!.validation_methods).toBeUndefined();
+  });
+
+  it('a finished K-fold run has cv metrics, chart data and a report; image runs have no charts', async () => {
+    const api = client('pi01');
+    const setting = await api.createSetting('kfold', TABULAR);
+    const run = await api.submit(setting.id, 'template');
+    await expect(api.report(run.id)).rejects.toMatchObject({ status: 409 });
+    for (let i = 0; i < 3; i += 1) await api.run(run.id);
+    const done = await api.run(run.id);
+    expect(done.status).toBe('succeeded');
+    expect((done.metrics.cv as { folds: number }).folds).toBe(5);
+    const charts = await api.charts(run.id);
+    expect(charts.charts?.confusion_matrix?.labels).toEqual(['0', '1']);
+    expect(charts.charts?.feature_importance?.items.map((i) => i.feature)).toEqual(['age', 'bmi']);
+    const report = await api.report(run.id);
+    expect(report.filename).toBe(`training-run-${run.id}-report.html`);
+    expect(await report.blob.text()).toContain('訓練報表：kfold');
+    expect(await api.distinct(2, 'diagnosis')).toBe(2);
+  });
+});

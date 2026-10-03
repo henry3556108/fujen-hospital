@@ -1,7 +1,7 @@
 // AI 模型部署（B-06 部署）：模型清單與下載、線上部署（名稱、授權帳號）、呼叫端點、修改授權帳號、取消部署。
 // 入口規則是 Prediction（看模型清單）；部署、下載模型、授權帳號的 API 需要 Training，沒有時只顯示清單與說明。
-import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -9,7 +9,14 @@ import { formatTime } from '../../components/format';
 import { KIND_NAMES, isImageModel, type Model } from '../inference/api';
 import { parseUsers, useTrainingApi, type Deployment, type TrainingApi } from '../training/api';
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
+import { TryPredict } from './TryPredict';
 import '../training/training.css';
+
+/** 由模型名稱建議部署名稱（小寫英數字與 -）。 */
+export function suggestName(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63).replace(/-+$/, '');
+  return slug || 'model';
+}
 
 export function DeploymentPage() {
   const api = useTrainingApi();
@@ -27,7 +34,23 @@ function Deployments({ api }: { api: TrainingApi }) {
   const deployments = useResource(() => (canTrain ? api.deployments() : Promise.resolve([])), [api, canTrain]);
   const [done, setDone] = useState('');
   const [error, setError] = useState<unknown>(null);
-  const [form, setForm] = useState({ model: '', name: '', users: '' });
+  const [params] = useSearchParams();
+  const wanted = Number(params.get('model')) || null;
+  const [form, setForm] = useState({ model: wanted ? String(wanted) : '', name: '', users: '' });
+  const formRef = useRef<HTMLFormElement>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  // 從建模管理「部署此模型」進來：預選模型、建議部署名稱、捲到部署表單
+  useEffect(() => {
+    if (!wanted || prefilled || !models.data) return;
+    const m = models.data.find((x) => x.id === wanted);
+    if (!m) return;
+    setPrefilled(true);
+    setForm((f) => ({ ...f, model: String(m.id), name: f.name || suggestName(m.name) }));
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView?.({ block: 'start' });
+      formRef.current?.querySelector<HTMLInputElement>('#dep-users')?.focus();
+    }, 0);
+  }, [wanted, prefilled, models.data]);
   const [editing, setEditing] = useState<{ id: number; users: string } | null>(null);
   const [removing, setRemoving] = useState<Deployment | null>(null);
 
@@ -100,7 +123,6 @@ function Deployments({ api }: { api: TrainingApi }) {
                 <tr>
                   <th scope="col">名稱</th>
                   <th scope="col">種類</th>
-                  <th scope="col">格式</th>
                   <th scope="col">建立</th>
                   {canTrain ? <th scope="col">操作</th> : null}
                 </tr>
@@ -110,7 +132,6 @@ function Deployments({ api }: { api: TrainingApi }) {
                   <tr key={m.id}>
                     <th scope="row">{m.name}</th>
                     <td>{KIND_NAMES[m.kind]}</td>
-                    <td>{m.format.toUpperCase()}</td>
                     <td>
                       {m.created_by}，{formatTime(m.created_at)}
                     </td>
@@ -130,8 +151,9 @@ function Deployments({ api }: { api: TrainingApi }) {
       </section>
 
       {canTrain && models.data.length > 0 ? (
-        <form aria-label="部署模型" className="card section" onSubmit={deploy} noValidate>
+        <form ref={formRef} aria-label="部署模型" className="card section" onSubmit={deploy} noValidate>
           <h2>部署模型</h2>
+          {prefilled ? <Alert tone="info">已選好剛訓練完成的模型「{selected?.name}」並建議部署名稱，請填授權帳號後按「部署」。</Alert> : null}
           <p className="text-muted">部署後只有授權帳號可以經 Gateway 呼叫這個模型（不看專案角色）。其他帳號呼叫一律被拒絕並留下稽核紀錄。</p>
           <div className="form-grid">
             <div className="field">
@@ -139,7 +161,7 @@ function Deployments({ api }: { api: TrainingApi }) {
               <select id="dep-model" className="select" value={selected ? String(selected.id) : ''} onChange={(e) => setForm({ ...form, model: e.target.value })}>
                 {models.data.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}（{KIND_NAMES[m.kind]}，{m.format.toUpperCase()}）
+                    {m.name}（{KIND_NAMES[m.kind]}）
                   </option>
                 ))}
               </select>
@@ -160,6 +182,8 @@ function Deployments({ api }: { api: TrainingApi }) {
           </div>
         </form>
       ) : null}
+
+      <TryPredict models={models.data} initial={wanted ?? undefined} />
 
       {canTrain ? (
         <section className="card section" aria-labelledby="dep-list-title">

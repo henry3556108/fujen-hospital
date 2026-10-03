@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,7 +23,8 @@ import httpx
 
 PACKAGE = Path(__file__).resolve().parent
 TEMPLATES = PACKAGE / "templates"
-UPLOADS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json")
+UPLOADS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json",
+           "charts.json")
 # 子程序可以看到的環境變數：只有執行 Python 所需的
 PASS_THROUGH = ("PATH", "LANG", "LC_ALL", "TRAIN_THREADS", "TF_CPP_MIN_LOG_LEVEL", "CUDA_VISIBLE_DEVICES",
                 "LD_LIBRARY_PATH", "NVIDIA_VISIBLE_DEVICES")
@@ -42,7 +44,7 @@ class JobIO:
 
     def complete(self, status: str, message: str = "") -> None:
         self.http.post(f"{self.url}/complete", headers=self.headers,
-                       json={"status": status, "message": message[-1000:]}).raise_for_status()
+                       json={"status": status, "message": clip(message)}).raise_for_status()
 
 
 def clean_env(workdir: Path) -> dict[str, str]:
@@ -80,6 +82,35 @@ def _tail(text: str, lines: int = 12) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
+DETAILS = "\n---\n"      # 訊息格式：第一段是給使用者看的原因，分隔線後是技術細節（網頁收合顯示）
+_EXCEPTION = re.compile(r"^(?:[\w.]+\.)?(\w*(?:Error|Exception)): (.+)$")
+
+
+def clip(message: str, limit: int = 1000) -> str:
+    """平台只存 1000 字左右：保留開頭的原因，技術細節只留最後一段。"""
+    if len(message) <= limit:
+        return message
+    reason, sep, details = message.partition(DETAILS)
+    if not sep:
+        return message[-limit:]
+    reason = reason[:limit // 2]
+    return reason + sep + details[-(limit - len(reason) - len(sep)):]
+
+
+def failure_message(code: int, log: str) -> str:
+    """訓練程式失敗：從輸出找出最後一個例外訊息當作原因（範本的錯誤都是繁體中文），堆疊放在技術細節。"""
+    reason = ""
+    for line in reversed(log.strip().splitlines()):
+        match = _EXCEPTION.match(line.strip())
+        if match:
+            reason = match.group(2).strip()
+            break
+    if code == 124:
+        reason = reason or "訓練超過時限，請減少資料量、樹的數量或訓練回合數後再試"
+    reason = reason or "訓練程式發生錯誤，請展開技術細節或檢視訓練輸出"
+    return f"{reason}{DETAILS}訓練程式以 {code} 結束：\n{_tail(log)}"
+
+
 def run_job(io_: JobIO, workdir: Path, *, python: str = sys.executable, templates: Path = TEMPLATES,
             timeout: float | None = None) -> int:
     workdir = Path(workdir)
@@ -103,7 +134,7 @@ def run_job(io_: JobIO, workdir: Path, *, python: str = sys.executable, template
             log = (out / "train.log").read_text(encoding="utf-8", errors="replace") + log
         io_.upload("train.log", log.encode("utf-8"))
         if code != 0:
-            io_.complete("failed", f"訓練程式以 {code} 結束：\n{_tail(log)}")
+            io_.complete("failed", failure_message(code, log))
             return 1
         missing = [n for n in ("model_card.json",) if not (out / n).is_file()]
         if missing or not any((out / n).is_file() for n in ("model.h5", "model.pkl")):

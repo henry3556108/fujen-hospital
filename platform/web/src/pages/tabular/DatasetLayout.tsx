@@ -5,6 +5,7 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { Tabs } from '../../components/Tabs';
+import { CreateTrainingLink } from '../training/CreateTrainingLink';
 import type { CatalogueItem, DatasetDetail, Step, TargetFeature } from './types';
 
 export interface DatasetContext {
@@ -70,6 +71,7 @@ export function DatasetLayout() {
           <p className="text-muted">
             {d.valid_rows} 列、{d.columns.length} 欄（上傳時拒絕 {d.rejected_rows} 列）。資料集上傳後不可修改，前處理只作用在副本上。
           </p>
+          <CreateTrainingLink datasetId={d.id} />
           <Tabs label="資料集分頁" items={tabs} />
           <Outlet
             context={

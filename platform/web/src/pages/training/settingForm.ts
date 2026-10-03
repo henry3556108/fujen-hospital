@@ -33,6 +33,9 @@ export interface FormState {
   features: string[];
   steps: Step[];
   algorithm: string;
+  /** 結構式的驗證方式（舊設定沒有＝固定比例切分） */
+  validationMethod: 'holdout' | 'kfold';
+  folds: string;
   // 共用
   train: string;
   validation: string;
@@ -90,6 +93,8 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
     features: [],
     steps: [],
     algorithm,
+    validationMethod: 'holdout',
+    folds: '5',
     train: pct(catalogue.default_split.train),
     validation: pct(catalogue.default_split.validation),
     test: pct(catalogue.default_split.test),
@@ -101,7 +106,9 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
 /** 換訓練種類時：共用欄位保留，種類相關的欄位回到預設值。 */
 export function changeKind(catalogue: Catalogue, form: FormState, kind: TrainingKind): FormState {
   const fresh = emptyForm(catalogue, kind);
-  return { ...fresh, name: form.name, train: form.train, validation: form.validation, test: form.test, seed: form.seed };
+  return { ...fresh, name: form.name, train: form.train, validation: form.validation, test: form.test, seed: form.seed,
+    datasetId: form.datasetId, target: form.target, features: form.features, steps: form.steps,
+    validationMethod: form.validationMethod, folds: form.folds };
 }
 
 export function changeAlgorithm(catalogue: Catalogue, form: FormState, algorithm: string): FormState {
@@ -143,16 +150,30 @@ export function formFromSetting(catalogue: Catalogue, setting: TrainingSetting):
     form.features = [...c.tabular.features];
     form.steps = c.tabular.steps;
     form.algorithm = c.tabular.algorithm;
+    if (c.validation?.method === 'kfold') {
+      form.validationMethod = 'kfold';
+      form.folds = String(c.validation.folds);
+    }
   }
   const specs = hyperSpecs(catalogue, c.kind, form.algorithm);
   form.hyper = Object.fromEntries(specs.map((p) => [p.name, paramValue(p, c.hyperparameters[p.name])]));
   return form;
 }
 
+/** 依 Target 欄位預選種類：類別、文字、是否 → 分類；數字且不同值不超過 10 個 → 分類；其他數字 → 迴歸。 */
+export function suggestKind(kind: string | undefined, distinct: number | null): TrainingKind {
+  if (kind === 'numeric' && (distinct === null || distinct > 10)) return 'tabular_regression';
+  return 'tabular_classification';
+}
+
 const list = (text: string) => text.split(/[,，、\n]+/).map((s) => s.trim()).filter(Boolean);
 
 export function configFromForm(catalogue: Catalogue, form: FormState): TrainingConfig {
-  const split = { train: ratio(form.train), validation: ratio(form.validation), test: ratio(form.test) };
+  const kfold = !isImageKind(form.kind) && form.validationMethod === 'kfold';
+  // K 折：測試集照比例保留，其餘全部做交叉驗證（不另切驗證集）
+  const split = kfold
+    ? { train: Math.round((1 - ratio(form.test)) * 1000) / 1000, validation: 0, test: ratio(form.test) }
+    : { train: ratio(form.train), validation: ratio(form.validation), test: ratio(form.test) };
   const hyperparameters: Record<string, number | boolean> = {};
   for (const spec of hyperSpecs(catalogue, form.kind, form.algorithm)) {
     const v = paramOut(spec, form.hyper[spec.name]);
@@ -163,6 +184,7 @@ export function configFromForm(catalogue: Catalogue, form: FormState): TrainingC
     return {
       ...base,
       source: { type: 'tabular', dataset_id: Number(form.datasetId) },
+      validation: kfold ? { method: 'kfold', folds: Number(form.folds) } : { method: 'holdout' },
       tabular: { target: form.target, features: form.features, steps: form.steps, algorithm: form.algorithm },
     };
   }

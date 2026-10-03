@@ -86,18 +86,22 @@ class FakeInferenceBackend:
         missing = [f for f in card.get("features", []) if rows and f not in rows[0]]
         if missing:
             raise InferenceRejected(f"資料缺少特徵欄位：{'、'.join(missing)}")
-        predictions, notes = [], []
+        predictions, notes, probabilities = [], [], []
+        classify = card["kind"] == "tabular_classification"
         for row in rows:
+            probabilities.append(None)
             if any(row.get(f, "") == "" for f in card.get("features", [])):
                 predictions.append(None)
                 notes.append("特徵含缺值，無法預測")
                 continue
-            if card["kind"] == "tabular_classification":
-                predictions.append(_pick(card.get("classes") or ["0", "1"], row)[0])
+            if classify:
+                label, value = _pick(card.get("classes") or ["0", "1"], row)
+                predictions.append(label)
+                probabilities[-1] = round(0.5 + value / 2, 4)
             else:
                 predictions.append(round(_pick([0], row)[1] * 100, 3))
             notes.append(None)
-        return {"predictions": predictions, "notes": notes}
+        return {"predictions": predictions, "notes": notes, **({"probabilities": probabilities} if classify else {})}
 
     def predict_images(self, model_id, files):
         card = self._check(model_id)["card"]

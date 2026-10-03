@@ -73,10 +73,11 @@ test.describe('建模管理', () => {
     await page.getByRole('button', { name: '送出訓練「diagnosis-cls」' }).click();
     const status = page.getByTestId('run-status');
     await expect(status).toContainText('排隊中');
-    await expect(status).toContainText('執行中');
+    await expect(status).toContainText('訓練中');
     await expect(status).toContainText('已完成');
-    await expect(page.getByRole('table', { name: '訓練清單' }).getByRole('row', { name: /diagnosis-cls/ })).toContainText('test.accuracy');
-    await expect(page.getByRole('table', { name: '訓練 #1 的指標' })).toContainText('test.f1_macro');
+    await expect(page.getByRole('table', { name: '訓練清單' }).getByRole('row', { name: /^#1 diagnosis-cls/ })).toContainText('AUC');
+    await page.getByText('所有指標（訓練、驗證、測試）').click();
+    await expect(page.getByRole('table', { name: '訓練 #1 的指標' })).toContainText('F1 分數');
 
     const model = page.waitForEvent('download');
     await page.getByRole('button', { name: '下載模型（PKL）' }).click();
@@ -87,6 +88,68 @@ test.describe('建模管理', () => {
     expect((await source).suggestedFilename()).toBe('training-run-1-source.zip');
     await expectNoHorizontalOverflow(page);
     await snap(page, testInfo.project.name, 'training/run-finished');
+  });
+});
+
+test.describe('建模端使用性（從資料集到部署）', () => {
+  test('從資料集建立 K 折訓練 → 步驟條 → 結果與圖表 → 報表 → 部署此模型 → 試用預測', async ({ page }, testInfo) => {
+    await loginAs(page, 'pi01');
+    await page.goto('/data/tabular');
+    await page.getByRole('table', { name: '資料集列表' }).getByRole('link', { name: 'lung-clinical' }).click();
+    await page.getByRole('link', { name: '用這份資料建立訓練' }).click();
+
+    const form = page.getByRole('form', { name: '新增訓練設定' });
+    await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
+    await expect(form.getByLabel('設定名稱')).toHaveValue('lung-clinical 訓練');
+    await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
+    const features = form.getByRole('group', { name: '特徵欄位（Feature）' });
+    for (const f of ['age', 'sex', 'smoker', 'sbp']) await features.getByRole('checkbox', { name: f, exact: true }).check();
+    await expect(form.getByTestId('text-features')).toContainText('「sex、smoker」是文字或類別欄位');
+    await expect(form.getByText('進階設定（一般不需要調整）')).toBeVisible();
+    await expect(form.getByLabel('正則化強度的倒數')).toBeHidden();
+    await form.getByRole('radio', { name: 'K 折交叉驗證' }).check();
+    await expect(form.getByLabel('交叉驗證折數（K）')).toHaveValue('5');
+    await expectNoHorizontalOverflow(page);
+    await snap(page, testInfo.project.name, 'training/from-dataset-form');
+    await form.getByRole('button', { name: '儲存設定' }).click();
+    await expect(page.getByText('已新增訓練設定「lung-clinical 訓練」。')).toBeVisible();
+
+    await page.getByRole('button', { name: '送出訓練「lung-clinical 訓練」' }).click();
+    const steps = page.getByRole('list', { name: '訓練 #1 的進度' });
+    await expect(steps.locator('[aria-current="step"]')).toContainText('排隊中');
+    await expect(steps.locator('[aria-current="step"]')).toContainText('訓練中');
+    await expect(page.getByTestId('run-status')).toContainText('已完成');
+
+    const cards = page.getByRole('list', { name: '訓練 #1 的重點指標' });
+    await expect(cards).toContainText(/測試集的 20 人中猜對 \d+ 人/);
+    await expect(cards).toContainText('0.5 等於亂猜');
+    await expect(page.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toContainText('±');
+    await expect(page.getByRole('table', { name: '訓練 #1 的混淆矩陣' })).toContainText('正確');
+    await expect(page.getByText(/^ROC 曲線（陽性＝「1」/)).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await snap(page, testInfo.project.name, 'training/kfold-result');
+
+    const report = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下載報表（可列印）' }).click();
+    expect((await report).suggestedFilename()).toBe('training-run-1-report.html');
+
+    await page.getByRole('link', { name: '部署此模型' }).click();
+    const deploy = page.getByRole('form', { name: '部署模型' });
+    await expect(deploy.getByLabel('模型')).toHaveValue(/\d+/);
+    await expect(deploy.getByLabel('部署名稱（小寫英數字與 -）')).toHaveValue('lung-clinical-run1');
+    await deploy.getByLabel('授權帳號（以逗號分隔）').fill('md01');
+    await deploy.getByRole('button', { name: '部署' }).click();
+    await expect(page.getByText('已部署「lung-clinical-run1」：POST /api/inference/lung-clinical-run1/predict')).toBeVisible();
+
+    const trial = page.getByRole('form', { name: '試用預測' });
+    await trial.getByLabel('age').fill('61');
+    await trial.getByLabel('sex').selectOption('M');
+    await trial.getByLabel('smoker').selectOption('current');
+    await trial.getByLabel('sbp').fill('140');
+    await trial.getByRole('button', { name: '預測' }).click();
+    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis：[01]（模型認為的機率 \d+%）$/);
+    await expectNoHorizontalOverflow(page);
+    await snap(page, testInfo.project.name, 'deployment/try-predict');
   });
 });
 
@@ -102,7 +165,7 @@ test.describe('AI 模型部署', () => {
     }
 
     const form = page.getByRole('form', { name: '部署模型' });
-    await form.getByLabel('模型').selectOption({ label: 'modality-cnn-run2（影像分類，H5）' });
+    await form.getByLabel('模型').selectOption({ label: 'modality-cnn-run2（影像分類）' });
     await form.getByLabel('部署名稱（小寫英數字與 -）').fill('modality-api');
     await form.getByLabel('授權帳號（以逗號分隔）').fill('md01, pi01');
     await form.getByRole('button', { name: '部署' }).click();

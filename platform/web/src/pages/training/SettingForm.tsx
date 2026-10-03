@@ -33,6 +33,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   const [busy, setBusy] = useState(false);
   const image = isImageKind(form.kind);
   const kindEntry = catalogue.kinds.find((k) => k.kind === form.kind);
+  const kfold = !image && form.validationMethod === 'kfold';
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   async function submit(e: FormEvent) {
@@ -69,7 +70,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
           <select id="ts-kind" className="select" value={form.kind} onChange={(e) => setForm(changeKind(catalogue, form, e.target.value as TrainingKind))}>
             {catalogue.kinds.map((k) => (
               <option key={k.kind} value={k.kind}>
-                {k.name}（{k.model_format.toUpperCase()}）
+                {k.name}
               </option>
             ))}
           </select>
@@ -79,15 +80,48 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
       {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} /> : null}
       {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} /> : null}
 
+      {!image && kindEntry?.validation_methods ? (
+        <fieldset>
+          <legend>驗證方式（怎麼檢查模型好不好）</legend>
+          <div className="stack" role="radiogroup" aria-label="驗證方式">
+            {kindEntry.validation_methods.map((m) => (
+              <div key={m.method}>
+                <label className="checkbox">
+                  <input type="radio" name="ts-validation" checked={form.validationMethod === m.method} aria-describedby={`ts-validation-${m.method}`}
+                    onChange={() => set('validationMethod', m.method)} />
+                  <strong>{m.name}</strong>
+                </label>
+                <span id={`ts-validation-${m.method}`} className="field__hint">
+                  {m.help}
+                </span>
+              </div>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+
       <fieldset>
         <legend>資料切分與亂數種子</legend>
         <div className="form-grid">
-          <NumberField id="ts-train" label="訓練集（%）" value={form.train} onChange={(v) => set('train', v)} min={0} max={100} />
-          <NumberField id="ts-validation" label="驗證集（%）" value={form.validation} onChange={(v) => set('validation', v)} min={0} max={100} />
-          <NumberField id="ts-test" label="測試集（%）" value={form.test} onChange={(v) => set('test', v)} min={0} max={100} />
-          <NumberField id="ts-seed" label="亂數種子" value={form.seed} onChange={(v) => set('seed', v)} min={0} />
+          {kfold ? (
+            <NumberField id="ts-folds" label="交叉驗證折數（K）" value={form.folds} onChange={(v) => set('folds', v)} min={2} max={10} step="1"
+              hint="資料平均分成幾份輪流檢查；一般用 5，資料很少時用 3。" />
+          ) : (
+            <>
+              <NumberField id="ts-train" label="訓練集（%）" value={form.train} onChange={(v) => set('train', v)} min={0} max={100}
+                hint="給模型學習的資料。" />
+              <NumberField id="ts-validation" label="驗證集（%）" value={form.validation} onChange={(v) => set('validation', v)} min={0} max={100}
+                hint="訓練時用來檢查、調整的資料。" />
+            </>
+          )}
+          <NumberField id="ts-test" label="測試集（%）" value={form.test} onChange={(v) => set('test', v)} min={0} max={100}
+            hint="最後才用、模型完全沒看過的資料，用來評分。" />
+          <NumberField id="ts-seed" label="亂數種子" value={form.seed} onChange={(v) => set('seed', v)} min={0}
+            hint="決定資料怎麼隨機分組的號碼。用同一個號碼重跑會得到完全相同的結果；一般不用改。" />
         </div>
-        <p className="field__hint">三者合計必須是 100%。同一份資料、設定與亂數種子會得到相同的切分與結果。</p>
+        <p className="field__hint">
+          {kfold ? '先保留測試集，其餘資料做 K 折交叉驗證。' : '訓練、驗證、測試三者合計必須是 100%。'}同一份資料、設定與亂數種子會得到相同的切分與結果。
+        </p>
       </fieldset>
 
       {image ? (
@@ -98,13 +132,14 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
       ) : null}
 
       <fieldset>
-        <legend>超參數</legend>
+        <legend>超參數（模型怎麼學）</legend>
+        <p className="field__hint">每個欄位都有建議值，不確定就保留預設值。</p>
         <ParamFields prefix="ts-hp" specs={hyperSpecs(catalogue, form.kind, form.algorithm)} values={form.hyper} onChange={(v) => set('hyper', v)} />
       </fieldset>
 
       <div className="row-actions">
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '儲存中…' : editing ? '儲存修改' : '儲存設定'}
+          {busy ? '儲存中…' : '儲存設定'}
         </button>
         <button type="button" className="btn btn--secondary" onClick={onCancel}>
           取消
@@ -114,19 +149,43 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   );
 }
 
-function NumberField({ id, label, value, onChange, min, max, step }: {
-  id: string; label: string; value: string; onChange: (v: string) => void; min?: number | null; max?: number | null; step?: string;
+function NumberField({ id, label, value, onChange, min, max, step, hint }: {
+  id: string; label: string; value: string; onChange: (v: string) => void; min?: number | null; max?: number | null; step?: string; hint?: string;
 }) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="number" inputMode="decimal" className="input" value={value} min={min ?? undefined} max={max ?? undefined}
-        step={step ?? 'any'} onChange={(e) => onChange(e.target.value)} />
+        step={step ?? 'any'} aria-describedby={hint ? `${id}-hint` : undefined} onChange={(e) => onChange(e.target.value)} />
+      {hint ? (
+        <span id={`${id}-hint`} className="field__hint">
+          {hint}
+        </span>
+      ) : null}
     </div>
   );
 }
 
 function ParamFields({ prefix, specs, values, onChange }: {
+  prefix: string; specs: ParamSpec[]; values: Record<string, string | boolean>; onChange: (v: Record<string, string | boolean>) => void;
+}) {
+  const common = specs.filter((s) => !s.advanced);
+  const advanced = specs.filter((s) => s.advanced);
+  return (
+    <>
+      <ParamGroup prefix={prefix} specs={common} values={values} onChange={onChange} />
+      {!common.length ? <p className="field__hint">這個演算法使用建議值即可，不需要調整。</p> : null}
+      {advanced.length ? (
+        <details className="training-details">
+          <summary>進階設定（一般不需要調整）</summary>
+          <ParamGroup prefix={prefix} specs={advanced} values={values} onChange={onChange} />
+        </details>
+      ) : null}
+    </>
+  );
+}
+
+function ParamGroup({ prefix, specs, values, onChange }: {
   prefix: string; specs: ParamSpec[]; values: Record<string, string | boolean>; onChange: (v: Record<string, string | boolean>) => void;
 }) {
   const numbers = specs.filter((s) => s.type !== 'bool');
@@ -137,22 +196,35 @@ function ParamFields({ prefix, specs, values, onChange }: {
         <div className="form-grid">
           {numbers.map((s) => (
             <NumberField key={s.name} id={`${prefix}-${s.name}`} label={s.title} value={String(values[s.name] ?? '')} min={s.minimum} max={s.maximum}
-              step={s.type === 'int' ? '1' : 'any'} onChange={(v) => onChange({ ...values, [s.name]: v })} />
+              step={s.type === 'int' ? '1' : 'any'} hint={paramHint(s)} onChange={(v) => onChange({ ...values, [s.name]: v })} />
           ))}
         </div>
       ) : null}
       {flags.length ? (
-        <div className="checkbox-row">
+        <div className="stack">
           {flags.map((s) => (
-            <label key={s.name} className="checkbox">
-              <input type="checkbox" checked={Boolean(values[s.name])} onChange={(e) => onChange({ ...values, [s.name]: e.target.checked })} />
-              {s.title}
-            </label>
+            <div key={s.name}>
+              <label className="checkbox">
+                <input type="checkbox" checked={Boolean(values[s.name])} aria-describedby={s.help ? `${prefix}-${s.name}-hint` : undefined}
+                  onChange={(e) => onChange({ ...values, [s.name]: e.target.checked })} />
+                {s.title}
+              </label>
+              {s.help ? (
+                <span id={`${prefix}-${s.name}-hint`} className="field__hint">
+                  {s.help}
+                </span>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
     </>
   );
+}
+
+function paramHint(s: ParamSpec): string | undefined {
+  const def = s.default === null || s.default === undefined ? '不限制' : String(s.default);
+  return s.help ? `${s.help}（預設 ${def}）` : undefined;
 }
 
 type Setter = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
@@ -276,6 +348,10 @@ function TabularSource({ api, form, setForm, catalogue }: {
   }, [api, form.datasetId]);
 
   const columns = (detail.data?.columns ?? []).map((c) => c.name).filter((c) => c !== form.target);
+  const textFeatures = (detail.data?.columns ?? [])
+    .filter((c) => form.features.includes(c.name) && ['categorical', 'text', 'boolean'].includes(c.kind))
+    .filter((c) => !form.steps.some((st) => st.id === 'onehot' && (st.columns ?? []).includes(c.name)))
+    .map((c) => c.name);
   const toggle = (name: string) =>
     setForm((f) => ({ ...f, features: f.features.includes(name) ? f.features.filter((x) => x !== name) : [...f.features, name] }));
 
@@ -324,6 +400,11 @@ function TabularSource({ api, form, setForm, catalogue }: {
           </div>
         </div>
         {prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的 Target、Feature 與前處理步驟。</p> : null}
+        {textFeatures.length ? (
+          <p className="field__hint" data-testid="text-features">
+            「{textFeatures.join('、')}」是文字或類別欄位，訓練時會自動轉成 0／1 欄位（One-Hot），不需要先自己處理。
+          </p>
+        ) : null}
         {detail.data ? (
           <div role="group" aria-label="特徵欄位（Feature）" className="checkbox-row">
             {columns.map((c) => (

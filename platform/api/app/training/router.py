@@ -149,6 +149,22 @@ def run_log(run_id: int, request: Request, ctx: ProjectContext = Depends(can_tra
         return {"run_id": run.id, "status": run.status, "log": service.run_log(request.app.state.store, run)}
 
 
+@router.get(BASE + "/training/runs/{run_id}/charts")
+def run_charts(run_id: int, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
+    with _errors():
+        run = service.get_run(ctx.session, ctx.project.id, run_id)
+        return service.run_charts(request.app.state.store, run)
+
+
+@router.get(BASE + "/training/runs/{run_id}/report")
+def run_report(run_id: int, request: Request, ctx: ProjectContext = Depends(can_train),
+               backend: JobBackend = Depends(get_backend)) -> Response:
+    with _errors():
+        run = service.get_run(ctx.session, ctx.project.id, run_id)
+        data = service.run_report(ctx, request.app.state, backend, run, source_ip=client_ip(request))
+    return _download(data, f"training-run-{run_id}-report.html", "text/html; charset=utf-8")
+
+
 @router.get(BASE + "/training/runs/{run_id}/source")
 def export_source(run_id: int, request: Request, ctx: ProjectContext = Depends(can_code)) -> Response:
     with _errors():

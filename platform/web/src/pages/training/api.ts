@@ -19,7 +19,20 @@ export interface ParamSpec {
   minimum: number | null;
   maximum: number | null;
   default: number | boolean | null;
+  /** 白話說明與建議值 */
+  help?: string;
+  /** 不常調整：網頁收在「進階設定」 */
+  advanced?: boolean;
 }
+
+export interface ValidationMethod {
+  method: 'holdout' | 'kfold';
+  name: string;
+  help: string;
+  folds?: { minimum: number; maximum: number; default: number };
+}
+
+export type Validation = { method: 'holdout' } | { method: 'kfold'; folds: number };
 
 export interface CatalogueKind {
   kind: TrainingKind;
@@ -28,6 +41,8 @@ export interface CatalogueKind {
   source_types: ('dicom' | 'files' | 'tabular')[];
   hyperparameters?: ParamSpec[];
   algorithms?: { name: string; hyperparameters: ParamSpec[] }[];
+  /** 結構式才有：固定比例切分、K 折交叉驗證 */
+  validation_methods?: ValidationMethod[];
 }
 
 export interface Catalogue {
@@ -63,6 +78,8 @@ export interface TrainingConfig {
   source: TrainingSource;
   split: Split;
   seed: number;
+  /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例切分 */
+  validation?: Validation;
   image?: { resize: [number, number] | number[]; labels: string[] | null };
   tabular?: { target: string; features: string[]; steps: Step[]; algorithm: string };
   augmentation?: Augmentation;
@@ -118,6 +135,29 @@ export interface Deployment {
   created_at: string;
 }
 
+/** charts.json（platform/training/trainer/templates/tabularkit.py 的 charts()）。 */
+export interface Charts {
+  version: number;
+  kind: TrainingKind;
+  subset: 'test' | 'validation' | 'train';
+  rows: number;
+  confusion_matrix: { labels: string[]; matrix: number[][] } | null;
+  roc: { positive: string; auc: number; points: [number, number][] } | null;
+  feature_importance: { method: string; metric: string; repeats: number; items: { feature: string; mean: number; std: number }[] } | null;
+  regression: {
+    points: [number, number][];
+    total: number;
+    sampled: boolean;
+    residuals: { start: number; end: number; count: number }[];
+  } | null;
+}
+
+export interface RunCharts {
+  run_id: number;
+  kind: TrainingKind;
+  charts: Charts | null;
+}
+
 export interface Download {
   blob: Blob;
   filename: string;
@@ -139,6 +179,8 @@ export interface TrainingApi {
   rerun(id: number): Promise<TrainingRun>;
   log(id: number): Promise<{ run_id: number; status: RunStatus; log: string }>;
   exportSource(runId: number): Promise<Download>;
+  charts(runId: number): Promise<RunCharts>;
+  report(runId: number): Promise<Download>;
   models(): Promise<Model[]>;
   downloadModel(modelId: number): Promise<Download>;
   deployments(): Promise<Deployment[]>;
@@ -150,6 +192,8 @@ export interface TrainingApi {
   dataset(id: number): Promise<DatasetDetail>;
   /** 資料集尚未設定 Target 與 Feature 時回傳 null */
   targetFeature(id: number): Promise<TargetFeature | null>;
+  /** 欄位的不同值數（用來判斷 Target 是分類還是迴歸） */
+  distinct(datasetId: number, column: string): Promise<number>;
 }
 
 async function errorOf(res: Response): Promise<ApiError> {
@@ -198,6 +242,8 @@ export function createTrainingApi(
     rerun: (id) => api.post(`${root}/training/runs/${id}/rerun`),
     log: (id) => api.get(`${root}/training/runs/${id}/log`),
     exportSource: (runId) => download(`${root}/training/runs/${runId}/source`, `training-run-${runId}-source.zip`),
+    charts: (runId) => api.get(`${root}/training/runs/${runId}/charts`),
+    report: (runId) => download(`${root}/training/runs/${runId}/report`, `training-run-${runId}-report.html`),
     models: () => api.get(`${root}/models`),
     downloadModel: (modelId) => download(`${root}/models/${modelId}/download`, `model-${modelId}`),
     deployments: () => api.get(`${root}/deployments`),
@@ -207,6 +253,12 @@ export function createTrainingApi(
     studies: () => api.get(`${root}/imaging/studies`),
     datasets: () => api.get(`${root}/tabular/datasets`),
     dataset: (id) => api.get(`${root}/tabular/datasets/${id}`),
+    async distinct(datasetId, column) {
+      const out = await api.get<{ distinct: number }>(
+        `${root}/tabular/datasets/${datasetId}/value-counts?column=${encodeURIComponent(column)}&limit=1`,
+      );
+      return out.distinct;
+    },
     async targetFeature(id) {
       try {
         return await api.get<TargetFeature>(`${root}/tabular/datasets/${id}/target-feature`);
