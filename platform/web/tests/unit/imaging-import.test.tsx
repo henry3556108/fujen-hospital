@@ -184,6 +184,8 @@ describe('PACS 查詢取像', () => {
     await user.click(within(form).getByRole('button', { name: '查詢 PACS' }));
     const table = await screen.findByRole('table', { name: 'PACS 查詢結果' });
     expect(screen.getByText('PACS 回覆 2 個研究')).toBeInTheDocument();
+    // B-01 判準「30 秒內」：畫面顯示從送出到收到回應的時間
+    expect(screen.getByRole('status')).toHaveTextContent(/PACS 回覆 2 個研究，回應時間 \d+\.\d 秒/);
     expect(resultRows(table).map((r) => r.slice(0, 7))).toEqual([
       ['2024-02-20', 'ACC0002', 'PAT0002', 'M', 'MR', 'MR BRAIN WWO CONTRAST', '3'],
       ['2024-04-05', 'ACC0004', 'PAT0004', 'F', 'MR', 'MR KNEE WO CONTRAST', '3'],

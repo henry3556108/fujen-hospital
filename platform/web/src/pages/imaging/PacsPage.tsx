@@ -17,6 +17,8 @@ export function PacsPage() {
   const base = `/api/projects/${project!.id}/imaging/pacs`;
   const [q, setQ] = useState(EMPTY);
   const [answers, setAnswers] = useState<PacsAnswer[] | null>(null);
+  /** 從送出查詢到收到 PACS 回應的秒數（B-01 判準：30 秒內） */
+  const [elapsed, setElapsed] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [retrieveError, setRetrieveError] = useState<unknown>(null);
   const [job, setJob] = useState<ImportJob | null>(null);
@@ -45,8 +47,11 @@ export function PacsPage() {
     }
     const date = dateRange(q.from, q.to);
     if (date) body.StudyDate = date;
+    const started = performance.now();
     try {
-      setAnswers(await api.post<PacsAnswer[]>(`${base}/query`, body));
+      const result = await api.post<PacsAnswer[]>(`${base}/query`, body);
+      setElapsed((performance.now() - started) / 1000);
+      setAnswers(result);
     } catch (err) {
       setError(err);
       setAnswers(null);
@@ -134,7 +139,10 @@ export function PacsPage() {
       {answers && (
         <section className="section" aria-labelledby="pacs-answers">
           <h3 id="pacs-answers">查詢結果</h3>
-          <p role="status">PACS 回覆 {answers.length} 個研究</p>
+          <p role="status">
+            PACS 回覆 {answers.length} 個研究
+            {elapsed !== null && <span>，回應時間 {elapsed.toFixed(1)} 秒</span>}
+          </p>
           <div className="table-wrap">
             <table aria-label="PACS 查詢結果">
               <thead>
