@@ -122,7 +122,7 @@ test.describe('專案工作', () => {
     await expect(table.getByRole('row', { name: /^3 / })).toContainText('排隊中');
     await expect(table.getByRole('row', { name: /^4 / })).toContainText('排隊中');
     await table.getByRole('button', { name: '取消工作 3' }).click();
-    await page.getByRole('dialog', { name: '取消工作' }).getByRole('button', { name: '確認取消工作' }).click();
+    await page.getByRole('dialog', { name: '取消工作' }).getByRole('button', { name: '確定取消工作' }).click();
     await expect(table.getByRole('row', { name: /^3 / })).toContainText('已取消');
     await expect(table.getByRole('row', { name: /^4 / })).toContainText('已完成', { timeout: 20_000 });
     await expect(table.getByRole('row', { name: /^1 / })).toContainText('已完成');

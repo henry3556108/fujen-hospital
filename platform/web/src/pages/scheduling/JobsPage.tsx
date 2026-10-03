@@ -162,6 +162,7 @@ export function JobsPage() {
         <p className="text-muted" role="status">
           {hasActive ? '有工作在排隊或執行中，每 2 秒自動更新。' : '沒有進行中的工作。'}
         </p>
+        <p className="field__hint">開始與結束時間是叢集實際啟動與結束工作的時間（不是畫面更新的時間），可與叢集紀錄比對。</p>
         <div className="table-wrap">
           <table aria-label="工作列表">
             <thead>
@@ -238,7 +239,8 @@ export function JobsPage() {
       {cancelling && (
         <ConfirmDialog
           title="取消工作"
-          confirmLabel="確認取消工作"
+          confirmLabel="確定取消工作"
+          cancelLabel="不要取消"
           busy={busy}
           onConfirm={() => void confirmCancel()}
           onCancel={() => setCancelling(null)}
