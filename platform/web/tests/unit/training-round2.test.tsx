@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { BarChart, tickLayout } from '../../src/components/charts/BarChart';
 import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
-import type { TrainingConfig, TrainingKind } from '../../src/pages/training/api';
+import type { TrainingConfig, TrainingKind, TrainingRun } from '../../src/pages/training/api';
+import { metricLabel, plainSentence, warnings } from '../../src/pages/training/metrics';
 import { featureChoices, normaliseFeatures, settingDifference, unknownFeatures } from '../../src/pages/training/settingForm';
 import { createApiClient } from '../../src/api/client';
 import { renderApp } from '../render';
@@ -242,5 +243,32 @@ describe('5 術語與圖表', () => {
     await finish(user, 'kf');
     const table = screen.getByRole('table', { name: '訓練 #1 的 K 折結果' });
     expect(within(table).getByRole('row', { name: /F1 分數/ })).toHaveTextContent('同時考慮「抓得到」與「抓得準」');
+  });
+});
+
+describe('6 次要問題', () => {
+  const run = (metrics: Record<string, unknown>) => ({ id: 1, kind: 'tabular_classification', executor: 'template', metrics }) as unknown as TrainingRun;
+
+  it('the baseline names the training majority and explains a low score on a test set with fewer of them', () => {
+    // 改善後測試的情形：訓練資料多數是「0」，測試集 18 人只有 7 人是「0」→ 38.9%
+    const r = run({ rows: { train: 76, validation: 0, test: 18 }, labels: { majority: '0', positive: '1', majority_train: { count: 46, rows: 76 } },
+      test: { accuracy: 0.667, baseline_accuracy: 7 / 18 } });
+    expect(plainSentence(r, 'test', 'baseline_accuracy', 7 / 18)).toBe(
+      '訓練資料中最常見的是「0」（76 人中 46 人）；如果測試集每個人都猜「0」，18 人中會猜對 7 人。測試集裡「0」只占 39%，比訓練資料的 61% 少，所以這個基準偏低');
+    expect(metricLabel('baseline_accuracy')).toBe('比較基準：全部猜訓練資料最常見的類別');
+  });
+
+  it('explains when the test result differs from the K-fold mean', () => {
+    const r = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.667, auc: 0.818 },
+      cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.791, std: 0.06, values: [] }, auc: { mean: 0.835, std: 0.04, values: [] } } });
+    expect(warnings(r).join('\n')).toContain('測試集的準確率（66.7%）和 K 折平均（79.1%）差 12.4 個百分點：測試集只有 18 人，剛好分到哪些人影響很大；K 折平均是 80 人輪流當檢查資料的結果，通常比較可靠。');
+    const close = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.75 },
+      cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.79, std: 0.06, values: [] } } });
+    expect(warnings(close).join('\n')).not.toContain('K 折平均（');
+  });
+
+  it('the header shows the Chinese role name', async () => {
+    await renderApp('/training', 'pi01');
+    expect(await screen.findByTestId('header-role')).toHaveTextContent('（計畫主持人）');
   });
 });

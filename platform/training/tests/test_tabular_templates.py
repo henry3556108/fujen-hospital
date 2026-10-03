@@ -156,7 +156,9 @@ def test_binary_metrics_include_sensitivity_specificity_and_baseline(tabular_dat
                         tabular_dataset, tmp_path / "out")
     test = card["metrics"]["test"]
     assert {"accuracy", "f1_macro", "auc", "sensitivity", "specificity", "baseline_accuracy"} <= set(test)
-    assert card["metrics"]["labels"] == {"majority": "0", "positive": "1"}
+    labels = card["metrics"]["labels"]
+    assert labels["majority"] == "0" and labels["positive"] == "1"
+    assert labels["majority_train"]["rows"] == card["metrics"]["rows"]["train"]
     reg = run_template("tabular_regression", config("tabular_regression", "sbp", "linear_regression",
                                                     features=REG_FEATURES, steps=STEPS[:1]),
                        tabular_dataset, tmp_path / "reg")
@@ -439,3 +441,20 @@ def test_impute_inference_predicts_rows_with_gaps_and_says_what_was_filled(tabul
             assert note.startswith("glucose 缺值，已用訓練資料的中位數") and note.endswith("補上"), note
         else:
             assert note is None
+
+
+def test_baseline_is_the_training_majority_scored_on_the_test_rows(tabular_dataset, tmp_path):
+    """使用性測試第二輪：「全部猜最常見類別」的基準 = 訓練資料最常見的類別，在測試集上的準確率。
+    測試集的組成可能和訓練資料不同，所以基準可以低於 50%；網頁以 majority_train 說明。"""
+    import tabularkit
+
+    cfg = missing_config("drop", algorithm="logistic_regression") | {
+        "split": {"train": 0.8, "validation": 0.0, "test": 0.2}, "validation": KFOLD}
+    card = run_template("tabular_classification", cfg, tabular_dataset, tmp_path / "out")
+    prepared = tabularkit.prepare(cfg, tabular_dataset)
+    y_train, y_test = prepared["data"]["train"][1].astype(str), prepared["data"]["test"][1].astype(str)
+    labels = card["metrics"]["labels"]
+    majority = y_train.value_counts().idxmax()
+    assert labels["majority"] == majority
+    assert labels["majority_train"] == {"count": int((y_train == majority).sum()), "rows": len(y_train)}
+    assert card["metrics"]["test"]["baseline_accuracy"] == pytest.approx((y_test == majority).mean())

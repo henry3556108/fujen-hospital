@@ -5,6 +5,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { useProjectAccess } from '../data/access';
 import { ImportResult } from './ImportResult';
 import type { ImportJob } from './types';
+import { FileInput } from '../../components/FileInput';
 
 /** 檔案在使用者電腦上的相對路徑；選資料夾時保留資料夾結構（makesense 標註靠路徑配對）。 */
 function sourcePath(file: File): string {
@@ -63,15 +64,15 @@ function UploadForm({
       <ApiErrorAlert error={error} />
       <div className="field">
         <label htmlFor={`${id}-files`}>選擇檔案（可多選）</label>
-        <input
+        <FileInput
           ref={input}
           id={`${id}-files`}
-          className="file-input"
-          type="file"
           multiple
           accept={folder ? undefined : accept}
           aria-describedby={`${id}-hint`}
-          onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+          onFiles={setFiles}
+          fileNames={files.map((f) => f.name)}
+          buttonText={folder ? '選擇資料夾' : '選擇檔案'}
           {...(folder ? { webkitdirectory: '' } : {})}
         />
         <span id={`${id}-hint`} className="field__hint">

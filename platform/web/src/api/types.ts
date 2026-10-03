@@ -72,6 +72,20 @@ export const ROLE_LABELS: Record<Role, string> = {
   principal_investigator: 'Principal Investigator',
 };
 
+/** 頁首顯示的中文角色名稱（帳號管理頁仍用規格的英文名稱） */
+export const ROLE_NAMES_ZH: Record<Role, string> = {
+  viewer: '檢視者',
+  medical_doctor: '醫師',
+  research_assistant: '研究助理',
+  coder_assistant: '程式開發助理',
+  principal_investigator: '計畫主持人',
+};
+
+export const ACCOUNT_TYPE_NAMES_ZH: Record<AccountType, string> = {
+  admin: '系統管理者',
+  user: '一般使用者',
+};
+
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   admin: 'Admin',
   user: 'User',

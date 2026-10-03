@@ -71,8 +71,7 @@ export function SchemaTable({
             <th scope="col">不可重複</th>
             <th scope="col">範圍（選填）</th>
             <th scope="col">允許的值</th>
-            <th scope="col">檔案內容</th>
-            <th scope="col">提示</th>
+            <th scope="col">檔案內容與提示</th>
           </tr>
         </thead>
         <tbody>
@@ -158,8 +157,6 @@ export function SchemaTable({
                       {s.examples.length > 0 && <span className="text-muted">例：{s.examples.join('、')}</span>}
                     </>
                   )}
-                </td>
-                <td>
                   <ul className="schema-table__notes">
                     {c.pattern && !s?.notes.some((n) => n.startsWith('格式固定')) && <li>格式需與「{patternExample(c.pattern, s?.examples ?? [])}」相同</li>}
                     {s?.notes.map((n) => <li key={n}>{n}</li>)}

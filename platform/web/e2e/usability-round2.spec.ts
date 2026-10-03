@@ -1,5 +1,6 @@
 // 使用性測試第二輪（docs/usability/2026-10-03-after.md）的修正，以瀏覽器走一遍。
 import { expect, expectNoHorizontalOverflow, loginAs, snap, test } from './fixtures';
+import { fixture } from './files';
 
 test.describe('使用性第二輪', () => {
   test('One-Hot 過的 sex 在訓練表單是一項、已勾選、寫出產生的欄位，存檔後可直接送出', async ({ page }, testInfo) => {
@@ -52,4 +53,28 @@ test.describe('使用性第二輪', () => {
     await expect(page.getByTestId('table-summary')).toContainText('共 20 位，20 位有預測結果。其中 1 位有缺值');
     await expectNoHorizontalOverflow(page);
   });
+
+  for (const width of [1280, 1440]) {
+    test(`上傳欄位確認表在 ${width}px 寬不需橫向捲動；中文檔案按鈕；預覽列號從 1 起；頁首中文角色`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await loginAs(page, 'pi01');
+      await page.goto('/data/tabular');
+      await expect(page.getByTestId('header-role')).toHaveText('（計畫主持人）');
+      const form = page.getByRole('form', { name: '上傳 CSV' });
+      await expect(form.getByRole('button', { name: '選擇檔案' }).first()).toBeVisible();
+      await expect(form.getByText('尚未選擇檔案').first()).toBeVisible();
+      await form.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/cohort_01.csv'));
+      await expect(form.getByText('cohort_01.csv')).toBeVisible();
+      const table = form.getByRole('table', { name: '欄位確認' });
+      await expect(table.getByRole('columnheader', { name: '檔案內容與提示' })).toBeVisible();
+      const wrap = table.locator('xpath=..');
+      const { scroll, client } = await wrap.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+      expect(scroll, `欄位確認表橫向溢出 ${scroll - client}px`).toBeLessThanOrEqual(client);
+      await snap(page, testInfo.project.name, `round2/upload-table-${width}`);
+
+      await page.goto('/data/tabular/2');
+      const preview = page.getByRole('table', { name: '資料預覽' });
+      await expect(preview.getByRole('row').nth(1).getByRole('rowheader')).toHaveText('1');
+    });
+  }
 });

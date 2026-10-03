@@ -164,7 +164,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
 
   test('段落 4：建立訓練、匯出模型、部署與推論', async ({ page }) => {
     test.setTimeout(90_000);
-    // pi01（Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
+    // pi01（計畫主持人，Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
     await loginAs(page, 'pi01');
     await page.goto('/');
 

@@ -54,7 +54,9 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     model = fit(make, x_train, y_train, missing=missing)
     majority = tabularkit.majority_label(y_train)
     classes = [str(c) for c in model.classes_]
-    metrics["labels"] = {"majority": majority, **({"positive": classes[1]} if len(classes) == 2 else {})}
+    # 比較基準以訓練資料最常見的類別計算（不偷看測試集）；一併記下它在訓練資料占多少，網頁才能說清楚
+    metrics["labels"] = {"majority": majority, **({"positive": classes[1]} if len(classes) == 2 else {}),
+                         "majority_train": {"count": int((y_train.astype(str) == majority).sum()), "rows": len(y_train)}}
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
             metrics[name] = tabularkit.classification_metrics(model, x, y, majority=majority)

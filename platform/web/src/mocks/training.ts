@@ -388,7 +388,8 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       const test = { accuracy: score, f1_macro: r4(score - 0.05), auc: r4(Math.min(0.99, score + 0.05)), sensitivity: 0.7, specificity: 0.75, baseline_accuracy: 0.55 };
       const train = { ...test, accuracy: r4(Math.min(1, score + 0.05)) };
       return {
-        rows, data, train, ...(kfold ? {} : { validation: test }), test, labels: { majority: '0', positive: '1' },
+        rows, data, train, ...(kfold ? {} : { validation: test }), test,
+        labels: { majority: '0', positive: '1', majority_train: { count: Math.round(rows.train * 0.6), rows: rows.train } },
         ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
       };
     }

@@ -16,6 +16,7 @@ import {
   type Model,
 } from './api';
 import './inference.css';
+import { FileInput } from '../../components/FileInput';
 
 const MODES = { batch: '批次', upload: '上傳檔案', online: '線上服務' } as const;
 const SUBSETS = [
@@ -206,13 +207,12 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
           <form aria-label="上傳檔案推論" onSubmit={upload} className="inference-form">
             <div className="field">
               <label htmlFor="upload-files">{image ? '影像檔' : 'CSV 檔'}</label>
-              <input
+              <FileInput
                 id="upload-files"
-                type="file"
-                className="input"
                 multiple={image}
                 accept={image ? '.dcm,.nii,.gz,.mha,.png,.npy' : '.csv,text/csv'}
-                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                onFiles={setFiles}
+                fileNames={files.map((f) => f.name)}
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={busy}>

@@ -7,7 +7,7 @@ export function cellText(value: Cell): string {
   return String(value);
 }
 
-/** 資料預覽表：第一欄是列號（從 0 起算，與驗證報告相同）。 */
+/** 資料預覽表：第一欄是列號（從 1 起算，與驗證報告的「第幾列」相同）。 */
 export function DataTable({ label, preview }: { label: string; preview: Preview }) {
   return (
     <div className="table-wrap">
@@ -28,7 +28,7 @@ export function DataTable({ label, preview }: { label: string; preview: Preview 
           {preview.rows.map((r, i) => (
             <tr key={preview.offset + i}>
               <th scope="row" className="num">
-                {preview.offset + i}
+                {preview.offset + i + 1}
               </th>
               {r.map((v, j) => (
                 <td key={preview.columns[j]} className={typeof v === 'number' ? 'num' : v === null ? 'text-muted' : undefined}>

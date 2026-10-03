@@ -170,7 +170,8 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(cards).toHaveTextContent('0.5 等於亂猜');
     expect(cards).toHaveTextContent('敏感度70%實際為「1」的人，模型抓到 70%');
     expect(cards).toHaveTextContent('特異度');
-    expect(screen.getByText(/比較基準：全部猜最常見類別：55%/).closest('p')).toHaveTextContent('如果每個人都猜「0」，20 人中會猜對 11 人');
+    expect(screen.getByText(/比較基準：全部猜訓練資料最常見的類別：55%/).closest('p')).toHaveTextContent(
+      '訓練資料中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
     expect(screen.getByText(/測試集只有 20 人/)).toHaveTextContent('請以下方的 K 折平均為主');
     expect(screen.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toHaveTextContent(/準確率\d+(\.\d)?% ± \d/);
     expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('9 人（82%），正確');

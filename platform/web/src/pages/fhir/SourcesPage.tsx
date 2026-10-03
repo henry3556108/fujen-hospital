@@ -16,6 +16,7 @@ import {
   type FhirSource,
   type SourceKind,
 } from './types';
+import { FileInput } from '../../components/FileInput';
 
 function RunResult({ run }: { run: FhirRun }) {
   if (run.status === 'succeeded') {
@@ -123,7 +124,7 @@ function SourceForm({ onCreated }: { onCreated: (s: FhirSource) => void }) {
           <label htmlFor="src-file" className="field__hint">
             或選擇檔案
           </label>
-          <input id="src-file" type="file" onChange={(e) => void loadFile(e.target.files?.[0])} />
+          <FileInput id="src-file" onFiles={(files) => void loadFile(files[0])} />
         </div>
       )}
       <div className="row-actions">

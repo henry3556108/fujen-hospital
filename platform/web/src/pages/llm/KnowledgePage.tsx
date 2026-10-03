@@ -3,6 +3,7 @@ import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import type { UploadResult } from './api';
 import { useLlm } from './useLlm';
+import { FileInput } from '../../components/FileInput';
 
 const STATUS: Record<string, string> = { indexed: '已寫入', duplicate: '重複', failed: '失敗' };
 
@@ -78,7 +79,7 @@ export function KnowledgePage() {
           <form aria-label="上傳文件" className="stack" onSubmit={upload}>
             <div className="field">
               <label htmlFor="kb-files">選擇檔案（PDF、DOCX、TXT、CSV、JSON、HTML，可多選）</label>
-              <input id="kb-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.json,.html,.htm" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+              <FileInput id="kb-files" multiple accept=".pdf,.docx,.txt,.csv,.json,.html,.htm" onFiles={setFiles} fileNames={files.map((f) => f.name)} />
             </div>
             <button type="submit" className="btn btn--primary" disabled={busy || files.length === 0}>上傳並建立向量</button>
           </form>

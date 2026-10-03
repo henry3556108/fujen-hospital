@@ -54,7 +54,7 @@ describe('上傳免寫 JSON', () => {
     const result = await screen.findByRole('region', { name: '「bad-auto」的上傳結果' });
     const expected = JSON.parse(fixtureText('tabular/bad_rows.json')).rows as { row: number; column: string }[];
     const rows = bodyRows(within(result).getByRole('table'));
-    expect(rows.map((r) => Number(r[0]))).toEqual(expected.map((r) => r.row));
+    expect(rows.map((r) => Number(r[0]))).toEqual(expected.map((r) => r.row + 1));   // 第幾列從 1 起算
   });
 
   it('changing a type changes the pre-check', async () => {
