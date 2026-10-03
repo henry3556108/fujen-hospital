@@ -25,11 +25,11 @@ ALGORITHMS = {
 }
 
 
-def fit(make, x, y, *, where="訓練資料"):
+def fit(make, x, y, *, where="訓練資料", missing="drop"):
     y = y.astype(str)
     if y.nunique() < 2:
         raise ValueError(f"{where}的目標欄位只有一種類別，無法訓練分類模型")
-    model = tabularkit.build_model(make(), x)     # 文字／類別特徵在 Pipeline 內自動 One-Hot
+    model = tabularkit.build_model(make(), x, missing)     # 補值、文字／類別特徵在 Pipeline 內自動 One-Hot
     model.fit(x, y)
     return model
 
@@ -38,20 +38,25 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     prepared = tabularkit.prepare(config, data_dir)
     algorithm = config["tabular"]["algorithm"]
     seed, hyper = int(config["seed"]), config.get("hyperparameters") or {}
+    missing = prepared["missing"]
 
     def make():
         return ALGORITHMS[algorithm](seed, hyper)
 
-    metrics = {"rows": {name: len(part[0]) for name, part in prepared["data"].items()}}
+    metrics = {"rows": {name: len(part[0]) for name, part in prepared["data"].items()},
+               "data": tabularkit.data_summary(prepared)}
     if prepared["folds"]:
         metrics["cv"] = tabularkit.cross_validate(
             config, prepared, lambda xt, yt, xv, yv: tabularkit.classification_metrics(
-                fit(make, xt, yt, where="交叉驗證某一折的訓練資料"), xv, yv, majority=tabularkit.majority_label(yt)))
+                fit(make, xt, yt, where="交叉驗證某一折的訓練資料", missing=missing), xv, yv,
+                majority=tabularkit.majority_label(yt)))
     x_train, y_train, _ = prepared["data"]["train"]
-    model = fit(make, x_train, y_train)
+    model = fit(make, x_train, y_train, missing=missing)
     majority = tabularkit.majority_label(y_train)
     classes = [str(c) for c in model.classes_]
-    metrics["labels"] = {"majority": majority, **({"positive": classes[1]} if len(classes) == 2 else {})}
+    # 比較基準以訓練資料最常見的類別計算（不偷看測試集）；一併記下它在訓練資料占多少，網頁才能說清楚
+    metrics["labels"] = {"majority": majority, **({"positive": classes[1]} if len(classes) == 2 else {}),
+                         "majority_train": {"count": int((y_train.astype(str) == majority).sum()), "rows": len(y_train)}}
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
             metrics[name] = tabularkit.classification_metrics(model, x, y, majority=majority)

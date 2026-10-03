@@ -164,7 +164,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
 
   test('段落 4：建立訓練、匯出模型、部署與推論', async ({ page }) => {
     test.setTimeout(90_000);
-    // pi01（Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
+    // pi01（計畫主持人，Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
     await loginAs(page, 'pi01');
     await page.goto('/');
 
@@ -178,8 +178,8 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     const form = page.getByRole('form', { name: '新增訓練設定' });
     await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
     await form.getByLabel('設定名稱').fill('demo-diagnosis');
-    await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
-    const features = form.getByRole('group', { name: '特徵欄位（Feature）' });
+    await form.getByLabel('要預測的結果（Target）').selectOption('diagnosis');
+    const features = form.getByRole('group', { name: '用來預測的資料（Feature）' });
     for (const f of ['age', 'sex', 'bmi', 'smoker']) await features.getByRole('checkbox', { name: f, exact: true }).check();
     await form.getByRole('radio', { name: 'K 折交叉驗證' }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
@@ -204,21 +204,22 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await page.getByRole('button', { name: '匯出原始碼' }).click();
     expect((await source).suggestedFilename()).toBe('training-run-1-source.zip');
 
-    // 「部署此模型」：AI 模型部署頁已選好模型並建議部署名稱，填授權帳號後部署，再用「試用預測」
-    await page.getByRole('link', { name: '部署此模型' }).click();
-    const deploy = page.getByRole('form', { name: '部署模型' });
-    await expect(deploy.getByLabel('部署名稱（小寫英數字與 -）')).toHaveValue('demo-diagnosis-run1');
-    await deploy.getByLabel('授權帳號（以逗號分隔）').fill('md01, pi01');
-    await deploy.getByRole('button', { name: '部署' }).click();
-    await expect(page.getByText('已部署「demo-diagnosis-run1」：POST /api/inference/demo-diagnosis-run1/predict')).toBeVisible();
-    await expect(page.getByRole('table', { name: '線上部署清單' }).getByRole('row', { name: /demo-diagnosis-run1/ })).toContainText('md01、pi01');
+    // 「分享給同事使用」：AI 模型部署頁已選好模型並帶入顯示名稱，填同事帳號後分享，再用「試用預測」
+    await page.getByRole('link', { name: '分享給同事使用' }).click();
+    const deploy = page.getByRole('form', { name: '分享給同事使用' });
+    await expect(deploy.getByLabel('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('demo-diagnosis');
+    await deploy.getByLabel('顯示名稱（同事看到的名稱，可用中文）').fill('心臟科確診預測');
+    await deploy.getByLabel('分享給（同事的帳號，以逗號分隔）').fill('md01, pi01');
+    await deploy.getByRole('button', { name: '分享給同事使用' }).click();
+    await expect(page.getByText(/^已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「推論服務管理」/)).toBeVisible();
+    await expect(page.getByRole('table', { name: '已分享的模型' }).getByRole('row', { name: /心臟科確診預測/ })).toContainText('md01、pi01');
     const trial = page.getByRole('form', { name: '試用預測' });
     await trial.getByLabel('age').fill('61');
     await trial.getByLabel('sex').selectOption('M');
     await trial.getByLabel('bmi').fill('27');
     await trial.getByLabel('smoker').selectOption('former');
     await trial.getByRole('button', { name: '預測' }).click();
-    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis：[01]（模型認為的機率 \d+%）$/);
+    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
 
     // 推論：選已訓練完成的模型，上傳影像推論
     await openEntry(page, '推論服務管理');

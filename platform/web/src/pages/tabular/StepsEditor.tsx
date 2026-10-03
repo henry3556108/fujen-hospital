@@ -18,12 +18,19 @@ export function parseParam(spec: ParamSpec, text: string): unknown {
   return text;
 }
 
+/** 一般不需要調整的參數：收在「進階」，用預設值。 */
+const ADVANCED_PARAMS: Record<string, Record<string, string>> = {
+  onehot: { drop_first: '只有部分統計模型（例如沒有正則化的線性迴歸）需要；一般保留預設「否」。' },
+};
+
+/** 步驟的一行摘要；與預設值相同的參數不列出（例如 One-Hot 的「移除第一個類別」＝否）。 */
 export function stepSummary(step: Step, catalogue: CatalogueItem[]): string {
   const item = catalogue.find((c) => c.id === step.id);
   const name = item?.name_zh ?? step.id;
   const cols = step.columns.length ? step.columns.join('、') : '所有適用欄位';
   const params = Object.entries(step.params ?? {})
     .filter(([, v]) => v !== null && v !== undefined)
+    .filter(([k, v]) => !item || item.params.properties[k]?.default === undefined || item.params.properties[k]?.default !== v)
     .map(([k, v]) => `${item?.params.properties[k]?.title ?? k}＝${typeof v === 'object' ? JSON.stringify(v) : String(v)}`);
   return `${name}：${cols}${params.length ? `（${params.join('，')}）` : ''}`;
 }
@@ -207,17 +214,33 @@ export function StepsEditor({
                 ))}
               </select>
             </div>
-            {Object.entries(method.params.properties).map(([key, spec]) => (
-              <ParamField
-                key={`${method.id}-${key}`}
-                id={`step-param-${key}`}
-                name={key}
-                spec={spec}
-                value={params[key] ?? ''}
-                onChange={(v) => setParams((p) => ({ ...p, [key]: v }))}
-              />
-            ))}
+            {Object.entries(method.params.properties)
+              .filter(([key]) => !ADVANCED_PARAMS[method.id]?.[key])
+              .map(([key, spec]) => (
+                <ParamField
+                  key={`${method.id}-${key}`}
+                  id={`step-param-${key}`}
+                  name={key}
+                  spec={spec}
+                  value={params[key] ?? ''}
+                  onChange={(v) => setParams((p) => ({ ...p, [key]: v }))}
+                />
+              ))}
           </div>
+          {Object.keys(method.params.properties).some((key) => ADVANCED_PARAMS[method.id]?.[key]) ? (
+            <details className="step-advanced">
+              <summary>進階（一般不需要調整）</summary>
+              {Object.entries(method.params.properties)
+                .filter(([key]) => ADVANCED_PARAMS[method.id]?.[key])
+                .map(([key, spec]) => (
+                  <div key={`${method.id}-${key}`}>
+                    <ParamField id={`step-param-${key}`} name={key} spec={spec} value={params[key] ?? ''}
+                      onChange={(v) => setParams((p) => ({ ...p, [key]: v }))} />
+                    <p className="field__hint">{ADVANCED_PARAMS[method.id][key]}</p>
+                  </div>
+                ))}
+            </details>
+          ) : null}
           <fieldset>
             <legend>
               套用欄位{method.requires_columns ? '（必選）' : '（不選＝所有適用欄位）'}

@@ -26,7 +26,7 @@ METRICS = {
     "auc": ("AUC（ROC 曲線下面積）", "隨機挑一位陽性與一位陰性，模型把陽性排在前面的機率。0.5 等於亂猜，0.7 以上尚可，0.8 以上良好，0.9 以上優秀。"),
     "sensitivity": ("敏感度", "實際為陽性的人當中，模型抓到的比例（0～1）。越高代表越少漏掉病人。"),
     "specificity": ("特異度", "實際為陰性的人當中，模型正確判為陰性的比例（0～1）。越高代表越少誤報。"),
-    "baseline_accuracy": ("比較基準：全部猜最常見類別", "什麼都不學、每個人都猜最常見類別的準確率。模型的準確率要明顯高於它才有用。"),
+    "baseline_accuracy": ("比較基準：全部猜訓練資料最常見的類別", "什麼都不學、每個人都猜訓練資料中最常見的那一類時的準確率。模型的準確率要明顯高於它才有用。"),
     "baseline_rmse": ("比較基準：每次都猜平均值", "什麼都不學、每次都猜訓練資料平均值的 RMSE。模型的 RMSE 要明顯低於它才有用。"),
     "r2": ("R²（解釋量）", "模型能解釋結果高低差異的比例。1 為完美，0 等於每次都猜平均值，負數代表比猜平均值還差；越接近 1 越好。"),
     "rmse": ("RMSE（均方根誤差）", "預測值平均偏離實際值多少，單位與目標欄位相同，越小越好；大錯會被放大計算。"),
@@ -270,6 +270,28 @@ svg { max-width: 100%; height: auto; display: block; margin: 8px 0; }
 """
 
 
+def data_text(data: dict | None) -> str:
+    """一句話說明這次訓練用了幾位病人、哪些沒用與原因、補了幾位的缺值（metrics.json 的 data）。"""
+    if not isinstance(data, dict):
+        return ""
+    used = data.get("used") or {}
+    names = {"train": "訓練", "validation": "驗證", "test": "測試"}
+    parts = "、".join(f"{names[k]} {used[k]} 位" for k in ("train", "validation", "test") if used.get(k))
+    text = f"共 {data.get('total', sum(used.values()))} 位病人，{parts}。"
+    left = data.get("left_out") or {}
+    target = sum(v.get("missing_target", 0) for v in left.values())
+    feature = sum(v.get("missing_feature", 0) for v in left.values())
+    filled = sum((data.get("filled") or {}).values())
+    columns = "、".join(f"{c} {n} 位" for c, n in (data.get("missing_columns") or {}).items())
+    if target:
+        text += f"目標欄位缺值的 {target} 位沒有使用。"
+    if feature:
+        text += f"特徵有缺值的 {feature} 位沒有使用（缺值：{columns}）。"
+    if filled:
+        text += f"有 {filled} 位的缺值（{columns}）已用訓練資料的中位數或最常見的值補上。"
+    return text
+
+
 def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None) -> str:
     """run 為 service.run_out() 的結果。"""
     config, metrics = run["config"], run.get("metrics") or {}
@@ -280,8 +302,8 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("訓練種類", KIND_NAMES.get(run["kind"], run["kind"])),
         ("演算法", ALGORITHM_NAMES.get(tabular.get("algorithm"), tabular.get("algorithm")) if tabular else "卷積神經網路（Keras）"),
         ("驗證方式", validation_text(config)),
-        ("目標欄位（Target）", tabular.get("target")),
-        ("特徵欄位（Feature）", "、".join(tabular.get("features") or [])),
+        ("要預測的結果（Target）", tabular.get("target")),
+        ("用來預測的資料（Feature）", "、".join(tabular.get("features") or [])),
         ("前處理步驟", " → ".join(s.get("id", "") for s in tabular.get("steps") or []) or "無"),
         ("超參數", "、".join(f"{k} = {v}" for k, v in (config.get("hyperparameters") or {}).items()) or "預設值"),
         ("資料版本", f"#{run['dataset_version_id']}"),
@@ -291,7 +313,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("模型檔 SHA-256", model.get("sha256", "—")),
     ]
     if not tabular:
-        facts = [f for f in facts if f[0] not in ("目標欄位（Target）", "特徵欄位（Feature）", "前處理步驟")]
+        facts = [f for f in facts if f[0] not in ("要預測的結果（Target）", "用來預測的資料（Feature）", "前處理步驟")]
     fact_rows = "".join(f"<tr><th scope=\"row\">{_e(k)}</th><td>{_e(v if v is not None else '—')}</td></tr>"
                         for k, v in facts)
     cv = metrics.get("cv")
@@ -304,6 +326,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
 <h2>設定</h2>
 <table><tbody>{fact_rows}</tbody></table>
 <h2>模型表現</h2>
+{f'<p class="data-usage">{_e(data_text(metrics.get("data")))}</p>' if metrics.get("data") else ''}
 {_metric_rows(metrics)}
 {f'<h2>K 折交叉驗證</h2>{_cv_rows(cv)}' if isinstance(cv, dict) else ''}
 <h2>圖表</h2>

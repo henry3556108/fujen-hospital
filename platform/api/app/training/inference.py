@@ -88,9 +88,11 @@ class FakeInferenceBackend:
             raise InferenceRejected(f"資料缺少特徵欄位：{'、'.join(missing)}")
         predictions, notes, probabilities = [], [], []
         classify = card["kind"] == "tabular_classification"
+        impute = card.get("missing") == "impute"
         for row in rows:
             probabilities.append(None)
-            if any(row.get(f, "") == "" for f in card.get("features", [])):
+            gaps = [f for f in card.get("features", []) if row.get(f, "") == ""]
+            if gaps and not impute:
                 predictions.append(None)
                 notes.append("特徵含缺值，無法預測")
                 continue
@@ -100,7 +102,7 @@ class FakeInferenceBackend:
                 probabilities[-1] = round(0.5 + value / 2, 4)
             else:
                 predictions.append(round(_pick([0], row)[1] * 100, 3))
-            notes.append(None)
+            notes.append("；".join(f"{f} 缺值，已用訓練資料的中位數補上" for f in gaps) or None)
         return {"predictions": predictions, "notes": notes, **({"probabilities": probabilities} if classify else {})}
 
     def predict_images(self, model_id, files):

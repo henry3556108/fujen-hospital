@@ -13,7 +13,7 @@ test.describe('CSV 上傳驗證', () => {
     await page.getByRole('list', { name: '資料種類' }).getByRole('link', { name: /結構式資料：上傳 CSV/ }).click();
     await expect(page.getByRole('form', { name: '上傳 CSV' })).toBeVisible();
     await page.getByRole('link', { name: '上傳 CSV', exact: true }).click();
-    await expect(page.getByLabel(/^CSV 檔案/)).toBeInViewport();
+    await expect(page.getByRole('form', { name: '上傳 CSV' }).getByRole('button', { name: '選擇檔案' }).first()).toBeInViewport();
   });
 
   test('TC-B01-10 不寫 JSON：正常 CSV 全部通過；bad.csv 勾選 sbp 必填後 10 列錯誤全部攔下', async ({ page }) => {
@@ -43,7 +43,7 @@ test.describe('CSV 上傳驗證', () => {
     const rows = result.getByRole('table').getByRole('row');
     await expect(rows).toHaveCount(expected.length + 1);
     for (const [i, e] of expected.entries()) {
-      await expect(rows.nth(i + 1).locator('th,td').nth(0)).toHaveText(String(e.row));
+      await expect(rows.nth(i + 1).locator('th,td').nth(0)).toHaveText(String(e.row + 1));   // 第幾列從 1 起算
       await expect(rows.nth(i + 1).locator('td').nth(1)).toHaveText(e.column);
     }
 

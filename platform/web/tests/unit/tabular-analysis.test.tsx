@@ -38,7 +38,7 @@ describe('前處理', () => {
     await addStep(user, '類別編碼', 'One-Hot 編碼', ['sex'], { '移除第一個類別（避免共線）': 'false' });
     expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem').map((l) => l.firstChild?.textContent)).toEqual([
       '平均數補值：glucose',
-      'One-Hot 編碼：sex（移除第一個類別（避免共線）＝false）',
+      'One-Hot 編碼：sex',
     ]);
     await user.click(screen.getByRole('button', { name: '預覽套用結果' }));
     const result = await screen.findByRole('region', { name: '前處理預覽結果' });

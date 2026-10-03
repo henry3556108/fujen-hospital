@@ -202,6 +202,17 @@ def test_submit_checks_the_setting_against_the_dataset(client, pi, project, back
     assert ok(client.get(f"{base(project.id)}/runs", headers=pi)) == [], "沒有送出、沒有排隊"
 
 
+def test_original_column_next_to_its_onehot_step_names_the_generated_columns(client, pi, project, backend, table):
+    """使用性測試第二輪：sex 已 One-Hot 成 sex_F、sex_M，又勾了 sex 時，訊息說出產生的欄位。"""
+    body = setting_body("tabular_classification", dataset_id=table)
+    body["config"]["tabular"] |= {"features": ["age", "sex", "sex_F", "sex_M"],
+                                  "steps": [{"id": "onehot", "columns": ["sex"]}]}
+    setting = ok(client.post(f"{base(project.id)}/settings", headers=pi, json=body), 201)
+    response = client.post(f"{base(project.id)}/settings/{setting['id']}/runs", headers=pi, json={"executor": "fake"})
+    assert response.status_code == 422, response.text
+    assert "「sex」已轉成 sex_F、sex_M（One-Hot）" in response.json()["detail"]
+
+
 def test_regression_on_text_target_is_rejected_before_queueing(client, pi, project, backend, table):
     body = setting_body("tabular_regression", dataset_id=table)
     body["config"]["tabular"] |= {"target": "smoker"}
@@ -237,3 +248,62 @@ def test_classification_results_carry_probability(client, pi, project, backend, 
     first, second = result["rows"]
     assert 0.5 <= float(first[-2]) <= 1 and first[-1].startswith(f"預測為「{first[-3]}」的機率")
     assert second[-3] == "" and second[-1] == "特徵含缺值，無法預測"
+
+
+# ---------------------------------------------------------------- 使用性測試第二輪：缺值處理
+
+def test_missing_choice_is_normalised_and_old_settings_stay_without_it():
+    body = setting_body("tabular_classification", dataset_id=1)["config"]
+    assert "missing" not in cfg.normalise(body)["tabular"], "舊設定不多欄位"
+    filled = cfg.normalise(body | {"tabular": {**body["tabular"], "missing": "impute"}})
+    assert filled["tabular"]["missing"] == "impute" and cfg.normalise(filled) == filled
+    with pytest.raises(cfg.ConfigError, match="缺值處理"):
+        cfg.normalise(body | {"tabular": {**body["tabular"], "missing": "zero"}})
+
+
+def test_dataset_target_feature_keeps_the_missing_choice(client, pi, project, table):
+    url = f"/api/projects/{project.id}/tabular/datasets/{table}/target-feature"
+    saved = ok(client.put(url, headers=pi, json={"target": "diagnosis", "features": ["age", "glucose"],
+                                                 "missing": "impute"}))
+    assert saved["config"]["missing"] == "impute"
+    assert ok(client.get(url, headers=pi))["config"]["missing"] == "impute"
+    plain = ok(client.put(url, headers=pi, json={"target": "diagnosis", "features": ["age"]}))
+    assert "missing" not in plain["config"]
+
+
+def test_impute_trains_on_every_patient_and_predicts_rows_with_gaps(client, pi, project, backend, table, tmp_path,
+                                                                     inference):
+    body = setting_body("tabular_classification", dataset_id=table)
+    body["config"]["tabular"] |= {"features": ["age", "sex", "glucose"], "steps": [], "missing": "impute"}
+    run = start(client, pi, project.id, body, executor="template")
+    done = run_container(client, backend, pi, run, tmp_path)
+    assert done["status"] == "succeeded", done["message"]
+    data = done["metrics"]["data"]
+    assert data["missing"] == "impute" and data["missing_columns"]["glucose"] > 0
+    assert sum(done["metrics"]["rows"].values()) == data["total"]
+    model = ok(client.get(f"/api/projects/{project.id}/models/{done['model_id']}", headers=pi))
+    assert model["card"]["missing"] == "impute"
+    csv_text = "age,sex,glucose\n60,M,100\n40,F,\n"
+    out = ok(client.post(f"/api/projects/{project.id}/models/{done['model_id']}/inference/upload", headers=pi,
+                         files=[("files", ("gaps.csv", csv_text.encode(), "text/csv"))]), 201)
+    result = ok(client.get(f"/api/projects/{project.id}/inference/{out['id']}", headers=pi))["result"]
+    first, second = result["rows"]
+    assert second[-3] != "", "有缺值的病人也有預測"
+    assert second[-1].startswith(f"預測為「{second[-3]}」的機率") and "glucose 缺值，已用訓練資料的中位數補上" in second[-1]
+    assert "缺值" not in first[-1]
+
+
+def test_report_says_how_many_patients_were_used_and_why_some_were_not():
+    from app.training.report import data_text
+
+    data = {"missing": "drop", "total": 100, "used": {"train": 57, "validation": 19, "test": 19},
+            "left_out": {"train": {"missing_target": 0, "missing_feature": 3},
+                         "validation": {"missing_target": 0, "missing_feature": 1},
+                         "test": {"missing_target": 0, "missing_feature": 1}},
+            "filled": {"train": 0, "validation": 0, "test": 0}, "missing_columns": {"glucose": 5}}
+    assert data_text(data) == ("共 100 位病人，訓練 57 位、驗證 19 位、測試 19 位。"
+                               "特徵有缺值的 5 位沒有使用（缺值：glucose 5 位）。")
+    filled = data | {"missing": "impute", "used": {"train": 60, "validation": 20, "test": 20},
+                     "left_out": {k: {"missing_target": 0, "missing_feature": 0} for k in data["used"]},
+                     "filled": {"train": 3, "validation": 1, "test": 1}}
+    assert "有 5 位的缺值（glucose 5 位）已用訓練資料的中位數或最常見的值補上" in data_text(filled)

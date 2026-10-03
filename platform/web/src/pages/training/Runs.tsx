@@ -1,5 +1,5 @@
 // 訓練紀錄：清單可依編號或主要分數排序、預設只看自己的；點「展開」在清單內看細節。
-// 細節：圖示步驟條（進行中自動更新）、失敗原因（技術細節收合、前往修正）、結果與圖表、模型匯出、部署此模型。
+// 細節：圖示步驟條（進行中自動更新）、失敗原因（技術細節收合、前往修正）、結果與圖表、模型匯出、分享給同事使用（AI 模型部署）。
 import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -212,10 +212,10 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
         <div className="row-actions">
           {canDeploy ? (
             <Link className="btn btn--primary" to={`/deployment?model=${run.model_id}`}>
-              部署此模型
+              分享給同事使用
             </Link>
           ) : (
-            <span className="text-muted">部署模型需要 Prediction 權限，請聯絡專案負責人。</span>
+            <span className="text-muted">分享模型需要 Prediction 權限，請聯絡專案負責人。</span>
           )}
         </div>
       ) : null}

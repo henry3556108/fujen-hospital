@@ -66,8 +66,8 @@ describe('B1 從資料集建立訓練', () => {
     expect(screen.getByText(/預選「結構式分類」/)).toBeInTheDocument();
     expect(within(form).getByLabelText('訓練種類')).toHaveValue('tabular_classification');
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
-    await waitFor(() => expect(within(form).getByLabelText('目標欄位（Target）')).toHaveValue('diagnosis'));
-    const features = within(form).getByRole('group', { name: '特徵欄位（Feature）' });
+    await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toHaveValue('diagnosis'));
+    const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
     expect(within(features).getByRole('checkbox', { name: 'sex' })).toBeChecked();
     expect(within(form).getByTestId('text-features')).toHaveTextContent('「sex、smoker」是文字或類別欄位，訓練時會自動轉成 0／1 欄位');
     await first.user.click(within(form).getByRole('button', { name: '儲存設定' }));
@@ -111,9 +111,9 @@ describe('B2 超參數說明與 B3 K 折', () => {
     await user.type(within(form).getByLabelText('設定名稱'), 'kfold');
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
     await user.selectOptions(await within(form).findByLabelText('資料集'), await within(form).findByRole('option', { name: /^lung-clinical/ }));
-    await waitFor(() => expect(within(form).getByLabelText('目標欄位（Target）')).toBeEnabled());
-    await user.selectOptions(within(form).getByLabelText('目標欄位（Target）'), 'diagnosis');
-    await user.click(within(within(form).getByRole('group', { name: '特徵欄位（Feature）' })).getByRole('checkbox', { name: 'age' }));
+    await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toBeEnabled());
+    await user.selectOptions(within(form).getByLabelText('要預測的結果（Target）'), 'diagnosis');
+    await user.click(within(within(form).getByRole('group', { name: '用來預測的資料（Feature）' })).getByRole('checkbox', { name: 'age' }));
     await user.click(within(form).getByRole('radio', { name: 'K 折交叉驗證' }));
     expect(within(form).queryByLabelText('訓練集（%）')).toBeNull();
     const folds = within(form).getByLabelText('交叉驗證折數（K）');
@@ -170,7 +170,8 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(cards).toHaveTextContent('0.5 等於亂猜');
     expect(cards).toHaveTextContent('敏感度70%實際為「1」的人，模型抓到 70%');
     expect(cards).toHaveTextContent('特異度');
-    expect(screen.getByText(/比較基準：全部猜最常見類別：55%/).closest('p')).toHaveTextContent('如果每個人都猜「0」，20 人中會猜對 11 人');
+    expect(screen.getByText(/比較基準：全部猜訓練資料最常見的類別：55%/).closest('p')).toHaveTextContent(
+      '訓練資料中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
     expect(screen.getByText(/測試集只有 20 人/)).toHaveTextContent('請以下方的 K 折平均為主');
     expect(screen.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toHaveTextContent(/準確率\d+(\.\d)?% ± \d/);
     expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('9 人（82%），正確');
@@ -182,7 +183,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     await screen.findByText('已下載 training-run-1-report.html');
     expect(saved).toEqual(['training-run-1-report.html']);
 
-    const deploy = screen.getByRole('link', { name: '部署此模型' });
+    const deploy = screen.getByRole('link', { name: '分享給同事使用' });
     expect(deploy.getAttribute('href')).toMatch(/^\/deployment\?model=\d+$/);
   });
 
@@ -236,11 +237,12 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     seed('舊的', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'smoker_current'], steps: [], algorithm: 'random_forest' } }));
     await saveTargetFeature('diagnosis', ['age', 'smoker']);
     const { user } = await renderApp('/training', 'pi01');
-    expect(await screen.findByText('資料集設定已更新')).toBeInTheDocument();
+    expect(await screen.findByText('與資料集設定不同')).toBeInTheDocument();
+    expect(screen.getByTestId('setting-difference')).toHaveTextContent('與資料集目前的設定不同：Feature 多了 smoker_current，少了 smoker。');
     await user.click(screen.getByRole('button', { name: '套用資料集設定到「舊的」' }));
     await screen.findByText('已把資料集目前的 Target、Feature 與前處理套用到「舊的」。');
     expect(trainingMock().settings[0].config.tabular!.features).toEqual(['age', 'smoker']);
-    await waitFor(() => expect(screen.queryByText('資料集設定已更新')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('與資料集設定不同')).toBeNull());
   });
 
   it('only administrators see the fake-trainer option; settings default to mine', async () => {
@@ -257,11 +259,11 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     seed('心臟科確診預測', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'sex'], steps: [], algorithm: 'random_forest' } }));
     const { user } = await renderApp('/training', 'pi01');
     await finish(user, '心臟科確診預測');
-    await user.click(screen.getByRole('link', { name: '部署此模型' }));
-    const form = await screen.findByRole('form', { name: '部署模型' });
+    await user.click(screen.getByRole('link', { name: '分享給同事使用' }));
+    const form = await screen.findByRole('form', { name: '分享給同事使用' });
     const modelId = String(trainingMock().runs[0].model_id);
     await waitFor(() => expect(within(form).getByLabelText('模型')).toHaveValue(modelId));
-    expect(within(form).getByLabelText('部署名稱（小寫英數字與 -）')).toHaveValue('run1');
+    expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科確診預測');
     expect(within(form).getByText(/已選好剛訓練完成的模型/)).toBeInTheDocument();
 
     const tryForm = screen.getByRole('form', { name: '試用預測' });
@@ -271,7 +273,7 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     await user.type(within(tryForm).getByLabelText('age'), '61');
     await user.selectOptions(within(tryForm).getByLabelText('sex'), 'M');
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
-    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis：[01]（模型認為的機率 \d+%）$/);
+    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「([01])」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
   });
 });
 

@@ -65,7 +65,7 @@ describe('資料集列表', () => {
     expect(result).toHaveTextContent('共 30 列，通過 20 列，拒絕 10 列');
     const expected = JSON.parse(fixtureText('tabular/bad_rows.json')).rows as { row: number; column: string }[];
     const rows = bodyRows(within(result).getByRole('table', { name: '「bad」的上傳結果：被拒絕的資料列' }));
-    expect(rows.map((r) => [Number(r[0]), Number(r[1]), r[2]])).toEqual(expected.map((r) => [r.row, r.row + 2, r.column]));
+    expect(rows.map((r) => [Number(r[0]), Number(r[1]), r[2]])).toEqual(expected.map((r) => [r.row + 1, r.row + 2, r.column]));
     expect(rows[2][3]).toBe('「12O」不是整數');
     expect(rows[3][3]).toBe('「unknown」不在允許值（M、F）之內');
     expect(cellsOf(within(await list()).getByRole('row', { name: /^bad/ })).slice(2, 5)).toEqual(['30', '20', '10']);
@@ -124,10 +124,10 @@ describe('預覽與欄位顯示／隱藏', () => {
     expect(screen.getByText('第 1–50 列，共 100 列')).toBeInTheDocument();
     const rows = bodyRows(table);
     expect(rows).toHaveLength(50);
-    expect(rows[0]).toEqual(['0', 'P10001', '38', 'M', '23.1', '90', '50', '78.6', 'current', '0', '2,180', '0', '（空）']);
+    expect(rows[0]).toEqual(['1', 'P10001', '38', 'M', '23.1', '90', '50', '78.6', 'current', '0', '2,180', '0', '（空）']);
     await user.click(screen.getByRole('button', { name: '下一頁' }));
     await screen.findByText('第 51–100 列，共 100 列');
-    expect(bodyRows(screen.getByRole('table', { name: '資料預覽' }))[0][0]).toBe('50');
+    expect(bodyRows(screen.getByRole('table', { name: '資料預覽' }))[0][0]).toBe('51');
     expect(screen.getByRole('button', { name: '下一頁' })).toBeDisabled();
   });
 
@@ -150,7 +150,7 @@ describe('預覽與欄位顯示／隱藏', () => {
     ]);
     for (const c of ['patient_id', 'bmi', 'smoker']) expect(screen.getByRole('checkbox', { name: c })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'age' })).toBeChecked();
-    expect(bodyRows(table)[0]).toEqual(['0', '38', 'M', '90', '50', '78.6', '0', '2,180', '0', '（空）']);
+    expect(bodyRows(table)[0]).toEqual(['1', '38', 'M', '90', '50', '78.6', '0', '2,180', '0', '（空）']);
 
     await again.user.click(screen.getByRole('button', { name: '全部顯示' }));
     await waitFor(() => expect(within(screen.getByRole('table', { name: '資料預覽' })).getAllByRole('columnheader')).toHaveLength(13));
@@ -190,7 +190,7 @@ describe('描述統計與分布', () => {
     expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '是／否（0／1）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
     expect(row('patient_id').slice(0, 2)).toEqual(['patient_id', '識別碼']);
     expect(row('patient_id')[12]).toBe('—');
-    expect(screen.getByText('表頭說明')).toBeInTheDocument();
+    expect((screen.getByText(/^表頭說明/).closest('details') as HTMLDetailsElement).open).toBe(true);
   });
 
   it('draws a histogram for a numeric column and category counts for a categorical one', async () => {

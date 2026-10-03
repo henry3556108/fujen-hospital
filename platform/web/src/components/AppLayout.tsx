@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { visibleEntries } from '../access/entries';
-import { ACCOUNT_TYPE_LABELS, ROLE_LABELS } from '../api/types';
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_NAMES_ZH, ROLE_LABELS, ROLE_NAMES_ZH } from '../api/types';
 import { useMe, useSession } from '../auth/SessionContext';
 import { Icon } from './Icon';
 import { ThemeToggle } from './ThemeToggle';
@@ -39,8 +39,13 @@ export function AppLayout() {
   const location = useLocation();
   useEffect(() => setMenuOpen(false), [location.pathname]);
 
-  const roleText =
-    me.account_type === 'admin' ? ACCOUNT_TYPE_LABELS.admin : project?.role ? ROLE_LABELS[project.role] : ACCOUNT_TYPE_LABELS.user;
+  // 頁首用中文角色名稱，英文原名放在提示文字（與帳號管理頁對照）
+  const [roleText, roleEnglish] =
+    me.account_type === 'admin'
+      ? [ACCOUNT_TYPE_NAMES_ZH.admin, ACCOUNT_TYPE_LABELS.admin]
+      : project?.role
+        ? [ROLE_NAMES_ZH[project.role], ROLE_LABELS[project.role]]
+        : [ACCOUNT_TYPE_NAMES_ZH.user, ACCOUNT_TYPE_LABELS.user];
 
   return (
     <div className="shell">
@@ -66,7 +71,9 @@ export function AppLayout() {
           <ThemeToggle />
           <span className="topbar__user">
             <span className="topbar__username">{me.username}</span>
-            <span className="text-muted">（{roleText}）</span>
+            <span className="text-muted" title={roleEnglish} data-testid="header-role">
+              （{roleText}）
+            </span>
           </span>
           <button type="button" className="btn btn--secondary" onClick={() => void logout()}>
             登出

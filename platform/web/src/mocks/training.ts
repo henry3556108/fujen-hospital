@@ -247,7 +247,7 @@ function source(value: unknown, kind: TrainingKind) {
 
 function tabular(value: unknown, kind: TrainingKind) {
   const raw = dict(value, '結構式設定');
-  const extra = unknownKeys(raw, ['target', 'features', 'steps', 'algorithm']);
+  const extra = unknownKeys(raw, ['target', 'features', 'steps', 'algorithm', 'missing']);
   if (extra.length) throw new ConfigError(`不支援的結構式設定：${extra.join('、')}`);
   const algorithms = ALGORITHMS[kind]!;
   const algorithm = (raw.algorithm as string) || Object.keys(algorithms)[0];
@@ -257,7 +257,9 @@ function tabular(value: unknown, kind: TrainingKind) {
   if (!Array.isArray(features) || features.length === 0) throw new ConfigError('請至少選擇一個特徵欄位（Feature）');
   if (features.includes(raw.target)) throw new ConfigError(`目標欄位「${raw.target}」不可同時作為特徵欄位`);
   const steps = Array.isArray(raw.steps) ? raw.steps : [];
-  return { value: { target: raw.target, features: [...features], steps, algorithm }, allowed: algorithms[algorithm] };
+  const missing = raw.missing;
+  if (missing !== undefined && missing !== 'impute' && missing !== 'drop') throw new ConfigError('缺值處理必須是 impute（補上缺值）或 drop（不使用有缺值的病人）');
+  return { value: { target: raw.target, features: [...features], steps, algorithm, ...(missing ? { missing } : {}) }, allowed: algorithms[algorithm] };
 }
 
 export function normalise(data: unknown): TrainingConfig {
@@ -361,7 +363,20 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       return [n, { mean: r4(mean), std: r4(std), values }];
     })),
   });
-  const rows = kfold ? { train: 80, validation: 0, test: 20 } : { train: 60, validation: 20, test: 20 };
+  const full = kfold ? { train: 80, validation: 0, test: 20 } : { train: 60, validation: 20, test: 20 };
+  // 模擬資料的 glucose 有 5 位缺值（訓練 3、驗證 1、測試 1；K 折時訓練 4、測試 1）
+  const gaps = (run.config.tabular?.features ?? []).includes('glucose')
+    ? (kfold ? { train: 4, validation: 0, test: 1 } : { train: 3, validation: 1, test: 1 })
+    : { train: 0, validation: 0, test: 0 };
+  const impute = run.config.tabular?.missing === 'impute';
+  const splitNames = ['train', 'validation', 'test'] as const;
+  const rows = impute ? full : Object.fromEntries(splitNames.map((k) => [k, full[k] - gaps[k]])) as typeof full;
+  const data = {
+    missing: impute ? 'impute' : 'drop', total: 100, used: rows,
+    left_out: Object.fromEntries(splitNames.map((k) => [k, { missing_target: 0, missing_feature: impute ? 0 : gaps[k] }])),
+    filled: Object.fromEntries(splitNames.map((k) => [k, impute ? gaps[k] : 0])),
+    missing_columns: gaps.train + gaps.test ? { glucose: 5 } : {},
+  };
   switch (kind) {
     case 'image_classification':
       return { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score } };
@@ -373,13 +388,14 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       const test = { accuracy: score, f1_macro: r4(score - 0.05), auc: r4(Math.min(0.99, score + 0.05)), sensitivity: 0.7, specificity: 0.75, baseline_accuracy: 0.55 };
       const train = { ...test, accuracy: r4(Math.min(1, score + 0.05)) };
       return {
-        rows, train, ...(kfold ? {} : { validation: test }), test, labels: { majority: '0', positive: '1' },
+        rows, data, train, ...(kfold ? {} : { validation: test }), test,
+        labels: { majority: '0', positive: '1', majority_train: { count: Math.round(rows.train * 0.6), rows: rows.train } },
         ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
       };
     }
     default: {
       const test = { r2: r4(score - 0.3), mae: 9.8, rmse: 12.5, baseline_rmse: 16.2 };
-      return { rows, test, ...(kfold ? { cv: cv([['r2', score - 0.3], ['mae', 9.8], ['rmse', 12.5]]) } : {}) };
+      return { rows, data, test, ...(kfold ? { cv: cv([['r2', score - 0.3], ['mae', 9.8], ['rmse', 12.5]]) } : {}) };
     }
   }
 }
@@ -447,8 +463,10 @@ function advance(run: StoredRun) {
       ? { label_names: run.config.image.labels ?? ['A', 'B'], input: { resize: [...run.config.image.resize] }, metrics: run.metrics }
       : {
           target: run.config.tabular?.target, features: run.config.tabular?.features, metrics: run.metrics,
+          missing: run.config.tabular?.missing ?? 'drop',
           ...(run.kind === 'tabular_classification' ? { classes: ['0', '1'] } : {}),
-          inputs: (run.config.tabular?.features ?? []).map((name) =>
+          // 推論時給原始欄位：One-Hot 產生的 sex_F、smoker_never… 對回 sex、smoker
+          inputs: [...new Set((run.config.tabular?.features ?? []).map((f) => f.replace(/^(sex|smoker)_.*$/, '$1')))].map((name) =>
             ['sex', 'smoker'].includes(name)
               ? { name, type: 'category' as const, values: name === 'sex' ? ['F', 'M'] : ['current', 'former', 'never'] }
               : { name, type: 'number' as const, min: 0, max: 200 }),
@@ -498,6 +516,23 @@ function findModel(projectId: number, id: unknown): Model | Response {
 }
 
 const DEPLOY_NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** 授權帳號中不是專案成員或沒有 Prediction 權限的人（照 service.without_platform_access）。 */
+function deploymentOut(row: Deployment): Deployment {
+  const db = mockDb();
+  const able = new Set(db.memberships.filter((m) => m.project_id === row.project_id && m.permissions.includes('prediction'))
+    .map((m) => db.users.find((u) => u.id === m.user_id)?.username));
+  return { ...row, cannot_use_in_platform: row.allowed_users.filter((u) => !able.has(u)) };
+}
+
+/** 分享給這位使用者的模型（模型編號 → 分享者），照 service.shared_with。 */
+export function sharedWith(projectId: number, username: string): Map<number, string> {
+  const out = new Map<number, string>();
+  for (const d of state().deployments) {
+    if (d.project_id === projectId && d.allowed_users.includes(username) && d.created_by !== username && !out.has(d.model_id)) out.set(d.model_id, d.created_by);
+  }
+  return out;
+}
 
 function users(value: unknown): string[] | Response {
   if (!Array.isArray(value) || !value.every((n) => typeof n === 'string' && n)) return detail(422, 'allowed_users 必須是帳號名稱的清單');
@@ -677,7 +712,7 @@ export const trainingHandlers = [
   http.get(`${P}/deployments`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
     if (ctx instanceof Response) return ctx;
-    return json(state().deployments.filter((d) => d.project_id === ctx.project.id));
+    return json(state().deployments.filter((d) => d.project_id === ctx.project.id).map(deploymentOut));
   }),
   http.post(`${P}/deployments`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
@@ -685,17 +720,25 @@ export const trainingHandlers = [
     const b = await jsonBody(request);
     const model = findModel(ctx.project.id, b.model_id);
     if (model instanceof Response) return model;
-    if (typeof b.name !== 'string' || !DEPLOY_NAME.test(b.name)) {
+    const s = state();
+    let name = b.name as unknown;
+    if (name === undefined || name === null || name === '') {
+      const base = `model-${model.id}`;
+      name = base;
+      for (let n = 2; s.deployments.some((d) => d.name === name); n++) name = `${base}-${n}`;
+    }
+    if (typeof name !== 'string' || !DEPLOY_NAME.test(name)) {
       return detail(422, '部署名稱只能用小寫英數字與連字號，開頭結尾必須是英數字，最多 63 字');
     }
+    if (b.title !== undefined && b.title !== null && (typeof b.title !== 'string' || b.title.trim().length > 128)) return detail(422, '顯示名稱最多 128 字');
     const allowed = users(b.allowed_users ?? []);
     if (allowed instanceof Response) return allowed;
-    const s = state();
-    if (s.deployments.some((d) => d.name === b.name)) return detail(409, `部署名稱「${b.name}」已被使用`);
-    const row: Deployment = { id: s.nextDeployment++, project_id: ctx.project.id, model_id: model.id, name: b.name, allowed_users: allowed,
-      endpoint: `/api/inference/${b.name}/predict`, created_by: ctx.user.username, created_at: isoNow() };
+    if (s.deployments.some((d) => d.name === name)) return detail(409, `部署名稱「${name}」已被使用`);
+    const row: Deployment = { id: s.nextDeployment++, project_id: ctx.project.id, model_id: model.id, name, allowed_users: allowed,
+      title: (typeof b.title === 'string' && b.title.trim()) || model.name,
+      endpoint: `/api/inference/${name}/predict`, created_by: ctx.user.username, created_at: isoNow() };
     s.deployments.push(row);
-    return json(row, 201);
+    return json(deploymentOut(row), 201);
   }),
   http.put(`${P}/deployments/:did/access`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
@@ -705,7 +748,7 @@ export const trainingHandlers = [
     const allowed = users((await jsonBody(request)).allowed_users);
     if (allowed instanceof Response) return allowed;
     row.allowed_users = allowed;
-    return json(row);
+    return json(deploymentOut(row));
   }),
   http.delete(`${P}/deployments/:did`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');

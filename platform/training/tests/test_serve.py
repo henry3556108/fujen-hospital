@@ -61,6 +61,23 @@ def test_tabular_model_predicts_raw_csv_and_keeps_rows(client, tabular_dataset, 
 
 
 @pytest.mark.keras
+def test_impute_model_predicts_every_row_even_with_blank_required_columns(client, tabular_dataset, synth, tmp_path):
+    """使用性測試第二輪：補值的模型對缺值的列也預測（必填的 age 空白也可以），說明欄寫出補了什麼。"""
+    config = {"version": 1, "kind": "tabular_classification", "seed": 1, "split": SPLIT, "hyperparameters": {},
+              "tabular": {"target": "diagnosis", "features": ["age", "smoker", "glucose"], "steps": [],
+                          "algorithm": "logistic_regression", "missing": "impute"}}
+    run_template("tabular_classification", config, tabular_dataset, tmp_path / "out")
+    push(client, 1, tmp_path / "out", schema=(synth / "tabular" / "schema.json").read_text())
+    csv = b"age,smoker,glucose\n60,current,100\n,never,\n55,,90\n"
+    answer = client.post("/models/1/predict/tabular", headers=TOKEN, content=csv)
+    assert answer.status_code == 200, answer.text
+    body = answer.json()
+    assert all(p is not None for p in body["predictions"]) and all(p is not None for p in body["probabilities"])
+    assert body["notes"][0] is None
+    assert body["notes"][1].startswith("age 缺值，已用訓練資料的中位數") and "glucose 缺值" in body["notes"][1]
+    assert body["notes"][2].startswith("smoker 缺值，已用訓練資料的最常見的值「") and body["notes"][2].endswith("」補上")
+
+
 def test_keras_classification_model_predicts_dicom(client, classification_dataset, synth, tmp_path):
     config = {"version": 1, "kind": "image_classification", "seed": 3, "split": SPLIT,
               "image": {"resize": [32, 32], "labels": ["CT", "MR"]}, "augmentation": {},

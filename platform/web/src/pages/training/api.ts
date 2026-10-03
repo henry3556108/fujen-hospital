@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { ApiError, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
 import type { Study } from '../imaging/types';
-import type { Dataset, DatasetDetail, Step, TargetFeature } from '../tabular/types';
+import type { ColumnInfo, Dataset, DatasetDetail, MissingChoice, Step, TargetFeature } from '../tabular/types';
 import type { Model, ModelKind } from '../inference/api';
 import { platformEnv } from '../../runtimeConfig';
 
@@ -81,7 +81,8 @@ export interface TrainingConfig {
   /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例切分 */
   validation?: Validation;
   image?: { resize: [number, number] | number[]; labels: string[] | null };
-  tabular?: { target: string; features: string[]; steps: Step[]; algorithm: string };
+  /** missing：缺值處理（impute 補值、drop 不使用有缺值的病人）；沒有＝drop */
+  tabular?: { target: string; features: string[]; steps: Step[]; algorithm: string; missing?: MissingChoice };
   augmentation?: Augmentation;
   hyperparameters: Hyperparameters;
 }
@@ -128,7 +129,12 @@ export interface Deployment {
   id: number;
   project_id: number;
   model_id: number;
+  /** 技術名稱（網址上的，小寫英數字與 -） */
   name: string;
+  /** 顯示名稱（可用中文） */
+  title?: string;
+  /** 授權帳號中不是本專案成員或沒有推論權限的人：在「推論服務管理」看不到這個模型 */
+  cannot_use_in_platform?: string[];
   allowed_users: string[];
   endpoint: string;
   created_by: string;
@@ -184,7 +190,8 @@ export interface TrainingApi {
   models(): Promise<Model[]>;
   downloadModel(modelId: number): Promise<Download>;
   deployments(): Promise<Deployment[]>;
-  deploy(body: { model_id: number; name: string; allowed_users: string[] }): Promise<Deployment>;
+  /** name 省略時伺服器自動產生技術名稱；title 是顯示名稱 */
+  deploy(body: { model_id: number; name?: string; title?: string; allowed_users: string[] }): Promise<Deployment>;
   setAccess(id: number, users: string[]): Promise<Deployment>;
   undeploy(id: number): Promise<void>;
   studies(): Promise<Study[]>;
@@ -194,6 +201,8 @@ export interface TrainingApi {
   targetFeature(id: number): Promise<TargetFeature | null>;
   /** 欄位的不同值數（用來判斷 Target 是分類還是迴歸） */
   distinct(datasetId: number, column: string): Promise<number>;
+  /** 套用前處理步驟後的欄位（名稱、型態、缺值數）；不改動資料集 */
+  processedColumns(datasetId: number, steps: Step[]): Promise<ColumnInfo[]>;
 }
 
 async function errorOf(res: Response): Promise<ApiError> {
@@ -258,6 +267,10 @@ export function createTrainingApi(
         `${root}/tabular/datasets/${datasetId}/value-counts?column=${encodeURIComponent(column)}&limit=1`,
       );
       return out.distinct;
+    },
+    async processedColumns(datasetId, steps) {
+      const out = await api.post<{ columns: ColumnInfo[] }>(`${root}/tabular/datasets/${datasetId}/preprocess/preview`, { steps, limit: 1 });
+      return out.columns;
     },
     async targetFeature(id) {
       try {

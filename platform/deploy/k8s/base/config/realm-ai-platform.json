@@ -1,8 +1,8 @@
 {
   "realm": "ai-platform",
   "enabled": true,
-  "displayName": "AI 模型開發管理軟體平台",
-  "displayNameHtml": "AI 模型開發管理軟體平台",
+  "displayName": "AI 模型開發管理平台",
+  "displayNameHtml": "AI 模型開發管理平台",
   "internationalizationEnabled": true,
   "supportedLocales": [
     "zh-Hant",

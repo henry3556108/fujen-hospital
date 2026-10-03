@@ -28,12 +28,15 @@ export function ChartFrame({
   description,
   legend,
   table,
+  height = H,
   children,
 }: {
   title: string;
   description: string;
   legend?: LegendItem[];
   table: TableView;
+  /** SVG 的高度（viewBox）；預設 H，旋轉的軸標籤或橫條圖需要更高 */
+  height?: number;
   children: (setActive: (text: string | null) => void) => ReactNode;
 }) {
   const id = useId();
@@ -43,7 +46,7 @@ export function ChartFrame({
       <figcaption id={`${id}-title`} className="chart__title">
         {title}
       </figcaption>
-      <svg className="chart__svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={description}>
+      <svg className="chart__svg" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={description}>
         {children(setActive)}
       </svg>
       {legend && legend.length >= 2 && (
@@ -97,6 +100,8 @@ export function Axes({
   xLabel,
   yLabel,
   xTicks,
+  tickAngle = 0,
+  extraBottom = 0,
 }: {
   x?: Scale;
   y: Scale;
@@ -104,6 +109,10 @@ export function Axes({
   yLabel: string;
   /** 類別軸：自訂刻度位置與文字 */
   xTicks?: { at: number; label: string }[];
+  /** 橫軸標籤旋轉角度（負數＝往左上斜），標籤太長、會互相重疊時使用 */
+  tickAngle?: number;
+  /** 圖下方多留的高度（旋轉的標籤需要） */
+  extraBottom?: number;
 }) {
   const ticks = xTicks ?? (x ? x.ticks.map((t) => ({ at: px(x, t), label: formatTick(t) })) : []);
   return (
@@ -117,12 +126,19 @@ export function Axes({
         </g>
       ))}
       <line className="chart-axis" x1={M.left} x2={W - M.right} y1={M.top + PH} y2={M.top + PH} />
-      {ticks.map((t, i) => (
-        <text key={`x${i}`} className="chart-text" x={t.at} y={M.top + PH + 16} textAnchor="middle">
-          {t.label}
-        </text>
-      ))}
-      <text className="chart-text" x={M.left + PW / 2} y={H - 6} textAnchor="middle">
+      {ticks.map((t, i) =>
+        tickAngle ? (
+          <text key={`x${i}`} className="chart-text" transform={`translate(${t.at} ${M.top + PH + 12}) rotate(${tickAngle})`} textAnchor="end"
+            dominantBaseline="middle">
+            {t.label}
+          </text>
+        ) : (
+          <text key={`x${i}`} className="chart-text" x={t.at} y={M.top + PH + 16} textAnchor="middle">
+            {t.label}
+          </text>
+        ),
+      )}
+      <text className="chart-text" x={M.left + PW / 2} y={H + extraBottom - 6} textAnchor="middle">
         {xLabel}
       </text>
       <text className="chart-text" transform={`translate(14 ${M.top + PH / 2}) rotate(-90)`} textAnchor="middle">

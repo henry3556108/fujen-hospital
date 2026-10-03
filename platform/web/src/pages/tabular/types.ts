@@ -185,9 +185,12 @@ export interface PipelinePreview {
   preview: Preview;
 }
 
+export type MissingChoice = 'impute' | 'drop';
+
 export interface TargetFeature {
   dataset_id: number;
-  config: { version: number; target: string; features: string[]; steps: Step[] };
+  /** missing：缺值處理（impute 補值、drop 不使用有缺值的病人）；沒有＝還沒選 */
+  config: { version: number; target: string; features: string[]; steps: Step[]; missing?: MissingChoice };
   updated_by: string;
   updated_at: string;
 }

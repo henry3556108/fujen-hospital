@@ -267,7 +267,7 @@ def normalise_source(value: Any, kind: str) -> dict[str, Any]:
 
 def normalise_tabular(value: Any, kind: str) -> tuple[dict[str, Any], dict[str, tuple]]:
     raw = _dict(value, "結構式設定")
-    unknown = sorted(set(raw) - {"target", "features", "steps", "algorithm"})
+    unknown = sorted(set(raw) - {"target", "features", "steps", "algorithm", "missing"})
     if unknown:
         raise ConfigError(f"不支援的結構式設定：{'、'.join(unknown)}")
     algorithms = ALGORITHMS[kind]
@@ -275,11 +275,15 @@ def normalise_tabular(value: Any, kind: str) -> tuple[dict[str, Any], dict[str, 
     if algorithm not in algorithms:
         raise ConfigError(f"{KIND_NAMES[kind]}可用的演算法：{'、'.join(algorithms)}")
     try:
-        parsed = TargetFeatureConfig.from_dict({k: raw[k] for k in ("target", "features", "steps") if k in raw})
+        parsed = TargetFeatureConfig.from_dict({k: raw[k] for k in ("target", "features", "steps", "missing")
+                                                if k in raw})
     except TabularError as exc:
         raise ConfigError(str(exc)) from exc
-    return ({"target": parsed.target, "features": parsed.features, "steps": parsed.to_dict()["steps"],
-             "algorithm": algorithm}, algorithms[algorithm])
+    out = {"target": parsed.target, "features": parsed.features, "steps": parsed.to_dict()["steps"],
+           "algorithm": algorithm}
+    if parsed.missing is not None:      # 缺值處理：impute 補值、drop 不使用；沒有＝drop（舊設定不變）
+        out["missing"] = parsed.missing
+    return out, algorithms[algorithm]
 
 
 def normalise(data: Any) -> dict[str, Any]:

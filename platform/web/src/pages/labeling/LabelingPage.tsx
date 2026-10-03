@@ -8,6 +8,7 @@ import { useLabelingApi, type LabelingApi, type TrainingJob } from './api';
 import { formatDate } from './parts';
 import { KIND_LABELS, type AnnotationKind, type CsvKey, type CsvResult, type CsvRowStatus, type LabelSummary } from './types';
 import './labeling.css';
+import { FileInput } from '../../components/FileInput';
 
 const STATUS_LABELS: Record<CsvRowStatus, string> = {
   matched: '已標註',
@@ -141,7 +142,7 @@ function CsvPanel({ labeling, onDone }: { labeling: LabelingApi; onDone: () => v
         <div className="form-grid">
           <div className="field">
             <label htmlFor="csv-file">CSV 檔（必填）</label>
-            <input id="csv-file" ref={fileRef} name="file" className="input" type="file" accept=".csv,text/csv" aria-required="true" />
+            <FileInput id="csv-file" ref={fileRef} name="file" accept=".csv,text/csv" aria-required="true" onFiles={() => undefined} />
           </div>
           <div className="field">
             <label htmlFor="csv-key">對齊依據</label>

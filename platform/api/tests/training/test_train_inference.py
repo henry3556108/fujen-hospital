@@ -212,3 +212,39 @@ def test_permissions_for_models_and_inference(client, pi, member, project, tabul
     assert client.get(f"{models(project.id)}/{mid}/download", headers=assistant).status_code == 200
     for path in (f"{models(project.id)}", f"{models(project.id)}/{mid}/inference"):
         assert client.get(path, headers=outsider).status_code == 403
+
+
+# ---------------------------------------------------------------- 使用性測試第二輪：分享給同事使用
+
+def test_shared_model_is_found_and_used_by_a_colleague_with_prediction(client, pi, member, project, tabular_model,
+                                                                        synth, add_user):
+    """分享（部署）時不必填技術名稱：顯示名稱預設模型名稱（可用中文），技術名稱自動產生。
+    專案內有 Prediction 權限的 md01 登入後，在推論服務管理的模型清單看得到這個模型（標示誰分享給他），並可預測。"""
+    md01 = member("md01", Role.MEDICAL_DOCTOR)
+    add_user("user01")
+    base = f"/api/projects/{project.id}/deployments"
+    shared = ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "title": "心臟科確診預測",
+                                                    "allowed_users": ["md01", "user01"]}), 201)
+    assert shared["name"] == f"model-{tabular_model['id']}" and shared["title"] == "心臟科確診預測"
+    assert shared["endpoint"] == f"/api/inference/model-{tabular_model['id']}/predict"
+    assert shared["cannot_use_in_platform"] == ["user01"], "不是專案成員的帳號看不到推論服務管理的模型"
+    second = ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "allowed_users": []}), 201)
+    assert second["name"] == f"model-{tabular_model['id']}-2" and second["title"] == tabular_model["name"]
+    assert [d["title"] for d in ok(client.get(base, headers=pi))] == ["心臟科確診預測", tabular_model["name"]]
+
+    listed = ok(client.get(models(project.id), headers=md01))
+    mine = next(m for m in listed if m["id"] == tabular_model["id"])
+    assert mine["shared_with_me"] is True and mine["shared_by"] == "pi01"
+    csv_file = [("files", ("c.csv", (synth / "tabular" / "cohort_02.csv").read_bytes(), "text/csv"))]
+    out = ok(client.post(f"{models(project.id)}/{tabular_model['id']}/inference/upload", headers=md01,
+                         files=csv_file), 201)
+    assert out["status"] == "succeeded" and out["user"] == "md01"
+    assert ok(client.get(models(project.id), headers=pi))[0]["shared_with_me"] is False
+
+
+def test_display_name_is_limited_and_explicit_technical_names_still_work(client, pi, project, tabular_model):
+    base = f"/api/projects/{project.id}/deployments"
+    response = client.post(base, headers=pi, json={"model_id": tabular_model["id"], "title": "x" * 129})
+    assert response.status_code == 422 and "顯示名稱" in response.json()["detail"]
+    named = ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "name": "diagnosis-rf"}), 201)
+    assert named["name"] == "diagnosis-rf" and named["title"] == tabular_model["name"]

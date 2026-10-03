@@ -156,7 +156,9 @@ def test_binary_metrics_include_sensitivity_specificity_and_baseline(tabular_dat
                         tabular_dataset, tmp_path / "out")
     test = card["metrics"]["test"]
     assert {"accuracy", "f1_macro", "auc", "sensitivity", "specificity", "baseline_accuracy"} <= set(test)
-    assert card["metrics"]["labels"] == {"majority": "0", "positive": "1"}
+    labels = card["metrics"]["labels"]
+    assert labels["majority"] == "0" and labels["positive"] == "1"
+    assert labels["majority_train"]["rows"] == card["metrics"]["rows"]["train"]
     reg = run_template("tabular_regression", config("tabular_regression", "sbp", "linear_regression",
                                                     features=REG_FEATURES, steps=STEPS[:1]),
                        tabular_dataset, tmp_path / "reg")
@@ -328,3 +330,131 @@ def test_runner_uploads_charts():
     from trainer.runner import UPLOADS
 
     assert "charts.json" in UPLOADS
+
+
+# ---------------------------------------------------------------- 缺值處理（使用性測試第二輪）：補值或不使用
+
+MISSING_FEATURES = ["age", "sex", "smoker", "glucose"]       # glucose 有缺值；sex、smoker 是文字
+
+
+def missing_config(strategy, *, kind="tabular_classification", target="diagnosis", algorithm="logistic_regression",
+                   features=MISSING_FEATURES, seed=7):
+    cfg = config(kind, target, algorithm, seed=seed, features=features, steps=[])
+    if strategy is not None:
+        cfg["tabular"]["missing"] = strategy
+    return cfg
+
+
+def glucose_missing(tabular_dataset):
+    import runtime
+    import tabularkit
+
+    frame = tabularkit.load_frame(tabular_dataset, runtime.load_manifest(tabular_dataset))
+    return int(frame.glucose.isna().sum()), frame
+
+
+def test_missing_impute_keeps_every_patient_and_says_how_many_were_filled(tabular_dataset, tmp_path):
+    missing, _ = glucose_missing(tabular_dataset)
+    assert missing > 0, "合成資料的 glucose 有缺值"
+    card = run_template("tabular_classification", missing_config("impute"), tabular_dataset, tmp_path / "out")
+    metrics = card["metrics"]
+    assert metrics["rows"] == {"train": 60, "validation": 20, "test": 20}, "沒有病人被排除"
+    data = metrics["data"]
+    assert data["missing"] == "impute" and data["total"] == 100
+    assert data["missing_columns"] == {"glucose": missing}
+    assert sum(data["filled"].values()) == missing
+    assert all(v == {"missing_target": 0, "missing_feature": 0} for v in data["left_out"].values())
+    assert card["missing"] == "impute"
+
+
+def test_missing_drop_reports_left_out_patients(tabular_dataset, tmp_path):
+    missing, _ = glucose_missing(tabular_dataset)
+    card = run_template("tabular_classification", missing_config("drop"), tabular_dataset, tmp_path / "out")
+    data = card["metrics"]["data"]
+    assert data["missing"] == "drop" and sum(card["metrics"]["rows"].values()) == 100 - missing
+    assert sum(v["missing_feature"] for v in data["left_out"].values()) == missing
+    assert sum(data["filled"].values()) == 0
+
+
+def test_setting_without_missing_is_drop_and_the_model_file_is_unchanged(tabular_dataset, tmp_path):
+    """舊設定沒有 missing：等同不使用含缺值的病人，模型檔與明寫 drop 逐位元相同。"""
+    old = run_template("tabular_classification", missing_config(None), tabular_dataset, tmp_path / "old")
+    drop = run_template("tabular_classification", missing_config("drop"), tabular_dataset, tmp_path / "drop")
+    assert old["model_sha256"] == drop["model_sha256"]
+    assert (tmp_path / "old" / "preprocess.pkl").read_bytes() == (tmp_path / "drop" / "preprocess.pkl").read_bytes()
+
+
+@pytest.mark.parametrize("validation", [None, KFOLD])
+def test_tc_b05_04_impute_reproduces(tabular_dataset, tmp_path, validation):
+    outs = []
+    for i in range(3):
+        cfg = missing_config("impute", algorithm="random_forest")
+        if validation:
+            cfg |= {"split": {"train": 0.8, "validation": 0.0, "test": 0.2}, "validation": validation}
+        out = tmp_path / f"run{i}"
+        run_template("tabular_classification", cfg, tabular_dataset, out)
+        outs.append(out)
+    for name in ("metrics.json", "charts.json", "model.pkl"):
+        assert len({(o / name).read_bytes() for o in outs}) == 1, f"{name} 三次相同"
+
+
+def test_tc_b05_06_impute_pkl_predicts_rows_with_gaps_with_scikit_learn_only(tabular_dataset, tmp_path):
+    out = tmp_path / "out"
+    run_template("tabular_classification", missing_config("impute"), tabular_dataset, out)
+    script = (
+        "import pickle, sys, pandas as pd, numpy as np\n"
+        "model = pickle.load(open(sys.argv[1], 'rb'))\n"
+        "assert not [m for m in sys.modules if m.split('.')[0] in ('tabular', 'trainer', 'runtime', 'tabularkit')]\n"
+        "rows = pd.DataFrame([[60, 'M', 'current', np.nan], [40, 'F', np.nan, 90.0], [50, np.nan, 'never', 100.0]],\n"
+        "                    columns=['age', 'sex', 'smoker', 'glucose'])\n"
+        "print(list(model.predict(rows)), model.predict_proba(rows).shape)\n")
+    result = subprocess.run([sys.executable, "-S", "-c", "import site; site.main()\n" + script,
+                             str(out / "model.pkl")], capture_output=True, text=True, cwd=tmp_path,
+                            env={"PATH": "/usr/bin:/bin"})
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "(3, 2)" in result.stdout
+
+
+def test_impute_regression_trains_on_every_patient(tabular_dataset, tmp_path):
+    card = run_template("tabular_regression", missing_config("impute", kind="tabular_regression", target="sbp",
+                                                             algorithm="linear_regression",
+                                                             features=["age", "bmi", "glucose"]),
+                        tabular_dataset, tmp_path / "out")
+    assert sum(card["metrics"]["rows"].values()) == 100
+
+
+def test_impute_inference_predicts_rows_with_gaps_and_says_what_was_filled(tabular_dataset, tmp_path):
+    import tabularkit
+
+    out = tmp_path / "out"
+    run_template("tabular_classification", missing_config("impute"), tabular_dataset, out)
+    model = pickle.load(open(out / "model.pkl", "rb"))
+    preprocess = pickle.load(open(out / "preprocess.pkl", "rb"))
+    _, frame = glucose_missing(tabular_dataset)
+    frame = frame.drop(columns=["diagnosis"])
+    predictions, notes, probabilities = tabularkit.predict_frame(model, preprocess, frame, with_probability=True)
+    gaps = frame.glucose.isna().to_numpy()
+    assert all(p is not None for p in predictions), "含缺值的病人也有預測"
+    assert all(p is not None for p in probabilities)
+    for note, gap in zip(notes, gaps):
+        if gap:
+            assert note.startswith("glucose 缺值，已用訓練資料的中位數") and note.endswith("補上"), note
+        else:
+            assert note is None
+
+
+def test_baseline_is_the_training_majority_scored_on_the_test_rows(tabular_dataset, tmp_path):
+    """使用性測試第二輪：「全部猜最常見類別」的基準 = 訓練資料最常見的類別，在測試集上的準確率。
+    測試集的組成可能和訓練資料不同，所以基準可以低於 50%；網頁以 majority_train 說明。"""
+    import tabularkit
+
+    cfg = missing_config("drop", algorithm="logistic_regression") | {
+        "split": {"train": 0.8, "validation": 0.0, "test": 0.2}, "validation": KFOLD}
+    card = run_template("tabular_classification", cfg, tabular_dataset, tmp_path / "out")
+    prepared = tabularkit.prepare(cfg, tabular_dataset)
+    y_train, y_test = prepared["data"]["train"][1].astype(str), prepared["data"]["test"][1].astype(str)
+    labels = card["metrics"]["labels"]
+    majority = y_train.value_counts().idxmax()
+    assert labels["majority"] == majority
+    assert labels["majority_train"] == {"count": int((y_train == majority).sum()), "rows": len(y_train)}
+    assert card["metrics"]["test"]["baseline_accuracy"] == pytest.approx((y_test == majority).mean())

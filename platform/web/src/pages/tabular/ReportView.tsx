@@ -26,7 +26,7 @@ export function ReportView({ report, title }: { report: ValidationReport; title:
             <thead>
               <tr>
                 <th scope="col" className="num">
-                  資料列（從 0 起算）
+                  第幾列（從 1 起算）
                 </th>
                 <th scope="col" className="num">
                   檔案行號
@@ -39,7 +39,7 @@ export function ReportView({ report, title }: { report: ValidationReport; title:
               {report.rejected.map((r, i) => (
                 <tr key={`${r.row}-${i}`}>
                   <th scope="row" className="num">
-                    {r.row}
+                    {r.row + 1}
                   </th>
                   <td className="num">{r.row + 2}</td>
                   <td>{r.column || '—'}</td>

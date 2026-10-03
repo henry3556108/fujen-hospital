@@ -7,7 +7,8 @@ import { useProjectAccess } from '../data/access';
 import { collapseFeatures, encode, encodedColumns, expandFeatures, facts, hints, isTextual, typeLabel, unencode } from './columnOverview';
 import { useDataset } from './DatasetLayout';
 import { StepsEditor, stepSummary } from './StepsEditor';
-import type { Describe, PipelinePreview, TargetFeature } from './types';
+import { MissingChoiceField } from './MissingChoiceField';
+import type { Describe, MissingChoice, PipelinePreview, TargetFeature } from './types';
 
 /** TC-B04-03 Target 與 Feature：欄位總覽表上選 Target（單選）與 Feature（勾選）；需要 Training 權限才能儲存。 */
 export function TargetFeatureTab() {
@@ -22,6 +23,7 @@ export function TargetFeatureTab() {
   const [target, setTarget] = useState(saved?.config.target ?? '');
   const [features, setFeatures] = useState<string[]>(initial.columns);
   const [extra, setExtra] = useState(initial.other.join(', '));
+  const [missingChoice, setMissing] = useState<MissingChoice>(saved?.config.missing ?? 'impute');
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,7 @@ export function TargetFeatureTab() {
   const table = facts(dataset.columns, dataset.valid_rows, dataset.schema.columns, describe.data?.columns ?? []);
   const encoded = encodedColumns(steps);
   const unencodedText = table.filter((f) => features.includes(f.name) && isTextual(f) && !encoded.has(f.name));
+  const gaps = table.filter((f) => features.includes(f.name) && f.missing > 0).map((f) => ({ name: f.name, missing: f.missing }));
 
   function toggleEncoding(name: string, on: boolean) {
     const f = table.find((x) => x.name === name)!;
@@ -55,10 +58,11 @@ export function TargetFeatureTab() {
         const expanded = expandFeatures(chosen, names, after.columns.map((c) => c.name));
         chosen = [...expanded.features, ...expanded.unresolved]; // 對不到的交給伺服器回清楚的錯誤
       }
-      const tf = await api.put<TargetFeature>(`${base}/target-feature`, { target, features: chosen, steps });
+      const tf = await api.put<TargetFeature>(`${base}/target-feature`, { target, features: chosen, steps, missing: missingChoice });
       setSaved(tf);
       setTarget(tf.config.target);
       setSteps(tf.config.steps);
+      setMissing(tf.config.missing ?? 'impute');
       const back = collapseFeatures(tf.config.features, names, encodedColumns(tf.config.steps));
       setFeatures(back.columns);
       setExtra(back.other.join(', '));
@@ -76,10 +80,16 @@ export function TargetFeatureTab() {
         <h3 id="tf-current">已儲存的設定</h3>
         {saved ? (
           <dl className="kv">
-            <dt>Target</dt>
+            <dt>要預測的結果（Target）</dt>
             <dd data-testid="saved-target">{saved.config.target}</dd>
-            <dt>Feature</dt>
+            <dt>用來預測的資料（Feature）</dt>
             <dd data-testid="saved-features">{saved.config.features.join('、')}</dd>
+            {saved.config.missing ? (
+              <>
+                <dt>有缺值的病人</dt>
+                <dd data-testid="saved-missing">{saved.config.missing === 'impute' ? '補上缺值後使用' : '不使用'}</dd>
+              </>
+            ) : null}
             <dt>前處理步驟</dt>
             <dd data-testid="saved-steps">
               {saved.config.steps.length ? saved.config.steps.map((s) => stepSummary(s, catalogue)).join(' → ') : '無'}
@@ -100,10 +110,10 @@ export function TargetFeatureTab() {
           <h3>欄位總覽與設定</h3>
           <ul className="text-muted">
             <li>
-              <strong>Target</strong>：要預測的欄位（例如是否診斷為疾病），只能選一個。
+              <strong>要預測的結果（Target）</strong>：模型要學會猜的欄位（例如是否確診），只能選一個。
             </li>
             <li>
-              <strong>Feature</strong>：用來預測的欄位（例如年齡、血壓），可選多個。
+              <strong>用來預測的資料（Feature）</strong>：模型拿來猜的欄位（例如年齡、血壓），可選多個。
             </li>
             <li>
               <strong>當作類別</strong>：把類別拆成多個 0／1 欄位（One-Hot 編碼），模型才能使用文字或代碼欄位；例如性別 sex 變成 sex_F、sex_M。
@@ -135,8 +145,8 @@ export function TargetFeatureTab() {
                   <th scope="col" className="num">
                     不同值
                   </th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Feature</th>
+                  <th scope="col">要預測的結果（Target）</th>
+                  <th scope="col">用來預測的資料（Feature）</th>
                   <th scope="col">當作類別</th>
                   <th scope="col">提示</th>
                 </tr>
@@ -183,6 +193,7 @@ export function TargetFeatureTab() {
               </tbody>
             </table>
           </div>
+          <MissingChoiceField id="tf" columns={gaps} value={missingChoice} onChange={setMissing} />
           <details>
             <summary>進階：其他 Feature</summary>
             <div className="field">

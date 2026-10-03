@@ -100,6 +100,16 @@ class Deployment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class DeploymentTitle(Base):
+    """部署的顯示名稱（可用中文，例如「心臟科確診預測」）。另開資料表而不在 model_deployments 加欄位，
+    因為平台以 create_all 建表、沒有遷移工具，既有資料庫加欄位不會生效。"""
+    __tablename__ = "deployment_titles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    deployment_id: Mapped[int] = mapped_column(ForeignKey("model_deployments.id", ondelete="CASCADE"), unique=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
+    title: Mapped[str] = mapped_column(String(128))
+
+
 class InferenceRecord(Base):
     __tablename__ = "inference_records"
     id: Mapped[int] = mapped_column(primary_key=True)

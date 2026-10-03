@@ -16,6 +16,7 @@ import {
   type Model,
 } from './api';
 import './inference.css';
+import { FileInput } from '../../components/FileInput';
 
 const MODES = { batch: '批次', upload: '上傳檔案', online: '線上服務' } as const;
 const SUBSETS = [
@@ -42,7 +43,9 @@ export function InferencePage() {
 function Inference({ inference }: { inference: InferenceApi }) {
   const models = useResource(() => inference.models(), [inference]);
   const [chosen, setChosen] = useState<number | null>(null);
-  const model = models.data?.find((m) => m.id === chosen) ?? models.data?.[0] ?? null;
+  // 預設選同事分享給我的模型（最新的一個），沒有時選第一個
+  const sharedFirst = [...(models.data ?? [])].reverse().find((m) => m.shared_with_me);
+  const model = models.data?.find((m) => m.id === chosen) ?? sharedFirst ?? models.data?.[0] ?? null;
 
   if (models.error) return <ApiErrorAlert error={models.error} />;
   if (!models.data) return <p role="status">載入中…</p>;
@@ -57,7 +60,6 @@ function Inference({ inference }: { inference: InferenceApi }) {
               <tr>
                 <th scope="col">名稱</th>
                 <th scope="col">種類</th>
-                <th scope="col">格式</th>
                 <th scope="col">建立者</th>
                 <th scope="col">選擇</th>
               </tr>
@@ -65,9 +67,11 @@ function Inference({ inference }: { inference: InferenceApi }) {
             <tbody>
               {models.data.map((m) => (
                 <tr key={m.id} aria-current={m.id === model?.id ? 'true' : undefined}>
-                  <td>{m.name}</td>
+                  <td>
+                    {m.name}
+                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
+                  </td>
                   <td>{KIND_NAMES[m.kind]}</td>
-                  <td>{m.format.toUpperCase()}</td>
                   <td>{m.created_by}</td>
                   <td>
                     <button type="button" className="btn btn--small" onClick={() => setChosen(m.id)} disabled={m.id === model?.id}>
@@ -203,13 +207,12 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
           <form aria-label="上傳檔案推論" onSubmit={upload} className="inference-form">
             <div className="field">
               <label htmlFor="upload-files">{image ? '影像檔' : 'CSV 檔'}</label>
-              <input
+              <FileInput
                 id="upload-files"
-                type="file"
-                className="input"
                 multiple={image}
                 accept={image ? '.dcm,.nii,.gz,.mha,.png,.npy' : '.csv,text/csv'}
-                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                onFiles={setFiles}
+                fileNames={files.map((f) => f.name)}
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={busy}>
@@ -332,9 +335,26 @@ function ResultView({
   );
 }
 
+/** 結構式推論的一句話摘要：幾位有預測、幾位補過缺值、幾位無法預測與原因。 */
+export function tableSummary(result: { columns: string[]; rows: string[][]; prediction_column: string }): string {
+  const at = result.columns.indexOf(result.prediction_column);
+  const noteAt = result.columns.indexOf(`${result.prediction_column}_note`);
+  const missing = result.rows.filter((r) => (r[at] ?? '') === '');
+  const filled = result.rows.filter((r) => (r[at] ?? '') !== '' && noteAt >= 0 && (r[noteAt] ?? '').includes('缺值，已用訓練資料'));
+  let text = `共 ${result.rows.length} 位，${result.rows.length - missing.length} 位有預測結果。`;
+  if (filled.length) text += `其中 ${filled.length} 位有缺值，已用訓練資料的中位數或最常見的值補上後預測。`;
+  if (missing.length) {
+    const reasons = [...new Set(missing.map((r) => (noteAt >= 0 ? r[noteAt] : '') || '無法預測'))];
+    text += `${missing.length} 位無法預測（${reasons.join('、')}）。`;
+  }
+  return text;
+}
+
 function TableResult({ result }: { result: { columns: string[]; rows: string[][]; prediction_column: string } }) {
   const at = result.columns.indexOf(result.prediction_column);
   return (
+    <>
+    <p data-testid="table-summary">{tableSummary(result)}</p>
     <div className="table-wrap inference-table">
       <table className="table" aria-label="結構式推論結果">
         <thead>
@@ -359,6 +379,7 @@ function TableResult({ result }: { result: { columns: string[]; rows: string[][]
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 

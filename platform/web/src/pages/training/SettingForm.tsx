@@ -4,7 +4,21 @@ import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import type { ParamSpec, TrainingApi, TrainingKind, TrainingSetting, Catalogue } from './api';
 import { isImageKind } from './api';
-import { changeAlgorithm, changeKind, configFromForm, hyperSpecs, type FormState } from './settingForm';
+import type { ColumnInfo } from '../tabular/types';
+import { MissingChoiceField } from '../tabular/MissingChoiceField';
+import {
+  changeAlgorithm,
+  changeKind,
+  choiceChecked,
+  choiceLabel,
+  configFromForm,
+  featureChoices,
+  hyperSpecs,
+  normaliseFeatures,
+  toggleChoice,
+  unknownFeatures,
+  type FormState,
+} from './settingForm';
 
 export const ALGORITHM_NAMES: Record<string, string> = {
   logistic_regression: '邏輯斯迴歸（Logistic Regression）',
@@ -35,12 +49,15 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   const kindEntry = catalogue.kinds.find((k) => k.kind === form.kind);
   const kfold = !image && form.validationMethod === 'kfold';
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const processed = useProcessedColumns(api, image ? '' : form.datasetId, form.steps);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     if (!form.name.trim()) return setError(new Error('請輸入設定名稱'));
     if (!image && !form.datasetId) return setError(new Error('請選擇結構式資料集'));
+    const unknown = image ? [] : unknownFeatures(form.features, processed?.map((c) => c.name) ?? null);
+    if (unknown.length) return setError(new Error(`Feature「${unknown.join('、')}」在資料集裡找不到，請取消勾選後再儲存。`));
     if (image && form.sourceType === 'dicom' && form.studiesMode === 'selected' && form.studies.length === 0) {
       return setError(new Error('請至少勾選一個研究，或改選「全部研究」'));
     }
@@ -78,7 +95,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
       </div>
 
       {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} /> : null}
-      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} /> : null}
+      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} /> : null}
 
       {!image && kindEntry?.validation_methods ? (
         <fieldset>
@@ -321,8 +338,28 @@ function ImageSource({ api, form, set, sourceTypes }: { api: TrainingApi; form: 
   );
 }
 
-function TabularSource({ api, form, setForm, catalogue }: {
+/** 資料集套用前處理步驟後的欄位；還不知道（沒選資料集、載入中、失敗）時為 null。 */
+function useProcessedColumns(api: TrainingApi, datasetId: string, steps: FormState['steps']): ColumnInfo[] | null {
+  const [columns, setColumns] = useState<{ key: string; columns: ColumnInfo[] } | null>(null);
+  const key = `${datasetId}:${JSON.stringify(steps)}`;
+  useEffect(() => {
+    if (!datasetId) return;
+    let cancelled = false;
+    api.processedColumns(Number(datasetId), steps).then(
+      (cols) => !cancelled && setColumns({ key, columns: cols }),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, key]);
+  return datasetId && columns?.key === key ? columns.columns : null;
+}
+
+function TabularSource({ api, form, setForm, catalogue, processed }: {
   api: TrainingApi; form: FormState; setForm: (f: FormState | ((f: FormState) => FormState)) => void; catalogue: Catalogue;
+  processed: ColumnInfo[] | null;
 }) {
   const datasets = useResource(() => api.datasets(), [api]);
   const detail = useResource(() => (form.datasetId ? api.dataset(Number(form.datasetId)) : Promise.resolve(null)), [api, form.datasetId]);
@@ -336,7 +373,8 @@ function TabularSource({ api, form, setForm, catalogue }: {
     api.targetFeature(Number(form.datasetId)).then(
       (tf) => {
         if (cancelled || !tf) return;
-        setForm((f) => (f.target ? f : { ...f, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps }));
+        setForm((f) => (f.target ? f : { ...f, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps,
+          missing: tf.config.missing ?? f.missing }));
         setPrefilled(form.datasetId);
       },
       () => undefined,
@@ -347,17 +385,30 @@ function TabularSource({ api, form, setForm, catalogue }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, form.datasetId]);
 
-  const columns = (detail.data?.columns ?? []).map((c) => c.name).filter((c) => c !== form.target);
+  const processedNames = processed?.map((c) => c.name) ?? null;
+  const choices = detail.data ? featureChoices(detail.data.columns.map((c) => c.name), processedNames, form.steps, form.target) : [];
+  const unknown = unknownFeatures(form.features, processedNames);
+  // 舊設定可能同時存原始欄位（sex）與 One-Hot 步驟：換成 One-Hot 產生的欄位，畫面上只有一種選法
+  const normalised = normaliseFeatures(form.features, choices);
+  useEffect(() => {
+    if (processed && JSON.stringify(normalised) !== JSON.stringify(form.features)) setForm((f) => ({ ...f, features: normalised }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processed, JSON.stringify(normalised)]);
   const textFeatures = (detail.data?.columns ?? [])
     .filter((c) => form.features.includes(c.name) && ['categorical', 'text', 'boolean'].includes(c.kind))
     .filter((c) => !form.steps.some((st) => st.id === 'onehot' && (st.columns ?? []).includes(c.name)))
     .map((c) => c.name);
-  const toggle = (name: string) =>
-    setForm((f) => ({ ...f, features: f.features.includes(name) ? f.features.filter((x) => x !== name) : [...f.features, name] }));
+  const encoded = choices.filter((c) => c.encoded && choiceChecked(c, form.features));
+  // 選到的 Feature 有缺值時說出來，並讓使用者選補值或不使用（One-Hot 產生的欄位以原始欄位計）
+  const gaps = (processed ?? []).filter((c) => c.missing > 0 && form.features.includes(c.name));
+  const gapColumns = [...new Map(gaps.map((c) => {
+    const owner = choices.find((ch) => ch.columns.includes(c.name))?.name ?? c.name;
+    return [owner, { name: owner, missing: c.missing }] as const;
+  })).values()];
 
   return (
     <fieldset>
-      <legend>資料集、Target 與 Feature</legend>
+      <legend>資料集、要預測的結果與用來預測的資料</legend>
       <div className="stack">
         <ApiErrorAlert error={datasets.error ?? detail.error} />
         {datasets.data && datasets.data.length === 0 ? (
@@ -377,7 +428,7 @@ function TabularSource({ api, form, setForm, catalogue }: {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="ts-target">目標欄位（Target）</label>
+            <label htmlFor="ts-target">要預測的結果（Target）</label>
             <select id="ts-target" className="select" value={form.target} disabled={!detail.data}
               onChange={(e) => setForm((f) => ({ ...f, target: e.target.value, features: f.features.filter((x) => x !== e.target.value) }))}>
               <option value="">請選擇</option>
@@ -399,21 +450,41 @@ function TabularSource({ api, form, setForm, catalogue }: {
             </select>
           </div>
         </div>
-        {prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的 Target、Feature 與前處理步驟。</p> : null}
+        {prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的要預測的結果（Target）、用來預測的資料（Feature）與前處理步驟。</p> : null}
         {textFeatures.length ? (
           <p className="field__hint" data-testid="text-features">
             「{textFeatures.join('、')}」是文字或類別欄位，訓練時會自動轉成 0／1 欄位（One-Hot），不需要先自己處理。
           </p>
         ) : null}
         {detail.data ? (
-          <div role="group" aria-label="特徵欄位（Feature）" className="checkbox-row">
-            {columns.map((c) => (
-              <label key={c} className="checkbox">
-                <input type="checkbox" checked={form.features.includes(c)} onChange={() => toggle(c)} />
-                {c}
+          <div role="group" aria-label="用來預測的資料（Feature）" className="checkbox-row">
+            {choices.map((c) => (
+              <label key={c.name} className="checkbox">
+                <input type="checkbox" checked={choiceChecked(c, form.features)}
+                  onChange={() => setForm((f) => ({ ...f, features: toggleChoice(c, f.features) }))} />
+                {choiceLabel(c)}
+              </label>
+            ))}
+            {unknown.map((name) => (
+              <label key={name} className="checkbox">
+                <input type="checkbox" checked onChange={() => setForm((f) => ({ ...f, features: f.features.filter((x) => x !== name) }))} />
+                {name}（資料集裡找不到）
               </label>
             ))}
           </div>
+        ) : null}
+        {encoded.length ? (
+          <p className="field__hint" data-testid="encoded-features">
+            {encoded.map((c) => `${c.name} 已在資料集設定轉成 ${c.columns.join('、')}`).join('；')}（One-Hot：把每個類別變成一個 0／1 欄位）。勾選「{encoded[0].name}」就會用到這些欄位。
+          </p>
+        ) : null}
+        <MissingChoiceField id="ts" columns={gapColumns} value={form.missing} onChange={(v) => setForm((f) => ({ ...f, missing: v }))} />
+        {unknown.length ? (
+          <Alert tone="warning">
+            <span data-testid="feature-problems">
+              Feature「{unknown.join('、')}」在資料集裡找不到（資料集的前處理可能已修改），請取消勾選，或到「數據管理」重新設定。
+            </span>
+          </Alert>
         ) : null}
         {form.steps.length ? (
           <p className="field__hint">

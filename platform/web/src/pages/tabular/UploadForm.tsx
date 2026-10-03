@@ -4,6 +4,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ReportView } from './ReportView';
 import { SchemaTable } from './SchemaTable';
 import type { Dataset, InferResult, SchemaColumn, TabularSchema, UploadResult, ValidationReport } from './types';
+import { FileInput } from '../../components/FileInput';
 
 const SCHEMA_EXAMPLE = `{
   "columns": [
@@ -183,13 +184,12 @@ export function UploadForm({ datasets, onUploaded }: { datasets: Dataset[]; onUp
       <div className="form-grid">
         <div className="field">
           <label htmlFor="csv-file">CSV 檔案</label>
-          <input
+          <FileInput
             ref={fileInput}
             id="csv-file"
-            className="file-input"
-            type="file"
             accept=".csv,text/csv"
-            onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
+            fileNames={file ? [file.name] : []}
+            onFiles={(files) => chooseFile(files[0] ?? null)}
             aria-describedby="csv-file-hint"
           />
           <span id="csv-file-hint" className="field__hint">
@@ -285,13 +285,11 @@ export function UploadForm({ datasets, onUploaded }: { datasets: Dataset[]; onUp
         <p className="text-muted">有填寫時，以這裡的結構定義取代上方的欄位確認表。</p>
         <div className="field">
           <label htmlFor="schema-file">載入結構定義檔（.json）</label>
-          <input
+          <FileInput
             id="schema-file"
-            className="file-input"
-            type="file"
             accept=".json,application/json"
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
+            onFiles={async (files) => {
+              const f = files[0];
               if (f) {
                 setAdvanced(await f.text());
                 setStale(true);
