@@ -9,10 +9,11 @@ import pandas as pd
 from fastapi import HTTPException
 from sqlalchemy import delete, select
 from tabular.errors import TabularError
+from tabular.infer import infer_schema
 from tabular.modeling_config import TargetFeatureConfig
 from tabular.preprocess import apply_pipeline
 from tabular.schema import Schema
-from tabular.validate import load_clean_csv, validate_and_load
+from tabular.validate import load_clean_csv, validate_and_load, validate_csv
 
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
@@ -50,6 +51,21 @@ def dataset_out(ds: TabularDataset) -> dict:
 def _row_counts(report: dict) -> dict:
     return {"total_rows": report["total_rows"], "valid_rows": report["valid_rows"],
             "rejected_rows": report["rejected_row_count"]}
+
+
+def infer(raw: bytes, missing_values: str | None) -> dict:
+    """missing_values：JSON 文字陣列；省略時用預設的缺值寫法。"""
+    tokens = None
+    if missing_values is not None:
+        try:
+            tokens = json.loads(missing_values)
+        except json.JSONDecodeError:
+            raise TabularError('缺值寫法必須是 JSON 文字陣列，例如 ["NA", "-"]', code="invalid_missing_values") from None
+    return infer_schema(io.BytesIO(raw), tokens)
+
+
+def check(raw: bytes, schema_text: str) -> dict:
+    return validate_csv(io.BytesIO(raw), Schema.from_json(schema_text))
 
 
 def create_dataset(ctx: ProjectContext, store: ObjectStore, *, raw: bytes, schema_text: str, name: str,
