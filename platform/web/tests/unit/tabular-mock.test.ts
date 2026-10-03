@@ -1,6 +1,7 @@
 // 模擬 API 的計算要跟真實 API 一致：以下期望值取自 platform/api（pandas／numpy）對同一份 cohort_01.csv 的回應。
 import { describe as suite, expect, it } from 'vitest';
 import { applyPipeline, columnInfo, describe, parseCsv, validateCsv, validateSteps } from '../../src/mocks/tabular';
+import { inferFromTable } from '../../src/mocks/tabularInfer';
 import { fixtureText } from '../fixtures';
 
 const schema = JSON.parse(fixtureText('tabular/schema.json'));
@@ -50,11 +51,11 @@ suite('mock tabular API matches the real API', () => {
 
   it('column info matches', () => {
     expect(columnInfo(cohort().frame).filter((c) => ['patient_id', 'age', 'sex', 'glucose', 'study_accession'].includes(c.name))).toEqual([
-      { name: 'patient_id', dtype: 'object', kind: 'categorical', missing: 0 },
-      { name: 'age', dtype: 'Int64', kind: 'numeric', missing: 0 },
-      { name: 'sex', dtype: 'category', kind: 'categorical', missing: 0 },
-      { name: 'glucose', dtype: 'float64', kind: 'numeric', missing: 5 },
-      { name: 'study_accession', dtype: 'object', kind: 'categorical', missing: 88 },
+      { name: 'patient_id', dtype: 'object', kind: 'categorical', missing: 0, unique: 100 },
+      { name: 'age', dtype: 'Int64', kind: 'numeric', missing: 0, unique: 51 },
+      { name: 'sex', dtype: 'category', kind: 'categorical', missing: 0, unique: 2 },
+      { name: 'glucose', dtype: 'float64', kind: 'numeric', missing: 5, unique: 88 },
+      { name: 'study_accession', dtype: 'object', kind: 'categorical', missing: 88, unique: 8 },
     ]);
   });
 
@@ -114,5 +115,35 @@ suite('mock histogram', () => {
     expect(body.counts).toEqual([15, 17, 35, 29, 4]);
     expect(body.edges).toEqual([16, 19.8, 23.6, 27.4, 31.2, 35]);
     expect(body.missing).toBe(0);
+  });
+
+  it('schema inference matches platform/libs/tabular infer_schema on bad.csv and cohort_01.csv', () => {
+    const text = fixtureText('tabular/bad.csv');
+    const inferred = inferFromTable(parseCsv(text));
+    const pick = (c: Record<string, unknown>) => [c.type, c.required, c.min, c.max, c.allowed, c.unique, c.pattern];
+    expect(Object.fromEntries(inferred.schema.columns.map((c) => [c.name, pick(c as unknown as Record<string, unknown>)]))).toEqual({
+      patient_id: ['str', true, null, null, null, true, '^P\\d{5}$'],
+      age: ['int', true, 0, 120, null, false, null],
+      sex: ['category', true, null, null, ['F', 'M'], false, null],
+      bmi: ['float', true, 10, 80, null, false, null],
+      sbp: ['int', false, 40, 300, null, false, null],
+      dbp: ['int', true, 20, 200, null, false, null],
+      glucose: ['float', false, 0, null, null, false, null],
+      smoker: ['category', true, null, null, ['current', 'former', 'never'], false, null],
+      diagnosis: ['int', true, 0, null, null, false, null],
+      time_to_event: ['int', true, 0, null, null, false, null],
+      event: ['int', true, 0, null, null, false, null],
+      study_accession: ['str', false, null, null, null, false, '^ACC\\d{4}$'],
+    });
+    const { report } = validateCsv(text, inferred.schema);
+    expect(report.rejected.map((r) => [r.row, r.column])).toEqual([
+      [10, 'patient_id'], [12, 'sbp'], [13, 'sex'], [14, 'bmi'], [15, 'age'], [17, 'smoker'], [28, 'age'], [29, 'patient_id'],
+    ]);
+    const sbp = inferred.schema.columns.find((c) => c.name === 'sbp')!;
+    sbp.required = true; // 使用者勾選必填後，與手寫結構攔下的列完全相同
+    const expected = JSON.parse(fixtureText('tabular/bad_rows.json')).rows.map((r: { row: number }) => r.row);
+    expect(validateCsv(text, inferred.schema).report.rejected.map((r) => r.row)).toEqual(expected);
+    const cohortText = fixtureText('tabular/cohort_01.csv');
+    expect(validateCsv(cohortText, inferFromTable(parseCsv(cohortText)).schema).report.rejected).toEqual([]);
   });
 });

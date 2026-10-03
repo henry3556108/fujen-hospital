@@ -299,3 +299,51 @@
   color: var(--chart-cell-text);
   border: 2px solid var(--card-bg);
 }
+
+/* ---------- 結構式資料：上傳前的欄位確認表、欄位總覽 ---------- */
+.steps-list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.schema-table td,
+.schema-table th {
+  vertical-align: top;
+}
+
+.schema-table .select,
+.schema-table .input {
+  min-width: 6rem;
+}
+
+.schema-table .input--narrow {
+  width: 6.5rem;
+  min-width: 0;
+}
+
+.schema-table__range {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.schema-table__summary span {
+  display: block;
+  white-space: nowrap;
+}
+
+.schema-table__notes {
+  margin: 0;
+  padding-left: 1rem;
+  min-width: 14rem;
+  font-size: 0.875rem;
+}
+
+.column-hint {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.column-hint--warn {
+  color: var(--color-text-primary);
+}

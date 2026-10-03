@@ -5,24 +5,37 @@ import { expect as baseExpect, loginAs, test } from './fixtures';
 const expect = baseExpect.configure({ timeout: 15_000 });
 import { fixture } from './files';
 
-const SCHEMA = readFileSync(fixture('tabular/schema.json'), 'utf8');
 
 test.describe('CSV 上傳驗證', () => {
-  test('TC-B01-10 正常 CSV 全部通過；bad.csv 的錯誤列全部攔下並列出原因', async ({ page }) => {
+  test('數據管理先選資料種類，CSV 一步就到上傳', async ({ page }) => {
+    await loginAs(page, 'pi01');
+    await page.goto('/data');
+    await page.getByRole('list', { name: '資料種類' }).getByRole('link', { name: /結構式資料：上傳 CSV/ }).click();
+    await expect(page.getByRole('form', { name: '上傳 CSV' })).toBeVisible();
+    await page.getByRole('link', { name: '上傳 CSV', exact: true }).click();
+    await expect(page.getByLabel(/^CSV 檔案/)).toBeInViewport();
+  });
+
+  test('TC-B01-10 不寫 JSON：正常 CSV 全部通過；bad.csv 勾選 sbp 必填後 10 列錯誤全部攔下', async ({ page }) => {
     await loginAs(page, 'pi01');
     await page.goto('/data/tabular');
     const form = page.getByRole('form', { name: '上傳 CSV' });
 
     await form.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/cohort_01.csv'));
+    const table = form.getByRole('table', { name: '欄位確認' });
+    await expect(table.getByLabel('age 的型態')).toHaveValue('int');
+    await expect(page.getByRole('region', { name: '預檢結果（尚未上傳）' })).toContainText('共 100 列，通過 100 列，拒絕 0 列');
     await form.getByLabel('資料集名稱').fill('cohort-a');
-    await form.getByLabel(/^載入結構定義檔/).setInputFiles(fixture('tabular/schema.json'));
-    await expect(form.getByLabel('結構定義（JSON）')).toHaveValue(/"patient_id"/);
     await form.getByRole('button', { name: '上傳並驗證' }).click();
     await expect(page.getByRole('region', { name: '「cohort-a」的上傳結果' })).toContainText('共 100 列，通過 100 列，拒絕 0 列');
 
     await form.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/bad.csv'));
+    await expect(page.getByRole('region', { name: '預檢結果（尚未上傳）' })).toContainText('拒絕 8 列');
+    await expect(table.getByRole('row', { name: /^sbp/ })).toContainText('有 2 格空白或缺值');
+    await table.getByLabel('sbp 必填').check();
+    await form.getByRole('button', { name: '重新預檢' }).click();
+    await expect(page.getByRole('region', { name: '預檢結果（尚未上傳）' })).toContainText('共 30 列，通過 20 列，拒絕 10 列');
     await form.getByLabel('資料集名稱').fill('bad');
-    await form.getByLabel('結構定義（JSON）').fill(SCHEMA);
     await form.getByRole('button', { name: '上傳並驗證' }).click();
     const result = page.getByRole('region', { name: '「bad」的上傳結果' });
     await expect(result).toContainText('共 30 列，通過 20 列，拒絕 10 列');
@@ -39,6 +52,42 @@ test.describe('CSV 上傳驗證', () => {
     await expect(list.getByRole('row', { name: /^bad/ }).locator('td').nth(1)).toHaveText('30');
     await expect(list.getByRole('row', { name: /^bad/ }).locator('td').nth(3)).toHaveText('10');
     await expect(list.getByRole('row', { name: /^cohort-a/ }).locator('td').nth(2)).toHaveText('100');
+  });
+
+  test('TC-B01-10 進階：手寫結構定義照舊可用，bad.csv 的錯誤列全部攔下', async ({ page }) => {
+    await loginAs(page, 'pi01');
+    await page.goto('/data/tabular');
+    const form = page.getByRole('form', { name: '上傳 CSV' });
+    await form.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/bad.csv'));
+    await expect(form.getByRole('table', { name: '欄位確認' })).toBeVisible();
+    await form.getByLabel('資料集名稱').fill('bad-json');
+    await form.getByText('進階：自行提供結構定義（JSON）').click();
+    await form.getByLabel(/^載入結構定義檔/).setInputFiles(fixture('tabular/schema.json'));
+    await expect(form.getByLabel('結構定義（JSON）')).toHaveValue(/"patient_id"/);
+    await form.getByRole('button', { name: '上傳並驗證' }).click();
+    const result = page.getByRole('region', { name: '「bad-json」的上傳結果' });
+    await expect(result).toContainText('共 30 列，通過 20 列，拒絕 10 列');
+    await expect(result.getByRole('table').getByRole('row')).toHaveCount(11);
+  });
+
+  test('結構定義漏掉的欄位要使用者確認，可一鍵補上；同名上傳建立新版本', async ({ page }) => {
+    await loginAs(page, 'pi01');
+    await page.goto('/data/tabular');
+    const form = page.getByRole('form', { name: '上傳 CSV' });
+    await form.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/cohort_01.csv'));
+    await expect(form.getByRole('table', { name: '欄位確認' })).toBeVisible();
+    await form.getByLabel('資料集名稱').fill('lung-clinical');
+    await expect(form.getByRole('group', { name: '已經有名為「lung-clinical」的資料集' })).toBeVisible();
+    await form.getByText('進階：自行提供結構定義（JSON）').click();
+    await form.getByLabel('結構定義（JSON）').fill('{"columns":[{"name":"patient_id","type":"str"},{"name":"age","type":"int"}]}');
+    await form.getByRole('button', { name: '上傳並驗證' }).click();
+    await expect(form.getByText('結構定義沒有列出 10 個欄位')).toBeVisible();
+    await form.getByRole('button', { name: '自動加入這些欄位' }).click();
+    await form.getByRole('button', { name: '上傳並驗證' }).click();
+    const result = page.getByRole('region', { name: '「lung-clinical（第 2 版）」的上傳結果' });
+    await expect(result).toContainText('全部通過');
+    await page.getByRole('link', { name: '開啟資料集「lung-clinical（第 2 版）」' }).click();
+    await expect(page.getByText(/100 列、12 欄/)).toBeVisible();
   });
 });
 
@@ -79,7 +128,7 @@ test.describe('Target 與 Feature', () => {
     ];
     const form = page.getByRole('form', { name: '設定 Target 與 Feature' });
     for (const [target, features] of settings) {
-      await form.getByLabel(/^Target/).selectOption(target);
+      await form.getByRole('radio', { name: `以 ${target} 為 Target` }).check();
       for (const box of await form.getByRole('checkbox').all()) await box.uncheck();
       for (const f of features) await form.getByRole('checkbox', { name: f, exact: true }).check();
       await form.getByRole('button', { name: '儲存設定' }).click();
@@ -88,10 +137,31 @@ test.describe('Target 與 Feature', () => {
       await page.reload();
       await expect(page.getByTestId('saved-target')).toHaveText(target);
       await expect(page.getByTestId('saved-features')).toHaveText(features.join('、'));
-      await expect(form.getByLabel(/^Target/)).toHaveValue(target);
+      await expect(form.getByRole('radio', { name: `以 ${target} 為 Target` })).toBeChecked();
       for (const f of features) await expect(form.getByRole('checkbox', { name: f, exact: true })).toBeChecked();
       await expect(form.getByRole('checkbox', { checked: true })).toHaveCount(features.length);
     }
+  });
+
+  test('欄位總覽：提示識別碼與文字欄位；One-Hot 與「當作類別」自動換成產生的欄位', async ({ page }) => {
+    await loginAs(page, 'ra01');
+    await page.goto('/data/tabular/2/target');
+    const form = page.getByRole('form', { name: '設定 Target 與 Feature' });
+    const overview = form.getByRole('table', { name: '欄位總覽' });
+    await expect(overview.getByRole('row', { name: /^diagnosis/ })).toContainText('是／否（0／1）');
+    await form.getByRole('radio', { name: '以 diagnosis 為 Target' }).check();
+    for (const f of ['patient_id', 'age', 'sex', 'smoker', 'event']) await form.getByRole('checkbox', { name: f, exact: true }).check();
+    await expect(overview.getByRole('row', { name: /^patient_id/ })).toContainText('建議不要當 Feature');
+    await form.getByRole('checkbox', { name: 'patient_id', exact: true }).uncheck();
+    await expect(form.getByText('有 Feature 還不能用來訓練')).toBeVisible();
+    await form.getByRole('button', { name: '全部轉成 One-Hot' }).click();
+    await form.getByRole('switch', { name: 'event 當作類別', exact: true }).check();
+    await form.getByRole('button', { name: '儲存設定' }).click();
+    await expect(page.getByText('已儲存：Target diagnosis，8 個 Feature，3 個前處理步驟')).toBeVisible();
+    await expect(page.getByTestId('saved-features')).toHaveText('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
+    await page.reload();
+    await expect(form.getByRole('checkbox', { name: 'sex', exact: true })).toBeChecked();
+    await expect(form.getByRole('switch', { name: 'event 當作類別', exact: true })).toBeChecked();
   });
 });
 

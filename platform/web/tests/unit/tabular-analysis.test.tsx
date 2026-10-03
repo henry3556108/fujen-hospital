@@ -104,9 +104,9 @@ describe('前處理', () => {
 describe('Target 與 Feature', () => {
   async function save(user: User, target: string, features: string[]) {
     const form = await screen.findByRole('form', { name: '設定 Target 與 Feature' });
-    await user.selectOptions(within(form).getByLabelText(/^Target/), target);
-    for (const box of within(form).getAllByRole('checkbox')) {
-      const wanted = features.includes(box.closest('label')!.textContent!.trim());
+    await user.click(await within(form).findByRole('radio', { name: `以 ${target} 為 Target` }));
+    for (const box of within(within(form).getByRole('table', { name: '欄位總覽' })).getAllByRole('checkbox')) {
+      const wanted = features.includes(box.getAttribute('aria-label')!);
       if ((box as HTMLInputElement).checked !== wanted) await user.click(box);
     }
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
@@ -128,12 +128,12 @@ describe('Target 與 Feature', () => {
       expect(await screen.findByTestId('saved-target')).toHaveTextContent(target);
       expect(screen.getByTestId('saved-features')).toHaveTextContent(features.join('、'));
       const form = screen.getByRole('form', { name: '設定 Target 與 Feature' });
-      expect(within(form).getByLabelText(/^Target/)).toHaveValue(target);
+      expect(within(form).getByRole('radio', { name: `以 ${target} 為 Target` })).toBeChecked();
       const checked = within(form).getAllByRole('checkbox').filter((b) => (b as HTMLInputElement).checked);
-      expect(checked.map((b) => b.closest('label')!.textContent!.trim())).toEqual(features);
+      expect(checked.map((b) => b.getAttribute('aria-label'))).toEqual(features);
       again.unmount();
     }
-  });
+  }, 30_000); // 六次載入頁面，整套平行執行時放寬時限
 
   it('preprocessing steps built in the 前處理 tab are saved with the settings and restored', async () => {
     const first = await renderApp('/data/tabular/2/preprocess', 'ra01');
@@ -153,14 +153,54 @@ describe('Target 與 Feature', () => {
   it('the target cannot be a feature; 422 from the API is shown', async () => {
     const { user } = await renderApp('/data/tabular/2/target', 'ra01');
     const form = await screen.findByRole('form', { name: '設定 Target 與 Feature' });
-    await user.selectOptions(within(form).getByLabelText(/^Target/), 'diagnosis');
+    await user.click(within(form).getByRole('radio', { name: '以 diagnosis 為 Target' }));
     expect(within(form).queryByRole('checkbox', { name: 'diagnosis' })).toBeNull();
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('請至少選擇一個特徵欄位（Feature）');
+    await user.click(within(form).getByText('進階：其他 Feature'));
     await user.type(within(form).getByLabelText(/^其他 Feature/), 'sex_M');
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
     await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('資料中找不到欄位：sex_M'));
     expect(screen.getByText('這個資料集尚未設定 Target 與 Feature。')).toBeInTheDocument();
+  });
+
+  it('column overview: types, missing and distinct counts, warnings for identifiers and text features', async () => {
+    const { user } = await renderApp('/data/tabular/2/target', 'ra01');
+    const table = await screen.findByRole('table', { name: '欄位總覽' });
+    const row = (name: string) => within(table).getByRole('row', { name: new RegExp(`^${name} `) });
+    await waitFor(() => expect(cellsOf(row('diagnosis')).slice(0, 4)).toEqual(['diagnosis', '是／否（0／1）', '0', '2']));
+    expect(cellsOf(row('patient_id')).slice(0, 4)).toEqual(['patient_id', '識別碼', '0', '100']);
+    expect(cellsOf(row('glucose')).slice(0, 4)).toEqual(['glucose', '小數', '5', '88']);
+    await user.click(within(row('patient_id')).getByRole('checkbox'));
+    expect(row('patient_id')).toHaveTextContent('像是病歷號等識別碼，建議不要當 Feature');
+    await user.click(within(row('sex')).getByRole('checkbox'));
+    expect(row('sex')).toHaveTextContent('要先轉成 One-Hot');
+    expect(screen.getByText('有 Feature 還不能用來訓練', { exact: false })).toBeInTheDocument();
+    await user.click(within(table).getByRole('radio', { name: '以 smoker 為 Target' }));
+    expect(row('smoker')).not.toHaveTextContent('缺值');
+  });
+
+  it('One-Hot replaces the original column in the saved features; 當作類別 casts number codes first', async () => {
+    const { user } = await renderApp('/data/tabular/2/target', 'ra01');
+    const form = await screen.findByRole('form', { name: '設定 Target 與 Feature' });
+    await user.click(within(form).getByRole('radio', { name: '以 diagnosis 為 Target' }));
+    for (const f of ['age', 'sex', 'smoker', 'event']) await user.click(within(form).getByRole('checkbox', { name: f }));
+    await user.click(within(form).getByRole('button', { name: '全部轉成 One-Hot' }));
+    await user.click(within(form).getByRole('switch', { name: 'event 當作類別' }));
+    expect(within(form).getByRole('switch', { name: 'sex 當作類別' })).toBeChecked();
+    expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      expect.stringContaining('One-Hot 編碼：sex、smoker'),
+      expect.stringContaining('轉換資料型別：event'),
+      expect.stringContaining('One-Hot 編碼：event'),
+    ]);
+    await user.click(within(form).getByRole('button', { name: '儲存設定' }));
+    expect(await screen.findByText('已儲存：Target diagnosis，8 個 Feature，3 個前處理步驟')).toBeInTheDocument();
+    expect(screen.getByTestId('saved-features')).toHaveTextContent('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
+    // 表上仍顯示原始欄位被勾選
+    expect(within(form).getByRole('checkbox', { name: 'sex' })).toBeChecked();
+    expect(within(form).queryByText('有 Feature 還不能用來訓練', { exact: false })).toBeNull();
+    await user.click(within(form).getByRole('switch', { name: 'event 當作類別' }));
+    expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem')).toHaveLength(1);
   });
 
   it('TC-A03-05 without Training permission the settings are read-only', async () => {

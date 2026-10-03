@@ -15,6 +15,7 @@ import type {
   ValidationReport,
 } from '../pages/tabular/types';
 import { CATALOGUE, COHORT_CSV, COHORT_SCHEMA, STATS_FIXTURES } from './tabularData';
+import { DEFAULT_MISSING_VALUES, InferError, inferFromTable } from './tabularInfer';
 import { API, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject, tabularError, validation } from './support';
 
 interface Frame {
@@ -103,8 +104,10 @@ function convert(spec: SchemaColumn, text: string): Cell {
     return Number(text);
   }
   if (spec.type === 'bool') {
-    if (!/^(true|false)$/i.test(text)) throw new Error(`「${text}」不是布林值（true/false）`);
-    return text.toLowerCase() === 'true';
+    const low = text.toLowerCase();
+    if (['true', '1', 'yes', 'y', 't', '是'].includes(low)) return true;
+    if (['false', '0', 'no', 'n', 'f', '否'].includes(low)) return false;
+    throw new Error(`「${text}」不是布林值（true/false）`);
   }
   return text;
 }
@@ -147,6 +150,8 @@ export function validateCsv(text: string, schema: { columns: SchemaColumn[] }): 
     report.errors.push({ code: 'no_data_rows', message: '檔案只有標題列，沒有任何資料列' });
     return { report, frame };
   }
+  const unknown = header.filter((h) => !schema.columns.some((c) => c.name === h));
+  if (unknown.length) report.warnings = [{ code: 'unknown_columns', message: `結構定義中沒有下列欄位，將忽略：${unknown.join('、')}` }];
   const specs = schema.columns.filter((c) => header.includes(c.name));
   frame.columns = specs.map((c) => c.name);
   for (const c of specs) [frame.dtypes[c.name], frame.kinds[c.name]] = DTYPES[c.type] ?? ['object', 'categorical'];
@@ -156,9 +161,10 @@ export function validateCsv(text: string, schema: { columns: SchemaColumn[] }): 
     if (cells.length !== header.length) return reject('', `欄位數不符：應為 ${header.length} 欄，實際 ${cells.length} 欄`);
     const out: Cell[] = [];
     for (const spec of specs) {
-      const text = cells[header.indexOf(spec.name)];
-      if (text === '') {
-        if (spec.required) return reject(spec.name, '必填欄位為空值');
+      const text = cells[header.indexOf(spec.name)].trim();
+      const token = text !== '' && (spec.missing_values ?? []).some((m) => m.trim().toLowerCase() === text.toLowerCase());
+      if (text === '' || token) {
+        if (spec.required) return reject(spec.name, text === '' ? '必填欄位為空值' : `必填欄位為缺值（「${text}」）`);
         out.push(null);
         continue;
       }
@@ -217,6 +223,7 @@ export function columnInfo(frame: Frame): ColumnInfo[] {
     dtype: frame.dtypes[name],
     kind: frame.kinds[name],
     missing: frame.rows.filter((r) => r[i] === null).length,
+    unique: new Set(frame.rows.map((r) => r[i]).filter((v) => v !== null)).size,
   }));
 }
 
@@ -486,6 +493,12 @@ export function applyPipeline(source: Frame, rawSteps: unknown): Frame {
           for (const l of levels) [frame.dtypes[`${c}_${l}`], frame.kinds[`${c}_${l}`]] = ['int64', 'numeric'];
         }
         break;
+      case 'cast_type':
+        if (step.params.dtype === 'category' || step.params.dtype === 'str') {
+          const dtype: [string, ColumnKind] = step.params.dtype === 'category' ? ['category', 'categorical'] : ['object', 'categorical'];
+          for (const c of cols) mapColumn(frame, c, (values) => values.map((v) => (v === null ? null : String(v))), dtype);
+        }
+        break;
       case 'drop_columns':
         drop(step.columns);
         break;
@@ -519,6 +532,7 @@ function makeDataset(id: number, projectId: number, name: string, filename: stri
     allowed: c.allowed ?? null,
     unique: c.unique ?? false,
     pattern: c.pattern ?? null,
+    ...(c.missing_values ? { missing_values: c.missing_values } : {}),
   }));
   const dataset: StoredDataset = {
     id,
@@ -576,6 +590,21 @@ function renamed<T>(fixture: T, names: string[], intercept: boolean): T {
   return f as T;
 }
 
+function parseSchema(schemaText: string): { columns: SchemaColumn[] } | Response {
+  let schema: { columns: SchemaColumn[] };
+  try {
+    schema = JSON.parse(schemaText);
+  } catch (e) {
+    return tabularError('schema_invalid', `結構定義不是有效的 JSON：${(e as Error).message}`);
+  }
+  if (!Array.isArray(schema?.columns) || schema.columns.length === 0) {
+    return tabularError('schema_invalid', '結構定義必須包含至少一個欄位（columns）');
+  }
+  const bad = schema.columns.find((c) => !(c.type in DTYPES));
+  if (bad) return tabularError('schema_invalid', `欄位「${bad.name}」的型別「${bad.type}」不支援，可用型別：${Object.keys(DTYPES).join(', ')}`);
+  return schema;
+}
+
 const BASE = `${API}/projects/:pid/tabular`;
 const DS = `${BASE}/datasets/:id`;
 
@@ -602,6 +631,46 @@ export const tabularHandlers = [
     return json(state().datasets.filter((d) => d.project_id === ctx.project.id).map(datasetOut));
   }),
 
+  http.post(`${BASE}/schema/infer`, async ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const form = await request.formData();
+    const file = form.get('file');
+    if (!file || typeof file === 'string') return json({ detail: [{ type: 'missing', loc: ['body', 'file'], msg: 'Field required', input: null }] }, 422);
+    let tokens = DEFAULT_MISSING_VALUES;
+    const raw = form.get('missing_values');
+    if (typeof raw === 'string') {
+      try {
+        tokens = JSON.parse(raw);
+        if (!Array.isArray(tokens) || tokens.some((t) => typeof t !== 'string')) throw new Error('not a list');
+      } catch {
+        return tabularError('invalid_missing_values', '缺值寫法必須是 JSON 文字陣列，例如 ["NA", "-"]');
+      }
+    }
+    const text = new TextDecoder().decode(await file.arrayBuffer());
+    try {
+      const inferred = inferFromTable(parseCsv(text), tokens);
+      const { report } = validateCsv(text, inferred.schema);
+      return json({ ...inferred, encoding: 'utf-8', report });
+    } catch (e) {
+      if (e instanceof InferError) return tabularError(e.code, e.message);
+      throw e;
+    }
+  }),
+
+  http.post(`${BASE}/schema/check`, async ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const form = await request.formData();
+    const file = form.get('file');
+    const schemaText = form.get('schema');
+    if (!file || typeof file === 'string' || typeof schemaText !== 'string') return json({ detail: [{ type: 'missing', loc: ['body'], msg: 'Field required', input: null }] }, 422);
+    const schema = parseSchema(schemaText);
+    if (schema instanceof Response) return schema;
+    const text = new TextDecoder().decode(await file.arrayBuffer());
+    return json({ report: validateCsv(text, schema).report });
+  }),
+
   http.post(`${BASE}/datasets`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
@@ -610,17 +679,8 @@ export const tabularHandlers = [
     const schemaText = form.get('schema');
     if (!file || typeof file === 'string') return json({ detail: [{ type: 'missing', loc: ['body', 'file'], msg: 'Field required', input: null }] }, 422);
     if (typeof schemaText !== 'string') return json({ detail: [{ type: 'missing', loc: ['body', 'schema'], msg: 'Field required', input: null }] }, 422);
-    let schema: { columns: SchemaColumn[] };
-    try {
-      schema = JSON.parse(schemaText);
-    } catch (e) {
-      return tabularError('schema_invalid', `結構定義不是有效的 JSON：${(e as Error).message}`);
-    }
-    if (!Array.isArray(schema?.columns) || schema.columns.length === 0) {
-      return tabularError('schema_invalid', '結構定義必須包含至少一個欄位（columns）');
-    }
-    const bad = schema.columns.find((c) => !(c.type in DTYPES));
-    if (bad) return tabularError('schema_invalid', `欄位「${bad.name}」的型別「${bad.type}」不支援，可用型別：${Object.keys(DTYPES).join(', ')}`);
+    const schema = parseSchema(schemaText);
+    if (schema instanceof Response) return schema;
     const s = state();
     const name = (typeof form.get('name') === 'string' ? (form.get('name') as string).trim() : '') || file.name || 'data.csv';
     const text = new TextDecoder().decode(await file.arrayBuffer());

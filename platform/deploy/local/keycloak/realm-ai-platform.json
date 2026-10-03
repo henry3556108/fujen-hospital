@@ -1,6 +1,11 @@
 {
   "realm": "ai-platform",
   "enabled": true,
+  "displayName": "AI 模型開發管理軟體平台",
+  "displayNameHtml": "AI 模型開發管理軟體平台",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["zh-Hant", "en"],
+  "defaultLocale": "zh-Hant",
   "accessTokenLifespan": 300,
   "clients": [
     {

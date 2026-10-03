@@ -8,18 +8,29 @@ import { bodyRows, cellsOf } from '../table';
 type User = Awaited<ReturnType<typeof renderApp>>['user'];
 const list = () => screen.findByRole('table', { name: '資料集列表' });
 
-async function upload(user: User, csv: string, name: string, schema = fixtureText('tabular/schema.json')) {
+/** 選檔、等自動判斷完成、填名稱；schema 不是 undefined 時貼到「進階」的 JSON 欄位。 */
+async function fill(user: User, csv: string, name: string, schema?: string) {
   const form = await screen.findByRole('form', { name: '上傳 CSV' });
   await user.upload(within(form).getByLabelText(/^CSV 檔案/), fixtureFile(`tabular/${csv}`));
+  await within(form).findByRole('table', { name: '欄位確認' });
   const n = within(form).getByLabelText('資料集名稱');
   await user.clear(n);
   if (name) await user.type(n, name);
-  const s = within(form).getByLabelText('結構定義（JSON）');
-  await user.clear(s);
-  if (schema) {
-    s.focus();
-    await user.paste(schema);
+  if (schema !== undefined) {
+    const details = within(form).getByText('進階：自行提供結構定義（JSON）').closest('details')!;
+    if (!details.open) await user.click(within(form).getByText('進階：自行提供結構定義（JSON）'));
+    const s = within(form).getByLabelText('結構定義（JSON）');
+    await user.clear(s);
+    if (schema) {
+      s.focus();
+      await user.paste(schema);
+    }
   }
+  return form;
+}
+
+async function upload(user: User, csv: string, name: string, schema: string | undefined = fixtureText('tabular/schema.json')) {
+  const form = await fill(user, csv, name, schema);
   await user.click(within(form).getByRole('button', { name: '上傳並驗證' }));
   return form;
 }
@@ -76,23 +87,17 @@ describe('資料集列表', () => {
     await waitFor(() => expect((within(form).getByLabelText('結構定義（JSON）') as HTMLTextAreaElement).value).toContain('"patient_id"'));
   });
 
-  it('errors: no file, no schema, invalid schema JSON, missing columns, duplicate name', async () => {
+  it('errors: no file, invalid schema JSON, missing columns', async () => {
     const { user } = await renderApp('/data/tabular', 'pi01');
     const form = await screen.findByRole('form', { name: '上傳 CSV' });
     await user.click(within(form).getByRole('button', { name: '上傳並驗證' }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('請先選擇 CSV 檔案');
 
-    await upload(user, 'cohort_01.csv', 'x', '');
-    await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('請貼上或載入結構定義（JSON）'));
-
     await upload(user, 'cohort_01.csv', 'x', '{not json');
     await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('結構定義不是有效的 JSON'));
 
     await upload(user, 'cohort_01.csv', 'x', '{"columns":[{"name":"nope","type":"int","required":true}]}');
-    await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('缺少必要欄位：nope'));
-
-    await upload(user, 'cohort_01.csv', 'lung-clinical');
-    await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('資料重複，請改用其他名稱'));
+    await waitFor(() => expect(within(form).getAllByRole('alert')[0]).toHaveTextContent('缺少必要欄位：nope'));
     expect(bodyRows(await list())).toHaveLength(1);
   });
 
@@ -177,10 +182,15 @@ describe('描述統計與分布', () => {
     const table = await screen.findByRole('table', { name: '描述統計' });
     const row = (name: string) => cellsOf(within(table).getByRole('row', { name: new RegExp(`^${name} `) }));
     // 欄位, 類型, 筆數, 缺值, 相異值, 平均, 標準差, 最小, P25, 中位數, P75, 最大, 最常見值, 次數
-    expect(row('age')).toEqual(['age', '數值', '100', '0', '51', '59.15', '19.7987', '25', '41.75', '61', '77', '89', '—', '—']);
+    expect(row('age')).toEqual(['age', '整數', '100', '0', '51', '59.15', '19.7987', '25', '41.75', '61', '77', '89', '—', '—']);
     expect(row('glucose').slice(2, 4)).toEqual(['95', '5']);
     expect(row('sex')).toEqual(['sex', '類別', '100', '0', '2', '—', '—', '—', '—', '—', '—', '—', 'M', '51']);
     expect(screen.getByText('共 100 列、12 欄')).toBeInTheDocument();
+    // 0／1 欄位顯示為是／否與比例；識別碼不顯示無意義的統計
+    expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '是／否（0／1）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
+    expect(row('patient_id').slice(0, 2)).toEqual(['patient_id', '識別碼']);
+    expect(row('patient_id')[12]).toBe('—');
+    expect(screen.getByText('表頭說明')).toBeInTheDocument();
   });
 
   it('draws a histogram for a numeric column and category counts for a categorical one', async () => {

@@ -107,6 +107,13 @@ def test_column_info_lists_all_columns(patients_df):
     assert kinds["admit_date"] == "datetime" and kinds["smoker"] == "boolean"
 
 
+def test_column_info_counts_distinct_values_without_missing(patients_df):
+    info = {c["name"]: c for c in column_info(patients_df)}
+    assert info["patient_id"]["unique"] == 100
+    assert info["sex"]["unique"] == 2
+    assert info["bmi"]["unique"] == int(patients_df["bmi"].nunique())
+
+
 def test_preview_slice_and_visible_columns(patients_df):
     result = _strict_json(preview(patients_df, offset=10, limit=5, columns=["patient_id", "bmi", "admit_date"]))
     assert result["total_rows"] == 100
