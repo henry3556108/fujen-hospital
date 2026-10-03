@@ -62,7 +62,7 @@ def test_tc_c02_01_prometheus_targets_cover_deployed_services(kube):
     jobs = {t["labels"]["job"] for t in active}
     only = container_metrics_only()
     scraped = {name for ns, name in services if f"{ns}/{name}" not in only}
-    assert scraped | {"kubelet", "cadvisor"} == jobs, f"缺抓取目標：{sorted(scraped - jobs)}；多出：{sorted(jobs - scraped)}"
+    assert scraped | {"kubelet", "cadvisor"} == jobs, f"缺抓取目標：{sorted(scraped - jobs)}；多出：{sorted(jobs - scraped - {'kubelet', 'cadvisor'})}"
     # 平台服務的目標來自 ai-platform 的 Pod（註記探索），每個執行中的 Pod 一個
     for ns, name in sorted(services):
         if ns == "ai-platform" and name in scraped:
