@@ -94,8 +94,13 @@ data:
     groups:
       - name: platform
         rules:
+          # 只看「最近 15 分鐘內才失敗」：失敗的 Job 保留 24 小時（ttlSecondsAfterFinished）供查紀錄，
+          # 若條件是「仍有失敗的 Job」告警會一直觸發，Alertmanager 每 repeat_interval 重寄。15 分鐘後自動解除（不寄已解除），
+          # 每次失敗只寄一封。kube-state-metrics 的失敗序列（帶 reason）在失敗時才出現，offset 沒有值＝剛失敗。
           - alert: PlatformJobFailed
-            expr: kube_job_status_failed{namespace="platform-jobs"} > 0
+            expr: |
+              kube_job_status_failed{namespace="platform-jobs"} > 0
+                unless kube_job_status_failed{namespace="platform-jobs"} offset 15m > 0
             labels: { severity: warning }
             annotations:
               summary: "平台工作 {{ $labels.job_name }} 失敗"
@@ -129,7 +134,7 @@ spec:
       labels: { app: prometheus }
       annotations:
         # 設定變更時手動 rollout restart；這裡只記錄版本
-        platform/config-version: "2"
+        platform/config-version: "3"
     spec:
       serviceAccountName: prometheus
       nodeSelector: { platform/pool: cpu-web }

@@ -63,7 +63,7 @@ kind 不支援擴充既有叢集，所以 `add-node.sh` 用與 kind worker 相�
 
   | 規則 | 條件 |
   |---|---|
-  | `PlatformJobFailed` | `platform-jobs` 內有 Job 失敗 |
+  | `PlatformJobFailed` | `platform-jobs` 內有 Job 在最近 15 分鐘內失敗（失敗的 Job 保留 24 小時供查紀錄，15 分鐘後告警自動解除，每次失敗只寄一封） |
   | `NodeNotReady` | 節點 Ready≠true 持續 10 秒（controller-manager 的 node-monitor-grace-period 設為 20 秒） |
   | `HighPodCpu` | 單一 Pod CPU 使用超過 0.8 核持續 20 秒 |
 

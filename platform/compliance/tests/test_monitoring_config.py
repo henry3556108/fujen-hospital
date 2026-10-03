@@ -3,6 +3,7 @@
 抓取宣告只寫在平台 manifest（Pod 註記 prometheus.io/*）；Prometheus 以一個通用的註記探索工作抓取；
 其餘服務必須列在 policy/monitoring.yaml 的 container_metrics_only。這裡確保新增服務時不會漏掉其中一邊。
 """
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -111,3 +112,62 @@ def test_kind_prometheus_discovers_annotated_platform_pods():
                for r in relabel)
     for label in ("__metrics_path__", "__address__"):
         assert any(r.get("target_label") == label for r in relabel), label
+
+
+# --- 告警規則與路由（TC-C02-04）：以 Prometheus／Alertmanager 映像內的 promtool、amtool 驗證 ---
+PROMETHEUS_IMAGE = "quay.io/prometheus/prometheus:v3.15.0"
+ALERTMANAGER_IMAGE = "quay.io/prometheus/alertmanager:v0.34.1"
+
+
+def run_tool(tool: str, image: str, workdir: Path, *args: str) -> subprocess.CompletedProcess:
+    """本機有工具就直接執行，否則用與叢集相同版本的映像（docker）；都沒有就略過。"""
+    if shutil.which(tool):
+        return subprocess.run([tool, *args], cwd=workdir, capture_output=True, text=True, timeout=120)
+    if shutil.which("docker") is None:
+        pytest.skip(f"需要 {tool} 或 docker")
+    probe = subprocess.run(["docker", "image", "inspect", image], capture_output=True)
+    if probe.returncode != 0:
+        pytest.skip(f"需要 {tool} 或本機已有映像 {image}")
+    return subprocess.run(["docker", "run", "--rm", "--user", f"{os.getuid()}", "-v", f"{workdir}:/w", "-w", "/w",
+                           "--entrypoint", tool, image, *args], capture_output=True, text=True, timeout=120)
+
+
+def promtool_rules(tmp_path: Path, tests: list[dict]) -> subprocess.CompletedProcess:
+    (tmp_path / "rules.yml").write_text(prometheus_config()["rules.yml"], encoding="utf-8")
+    spec = {"rule_files": ["rules.yml"], "evaluation_interval": "10s", "tests": tests}
+    (tmp_path / "test.yml").write_text(yaml.safe_dump(spec, allow_unicode=True), encoding="utf-8")
+    return run_tool("promtool", PROMETHEUS_IMAGE, tmp_path, "test", "rules", "test.yml")
+
+
+FAILED = 'kube_job_status_failed{namespace="platform-jobs",job_name="%s",reason="BackoffLimitExceeded"}'
+
+
+def job_failed_alert(job: str) -> dict:
+    return {"exp_labels": {"alertname": "PlatformJobFailed", "severity": "warning", "namespace": "platform-jobs",
+                           "job_name": job, "reason": "BackoffLimitExceeded"},
+            "exp_annotations": {"summary": f"平台工作 {job} 失敗"}}
+
+
+def test_platform_job_failed_fires_once_per_failure_and_ignores_old_failures(tmp_path):
+    # 時間軸（30 秒一點）：job-old 從一開始就是失敗（舊的、TTL 未到）；job-new 在第 20 分鐘才出現失敗序列
+    # （kube-state-metrics 的 reason 序列在失敗時才出現）；job-flip 同一序列 0→1（舊版 kube-state-metrics 的寫法）
+    tests = [{
+        "interval": "30s",
+        "input_series": [
+            {"series": FAILED % "job-old", "values": "1x120"},
+            {"series": FAILED % "job-new", "values": "_x40 1x80"},
+            {"series": 'kube_job_status_failed{namespace="platform-jobs",job_name="job-flip"}', "values": "0x40 1x80"},
+        ],
+        "alert_rule_test": [
+            {"eval_time": "21m", "alertname": "PlatformJobFailed",
+             "exp_alerts": [job_failed_alert("job-new"),
+                            {"exp_labels": {"alertname": "PlatformJobFailed", "severity": "warning",
+                                            "namespace": "platform-jobs", "job_name": "job-flip"},
+                             "exp_annotations": {"summary": "平台工作 job-flip 失敗"}}]},
+            # 15 分鐘後自動解除：Alertmanager 只寄過一次（不寄已解除），不會每 4 小時重寄
+            {"eval_time": "36m", "alertname": "PlatformJobFailed", "exp_alerts": []},
+            {"eval_time": "59m", "alertname": "PlatformJobFailed", "exp_alerts": []},
+        ],
+    }]
+    result = promtool_rules(tmp_path, tests)
+    assert result.returncode == 0, result.stdout + result.stderr
