@@ -7,6 +7,7 @@ import { inferencePolling, type Model } from '../../src/pages/inference/api';
 import { positiveChance, positiveLabel } from '../../src/pages/inference/positive';
 import { resultText } from '../../src/pages/deployment/TryPredict';
 import { positiveSentence } from '../../src/pages/training/metrics';
+import { KFOLD_BELOW_ROWS, suggestedValidation } from '../../src/pages/training/settingForm';
 import type { TrainingConfig, TrainingRun } from '../../src/pages/training/api';
 import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 
@@ -108,5 +109,48 @@ describe('缺陷 2：送出訓練的訊息跟著狀態更新', () => {
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByText(`訓練 #${id}（會失敗的設定）失敗，原因在下方「訓練紀錄」。`)).toBeInTheDocument());
     expect(screen.queryByText(/目前排隊中/)).toBeNull();
+  });
+});
+
+describe('缺陷 3：資料少時預選 K 折', () => {
+  it('fewer than 1,000 rows suggests K-fold, otherwise a fixed split', () => {
+    expect(KFOLD_BELOW_ROWS).toBe(1000);
+    expect(suggestedValidation(100)).toBe('kfold');
+    expect(suggestedValidation(999)).toBe('kfold');
+    expect(suggestedValidation(1000)).toBe('holdout');
+  });
+
+  it('a new setting on a 100-row dataset starts with K-fold (K = 5) and says why; an explicit choice is kept', async () => {
+    const { user } = await renderApp('/training', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));
+    const form = await screen.findByRole('form', { name: '新增訓練設定' });
+    await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
+    expect(within(form).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    const option = await within(form).findByRole('option', { name: /^lung-clinical/ });
+    const rows = Number(/（(\d+) 列）/.exec(option.textContent ?? '')![1]);
+    await user.selectOptions(within(form).getByLabelText('資料集'), option);
+    await waitFor(() => expect(within(form).getByRole('radio', { name: 'K 折交叉驗證' })).toBeChecked());
+    expect(within(form).getByLabelText('交叉驗證折數（K）')).toHaveValue(5);
+    expect(within(form).getByTestId('validation-suggestion')).toHaveTextContent(
+      `這份資料只有 ${rows} 列（少於 1,000 列），已預選 K 折交叉驗證：每位病人都輪流當過檢查資料，分數比只切一次穩定。`);
+    // 使用者自己改回固定比例：之後不再自動改
+    await user.click(within(form).getByRole('radio', { name: '固定比例切分' }));
+    expect(within(form).queryByTestId('validation-suggestion')).toBeNull();
+    await user.selectOptions(within(form).getByLabelText('資料集'), '');
+    await user.selectOptions(within(form).getByLabelText('資料集'), option);
+    expect(within(form).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+  });
+
+  it('opening a saved fixed-split setting on small data keeps the fixed split', async () => {
+    seed('舊設定');
+    const { user } = await renderApp('/training', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '編輯「舊設定」' }));
+    const edit = await screen.findByRole('form', { name: '修改訓練設定「舊設定」' });
+    await within(edit).findByRole('option', { name: /^lung-clinical/ });
+    expect(within(edit).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    expect(within(edit).queryByTestId('validation-suggestion')).toBeNull();
+    await user.click(within(edit).getByRole('button', { name: '儲存設定' }));
+    await screen.findByText('已儲存訓練設定「舊設定」的修改。');
+    expect(trainingMock().settings[0].config.validation).toEqual({ method: 'holdout' });
   });
 });
