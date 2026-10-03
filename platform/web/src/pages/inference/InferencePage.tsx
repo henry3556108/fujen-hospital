@@ -411,7 +411,7 @@ export function tableColumns(result: Table, model: Model): Shown[] {
   const chance = (row: string[]) => (positive !== null ? positiveChance(row, result.columns, p, positive) : null);
   const actual = check ? result.columns.indexOf(check.column) : -1;
   const lead = [0, ...(actual > 0 ? [actual] : [])].filter((i) => i < at && !added.has(result.columns[i]));
-  const out: Shown[] = lead.map((i) => ({ key: `c${i}`, head: result.columns[i] === target ? `${result.columns[i]}（實際）` : result.columns[i], important: false, value: raw(i) }));
+  const out: Shown[] = lead.map((i) => ({ key: `lead${i}`, head: result.columns[i] === target ? `${result.columns[i]}（實際）` : result.columns[i], important: false, value: raw(i) }));
   out.push({ key: 'prediction', head: '預測結果', important: true, value: raw(at) });
   if (prob >= 0) {
     out.push(positive !== null && target
@@ -434,6 +434,18 @@ function TableResult({ result, model }: { result: Table; model: Model }) {
   const shown = tableColumns(result, model);
   const positive = positiveLabel(model, result);
   const p = result.prediction_column;
+  // 輸入的欄位放在重要欄位後面；表格比畫面寬時說出右側還有哪些欄位（使用性測試：右側被切掉卻不知道）
+  const inputs = shown.filter((c) => c.key.startsWith('c') && c.key !== 'check').map((c) => c.head);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [result]);
   const names = [`${p}（預測結果）`, ...(positive !== null && model.card.target ? [`${p}_positive_probability（${model.card.target}＝${positive} 的機率）`] : []),
     ...(result.columns.includes(`${p}_probability`) ? [`${p}_probability（預測類別的機率）`] : []), `${p}_note（說明）`];
   return (
@@ -447,7 +459,12 @@ function TableResult({ result, model }: { result: Table; model: Model }) {
         </p>
       ) : null}
       <p className="field__hint">畫面上的欄名是中文；下載的 CSV 保留英文欄名：{names.join('、')}，方便其他程式讀取。</p>
-      <div className="table-wrap inference-table">
+      {overflow && inputs.length ? (
+        <p className="field__hint" data-testid="table-more-columns">
+          右側還有 {inputs.length} 欄輸入的資料（{inputs.slice(0, 5).join('、')}{inputs.length > 5 ? ' 等' : ''}），可在表格內左右捲動查看；「下載結果」有完整內容。
+        </p>
+      ) : null}
+      <div className="table-wrap inference-table" ref={wrap}>
         <table className="table" aria-label="預測結果">
           <thead>
             <tr>
