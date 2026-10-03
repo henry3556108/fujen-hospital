@@ -15,7 +15,9 @@ import {
   configFromForm,
   featureChoices,
   hyperSpecs,
+  KFOLD_BELOW_ROWS,
   normaliseFeatures,
+  suggestedValidation,
   toggleChoice,
   unknownFeatures,
   type FormState,
@@ -51,6 +53,15 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   const kfold = !image && form.validationMethod === 'kfold';
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
   const processed = useProcessedColumns(api, image ? '' : form.datasetId, form.steps);
+  // 驗證方式：新設定依資料列數預選（少於 1,000 列用 K 折）；使用者自己選過、或編輯既有設定時不自動改
+  const [rows, setRows] = useState<number | null>(null);
+  const [chosen, setChosen] = useState(editing !== null);
+  useEffect(() => {
+    if (chosen || image || rows === null) return;
+    const method = suggestedValidation(rows);
+    setForm((f) => (f.validationMethod === method ? f : { ...f, validationMethod: method, folds: method === 'kfold' ? '5' : f.folds }));
+  }, [chosen, image, rows]);
+  const suggested = !chosen && !image && rows !== null && suggestedValidation(rows) === 'kfold' && form.validationMethod === 'kfold';
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -96,7 +107,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
       </div>
 
       {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} /> : null}
-      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} /> : null}
+      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} onRows={setRows} /> : null}
 
       {!image && kindEntry?.validation_methods ? (
         <fieldset>
@@ -106,7 +117,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
               <div key={m.method}>
                 <label className="checkbox">
                   <input type="radio" name="ts-validation" checked={form.validationMethod === m.method} aria-describedby={`ts-validation-${m.method}`}
-                    onChange={() => set('validationMethod', m.method)} />
+                    onChange={() => { setChosen(true); set('validationMethod', m.method); }} />
                   <strong>{m.name}</strong>
                 </label>
                 <span id={`ts-validation-${m.method}`} className="field__hint">
@@ -115,6 +126,11 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
               </div>
             ))}
           </div>
+          {suggested ? (
+            <p className="field__hint" data-testid="validation-suggestion">
+              這份資料只有 {rows} 列（少於 {KFOLD_BELOW_ROWS.toLocaleString('en-US')} 列），已預選 K 折交叉驗證：每位病人都輪流當過檢查資料，分數比只切一次穩定。
+            </p>
+          ) : null}
         </fieldset>
       ) : null}
 
@@ -358,11 +374,15 @@ function useProcessedColumns(api: TrainingApi, datasetId: string, steps: FormSta
   return datasetId && columns?.key === key ? columns.columns : null;
 }
 
-function TabularSource({ api, form, setForm, catalogue, processed }: {
+function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
   api: TrainingApi; form: FormState; setForm: (f: FormState | ((f: FormState) => FormState)) => void; catalogue: Catalogue;
   processed: ColumnInfo[] | null;
+  /** 選到的資料集有幾列（沒選時 null），用來預選驗證方式 */
+  onRows: (rows: number | null) => void;
 }) {
   const datasets = useResource(() => api.datasets(), [api]);
+  const chosenRows = datasets.data?.find((d) => String(d.id) === form.datasetId)?.valid_rows ?? null;
+  useEffect(() => onRows(chosenRows), [chosenRows, onRows]);
   const detail = useResource(() => (form.datasetId ? api.dataset(Number(form.datasetId)) : Promise.resolve(null)), [api, form.datasetId]);
   const [prefilled, setPrefilled] = useState<string | null>(null);
   const entry = catalogue.kinds.find((k) => k.kind === form.kind);

@@ -42,3 +42,16 @@ def test_report_names_steps_in_chinese_and_states_the_missing_value_choice():
            "metrics": {}, "artifacts": {}, "dataset_version_id": 1, "created_by": "pi01"}
     html = build(run=run, charts=None, generated_by="pi01")
     assert "One-Hot 編碼：sex" in html and "補上缺值後使用" in html
+
+
+def test_report_names_the_positive_class_used_for_prediction_probabilities():
+    """修正缺陷 1：報表說出陽性類別，與預測時顯示的「diagnosis＝1 的機率」一致。"""
+    run = {"id": 4, "name": "x", "kind": "tabular_classification", "executor": "template", "seed": 1,
+           "config": {"kind": "tabular_classification", "split": {"train": 0.6, "validation": 0.2, "test": 0.2},
+                      "tabular": {"target": "diagnosis", "features": ["age"], "steps": [], "algorithm": "random_forest"}},
+           "metrics": {"labels": {"majority": "0", "positive": "1"}, "test": {"auc": 0.75}},
+           "artifacts": {}, "dataset_version_id": 1, "created_by": "pi01"}
+    html = build(run=run, charts=None, generated_by="pi01")
+    assert "陽性＝diagnosis 為「1」" in html and "diagnosis＝1 的機率" in html
+    multi = {**run, "metrics": {"labels": {"majority": "a"}, "test": {"accuracy": 0.7}}}
+    assert "陽性＝" not in build(run=multi, charts=None, generated_by="pi01")

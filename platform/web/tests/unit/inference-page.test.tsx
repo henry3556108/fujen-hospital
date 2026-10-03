@@ -37,7 +37,7 @@ describe('inference page', () => {
     expect(screen.queryByTestId('batch-status')).not.toBeInTheDocument();
     const header = within(table).getAllByRole('columnheader').map((h) => h.textContent);
     // 畫面上用中文欄名，病歷號與實際值、預測放前面
-    expect(header.slice(0, 6)).toEqual(['patient_id', 'diagnosis（實際）', '預測結果', '機率', '預測對／錯', '說明']);
+    expect(header.slice(0, 6)).toEqual(['patient_id', 'diagnosis（實際）', '預測結果', 'diagnosis＝1 的機率', '預測對／錯', '說明']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(20);
     for (const row of rows) {

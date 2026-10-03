@@ -168,7 +168,7 @@ describe('Target 與 Feature', () => {
     const { user } = await renderApp('/data/tabular/2/target', 'ra01');
     const table = await screen.findByRole('table', { name: '欄位總覽' });
     const row = (name: string) => within(table).getByRole('row', { name: new RegExp(`^${name} `) });
-    await waitFor(() => expect(cellsOf(row('diagnosis')).slice(0, 4)).toEqual(['diagnosis', '是／否（0／1）', '0', '2']));
+    await waitFor(() => expect(cellsOf(row('diagnosis')).slice(0, 4)).toEqual(['diagnosis', '整數（0／1，是／否）', '0', '2']));
     expect(cellsOf(row('patient_id')).slice(0, 4)).toEqual(['patient_id', '識別碼', '0', '100']);
     expect(cellsOf(row('glucose')).slice(0, 4)).toEqual(['glucose', '小數', '5', '88']);
     await user.click(within(row('patient_id')).getByRole('checkbox'));

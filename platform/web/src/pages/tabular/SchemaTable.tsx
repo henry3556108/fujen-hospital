@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { InferColumn, SchemaColumn } from './types';
+import { binaryLabel } from './columnOverview';
 
 /** 型態的中文名稱（結構定義 type → 畫面文字） */
 export const TYPE_OPTIONS: { value: string; label: string; hint: string }[] = [
@@ -14,6 +15,10 @@ export const TYPE_OPTIONS: { value: string; label: string; hint: string }[] = [
 export const typeLabel = (t: string) => TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t;
 
 const NUMERIC = ['int', 'float'];
+
+/** 只有 0 與 1 的整數欄（伺服器的 binary01；舊版 API 沒有時看觀察到的最小、最大值與不同值數） */
+const isBinary = (s: InferColumn | undefined) =>
+  !!s && (s.binary01 ?? (s.type === 'int' && s.observed_min === 0 && s.observed_max === 1 && s.distinct === 2));
 
 function patternExample(pattern: string, examples: string[]): string {
   const re = new RegExp(pattern);
@@ -85,6 +90,7 @@ export function SchemaTable({
                   <select
                     className="select"
                     aria-label={`${c.name} 的型態`}
+                    aria-describedby={c.type === 'int' && isBinary(s) ? `schema-binary-${i}` : undefined}
                     value={c.type}
                     onChange={(e) => {
                       const type = e.target.value;
@@ -104,6 +110,12 @@ export function SchemaTable({
                       </option>
                     ))}
                   </select>
+                  {c.type === 'int' && isBinary(s) ? (
+                    // 與資料頁同一個名稱「整數（0／1，是／否）」；放在選單下方，選單不加寬，表格不必橫向捲動
+                    <span id={`schema-binary-${i}`} className="field__hint schema-table__binary" data-testid={`schema-binary-${c.name}`}>
+                      {binaryLabel('int').replace(/^整數/, '')}
+                    </span>
+                  ) : null}
                 </td>
                 <td>
                   <input type="checkbox" aria-label={`${c.name} 必填`} checked={!!c.required} onChange={(e) => update(i, { required: e.target.checked })} />

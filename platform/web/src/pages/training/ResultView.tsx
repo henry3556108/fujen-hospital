@@ -22,6 +22,7 @@ import {
   warnings,
   verdict,
   baselineSentence,
+  positiveSentence,
   headlineNumber,
   type Source,
 } from './metrics';
@@ -98,6 +99,7 @@ export function ResultView({ api, run, actions }: { api: TrainingApi; run: Train
             ))}
           </ul>
           {baseline ? <p className="metric-baseline" data-testid="baseline">{baseline}</p> : null}
+          {positiveSentence(run) ? <p className="metric-baseline" data-testid="positive-class">{positiveSentence(run)}</p> : null}
         </>
       ) : null}
       {actions}

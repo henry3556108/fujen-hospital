@@ -72,6 +72,18 @@ def test_zero_one_codes_are_integers_not_booleans():
     assert col["type"] == "int" and col["min"] == 0
 
 
+def test_zero_one_integers_are_flagged_as_yes_no_in_the_summary():
+    """修正缺陷 4：0／1 欄位維持整數（存的值不變），摘要標成是／否，畫面兩處都顯示「整數（0／1，是／否）」。"""
+    rows = [[i % 2, i % 3, 0, i] for i in range(30)]
+    result = _infer(_csv(["event", "grade", "zero", "n"], rows))
+    assert _col(result, "event")["type"] == "int" and _col(result, "event")["max"] is None
+    flags = {c["name"]: c["binary01"] for c in result["columns"]}
+    assert flags == {"event": True, "grade": False, "zero": False, "n": False}
+    assert any("0／1" in n and "是／否" in n for n in _summary(result, "event")["notes"])
+    text = _infer(_csv(["sex"], [["M" if i % 2 else "F"] for i in range(30)]))
+    assert text["columns"][0]["binary01"] is False
+
+
 # --- 缺值寫法 ---
 
 def test_default_missing_tokens_are_missing_and_listed_in_schema():
@@ -264,3 +276,17 @@ def test_bad_csv_inferred_schema_with_required_confirmed_rejects_exactly_the_bad
 def test_valid_cohort_inferred_schema_accepts_every_row():
     result = infer_schema(WEB_FIXTURES / "cohort_01.csv")
     assert result["report"]["valid_rows"] == 100 and result["report"]["rejected"] == []
+
+
+def test_bad_csv_zero_one_columns_are_yes_no_integers_and_bad_rows_are_still_rejected():
+    """TC-B01-10 不變：bad.csv 的 diagnosis、event 是 0／1 整數，錯誤列照舊攔下、正常列不誤殺。"""
+    result = infer_schema(WEB_FIXTURES / "bad.csv")
+    for name in ("diagnosis", "event"):
+        assert _col(result, name)["type"] == "int" and _summary(result, name)["binary01"] is True
+    assert _summary(result, "age")["binary01"] is False
+    schema = result["schema"]
+    for c in schema["columns"]:
+        if c["name"] == "sbp":
+            c["required"] = True
+    report = validate_csv(WEB_FIXTURES / "bad.csv", Schema.from_dict(schema))
+    assert {r["row"] for r in report["rejected"]} == _bad_rows()

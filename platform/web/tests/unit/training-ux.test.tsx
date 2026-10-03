@@ -258,7 +258,7 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     expect(screen.queryByLabelText('執行方式')).toBeNull();
   });
 
-  it('deploy shortcut preselects the model and suggests a name; try-out prediction shows class and probability', async () => {
+  it('deploy shortcut preselects the model and suggests a name; try-out prediction shows the probability of diagnosis＝1', async () => {
     seed('心臟科確診預測', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'sex'], steps: [], algorithm: 'random_forest' } }));
     const { user } = await renderApp('/training', 'pi01');
     await finish(user, '心臟科確診預測');
@@ -276,7 +276,7 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     await user.type(within(tryForm).getByLabelText('age'), '61');
     await user.selectOptions(within(tryForm).getByLabelText('sex'), 'M');
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
-    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「([01])」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
+    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）。$/);
   });
 });
 

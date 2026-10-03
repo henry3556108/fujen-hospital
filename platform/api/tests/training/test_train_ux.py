@@ -1,4 +1,6 @@
 """建模端使用性（2026-10-03 B 組）：K 折設定、超參數白話說明、圖表資料與可列印報表。"""
+import csv
+import io
 import json
 
 import pytest
@@ -244,10 +246,58 @@ def test_classification_results_carry_probability(client, pi, project, backend, 
     out = ok(client.post(f"/api/projects/{project.id}/models/{done['model_id']}/inference/upload", headers=pi,
                          files=[("files", ("one.csv", csv_text.encode(), "text/csv"))]), 201)
     result = ok(client.get(f"/api/projects/{project.id}/inference/{out['id']}", headers=pi))["result"]
-    assert result["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"]
+    assert result["columns"][-4:] == ["prediction_positive_probability", "prediction", "prediction_probability",
+                                      "prediction_note"], "最後三欄不變；陽性類別的機率放在 prediction 前面"
+    assert result["positive_label"] == "1"
     first, second = result["rows"]
-    assert 0.5 <= float(first[-2]) <= 1 and first[-1].startswith(f"預測為「{first[-3]}」的機率")
-    assert second[-3] == "" and second[-1] == "特徵含缺值，無法預測"
+    assert 0.5 <= float(first[-2]) <= 1, "prediction_probability 仍是預測類別的機率"
+    positive = float(first[-4])
+    assert positive == (float(first[-2]) if first[-3] == "1" else round(1 - float(first[-2]), 4))
+    assert first[-1] == f"diagnosis＝1 的機率 {positive:.0%}"
+    assert second[-3] == "" and second[-4] == "" and second[-1] == "特徵含缺值，無法預測"
+
+
+def test_positive_probability_is_derived_from_the_predicted_class():
+    """二元分類：陽性類別（類別排序後的第二個）的機率＝預測為陽性時 p，否則 1 − p；說明欄寫陽性的機率。"""
+    from app.training.service import _tabular_result
+
+    answer = {"predictions": [0, 1, None, 1], "probabilities": [0.94, 0.83, None, 0.6],
+              "notes": [None, None, "特徵含缺值，無法預測", "glucose 缺值，已用訓練資料的中位數 100 補上"]}
+    data, extra = _tabular_result(["id"], [["a"], ["b"], ["c"], ["d"]], answer, target="diagnosis", positive="1")
+    rows = list(csv.reader(io.StringIO(data.decode())))
+    assert rows[0] == ["id", "prediction_positive_probability", "prediction", "prediction_probability",
+                       "prediction_note"]
+    assert rows[1] == ["a", "0.06", "0", "0.94", "diagnosis＝1 的機率 6%"]
+    assert rows[2] == ["b", "0.83", "1", "0.83", "diagnosis＝1 的機率 83%"]
+    assert rows[3] == ["c", "", "", "", "特徵含缺值，無法預測"]
+    assert rows[4] == ["d", "0.6", "1", "0.6", "diagnosis＝1 的機率 60%（glucose 缺值，已用訓練資料的中位數 100 補上）"]
+    assert extra == {"prediction_column": "prediction", "unpredicted": 1, "positive_label": "1"}
+
+
+def test_multiclass_keeps_the_predicted_class_probability_without_positive_column():
+    from app.training.service import _tabular_result
+
+    answer = {"predictions": ["b"], "probabilities": [0.7], "notes": [None]}
+    data, extra = _tabular_result(["id"], [["a"]], answer, target="grade", positive=None)
+    rows = list(csv.reader(io.StringIO(data.decode())))
+    assert rows == [["id", "prediction", "prediction_probability", "prediction_note"], ["a", "b", "0.7", "預測為「b」的機率 70%"]]
+    assert "positive_label" not in extra
+
+
+def test_online_prediction_returns_the_positive_class_probability(client, pi, member, project, backend, table,
+                                                                   tmp_path, inference):
+    run = start(client, pi, project.id, setting_body("tabular_classification", dataset_id=table))
+    simulate_job(client, backend, run, tmp_path)
+    backend.advance(60)
+    done = ok(client.get(f"{base(project.id)}/runs/{run['id']}", headers=pi))
+    allowed = member("md01", Role.MEDICAL_DOCTOR)
+    created = ok(client.post(f"/api/projects/{project.id}/deployments", headers=pi,
+                             json={"model_id": done["model_id"], "allowed_users": ["md01"]}), 201)
+    rows = [{"age": 60, "bmi": 25, "glucose": 100, "sbp": 130}, {"age": 40, "bmi": 22, "glucose": 90, "sbp": 120}]
+    out = ok(client.post(created["endpoint"], headers=allowed, json={"rows": rows}))
+    assert out["positive_label"] == "1" and len(out["positive_probabilities"]) == 2
+    for label, p, positive in zip(out["predictions"], out["probabilities"], out["positive_probabilities"]):
+        assert positive == (p if label == "1" else round(1 - p, 4))
 
 
 # ---------------------------------------------------------------- 使用性測試第二輪：缺值處理
@@ -289,7 +339,7 @@ def test_impute_trains_on_every_patient_and_predicts_rows_with_gaps(client, pi, 
     result = ok(client.get(f"/api/projects/{project.id}/inference/{out['id']}", headers=pi))["result"]
     first, second = result["rows"]
     assert second[-3] != "", "有缺值的病人也有預測"
-    assert second[-1].startswith(f"預測為「{second[-3]}」的機率") and "glucose 缺值，已用訓練資料的中位數補上" in second[-1]
+    assert second[-1].startswith("diagnosis＝1 的機率") and "glucose 缺值，已用訓練資料的中位數" in second[-1]
     assert "缺值" not in first[-1]
 
 

@@ -1,5 +1,5 @@
 // 建模管理（B-05）：訓練設定（5 種）、送出訓練與狀態、指標、模型匯出。需要目前專案的 Training 權限（入口規則）。
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { featureCountText, missingText, stepLabel } from '../tabular/columnOverview';
@@ -8,7 +8,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { KIND_NAMES } from '../inference/api';
-import { useTrainingApi, type Catalogue, type TrainingApi, type TrainingSetting } from './api';
+import { useTrainingApi, type Catalogue, type RunStatus, type TrainingApi, type TrainingRun, type TrainingSetting } from './api';
 import { SettingForm } from './SettingForm';
 import { emptyForm, formFromSetting, settingDifference, suggestKind, type FormState } from './settingForm';
 import type { TargetFeature } from '../tabular/types';
@@ -62,6 +62,22 @@ function outdated(s: TrainingSetting, saved: Record<number, TargetFeature | null
   return text ? { tf, text } : null;
 }
 
+/** 剛送出的訓練：頂端的訊息跟著狀態更新，不會在完成後還寫「目前排隊中」。 */
+export function submittedNotice(id: number, name: string, status: RunStatus): { text: string; tone: 'success' | 'info' | 'error' } {
+  switch (status) {
+    case 'running':
+      return { text: `訓練 #${id}（${name}）訓練中，完成後下方會顯示結果。`, tone: 'info' };
+    case 'succeeded':
+      return { text: `訓練 #${id}（${name}）已完成，結果在下方「訓練紀錄」。`, tone: 'success' };
+    case 'failed':
+      return { text: `訓練 #${id}（${name}）失敗，原因在下方「訓練紀錄」。`, tone: 'error' };
+    case 'cancelled':
+      return { text: `訓練 #${id}（${name}）已取消。`, tone: 'info' };
+    default:
+      return { text: `已送出訓練 #${id}（${name}），目前排隊中。`, tone: 'success' };
+  }
+}
+
 function Training({ api }: { api: TrainingApi }) {
   const { me } = useSession();
   const catalogue = useResource(() => api.catalogue(), [api]);
@@ -76,7 +92,19 @@ function Training({ api }: { api: TrainingApi }) {
   const fromDataset = Number(params.get('dataset')) || null;
   const [mineOnly, setMineOnly] = useState(true);
   const [editor, setEditor] = useState<{ form: FormState; editing: TrainingSetting | null; key: number } | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNoticeText] = useState('');
+  // 剛送出的訓練與它目前的狀態（其他訊息出現時清掉）
+  const [submitted, setSubmitted] = useState<{ id: number; name: string; status: RunStatus } | null>(null);
+  const setNotice = (text: string) => {
+    setSubmitted(null);
+    setNoticeText(text);
+  };
+  const onRuns = useCallback((runs: TrainingRun[]) => {
+    setSubmitted((s) => {
+      const run = s && runs.find((r) => r.id === s.id);
+      return s && run && run.status !== s.status ? { ...s, status: run.status } : s;
+    });
+  }, []);
   const [error, setError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState<TrainingSetting | null>(null);
   const [executor, setExecutor] = useState('template');
@@ -124,7 +152,7 @@ function Training({ api }: { api: TrainingApi }) {
     setNotice('');
     try {
       const run = await api.submit(s.id, executor);
-      setNotice(`已送出訓練 #${run.id}（${s.name}），目前排隊中。`);
+      setSubmitted({ id: run.id, name: s.name, status: 'queued' });
       setSelectedRun(run.id);
       setRunsNonce((n) => n + 1);
     } catch (err) {
@@ -171,6 +199,11 @@ function Training({ api }: { api: TrainingApi }) {
           </button>
         </div>
         {notice ? <Alert tone="success">{notice}</Alert> : null}
+        {submitted ? (
+          <Alert tone={submittedNotice(submitted.id, submitted.name, submitted.status).tone}>
+            {submittedNotice(submitted.id, submitted.name, submitted.status).text}
+          </Alert>
+        ) : null}
         <ApiErrorAlert error={error ?? settings.error} />
         {settings.data && settings.data.length === 0 ? <p className="text-muted">還沒有訓練設定。按「新增訓練設定」開始，或從數據管理的資料集按「用這份資料建立訓練」。</p> : null}
         {settings.data && settings.data.length > 0 ? (
@@ -264,7 +297,7 @@ function Training({ api }: { api: TrainingApi }) {
         />
       ) : null}
 
-      <Runs key={runsNonce} api={api} selected={selectedRun} onSelect={setSelectedRun} settings={all} />
+      <Runs key={runsNonce} api={api} selected={selectedRun} onSelect={setSelectedRun} settings={all} onRuns={onRuns} />
 
       {deleting ? (
         <ConfirmDialog title="刪除訓練設定" confirmLabel="刪除" onConfirm={() => void remove()} onCancel={() => setDeleting(null)}>

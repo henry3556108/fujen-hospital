@@ -42,9 +42,12 @@ export const looksLikeCodes = (f: ColumnFacts) => f.kind === 'numeric' && !isBin
 
 export const isTextual = (f: ColumnFacts) => f.kind === 'categorical' || f.kind === 'text';
 
+/** 0／1 欄位的名稱：上傳時的欄位確認表與資料頁用同一個（型態仍是整數，存的值是 0 與 1）。 */
+export const binaryLabel = (schemaType?: string) => (schemaType === 'float' ? '小數（0／1，是／否）' : '整數（0／1，是／否）');
+
 export function typeLabel(f: ColumnFacts): string {
   if (isIdentifier(f)) return '識別碼';
-  if (isBinary01(f)) return '是／否（0／1）';
+  if (isBinary01(f)) return binaryLabel(f.schemaType);
   if (f.kind === 'boolean') return '是／否';
   if (f.kind === 'datetime') return '日期';
   if (f.kind === 'numeric') return f.schemaType === 'int' ? '整數' : f.schemaType === 'float' ? '小數' : '數值';

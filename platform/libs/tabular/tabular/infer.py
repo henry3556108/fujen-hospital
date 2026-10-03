@@ -9,6 +9,8 @@ would be rejected before uploading.
 Rules, in order, for each column (cells are stripped; blank and ``missing_values`` are missing):
 
 1. type: bool (true/false/yes/no/是/否/y/n/t/f, not 0/1) → int → float → date (ISO) → text.
+   An int column whose values are exactly 0 and 1 stays int (stored values unchanged) and its summary
+   gets ``binary01 = True`` so the web shows 「整數（0／1，是／否）」, as the describe page does.
 2. text: a fixed format with digits shared by >= 90% of values gives a ``pattern`` (``^P\\d{5}$``);
    an identifier (format or id-like name, no missing, >= 90% distinct) is ``unique``; few distinct
    values (<= 20 and <= half the cells) is ``category`` whose ``allowed`` list keeps values seen at
@@ -144,7 +146,7 @@ def _infer_column(name: str, values: list[str], tokens: frozenset[str],
     summary: dict[str, Any] = {
         "name": name, "missing": missing, "distinct": len(distinct), "examples": list(distinct)[:EXAMPLES],
         "non_conforming": 0, "observed_min": None, "observed_max": None, "rare_values": [],
-        "identifier": False, "range_source": None, "notes": [],
+        "identifier": False, "range_source": None, "notes": [], "binary01": False,
     }
     notes: list[str] = summary["notes"]
     if n == 0:
@@ -168,6 +170,10 @@ def _infer_column(name: str, values: list[str], tokens: frozenset[str],
         numbers = [_as_float(v) for v in present if _CHECKS[ctype](v)]
         numbers = [x for x in numbers if x is not None]
         summary["observed_min"], summary["observed_max"] = _fmt(min(numbers)), _fmt(max(numbers))
+        if ctype == "int" and set(numbers) == {0, 1}:
+            # 只有 0 與 1（例如 diagnosis、event）：型態維持整數（存的值不變），畫面上標成「整數（0／1，是／否）」
+            summary["binary01"] = True
+            notes.append("只有 0、1 兩種值：視為「整數（0／1，是／否）」，1＝是；存的值仍是 0 與 1")
         bounds = _clinical_range(name)
         if bounds and sum(bounds[0] <= x <= bounds[1] for x in numbers) / len(numbers) >= THRESHOLD:
             spec["min"], spec["max"] = _fmt(bounds[0]), _fmt(bounds[1])

@@ -55,7 +55,7 @@ test.describe('使用性第三輪', () => {
     const one = page.getByRole('form', { name: '一位病人' });
     await one.getByLabel('age').fill('61');
     await one.getByRole('button', { name: '預測' }).click();
-    await expect(one.getByTestId('try-result')).toContainText(/^diagnosis 預測為「[01]」的機率 \d+%/);
+    await expect(one.getByTestId('try-result')).toContainText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）/);
     await page.getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-correct')).toContainText(/位中預測對 \d+ 位/);
     const table = page.getByRole('table', { name: '預測結果' });

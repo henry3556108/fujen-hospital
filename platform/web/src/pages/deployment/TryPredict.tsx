@@ -1,26 +1,33 @@
-// 試用預測：在部署頁填一位病人的資料，立即看模型預測的類別與機率（結構式模型）。
+// 試用預測：在部署頁填一位病人的資料，立即看模型的預測與陽性類別的機率（結構式模型）。
 // 經「上傳推論」API 執行（需要 Prediction），結果與稽核都記在推論歷史。
 import { useState, type FormEvent } from 'react';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { displayName, useInferenceApi, type Model, type ModelInput } from '../inference/api';
+import { noteRest, percent, positiveLabel, sameLabel } from '../inference/positive';
 
 function inputsOf(model: Model): ModelInput[] {
   if (model.card.inputs?.length) return model.card.inputs;
   return (model.card.features ?? []).map((name) => ({ name, type: 'number', min: null, max: null }));
 }
 
-/** 試用預測的結果句：說出機率是哪一類的（與批次結果的說明一致），補過缺值時說補了什麼。 */
-export function resultText(model: Model, result: { prediction: string; probability: string; note: string }): string {
+type TryResult = { prediction: string; probability: string; note: string; positive?: string };
+
+/**
+ * 試用預測的結果句。二元分類一律說陽性類別的機率（「diagnosis＝1 的機率 6%（模型預測為「0」）」），
+ * 多類別說預測類別的機率；補過缺值時說補了什麼。
+ */
+export function resultText(model: Model, result: TryResult): string {
   if (result.prediction === '') return result.note || '無法預測';
   const target = model.card.target ?? '結果';
-  // 伺服器的說明欄是「預測為「1」的機率 83%（glucose 缺值，…補上）」或只有補值說明
-  const filled = /^預測為/.test(result.note) ? (/（(.+)）$/.exec(result.note)?.[1] ?? '') : result.note;
+  const filled = noteRest(result.note);
+  const positive = positiveLabel(model);
   let text: string;
-  if (result.probability !== '') {
-    const p = Math.round(Number(result.probability) * 100);
-    const classes = model.card.classes ?? [];
-    const other = classes.length === 2 ? classes.find((c) => c !== result.prediction) : undefined;
-    text = `${target} 預測為「${result.prediction}」的機率 ${p}%` + (other !== undefined ? `（為「${other}」的機率 ${100 - p}%）` : '');
+  if (result.probability !== '' && positive !== null) {
+    const p = Number(result.probability);
+    const chance = result.positive !== undefined && result.positive !== '' ? Number(result.positive) : sameLabel(result.prediction, positive) ? p : 1 - p;
+    text = `${target}＝${positive} 的機率 ${percent(chance)}（模型預測為「${result.prediction}」）`;
+  } else if (result.probability !== '') {
+    text = `${target} 預測為「${result.prediction}」的機率 ${percent(Number(result.probability))}`;
   } else {
     text = `${target} 的預測值：${result.prediction}`;
   }
@@ -38,7 +45,7 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
   const tabular = models.filter((m) => m.kind.startsWith('tabular_'));
   const [modelId, setModelId] = useState(String(tabular.find((m) => m.id === initial)?.id ?? tabular[0]?.id ?? ''));
   const [values, setValues] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<{ prediction: string; probability: string; note: string } | null>(null);
+  const [result, setResult] = useState<TryResult | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   if (!api || tabular.length === 0) return null;
@@ -63,7 +70,8 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
       const at = (name: string) => table.columns.indexOf(name);
       const col = table.prediction_column;
       const row = table.rows[0];
-      setResult({ prediction: row[at(col)] ?? '', probability: at(`${col}_probability`) >= 0 ? row[at(`${col}_probability`)] : '', note: row[at(`${col}_note`)] ?? '' });
+      const cell = (name: string) => (at(name) >= 0 ? row[at(name)] ?? '' : '');
+      setResult({ prediction: cell(col), probability: cell(`${col}_probability`), positive: cell(`${col}_positive_probability`), note: cell(`${col}_note`) });
       onDone?.();
     } catch (err) {
       setError(err);

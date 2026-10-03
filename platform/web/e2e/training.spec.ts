@@ -151,7 +151,7 @@ test.describe('建模端使用性（從資料集到部署）', () => {
     await trial.getByLabel('smoker').selectOption('current');
     await trial.getByLabel('sbp').fill('140');
     await trial.getByRole('button', { name: '預測' }).click();
-    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
+    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）。$/);
     await expectNoHorizontalOverflow(page);
     await snap(page, testInfo.project.name, 'deployment/try-predict');
   });

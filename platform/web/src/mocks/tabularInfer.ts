@@ -91,6 +91,7 @@ export function inferColumn(name: string, values: string[], missingValues: strin
     identifier: false,
     range_source: null,
     notes: [],
+    binary01: false,
   };
   const notes = summary.notes;
   const done = () => {
@@ -121,6 +122,10 @@ export function inferColumn(name: string, values: string[], missingValues: strin
     const numbers = present.filter(check).map(Number);
     summary.observed_min = Math.min(...numbers);
     summary.observed_max = Math.max(...numbers);
+    if (spec.type === 'int' && new Set(numbers).size === 2 && numbers.every((x) => x === 0 || x === 1)) {
+      summary.binary01 = true;
+      notes.push('只有 0、1 兩種值：視為「整數（0／1，是／否）」，1＝是；存的值仍是 0 與 1');
+    }
     const bounds = clinicalRange(name);
     const share = (pred: (x: number) => boolean) => numbers.filter(pred).length / numbers.length;
     if (bounds && share((x) => x >= bounds[0] && x <= bounds[1]) >= THRESHOLD) {

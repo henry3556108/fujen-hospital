@@ -23,6 +23,13 @@ describe('上傳免寫 JSON', () => {
     const { form, table } = await choose(user, 'cohort_01.csv', 'auto');
     expect(within(table).getByLabelText('age 的型態')).toHaveDisplayValue('整數');
     expect(within(table).getByLabelText('bmi 的型態')).toHaveDisplayValue('小數');
+    // 0／1 欄位與資料頁同一個名稱（修正缺陷 4）；型態仍是整數
+    // 選單仍是「整數」（不加寬表格），下方寫「（0／1，是／否）」，合起來與資料頁相同
+    expect(within(table).getByLabelText('diagnosis 的型態')).toHaveDisplayValue('整數');
+    expect(within(table).getByLabelText('diagnosis 的型態')).toHaveAccessibleDescription('（0／1，是／否）');
+    expect(within(table).getByTestId('schema-binary-event')).toHaveTextContent('（0／1，是／否）');
+    expect(within(table).queryByTestId('schema-binary-age')).toBeNull();
+    expect(within(table).getByRole('row', { name: /^diagnosis/ })).toHaveTextContent('1＝是');
     expect(within(table).getByLabelText('sex 的型態')).toHaveDisplayValue('類別');
     expect(within(table).getByLabelText('sex 允許的值')).toHaveValue('F、M');
     expect(within(table).getByLabelText('patient_id 不可重複')).toBeChecked();
@@ -42,6 +49,7 @@ describe('上傳免寫 JSON', () => {
     const { user } = await renderApp('/data/tabular', 'pi01');
     const { form, table } = await choose(user, 'bad.csv', 'bad-auto');
     expect(precheck()).toHaveTextContent('共 30 列，通過 22 列，拒絕 8 列');
+    expect(within(table).getByLabelText('diagnosis 的型態')).toHaveAccessibleDescription('（0／1，是／否）');
     expect(within(table).getByRole('row', { name: /^sbp/ })).toHaveTextContent('有 2 格空白或缺值');
     expect(within(table).getByRole('row', { name: /^sex/ })).toHaveTextContent('「unknown」出現次數很少');
 

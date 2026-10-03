@@ -106,6 +106,14 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
   };
 }
 
+/** 資料少於這麼多列時，新設定預選 K 折交叉驗證（只切一次時測試集太小，分數容易受分組影響）。 */
+export const KFOLD_BELOW_ROWS = 1000;
+
+/** 依資料列數建議驗證方式：少於 1,000 列用 K 折，否則固定比例切分。只用在新設定；既有設定照存的設定。 */
+export function suggestedValidation(rows: number): FormState['validationMethod'] {
+  return rows < KFOLD_BELOW_ROWS ? 'kfold' : 'holdout';
+}
+
 /** 換訓練種類時：共用欄位保留，種類相關的欄位回到預設值。 */
 export function changeKind(catalogue: Catalogue, form: FormState, kind: TrainingKind): FormState {
   const fresh = emptyForm(catalogue, kind);

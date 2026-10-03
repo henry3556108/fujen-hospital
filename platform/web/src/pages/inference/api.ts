@@ -95,7 +95,8 @@ export interface InferenceRecord {
   started_at?: string | null;
   finished_at?: string | null;
   result?:
-    | { columns: string[]; rows: string[][]; prediction_column: string }
+    /** positive_label：二元分類的陽性類別（結果多一欄 `{prediction}_positive_probability`）；舊紀錄與多類別沒有 */
+    | { columns: string[]; rows: string[][]; prediction_column: string; positive_label?: string | null }
     | { results: ImageResult[]; label_names: string[]; blocked?: { name: string; reason: string }[] }
     | null;
 }
