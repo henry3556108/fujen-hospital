@@ -1,0 +1,9 @@
+  id  |              at               | actor | category |        action        |   target   | result  | source_ip  |                                 detail                                  
+------+-------------------------------+-------+----------+----------------------+------------+---------+------------+-------------------------------------------------------------------------
+ 1906 | 2026-10-03 18:38:18.684238+00 | ra01  | dataset  | imaging.import_dicom | project:41 | success | 172.19.0.4 | {"job_id": 38, "counts": {"imported": 20, "duplicate": 0, "failed": 0}}
+ 1907 | 2026-10-03 18:38:19.318593+00 | ra01  | dataset  | imaging.import_dicom | project:41 | success | 172.19.0.4 | {"job_id": 39, "counts": {"imported": 20, "duplicate": 0, "failed": 0}}
+ 1908 | 2026-10-03 18:38:19.985042+00 | ra01  | dataset  | imaging.import_dicom | project:41 | success | 172.19.0.4 | {"job_id": 40, "counts": {"imported": 20, "duplicate": 0, "failed": 0}}
+ 1909 | 2026-10-03 18:38:20.536777+00 | ra01  | dataset  | imaging.import_dicom | project:41 | success | 172.19.0.4 | {"job_id": 41, "counts": {"imported": 20, "duplicate": 0, "failed": 0}}
+ 1910 | 2026-10-03 18:38:21.21118+00  | ra01  | dataset  | imaging.import_dicom | project:41 | success | 172.19.0.4 | {"job_id": 42, "counts": {"imported": 20, "duplicate": 0, "failed": 0}}
+(5 rows)
+

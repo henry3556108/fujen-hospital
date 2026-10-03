@@ -1,0 +1,10 @@
+$ uv run python -m importer upload --project <專案> ../../../docs/acceptance-kit/m1/data/bad-files
+匯入工作 #67（dicom，4 檔）
+檔案             結果       原因
+good_01.dcm    imported   
+good_02.dcm    imported   
+notes.txt      failed     不支援的副檔名
+truncated.dcm  failed     DICOM 被截斷：像素資料 3542 位元組，應為 8192
+wrong_ext.dcm  failed     不是 DICOM 檔案（缺少 DICM 檔頭或格式錯誤）
+匯入 2、重複 0、失敗 3
+（結束碼 1）

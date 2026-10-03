@@ -1,0 +1,3 @@
+$ uv run python -m importer upload --project KIT-B-imaging --exclude manifest.json ../../../docs/acceptance-kit/m1/data/dicom
+尚未登入或登入已失效，請先執行：python -m importer login
+（結束碼 2；「匯入工作」頁沒有新增任何工作）

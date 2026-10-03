@@ -1,0 +1,178 @@
+{
+  "annotations": [
+    {
+      "area": 126,
+      "bbox": [
+        30,
+        24,
+        18,
+        7
+      ],
+      "category_id": 1,
+      "id": 1,
+      "image_id": 1,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 190,
+      "bbox": [
+        17,
+        16,
+        10,
+        19
+      ],
+      "category_id": 1,
+      "id": 2,
+      "image_id": 1,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 234,
+      "bbox": [
+        27,
+        41,
+        13,
+        18
+      ],
+      "category_id": 1,
+      "id": 3,
+      "image_id": 2,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 204,
+      "bbox": [
+        33,
+        15,
+        12,
+        17
+      ],
+      "category_id": 2,
+      "id": 4,
+      "image_id": 2,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 102,
+      "bbox": [
+        41,
+        9,
+        17,
+        6
+      ],
+      "category_id": 2,
+      "id": 5,
+      "image_id": 3,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 70,
+      "bbox": [
+        10,
+        50,
+        10,
+        7
+      ],
+      "category_id": 2,
+      "id": 6,
+      "image_id": 4,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 143,
+      "bbox": [
+        7,
+        2,
+        13,
+        11
+      ],
+      "category_id": 1,
+      "id": 7,
+      "image_id": 4,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 98,
+      "bbox": [
+        37,
+        47,
+        7,
+        14
+      ],
+      "category_id": 1,
+      "id": 8,
+      "image_id": 5,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 128,
+      "bbox": [
+        54,
+        11,
+        8,
+        16
+      ],
+      "category_id": 1,
+      "id": 9,
+      "image_id": 5,
+      "iscrowd": 0,
+      "segmentation": []
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "nodule",
+      "supercategory": ""
+    },
+    {
+      "id": 2,
+      "name": "organ",
+      "supercategory": ""
+    }
+  ],
+  "images": [
+    {
+      "file_name": "study_0001/series_001/IM0001.dcm",
+      "height": 64,
+      "id": 1,
+      "width": 64
+    },
+    {
+      "file_name": "study_0001/series_001/IM0002.dcm",
+      "height": 64,
+      "id": 2,
+      "width": 64
+    },
+    {
+      "file_name": "study_0001/series_001/IM0003.dcm",
+      "height": 64,
+      "id": 3,
+      "width": 64
+    },
+    {
+      "file_name": "study_0001/series_001/IM0004.dcm",
+      "height": 64,
+      "id": 4,
+      "width": 64
+    },
+    {
+      "file_name": "study_0001/series_001/IM0005.dcm",
+      "height": 64,
+      "id": 5,
+      "width": 64
+    }
+  ],
+  "info": {
+    "contributor": "synth",
+    "description": "my-project-name"
+  }
+}

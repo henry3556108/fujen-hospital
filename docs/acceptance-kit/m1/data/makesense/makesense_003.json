@@ -1,0 +1,164 @@
+{
+  "annotations": [
+    {
+      "area": 112,
+      "bbox": [
+        47,
+        32,
+        14,
+        8
+      ],
+      "category_id": 2,
+      "id": 1,
+      "image_id": 1,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 105,
+      "bbox": [
+        44,
+        33,
+        7,
+        15
+      ],
+      "category_id": 2,
+      "id": 2,
+      "image_id": 1,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 221,
+      "bbox": [
+        29,
+        25,
+        13,
+        17
+      ],
+      "category_id": 1,
+      "id": 3,
+      "image_id": 2,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 162,
+      "bbox": [
+        31,
+        14,
+        9,
+        18
+      ],
+      "category_id": 1,
+      "id": 4,
+      "image_id": 2,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 24,
+      "bbox": [
+        36,
+        58,
+        4,
+        6
+      ],
+      "category_id": 2,
+      "id": 5,
+      "image_id": 3,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 170,
+      "bbox": [
+        18,
+        43,
+        17,
+        10
+      ],
+      "category_id": 1,
+      "id": 6,
+      "image_id": 4,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 90,
+      "bbox": [
+        5,
+        28,
+        9,
+        10
+      ],
+      "category_id": 1,
+      "id": 7,
+      "image_id": 5,
+      "iscrowd": 0,
+      "segmentation": []
+    },
+    {
+      "area": 70,
+      "bbox": [
+        9,
+        8,
+        10,
+        7
+      ],
+      "category_id": 2,
+      "id": 8,
+      "image_id": 5,
+      "iscrowd": 0,
+      "segmentation": []
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "nodule",
+      "supercategory": ""
+    },
+    {
+      "id": 2,
+      "name": "organ",
+      "supercategory": ""
+    }
+  ],
+  "images": [
+    {
+      "file_name": "study_0003/series_001/IM0001.dcm",
+      "height": 64,
+      "id": 1,
+      "width": 64
+    },
+    {
+      "file_name": "study_0003/series_001/IM0002.dcm",
+      "height": 64,
+      "id": 2,
+      "width": 64
+    },
+    {
+      "file_name": "study_0003/series_001/IM0003.dcm",
+      "height": 64,
+      "id": 3,
+      "width": 64
+    },
+    {
+      "file_name": "study_0003/series_001/IM0004.dcm",
+      "height": 64,
+      "id": 4,
+      "width": 64
+    },
+    {
+      "file_name": "study_0003/series_001/IM0005.dcm",
+      "height": 64,
+      "id": 5,
+      "width": 64
+    }
+  ],
+  "info": {
+    "contributor": "synth",
+    "description": "my-project-name"
+  }
+}

@@ -1,0 +1,67 @@
+no,id,name,category,column_types
+1,impute_mean,平均數補值,缺值處理,numeric
+2,impute_median,中位數補值,缺值處理,numeric
+3,impute_most_frequent,眾數補值,缺值處理,any
+4,impute_constant,固定值補值,缺值處理,any
+5,impute_knn,K 近鄰補值,缺值處理,numeric
+6,impute_ffill,向前填補,缺值處理,any
+7,impute_bfill,向後填補,缺值處理,any
+8,impute_interpolate,線性內插補值,缺值處理,numeric
+9,drop_missing_rows,刪除含缺值的列,缺值處理,any
+10,drop_columns_missing_ratio,刪除缺值比例過高的欄位,缺值處理,any
+11,add_missing_indicator,新增缺值指示欄,缺值處理,any
+12,scale_standard,標準化（Z 分數）,縮放與數值轉換,numeric
+13,scale_minmax,最小最大值縮放,縮放與數值轉換,numeric
+14,scale_maxabs,最大絕對值縮放,縮放與數值轉換,numeric
+15,scale_robust,穩健縮放（中位數與四分位距）,縮放與數值轉換,numeric
+16,normalize_l1,列向量 L1 正規化,縮放與數值轉換,numeric
+17,normalize_l2,列向量 L2 正規化,縮放與數值轉換,numeric
+18,normalize_max,列向量最大值正規化,縮放與數值轉換,numeric
+19,quantile_uniform,分位數轉換（均勻分布）,縮放與數值轉換,numeric
+20,quantile_normal,分位數轉換（常態分布）,縮放與數值轉換,numeric
+21,power_yeo_johnson,Yeo-Johnson 冪轉換,縮放與數值轉換,numeric
+22,power_box_cox,Box-Cox 冪轉換,縮放與數值轉換,numeric
+23,log1p,log(1+x) 轉換,縮放與數值轉換,numeric
+24,log,自然對數轉換,縮放與數值轉換,numeric
+25,log10,常用對數（log10）轉換,縮放與數值轉換,numeric
+26,sqrt,平方根轉換,縮放與數值轉換,numeric
+27,square,平方轉換,縮放與數值轉換,numeric
+28,reciprocal,倒數轉換,縮放與數值轉換,numeric
+29,scale_zscore_clip,標準化後截斷,縮放與數值轉換,numeric
+30,clip_values,指定範圍截斷,縮放與數值轉換,numeric
+31,onehot,One-Hot 編碼,類別編碼,"categorical, text, boolean"
+32,ordinal,順序編碼,類別編碼,"categorical, text, boolean"
+33,label,標籤編碼,類別編碼,"categorical, text, boolean"
+34,frequency,頻率編碼,類別編碼,"categorical, text, boolean"
+35,count,計數編碼,類別編碼,"categorical, text, boolean"
+36,binary_map,二元對應（指定陽性值為 1）,類別編碼,any
+37,kbins_uniform,等寬分箱,離散化,numeric
+38,kbins_quantile,等頻（分位數）分箱,離散化,numeric
+39,kbins_kmeans,K-Means 分箱,離散化,numeric
+40,binarize,二值化（大於門檻為 1）,離散化,numeric
+41,iqr_clip,IQR 截斷離群值,離群值處理,numeric
+42,iqr_remove,IQR 刪除離群列,離群值處理,numeric
+43,zscore_clip,Z 分數截斷離群值,離群值處理,numeric
+44,zscore_remove,Z 分數刪除離群列,離群值處理,numeric
+45,winsorize_1,縮尾處理（1% / 99%）,離群值處理,numeric
+46,winsorize_5,縮尾處理（5% / 95%）,離群值處理,numeric
+47,polynomial_2,二次多項式特徵,特徵工程,numeric
+48,interaction_terms,交互作用項,特徵工程,numeric
+49,pca,主成分分析（PCA）,特徵工程,numeric
+50,drop_duplicate_rows,刪除重複列,資料清理,any
+51,drop_constant_columns,刪除常數欄位,資料清理,any
+52,strip_text,去除前後空白,資料清理,"categorical, text"
+53,lower_text,轉小寫,資料清理,"categorical, text"
+54,upper_text,轉大寫,資料清理,"categorical, text"
+55,replace_value,取代特定值,資料清理,any
+56,to_numeric,轉為數值（無法轉換者設為缺值）,資料清理,any
+57,to_datetime,轉為日期時間（無法轉換者設為缺值）,資料清理,any
+58,extract_year,擷取年份,資料清理,"datetime, text, categorical"
+59,extract_month,擷取月份,資料清理,"datetime, text, categorical"
+60,extract_day,擷取日,資料清理,"datetime, text, categorical"
+61,extract_weekday,擷取星期（週一為 0）,資料清理,"datetime, text, categorical"
+62,rename_columns,重新命名欄位,資料清理,any
+63,drop_columns,刪除欄位,資料清理,any
+64,select_columns,只保留指定欄位,資料清理,any
+65,cast_type,轉換資料型別,資料清理,any
+66,round,四捨五入,資料清理,numeric

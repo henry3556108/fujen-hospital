@@ -1,0 +1,10 @@
+對照組（清單內 ACC0001）：
+  API     /api/.../studies/<UID>       → HTTP 200
+  DICOMweb /studies/<UID>/metadata     → HTTP 200
+清單外存取（成功＝HTTP 200）：
+  1. ACC0003  API → HTTP 404　DICOMweb → HTTP 403
+  2. ACC0004  API → HTTP 404　DICOMweb → HTTP 403
+  3. ACC0005  API → HTTP 404　DICOMweb → HTTP 403
+  4. ACC0007  API → HTTP 404　DICOMweb → HTTP 403
+  5. ACC0010  API → HTTP 404　DICOMweb → HTTP 403
+清單外存取成功：0 次（共 10 次）
