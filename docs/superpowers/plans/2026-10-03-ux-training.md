@@ -104,3 +104,17 @@
 | 圖表與報表端點 | 401／403／404／409；沒有圖表時 `charts: null`；報表含指標說明與 SVG；`training.report` 稽核 |
 | 網頁 | Vitest：說明與進階收合、K 折存檔後重新載入一致（TC-B05-02）、舊設定（無 `validation`）可開啟與儲存、從資料集帶入與預選種類、步驟條、排序與展開、圖表與指標說明、下載報表、部署捷徑預選 |
 | Playwright（Chromium＋Edge） | `training.spec.ts`：從資料集建立 K 折訓練 → 步驟條 → 圖表 → 報表 → 部署此模型；`demo-flow.spec.ts` 段落 4 |
+
+## 追加：基準使用性測試的回饋（2026-10-03）
+
+零脈絡的「心臟科醫師」在真平台上的基準測試只得 2/5。依回饋追加：
+
+| # | 問題 | 做法 |
+|---|---|---|
+| 1 | 訓練失敗顯示 Python 堆疊；文字特徵要先 One-Hot 才能訓練 | (a) 送出前檢查：用凍結的資料套用前處理，檢查欄位存在、像病歷號的文字特徵、分類目標只有一類、迴歸目標不是數字，有問題回 422 繁中說明，不排隊。(b) 範本在 scikit-learn `Pipeline` 內自動 One-Hot 文字／類別特徵（`OneHotEncoder(handle_unknown="ignore")`，沒有文字特徵時模型檔與之前相同），pkl 仍只依賴 scikit-learn、推論可直接給原始欄位。(c) runner 的失敗訊息改為「中文原因＋`\n---\n`＋技術細節」；網頁只顯示原因，技術細節收合，結構式附「前往修正」連到資料集的 Target／Feature 分頁。舊格式訊息也會抽出原因。 |
+| 2 | 看不出模型好不好 | 指標一律中文名稱與「怎麼看」；重點指標卡附白話（「測試集的 20 人中猜對 13 人」）；二元分類加敏感度、特異度、AUC；比較基準（全部猜最常見類別的準確率、每次猜平均值的 RMSE）；提醒測試人數少（< 50）、驗證與測試差 ≥ 10 個百分點、訓練遠高於測試、沒有比基準好。 |
+| 3 | 資料集設定改了，訓練設定還是舊的 | 設定清單比對資料集目前的 Target／Feature／前處理，不同時顯示「資料集設定已更新」與「套用資料集設定」；仍保留複製（訓練設定需能重現，且不同設定可以選不同 Feature）。新增與修改的按鈕都叫「儲存設定」。 |
+| 4 | 雜亂與術語 | 設定與訓練清單預設「只看我的」可切換全部；設定清單加「資料」欄；從資料集進來預選結構式種類；fake-trainer 只有管理者在「開發測試選項」看得到；亂數種子一行說明；種類下拉與部署頁不再顯示 PKL／H5（只在模型匯出）。未做：依資料集分組收合（加了資料欄代替）。 |
+| 5 | 部署頁只有 curl、預測只有 0／1 | 部署頁「試用預測」：依模型卡的 `inputs`（原始欄位、數字範圍、類別選項）產生表單，經上傳推論 API 執行，顯示預測類別與機率。結構式分類的推論結果多 `prediction_probability` 欄，`prediction_note` 寫「預測為「1」的機率 83%」或無法預測的原因；線上推論回應多 `probabilities`。 |
+
+API／產出追加：`metrics.json` 的分類切分多 `sensitivity`、`specificity`、`baseline_accuracy`，頂層多 `labels: {majority, positive}`；迴歸多 `baseline_rmse`；模型卡多 `inputs`、`encoded_features`、`validation`。推論 CSV（分類）欄位順序為 `…, prediction, prediction_probability, prediction_note`（`acceptance/test_tc_b05_b06.py` 已跟著改）。
