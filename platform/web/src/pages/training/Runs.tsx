@@ -277,7 +277,7 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
       ) : null}
       {run.status === 'succeeded' && run.model_id !== null ? <ModelExport api={api} run={run} /> : null}
       {cancelling ? (
-        <ConfirmDialog title="取消訓練" confirmLabel="確定取消"
+        <ConfirmDialog title="取消訓練" confirmLabel="確定取消訓練" cancelLabel="不要取消"
           onConfirm={() => void act(async () => { await api.cancel(run.id); onChanged(); }).finally(() => setCancelling(false))}
           onCancel={() => setCancelling(false)}>
           確定要取消訓練 #{run.id}（{LABELS[run.status]}）嗎？取消後無法恢復。

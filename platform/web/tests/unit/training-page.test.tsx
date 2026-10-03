@@ -235,7 +235,7 @@ describe('建模管理：送出訓練與狀態', () => {
     const { user } = await renderApp('/training', 'ra01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「cls」' }));
     await user.click(await screen.findByRole('button', { name: '取消訓練' }));
-    await user.click(within(screen.getByRole('dialog', { name: '取消訓練' })).getByRole('button', { name: '確定取消' }));
+    await user.click(within(screen.getByRole('dialog', { name: '取消訓練' })).getByRole('button', { name: '確定取消訓練' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已取消'));
     await user.click(screen.getByRole('button', { name: '以同一資料版本與種子重跑' }));
     await screen.findByRole('heading', { name: '訓練 #2：cls' });
