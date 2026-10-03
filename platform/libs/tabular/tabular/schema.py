@@ -12,6 +12,9 @@ Format (dict / JSON)::
 ``required`` means the column must exist in the file and every value must be non-empty.
 Non-required columns may be absent from the file and may contain empty values.
 ``min``/``max`` apply to int, float and date (ISO ``YYYY-MM-DD``) columns.
+``missing_values`` (optional list of strings, case-insensitive) lists extra spellings that count as
+missing, e.g. ``["NA", "N/A", "-"]``; blank cells are always missing. Without the key only blank cells
+are missing, so schemas written before this option behave exactly as before.
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ class ColumnSpec:
     allowed: list[Any] | None = None
     unique: bool = False
     pattern: str | None = None
+    missing_values: list[str] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ColumnSpec":
@@ -67,6 +71,10 @@ class ColumnSpec:
                 re.compile(pattern)
             except (re.error, TypeError):
                 raise TabularError(f"欄位「{name}」的 pattern 不是合法的正規表示式", code="schema_invalid") from None
+        missing_values = data.get("missing_values")
+        if missing_values is not None and (
+                not isinstance(missing_values, list) or not all(isinstance(v, str) for v in missing_values)):
+            raise TabularError(f"欄位「{name}」的 missing_values 必須是文字清單", code="schema_invalid")
         return cls(
             name=name,
             type=ctype,
@@ -76,10 +84,11 @@ class ColumnSpec:
             allowed=list(allowed) if allowed is not None else None,
             unique=bool(data.get("unique", False)),
             pattern=pattern,
+            missing_values=list(missing_values) if missing_values is not None else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "name": self.name,
             "type": self.type,
             "required": self.required,
@@ -89,6 +98,13 @@ class ColumnSpec:
             "unique": self.unique,
             "pattern": self.pattern,
         }
+        if self.missing_values is not None:
+            out["missing_values"] = list(self.missing_values)
+        return out
+
+    def missing_tokens(self) -> frozenset[str]:
+        """Casefolded spellings that count as missing besides blank (empty when not configured)."""
+        return frozenset(v.strip().casefold() for v in self.missing_values or [])
 
 
 def _bound(ctype: str, value: Any) -> Any:

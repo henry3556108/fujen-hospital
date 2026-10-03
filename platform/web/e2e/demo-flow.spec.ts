@@ -69,8 +69,10 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await loginAs(page, 'ra01');
     await page.goto('/');
     await openEntry(page, '數據管理');
+    const kinds = page.getByRole('list', { name: '資料種類' });
 
-    // 影像：上傳 DICOM → 研究列表 → 篩選
+    // 影像：選「醫療影像」→ 上傳 DICOM → 研究列表 → 篩選
+    await kinds.getByRole('link', { name: /^醫療影像/ }).click();
     await page.getByRole('navigation', { name: '醫療影像分頁' }).getByRole('link', { name: '匯入影像' }).click();
     const dicom = page.getByRole('form', { name: 'DICOM' });
     await dicom.getByLabel(/^選擇檔案/).setInputFiles(STUDY1);
@@ -85,13 +87,13 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByText(/^共 \d+ 個研究（已套用 1 個篩選條件）/)).toBeVisible();
     await expect(page.getByRole('table', { name: '研究列表' }).getByRole('row', { name: /ACC0001/ })).toBeVisible();
 
-    // 結構式資料：上傳 CSV 與結構定義 → 開啟資料集 → 描述統計、相關矩陣
+    // 結構式資料：選 CSV → 自動判斷欄位、預檢 → 上傳（不必寫 JSON）→ 開啟資料集 → 描述統計、相關矩陣
     await page.getByRole('navigation', { name: '數據管理分頁' }).getByRole('link', { name: '結構式資料' }).click();
     const csv = page.getByRole('form', { name: '上傳 CSV' });
     await csv.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/cohort_01.csv'));
+    await expect(csv.getByRole('table', { name: '欄位確認' }).getByLabel('sex 的型態')).toHaveValue('category');
+    await expect(page.getByRole('region', { name: '預檢結果（尚未上傳）' })).toContainText('共 100 列，通過 100 列，拒絕 0 列');
     await csv.getByLabel('資料集名稱').fill('demo-cohort');
-    await csv.getByLabel(/^載入結構定義檔/).setInputFiles(fixture('tabular/schema.json'));
-    await expect(csv.getByLabel('結構定義（JSON）')).toHaveValue(/"patient_id"/);
     await csv.getByRole('button', { name: '上傳並驗證' }).click();
     await expect(page.getByRole('region', { name: '「demo-cohort」的上傳結果' })).toContainText('共 100 列，通過 100 列，拒絕 0 列');
     await page.getByRole('link', { name: '開啟資料集「demo-cohort」' }).click();
@@ -104,6 +106,15 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await tabs.getByRole('link', { name: '相關與散佈圖' }).click();
     await page.getByRole('button', { name: '產生相關矩陣' }).click();
     await expect(page.getByRole('table', { name: '相關矩陣（pearson）' }).getByRole('row', { name: /^sbp/ })).toBeVisible();
+
+    // Target 與 Feature：在欄位總覽選要預測的欄位與用來預測的欄位，文字欄位一鍵轉成 One-Hot
+    await tabs.getByRole('link', { name: 'Target／Feature' }).click();
+    const tf = page.getByRole('form', { name: '設定 Target 與 Feature' });
+    await tf.getByRole('radio', { name: '以 diagnosis 為 Target' }).check();
+    for (const f of ['age', 'sbp', 'sex']) await tf.getByRole('checkbox', { name: f, exact: true }).check();
+    await tf.getByRole('button', { name: '全部轉成 One-Hot' }).click();
+    await tf.getByRole('button', { name: '儲存設定' }).click();
+    await expect(page.getByText('已儲存：Target diagnosis，4 個 Feature，1 個前處理步驟')).toBeVisible();
   });
 
   test('段落 3：影像標註、自動標註、修改後儲存', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
@@ -7,112 +7,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { ReportView } from './ReportView';
 import type { Dataset, UploadResult, ValidationReport } from './types';
-
-const SCHEMA_EXAMPLE = `{
-  "columns": [
-    { "name": "patient_id", "type": "str", "required": true, "unique": true },
-    { "name": "age", "type": "int", "required": true, "min": 18, "max": 100 },
-    { "name": "sex", "type": "category", "required": true, "allowed": ["M", "F"] }
-  ]
-}`;
-
-function UploadForm({ onUploaded }: { onUploaded: (r: UploadResult) => void }) {
-  const { api, project } = useSession();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [name, setName] = useState('');
-  const [schema, setSchema] = useState('');
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function loadSchema(f: File | undefined) {
-    if (f) setSchema(await f.text());
-  }
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!file) return setError(new Error('請先選擇 CSV 檔案'));
-    if (!schema.trim()) return setError(new Error('請貼上或載入結構定義（JSON）'));
-    const form = new FormData();
-    form.append('file', file, file.name);
-    form.append('schema', schema);
-    if (name.trim()) form.append('name', name.trim());
-    setBusy(true);
-    try {
-      onUploaded(await api.postForm<UploadResult>(`/api/projects/${project!.id}/tabular/datasets`, form));
-      setFile(null);
-      setName('');
-      if (fileInput.current) fileInput.current.value = '';
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-    return undefined;
-  }
-
-  return (
-    <form aria-label="上傳 CSV" className="card section" onSubmit={submit} noValidate>
-      <h3>上傳 CSV</h3>
-      <p className="text-muted">上傳時依結構定義逐列驗證。不合格的列會被拒絕並列出原因，合格的列才進入資料集。</p>
-      <ApiErrorAlert error={error} />
-      <div className="form-grid">
-        <div className="field">
-          <label htmlFor="csv-file">CSV 檔案（UTF-8）</label>
-          <input
-            ref={fileInput}
-            id="csv-file"
-            className="file-input"
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="csv-name">資料集名稱</label>
-          <input id="csv-name" className="input" value={name} onChange={(e) => setName(e.target.value)} aria-describedby="csv-name-hint" />
-          <span id="csv-name-hint" className="field__hint">
-            留白則使用檔名；同一專案內名稱不可重複
-          </span>
-        </div>
-        <div className="field">
-          <label htmlFor="schema-file">載入結構定義檔（.json）</label>
-          <input
-            id="schema-file"
-            className="file-input"
-            type="file"
-            accept=".json,application/json"
-            onChange={(e) => void loadSchema(e.target.files?.[0])}
-          />
-        </div>
-      </div>
-      <div className="field">
-        <label htmlFor="schema-text">結構定義（JSON）</label>
-        <textarea
-          id="schema-text"
-          className="textarea"
-          value={schema}
-          onChange={(e) => setSchema(e.target.value)}
-          spellCheck={false}
-          aria-describedby="schema-hint"
-        />
-        <span id="schema-hint" className="field__hint">
-          每個欄位可設定 type（int、float、str、category、bool、date）、required、min、max、allowed、unique、pattern
-        </span>
-        <details>
-          <summary>結構定義範例</summary>
-          <pre className="mono">{SCHEMA_EXAMPLE}</pre>
-        </details>
-      </div>
-      <div className="row-actions">
-        <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '上傳中…' : '上傳並驗證'}
-        </button>
-      </div>
-    </form>
-  );
-}
+import { UploadForm } from './UploadForm';
 
 /** TC-B01-10 資料集列表、CSV 上傳與驗證報告。 */
 export function DatasetsPage() {
@@ -157,6 +52,12 @@ export function DatasetsPage() {
   return (
     <>
       <h2>結構式資料</h2>
+      <div className="row-actions">
+        <p className="text-muted">表格資料（CSV）。上傳後可看描述統計、設定要預測的欄位，再到「建模管理」訓練模型。</p>
+        <a className="btn btn--primary" href="#upload-csv">
+          上傳 CSV
+        </a>
+      </div>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={datasets.error} />
@@ -231,10 +132,11 @@ export function DatasetsPage() {
       {report && <ReportView report={report.report} title={`「${report.dataset.name}」的驗證報告`} />}
 
       <UploadForm
-        onUploaded={(r) => {
+        datasets={datasets.data ?? []}
+        onUploaded={(r, replaced) => {
           setUploaded(r);
           setReport(null);
-          setNotice(`已建立資料集「${r.dataset.name}」`);
+          setNotice(replaced ? `已取代資料集「${r.dataset.name}」` : `已建立資料集「${r.dataset.name}」`);
           datasets.reload();
         }}
       />

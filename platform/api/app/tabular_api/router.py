@@ -43,15 +43,37 @@ def _frames(request: Request) -> service.FrameCache:
     return service.frame_cache(request.app.state)
 
 
-@router.post("/datasets", status_code=201)
-def upload_dataset(request: Request, file: UploadFile = File(...), schema_text: str = Form(..., alias="schema"),
-                   name: str | None = Form(None), ctx: ProjectContext = Depends(read_access)) -> dict:
+def _read_upload(request: Request, file: UploadFile) -> tuple[bytes, str]:
+    """讀入上傳檔：超過上限 413，先掃毒（app/scanning.py）再交給驗證。"""
     limit = service.max_upload_bytes(request.app.state)
     raw = file.file.read(limit + 1)
     if len(raw) > limit:
         raise service.too_large(limit)
     filename = file.filename or "data.csv"
     scanning.ensure_clean(request, filename, raw)
+    return raw, filename
+
+
+@router.post("/schema/infer")
+def infer_schema(request: Request, file: UploadFile = File(...), missing_values: str | None = Form(None),
+                 ctx: ProjectContext = Depends(read_access)) -> dict:
+    """上傳免寫 JSON：推斷欄位結構、每欄摘要，並以推斷結構預檢（不建立資料集、不寫稽核）。"""
+    raw, _ = _read_upload(request, file)
+    return service.infer(raw, missing_values)
+
+
+@router.post("/schema/check")
+def check_schema(request: Request, file: UploadFile = File(...), schema_text: str = Form(..., alias="schema"),
+                 ctx: ProjectContext = Depends(read_access)) -> dict:
+    """以畫面上修改過的結構預檢；不建立資料集、不寫稽核。"""
+    raw, _ = _read_upload(request, file)
+    return {"report": service.check(raw, schema_text)}
+
+
+@router.post("/datasets", status_code=201)
+def upload_dataset(request: Request, file: UploadFile = File(...), schema_text: str = Form(..., alias="schema"),
+                   name: str | None = Form(None), ctx: ProjectContext = Depends(read_access)) -> dict:
+    raw, filename = _read_upload(request, file)
     ds, report = service.create_dataset(ctx, request.app.state.store, raw=raw, schema_text=schema_text,
                                         name=(name or "").strip() or filename, filename=filename,
                                         source_ip=client_ip(request))

@@ -152,3 +152,66 @@ def test_duplicate_header_is_file_level_error(schema):
     text = ",".join(HEADER + ["age"]) + "\n" + ",".join(make_rows(n=1)[0] + ["30"]) + "\n"
     report = validate_csv(io.StringIO(text), schema)
     assert [e["code"] for e in report["errors"]] == ["duplicate_columns"]
+
+
+# --- missing_values（推斷結構使用；明確結構沒有這個鍵時行為不變） ---
+
+def _schema(**extra) -> Schema:
+    return Schema.from_dict({"columns": [
+        {"name": "id", "type": "str", "required": True},
+        {"name": "bmi", "type": "float", "required": False, **extra},
+        {"name": "sbp", "type": "int", "required": True, **extra},
+    ]})
+
+
+def test_missing_value_tokens_are_missing_in_optional_columns():
+    text = "id,bmi,sbp\na,NA,120\nb,n/a,121\nc,-,122\nd,NaN,123\ne,null,124\n"
+    report, df = validate_and_load(io.StringIO(text), _schema(missing_values=["NA", "N/A", "null", "NaN", "-"]))
+    assert report["rejected"] == [] and report["valid_rows"] == 5
+    assert df["bmi"].isna().all()
+
+
+def test_missing_value_tokens_in_required_column_are_rejected_with_reason():
+    text = "id,bmi,sbp\na,20.1,NA\nb,21.0,\n"
+    report = validate_csv(io.StringIO(text), _schema(missing_values=["NA"]))
+    assert [(r["row"], r["column"]) for r in report["rejected"]] == [(0, "sbp"), (1, "sbp")]
+    assert "缺值" in report["rejected"][0]["reason"] and "NA" in report["rejected"][0]["reason"]
+    assert report["rejected"][1]["reason"] == "必填欄位為空值"
+
+
+def test_without_missing_values_tokens_are_ordinary_text():
+    """明確結構（沒有 missing_values）照舊：NA 在數值欄是型別錯誤。"""
+    report = validate_csv(io.StringIO("id,bmi,sbp\na,NA,120\n"), _schema())
+    assert [(r["row"], r["column"]) for r in report["rejected"]] == [(0, "bmi")]
+
+
+def test_missing_values_round_trip_and_absent_by_default():
+    spec = _schema(missing_values=["NA"]).column("bmi")
+    assert spec.to_dict()["missing_values"] == ["NA"]
+    assert "missing_values" not in _schema().column("bmi").to_dict()
+    with pytest.raises(TabularError, match="missing_values"):
+        Schema.from_dict({"columns": [{"name": "x", "type": "int", "missing_values": "NA"}]})
+
+
+# --- 編碼：台灣 Excel 另存的 CSV 多為 Big5（cp950） ---
+
+def test_big5_csv_with_chinese_headers_is_read_with_a_warning():
+    raw = "病歷號,年齡,性別\nP1,60,男\nP2,61,女\n".encode("cp950")
+    schema = Schema.from_dict({"columns": [
+        {"name": "病歷號", "type": "str"}, {"name": "年齡", "type": "int"}, {"name": "性別", "type": "category"}]})
+    report, df = validate_and_load(io.BytesIO(raw), schema)
+    assert report["valid_rows"] == 2 and list(df.columns) == ["病歷號", "年齡", "性別"]
+    assert df["性別"].tolist() == ["男", "女"]
+    assert any(w["code"] == "big5_encoding" for w in report["warnings"])
+
+
+def test_utf8_csv_has_no_encoding_warning():
+    schema = Schema.from_dict({"columns": [{"name": "年齡", "type": "int"}]})
+    report = validate_csv(io.BytesIO("年齡\n60\n".encode("utf-8")), schema)
+    assert report["warnings"] == []
+
+
+def test_undecodable_bytes_are_a_clear_error():
+    schema = Schema.from_dict({"columns": [{"name": "a", "type": "int"}]})
+    with pytest.raises(TabularError, match="編碼"):
+        validate_csv(io.BytesIO(b"a\n\xff\xfe\xfa\n"), schema)

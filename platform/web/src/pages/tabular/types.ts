@@ -9,6 +9,38 @@ export interface SchemaColumn {
   allowed?: string[] | null;
   unique?: boolean;
   pattern?: string | null;
+  /** 視為缺值的寫法（不分大小寫）；空白一律是缺值 */
+  missing_values?: string[] | null;
+}
+
+export interface TabularSchema {
+  columns: SchemaColumn[];
+}
+
+/** POST /tabular/schema/infer 每欄摘要 */
+export interface InferColumn {
+  name: string;
+  type: string;
+  required: boolean;
+  missing: number;
+  distinct: number;
+  examples: string[];
+  non_conforming: number;
+  observed_min: number | string | null;
+  observed_max: number | string | null;
+  rare_values: string[];
+  identifier: boolean;
+  range_source: 'name' | 'nonnegative' | null;
+  notes: string[];
+}
+
+export interface InferResult {
+  row_count: number;
+  encoding: string;
+  missing_values: string[];
+  schema: TabularSchema;
+  columns: InferColumn[];
+  report: ValidationReport;
 }
 
 export interface Dataset {
@@ -33,6 +65,8 @@ export interface ColumnInfo {
   dtype: string;
   kind: ColumnKind;
   missing: number;
+  /** 不同值個數（不含缺值） */
+  unique?: number;
 }
 
 export interface DatasetDetail extends Dataset {

@@ -8,6 +8,7 @@ import { formatTick } from '../../components/charts/scale';
 import { formatNumber } from '../../components/format';
 import { cellText } from './DataTable';
 import { useDataset } from './DatasetLayout';
+import { facts, isBinary01, isIdentifier, typeLabel } from './columnOverview';
 import { KIND_LABELS, type Describe, type Histogram, type ValueCounts } from './types';
 
 function Distribution({ column, numeric }: { column: string; numeric: boolean }) {
@@ -44,7 +45,7 @@ function Distribution({ column, numeric }: { column: string; numeric: boolean })
               title={`${column} 的分布`}
               xLabel={column}
               yLabel="筆數"
-              bars={d.bins.map((b) => ({ label: formatTick(b.start), value: b.count, detail: `${formatTick(b.start)} – ${formatTick(b.end)}` }))}
+              bars={d.bins.map((b) => ({ label: `${formatTick(b.start)}–${formatTick(b.end)}`, value: b.count, detail: `${formatTick(b.start)} – ${formatTick(b.end)}` }))}
             />
           ) : (
             <BarChart
@@ -71,6 +72,7 @@ export function DescribeTab() {
   const [column, setColumn] = useState(dataset.columns.find((c) => c.kind === 'numeric')?.name ?? dataset.columns[0]?.name ?? '');
   const kind = dataset.columns.find((c) => c.name === column)?.kind;
   const n = (v: number | undefined) => (v === undefined ? '—' : formatNumber(v, 6));
+  const overview = stats.data ? facts(stats.data.columns, stats.data.row_count, dataset.schema.columns, stats.data.columns) : [];
 
   return (
     <>
@@ -124,27 +126,46 @@ export function DescribeTab() {
                 </tr>
               </thead>
               <tbody>
-                {stats.data.columns.map((c) => (
-                  <tr key={c.name}>
-                    <th scope="row">{c.name}</th>
-                    <td>{KIND_LABELS[c.kind] ?? c.kind}</td>
-                    <td className="num">{c.count}</td>
-                    <td className="num">{c.missing}</td>
-                    <td className="num">{c.unique}</td>
-                    <td className="num">{n(c.mean)}</td>
-                    <td className="num">{n(c.std)}</td>
-                    <td className="num">{n(c.min)}</td>
-                    <td className="num">{n(c.p25)}</td>
-                    <td className="num">{n(c.p50)}</td>
-                    <td className="num">{n(c.p75)}</td>
-                    <td className="num">{n(c.max)}</td>
-                    <td>{c.top === undefined ? '—' : cellText(c.top)}</td>
-                    <td className="num">{c.freq ?? '—'}</td>
-                  </tr>
-                ))}
+                {stats.data.columns.map((c, i) => {
+                  const f = overview[i];
+                  const binary = isBinary01(f);
+                  const id = isIdentifier(f);
+                  const dash = binary || id;
+                  return (
+                    <tr key={c.name}>
+                      <th scope="row">{c.name}</th>
+                      <td>{typeLabel(f)}</td>
+                      <td className="num">{c.count}</td>
+                      <td className="num">{c.missing}</td>
+                      <td className="num">{c.unique}</td>
+                      <td className="num">{binary && c.mean !== undefined ? `${formatNumber(c.mean * 100, 3)}% 為 1` : id ? '—' : n(c.mean)}</td>
+                      <td className="num">{dash ? '—' : n(c.std)}</td>
+                      <td className="num">{id ? '—' : n(c.min)}</td>
+                      <td className="num">{dash ? '—' : n(c.p25)}</td>
+                      <td className="num">{dash ? '—' : n(c.p50)}</td>
+                      <td className="num">{dash ? '—' : n(c.p75)}</td>
+                      <td className="num">{id ? '—' : n(c.max)}</td>
+                      <td>{c.top === undefined || id ? '—' : cellText(c.top)}</td>
+                      <td className="num">{id ? '—' : (c.freq ?? '—')}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <details className="section">
+            <summary>表頭說明</summary>
+            <dl className="kv">
+              <dt>相異值</dt>
+              <dd>這一欄有幾種不同的值（不算缺值）。等於列數時，多半是病歷號等識別碼。</dd>
+              <dt>平均、標準差</dt>
+              <dd>標準差表示數值分散的程度：越大代表大家差異越大。是／否欄位改顯示「為 1 的比例」。</dd>
+              <dt>P25、中位數、P75</dt>
+              <dd>由小排到大，位在 25%、50%、75% 位置的值；例如 P25＝41 表示四分之一的人小於 41。</dd>
+              <dt>最常見值、次數</dt>
+              <dd>類別欄位中出現最多的值，以及出現幾次。</dd>
+            </dl>
+          </details>
         </>
       )}
 
