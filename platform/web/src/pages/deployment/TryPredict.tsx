@@ -79,16 +79,18 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
         {fixed ? '填這位病人的資料後按「預測」。' : '填一位病人的資料，看模型會怎麼預測。結果會記在「推論服務管理」的預測紀錄。'}
         {fills ? '沒有的資料可以留白，會用訓練資料的中位數（類別用最常見的值）補上。' : ''}
       </p>
-      <div className="field" hidden={fixed}>
-        <label htmlFor="try-model">模型</label>
-        <select id="try-model" className="select" value={String(model.id)} onChange={(e) => { setModelId(e.target.value); setValues({}); setResult(null); }}>
-          {tabular.map((m) => (
-            <option key={m.id} value={m.id}>
-              {displayName(m)}
-            </option>
-          ))}
-        </select>
-      </div>
+      {fixed ? null : (
+        <div className="field">
+          <label htmlFor="try-model">模型</label>
+          <select id="try-model" className="select" value={String(model.id)} onChange={(e) => { setModelId(e.target.value); setValues({}); setResult(null); }}>
+            {tabular.map((m) => (
+              <option key={m.id} value={m.id}>
+                {displayName(m)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="form-grid">
         {inputs.map((i) => (
           <div key={i.name} className="field">

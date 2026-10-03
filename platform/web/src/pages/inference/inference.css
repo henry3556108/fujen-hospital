@@ -18,3 +18,5 @@
 .model-tech-name { display: block; font-size: 0.8125rem; font-weight: 400; color: var(--color-text-muted); }
 .inference-note { min-width: 16rem; }
 .page-subtitle { margin: -0.5rem 0 1rem; color: var(--color-text-secondary); }
+.inference-table th { white-space: nowrap; }
+.inference-table td.inference-prediction:not(.inference-note) { white-space: nowrap; }

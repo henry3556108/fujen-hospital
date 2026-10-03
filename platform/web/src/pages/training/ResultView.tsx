@@ -1,6 +1,6 @@
 // 訓練結果（B4）：重點指標（數值＋白話＋怎麼看）、比較基準與提醒、K 折平均±標準差、所有指標、
 // 混淆矩陣、ROC、特徵重要性、迴歸的預測值對實際值與殘差，以及可列印的報表。
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { BarChart } from '../../components/charts/BarChart';
@@ -22,6 +22,7 @@ import {
   warnings,
   verdict,
   baselineSentence,
+  headlineNumber,
   type Source,
 } from './metrics';
 import { downloadAndSave } from './ModelExport';
@@ -29,7 +30,8 @@ import { downloadAndSave } from './ModelExport';
 const KEY_METRICS = ['accuracy', 'auc', 'sensitivity', 'specificity', 'r2', 'rmse', 'mae', 'dice', 'pixel_accuracy', 'mean_iou'];
 const BASELINES = ['baseline_accuracy', 'baseline_rmse'];
 
-export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun }) {
+/** actions：結論與重點指標下方的按鈕（例如「用這個模型預測病人」），不必捲到圖表下面才看到。 */
+export function ResultView({ api, run, actions }: { api: TrainingApi; run: TrainingRun; actions?: ReactNode }) {
   const [done, setDone] = useState('');
   const [error, setError] = useState<unknown>(null);
   const splits = splitScores(run);
@@ -89,7 +91,7 @@ export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun })
             {keys.map((k) => (
               <li key={k} className="metric-card">
                 <span className="metric-card__label">{metricLabel(k)}</span>
-                <span className="metric-card__value">{formatMetric(k, main[k])}</span>
+                <span className="metric-card__value">{k === conclusion?.name ? headlineNumber(k, main[k]) : formatMetric(k, main[k])}</span>
                 {cardSentence(run, source, k, main[k]) ? <span className="metric-card__plain">{cardSentence(run, source, k, main[k])}</span> : null}
                 <span className="metric-card__help">{METRICS[k]?.help}</span>
               </li>
@@ -98,6 +100,7 @@ export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun })
           {baseline ? <p className="metric-baseline" data-testid="baseline">{baseline}</p> : null}
         </>
       ) : null}
+      {actions}
       <details className="training-details" data-testid="result-details">
         <summary>詳細（{[cv ? '測試集與各折的數字' : '各資料的數字', notes.length ? `${notes.length} 則提醒` : ''].filter(Boolean).join('、')}）</summary>
         <div className="stack">

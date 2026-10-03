@@ -207,22 +207,25 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
       ) : null}
       {run.status !== 'failed' && run.message ? <Alert tone="info">{run.message}</Alert> : null}
       <ApiErrorAlert error={error} />
-      {run.status === 'succeeded' ? <ResultView api={api} run={run} /> : null}
-      {run.status === 'succeeded' && run.model_id !== null ? (
-        <div className="row-actions">
-          {canDeploy ? (
-            <>
-              <Link className="btn btn--primary" to={`/inference?model=${run.model_id}`}>
-                用這個模型預測病人
-              </Link>
-              <Link className="btn btn--secondary" to={`/deployment?model=${run.model_id}`}>
-                分享給同事使用
-              </Link>
-            </>
-          ) : (
-            <span className="text-muted">預測病人與分享模型需要 Prediction 權限，請聯絡專案負責人。</span>
-          )}
-        </div>
+      {run.status === 'succeeded' ? (
+        <ResultView
+          api={api}
+          run={run}
+          actions={
+            run.model_id === null ? null : canDeploy ? (
+              <div className="row-actions">
+                <Link className="btn btn--primary" to={`/inference?model=${run.model_id}`}>
+                  用這個模型預測病人
+                </Link>
+                <Link className="btn btn--secondary" to={`/deployment?model=${run.model_id}`}>
+                  分享給同事使用
+                </Link>
+              </div>
+            ) : (
+              <p className="text-muted">預測病人與分享模型需要 Prediction 權限，請聯絡專案負責人。</p>
+            )
+          }
+        />
       ) : null}
       <details className="training-details">
         <summary>這次訓練的資料與設定</summary>

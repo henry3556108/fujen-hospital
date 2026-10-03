@@ -5,7 +5,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
 import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingConfig, TrainingKind, TrainingRun } from '../../src/pages/training/api';
-import { verdict, warnings } from '../../src/pages/training/metrics';
+import { headlineNumber, verdict, warnings } from '../../src/pages/training/metrics';
 import { renderApp } from '../render';
 import { resetInferenceMock } from '../../src/mocks/inference';
 import { inferencePolling, type Model } from '../../src/pages/inference/api';
@@ -93,7 +93,10 @@ describe('1 一個結論', () => {
     expect(within(screen.getByRole('table', { name: '訓練清單' })).getByText(sentence)).toBeInTheDocument();
     // 重點指標卡用同一個來源（K 折平均）
     const cards = screen.getByRole('list', { name: '訓練 #1 的重點指標' });
-    expect(cards).toHaveTextContent(`AUC（ROC 曲線下面積）${(r.metrics.cv as { auc: { mean: number } }).auc.mean.toFixed(3).replace(/0+$/, '')}`);
+    expect(cards).toHaveTextContent(`AUC（ROC 曲線下面積）${headlineNumber('auc', (r.metrics.cv as { auc: { mean: number } }).auc.mean)}`);
+    // 「用這個模型預測病人」緊接在結論與重點指標下方，不必捲到圖表後面
+    const predict = screen.getByRole('link', { name: '用這個模型預測病人' });
+    expect(predict.compareDocumentPosition(screen.getByTestId('result-details')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('以下數字是 5 折平均（80 人輪流當檢查資料）。')).toBeInTheDocument();
     expect(screen.getByTestId('baseline')).toHaveTextContent(/^比較基準：每個人都猜「0」（訓練資料最常見的）可猜對 \d+%；模型要明顯高於它才有用。$/);
     // 測試集數字與提醒都在收合的「詳細」裡
@@ -218,7 +221,7 @@ describe('5 在結果旁預測病人', () => {
 
     // 一位病人：模型已選好，不必再選
     const one = await screen.findByRole('form', { name: '一位病人' });
-    expect(within(one).getByLabelText('模型', { selector: 'select' }).closest('[hidden]')).not.toBeNull();
+    expect(within(one).queryByLabelText('模型')).toBeNull();
     for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
     await user.click(within(one).getByRole('button', { name: '預測' }));
     expect(await within(one).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「[01]」的機率 \d+%/);
