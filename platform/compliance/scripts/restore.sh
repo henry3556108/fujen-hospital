@@ -20,6 +20,11 @@ for dump in "$IN"/postgres/*.dump; do
   dc exec -T postgres pg_restore -U platform -d "$db" --no-owner --role=platform < "$dump"
 done
 
+# 平台資料庫帳號 platform_app 與授權（稽核表只有 INSERT、SELECT）：備份已含授權，但升級前的備份沒有，
+# 所以還原後一律重跑 db-init（可重複執行；也補上備份之後新版本加的資料表）
+log "平台資料庫帳號與授權（db-init）"
+dc run --rm --no-deps -T db-init >/dev/null
+
 for archive in "$IN"/volumes/*.tar; do
   [ -e "$archive" ] || continue
   volume=$(basename "$archive" .tar)

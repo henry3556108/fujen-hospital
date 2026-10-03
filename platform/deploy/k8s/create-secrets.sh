@@ -4,25 +4,27 @@
 #   ./create-secrets.sh --dev    kind：與 compose 相同的開發值（驗收測試用這些值登入）
 #   ./create-secrets.sh --print-keys   只列出需要的鍵
 # 已存在時不覆寫：PostgreSQL、Keycloak 只在第一次初始化時採用密碼，之後改 Secret 不會改到資料庫裡的密碼。
+# 已存在但缺少新版本加入的鍵（例如 POSTGRES_APP_PASSWORD）時，只補上缺少的鍵（升級用）。
+# POSTGRES_APP_PASSWORD 是平台程式的資料庫帳號 platform_app 的密碼：db-init 每次執行都依它設定，所以換這個密碼只要改 Secret 後重新部署。
 # 要換密碼請照 README「更換密碼」：先在服務內改，再更新 Secret、重啟。
 set -euo pipefail
 NAMESPACE="${NAMESPACE:-ai-platform}"
-KEYS=(POSTGRES_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD KC_API_CLIENT_SECRET KC_ADMIN01_PASSWORD
+KEYS=(POSTGRES_PASSWORD POSTGRES_APP_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD KC_API_CLIENT_SECRET KC_ADMIN01_PASSWORD
       ORTHANC_API_PASSWORD ORTHANC_GATEWAY_PASSWORD ORTHANC_GATEWAY_AUTH PACS_ADMIN_PASSWORD
       MINIO_ROOT_USER MINIO_ROOT_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY INFERENCE_ADMIN_TOKEN WIKI_ADMIN_PASSWORD)
 MODE="${1:-random}"
 if [ "$MODE" = "--print-keys" ]; then printf '%s\n' "${KEYS[@]}"; exit 0; fi
 
 kubectl get namespace "$NAMESPACE" >/dev/null 2>&1 || kubectl apply -f "$(dirname "$0")/base/namespace.yaml" >/dev/null
+EXISTING=""
 if kubectl -n "$NAMESPACE" get secret platform-secrets >/dev/null 2>&1; then
-  echo "platform-secrets 已存在，不覆寫（$NAMESPACE）"
-  exit 0
+  EXISTING=$(kubectl -n "$NAMESPACE" get secret platform-secrets -o go-template='{{range $k, $v := .data}}{{$k}} {{end}}')
 fi
 
 declare -A V
 if [ "$MODE" = "--dev" ]; then
   # 與 platform/deploy/local/compose*.yaml、realm-ai-platform.json 相同的本機測試值。不可用於甲方環境。
-  V=([POSTGRES_PASSWORD]=platform-dev [KC_BOOTSTRAP_ADMIN_PASSWORD]=kcadmin-dev [KC_API_CLIENT_SECRET]=api-secret-dev
+  V=([POSTGRES_PASSWORD]=platform-dev [POSTGRES_APP_PASSWORD]=platform-app-dev [KC_BOOTSTRAP_ADMIN_PASSWORD]=kcadmin-dev [KC_API_CLIENT_SECRET]=api-secret-dev
      [KC_ADMIN01_PASSWORD]='Admin01-dev!' [ORTHANC_API_PASSWORD]=orthanc-api-dev [ORTHANC_GATEWAY_PASSWORD]=orthanc-gw-dev
      [PACS_ADMIN_PASSWORD]=pacs-dev [MINIO_ROOT_USER]=minio-dev [MINIO_ROOT_PASSWORD]=minio-dev-secret
      [S3_ACCESS_KEY]=platform-api [S3_SECRET_KEY]=platform-api-dev-secret [INFERENCE_ADMIN_TOKEN]=inference-admin-dev
@@ -40,6 +42,22 @@ else
 fi
 # Gateway 換給 Orthanc 的 Basic 認證標頭（apisix.yaml 的 ${{ORTHANC_GATEWAY_AUTH}}）
 V[ORTHANC_GATEWAY_AUTH]="Basic $(printf 'gateway:%s' "${V[ORTHANC_GATEWAY_PASSWORD]}" | base64 | tr -d '\n')"
+
+if [ -n "$EXISTING" ]; then
+  # 已存在：既有的值一律不動，只補上新版本加入的鍵（升級，例如 POSTGRES_APP_PASSWORD）
+  missing=()
+  for k in "${KEYS[@]}"; do [[ " $EXISTING " == *" $k "* ]] || missing+=("$k"); done
+  if [ ${#missing[@]} -eq 0 ]; then
+    echo "platform-secrets 已存在，不覆寫（$NAMESPACE）"
+    exit 0
+  fi
+  patch='{"stringData":{'
+  for k in "${missing[@]}"; do patch+="\"$k\":\"${V[$k]}\","; done
+  patch="${patch%,}}}"
+  kubectl -n "$NAMESPACE" patch secret platform-secrets --type merge -p "$patch" >/dev/null
+  echo "platform-secrets 已存在，既有的值不動；補上缺少的鍵：${missing[*]}"
+  exit 0
+fi
 
 args=()
 for k in "${KEYS[@]}"; do args+=("--from-literal=$k=${V[$k]}"); done

@@ -120,13 +120,20 @@ class PgVectorStore:
 
     def __init__(self, sessionmaker):
         with sessionmaker() as session:
-            session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            session.execute(text(
-                f"CREATE TABLE IF NOT EXISTS {self.TABLE} ("
-                "id BIGSERIAL PRIMARY KEY, kb_id INTEGER NOT NULL, document_id INTEGER NOT NULL, "
-                "chunk_index INTEGER NOT NULL, content TEXT NOT NULL, embedding vector NOT NULL)"))
-            session.execute(text(f"CREATE INDEX IF NOT EXISTS {self.TABLE}_kb ON {self.TABLE} (kb_id, document_id)"))
+            # 正式部署由 db-init（app.db_init，資料表擁有者）建表；平台帳號沒有建表與 CREATE EXTENSION 的權限
+            if session.scalar(text("SELECT to_regclass(:t)"), {"t": self.TABLE}) is None:
+                self.ensure_schema(session)
             session.commit()
+
+    @classmethod
+    def ensure_schema(cls, conn) -> None:
+        """建立 vector 外掛與向量表（可重複執行）。conn：Connection 或 Session，由呼叫端 commit。"""
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.execute(text(
+            f"CREATE TABLE IF NOT EXISTS {cls.TABLE} ("
+            "id BIGSERIAL PRIMARY KEY, kb_id INTEGER NOT NULL, document_id INTEGER NOT NULL, "
+            "chunk_index INTEGER NOT NULL, content TEXT NOT NULL, embedding vector NOT NULL)"))
+        conn.execute(text(f"CREATE INDEX IF NOT EXISTS {cls.TABLE}_kb ON {cls.TABLE} (kb_id, document_id)"))
 
     def add(self, session, kb_id, document_id, chunks, vectors) -> None:
         _check(chunks, vectors)

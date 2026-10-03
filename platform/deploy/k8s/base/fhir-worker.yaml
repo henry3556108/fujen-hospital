@@ -22,9 +22,10 @@ spec:
           envFrom:
             - configMapRef: {name: api-env}
           env:
-            - name: POSTGRES_PASSWORD
-              valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
-            - {name: DATABASE_URL, value: "postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@postgres:5432/platform"}
+            # 平台帳號 platform_app（db-init 建立）：稽核表只有 INSERT 與 SELECT（TC-SS-07）
+            - name: POSTGRES_APP_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_APP_PASSWORD}}
+            - {name: DATABASE_URL, value: "postgresql+psycopg://platform_app:$(POSTGRES_APP_PASSWORD)@postgres:5432/platform"}
           resources:
             requests: {cpu: 20m, memory: 192Mi}
             limits: {cpu: 500m, memory: 512Mi}

@@ -1,7 +1,7 @@
 # 一次性工作。寫成「暫停的 CronJob」當作工作範本：不會自己執行，由 deploy.sh 以
 #   kubectl create job <名稱>-<時間> --from=cronjob/<名稱>
 # 建立 Job。這樣每次部署都能重跑（Job 的 Pod 範本建立後不能改，直接 apply Job 會失敗），而且 Job 與服務用同一份設定。
-# 全部可重複執行。順序：db-init → minio-init → bootstrap-admin（Keycloak 就緒後）→ wiki-setup（Wiki.js 就緒後）。
+# 全部可重複執行。順序：db-init（建資料庫、建表、平台資料庫帳號）→ minio-init → bootstrap-admin（Keycloak 就緒後）→ wiki-setup（Wiki.js 就緒後）。
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -21,8 +21,10 @@ spec:
           nodeSelector: {platform/pool: cpu-web}
           automountServiceAccountToken: false
           enableServiceLinks: false
-          containers:
-            - name: db-init
+          # 1. 建立各資料庫（postgres 映像的 psql）；2. 平台資料庫：以擁有者 platform 建表、建立平台帳號 platform_app 並授權
+          #    （平台 API 映像，app/db_init.py）。每次部署都跑：新程式加的表在這裡建立，稽核表權限每次重設
+          initContainers:
+            - name: databases
               image: ai-platform/postgres
               env:
                 - name: PGPASSWORD
@@ -44,6 +46,21 @@ spec:
               resources:
                 requests: {cpu: 10m, memory: 32Mi}
                 limits: {cpu: 250m, memory: 128Mi}
+          containers:
+            - name: db-init
+              image: ai-platform/api
+              command: ["/app/.venv/bin/python", "-m", "app.db_init"]
+              env:
+                - name: POSTGRES_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
+                - {name: DATABASE_OWNER_URL, value: "postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@postgres:5432/platform"}
+                - {name: APP_DB_USER, value: platform_app}
+                - name: APP_DB_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_APP_PASSWORD}}
+              resources:
+                requests: {cpu: 10m, memory: 128Mi}
+                limits: {cpu: 500m, memory: 384Mi}
+              securityContext: {runAsNonRoot: true, runAsUser: 10001, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -150,9 +167,10 @@ spec:
                 - configMapRef: {name: api-env}
                 - configMapRef: {name: platform-images}
               env:
-                - name: POSTGRES_PASSWORD
-                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_PASSWORD}}
-                - {name: DATABASE_URL, value: "postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@postgres:5432/platform"}
+                # 平台帳號 platform_app（db-init 建立）：稽核表只有 INSERT 與 SELECT（TC-SS-07）
+                - name: POSTGRES_APP_PASSWORD
+                  valueFrom: {secretKeyRef: {name: platform-secrets, key: POSTGRES_APP_PASSWORD}}
+                - {name: DATABASE_URL, value: "postgresql+psycopg://platform_app:$(POSTGRES_APP_PASSWORD)@postgres:5432/platform"}
                 - name: KC_HOSTNAME
                   valueFrom: {configMapKeyRef: {name: platform-urls, key: KC_HOSTNAME}}
                 - {name: OIDC_ISSUER, value: "$(KC_HOSTNAME)/realms/ai-platform"}

@@ -1,8 +1,10 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from app import admin_service, labeling_groups, scanning
+from app import admin_service, db_init, labeling_groups, scanning
 from app.db import make_engine, make_sessionmaker
 from app.fhir import router as fhir_router
 from app.imaging.router import router as imaging_router
@@ -15,10 +17,20 @@ from app.tabular_api.router import router as tabular_router
 from app.scheduling import router as scheduling
 from app.training.router import router as training_router
 
+log = logging.getLogger(__name__)
+
 
 def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, store=None) -> FastAPI:
     engine = make_engine(database_url)
-    Base.metadata.create_all(engine)
+    try:
+        Base.metadata.create_all(engine)  # 表都已存在時不做事；正式部署由 db-init 先建好
+    except ProgrammingError as exc:
+        raise RuntimeError("資料表尚未建立，或平台資料庫帳號沒有建表權限：請先執行 db-init（python -m app.db_init），"
+                           "它以資料表擁有者建表並授權") from exc
+    extra = db_init.audit_write_rights(engine)
+    if extra:
+        log.warning("平台 API 連線的資料庫帳號可以對稽核表 %s（TC-SS-07 要求只有 INSERT 與 SELECT）："
+                    "請改用 db-init 建立的平台帳號（見 docs/delivery/部署說明.md）", "、".join(extra))
 
     app = FastAPI(title="AI Platform API")
     app.state.sessionmaker = make_sessionmaker(engine)
