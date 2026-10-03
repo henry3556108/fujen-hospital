@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
+import { ModelName } from './ModelName';
 import {
   KIND_NAMES,
+  displayName,
   STATUS_NAMES,
   isFinished,
   isImageModel,
@@ -68,14 +70,14 @@ function Inference({ inference }: { inference: InferenceApi }) {
               {models.data.map((m) => (
                 <tr key={m.id} aria-current={m.id === model?.id ? 'true' : undefined}>
                   <td>
-                    {m.name}
+                    <ModelName model={m} />
                     {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
                   </td>
                   <td>{KIND_NAMES[m.kind]}</td>
                   <td>{m.created_by}</td>
                   <td>
                     <button type="button" className="btn btn--small" onClick={() => setChosen(m.id)} disabled={m.id === model?.id}>
-                      {m.id === model?.id ? '已選擇' : `選擇 ${m.name}`}
+                      {m.id === model?.id ? '已選擇' : `選擇 ${displayName(m)}`}
                     </button>
                   </td>
                 </tr>
@@ -182,7 +184,7 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
   return (
     <>
       <section className="card section" aria-labelledby="run-title">
-        <h2 id="run-title">執行推論：{model.name}</h2>
+        <h2 id="run-title">執行推論：{displayName(model)}</h2>
         <p className="text-muted">
           {KIND_NAMES[model.kind]}模型。
           {image ? '上傳 DICOM、NIfTI、ITK（.mha）或 PNG 影像。' : '上傳 CSV；結果會在原始資料後面新增預測欄。'}
@@ -223,10 +225,10 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
         {busy ? <p role="status">推論中…</p> : null}
       </section>
       {result ? (
-        <ResultView record={result} size={model.card.input?.resize} onDownload={download} onCancel={cancel} />
+        <ResultView record={result} model={model} onDownload={download} onCancel={cancel} />
       ) : null}
       <section className="card section" aria-labelledby="history-title">
-        <h2 id="history-title">推論歷史</h2>
+        <h2 id="history-title">推論歷史：{displayName(model)}</h2>
         <ApiErrorAlert error={history.error} />
         {history.data && history.data.length === 0 ? <p className="text-muted">還沒有推論紀錄。</p> : null}
         {history.data && history.data.length > 0 ? (
@@ -287,22 +289,23 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
 
 function ResultView({
   record,
-  size,
+  model,
   onDownload,
   onCancel,
 }: {
   record: InferenceRecord;
-  size?: number[];
+  model: Model;
   onDownload: (id: number) => void;
   onCancel: (id: number) => void;
 }) {
   const result = record.result;
+  const size = model.card.input?.resize;
   const pending = !isFinished(record.status);
   return (
     <section className="card section" aria-labelledby="result-title">
       <div className="inference-result-head">
         <h2 id="result-title">
-          推論結果 #{record.id}（{record.count} 筆）
+          推論結果 #{record.id}（{record.count} 筆）：{displayName(model)}
         </h2>
         {pending ? (
           <button type="button" className="btn" onClick={() => onCancel(record.id)}>

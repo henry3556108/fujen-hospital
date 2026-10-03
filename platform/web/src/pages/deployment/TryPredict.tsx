@@ -2,7 +2,7 @@
 // 經「上傳推論」API 執行（需要 Prediction），結果與稽核都記在推論歷史。
 import { useState, type FormEvent } from 'react';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { useInferenceApi, type Model, type ModelInput } from '../inference/api';
+import { displayName, useInferenceApi, type Model, type ModelInput } from '../inference/api';
 
 function inputsOf(model: Model): ModelInput[] {
   if (model.card.inputs?.length) return model.card.inputs;
@@ -79,7 +79,7 @@ export function TryPredict({ models, initial }: { models: Model[]; initial?: num
         <select id="try-model" className="select" value={String(model.id)} onChange={(e) => { setModelId(e.target.value); setValues({}); setResult(null); }}>
           {tabular.map((m) => (
             <option key={m.id} value={m.id}>
-              {m.name}
+              {displayName(m)}
             </option>
           ))}
         </select>

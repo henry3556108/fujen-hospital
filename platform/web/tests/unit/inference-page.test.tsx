@@ -43,7 +43,7 @@ describe('inference page', () => {
       const cells = within(row).getAllByRole('cell').map((c) => c.textContent);
       expect(cells.at(-2) !== '' || cells.at(-1) === '特徵含缺值，無法預測').toBe(true);
     }
-    expect(screen.getByRole('heading', { name: '推論結果 #1（20 筆）' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^推論結果 #1（20 筆）/ })).toBeInTheDocument();
   });
 
   it('TC-B06-02 / 04 uploaded images each show a classification result', async () => {
@@ -74,12 +74,12 @@ describe('inference page', () => {
     const { user } = await openModel('diagnosis-rf-run1');
     for (let i = 0; i < 3; i += 1) {
       await user.click(screen.getByRole('button', { name: '批次推論' }));
-      await screen.findByRole('heading', { name: `推論結果 #${i + 1}（20 筆）` });
+      await screen.findByRole('heading', { name: new RegExp(`^推論結果 #${i + 1}（20 筆）`) });
     }
     const history = await screen.findByRole('table', { name: '推論歷史' });
     await waitFor(() => expect(within(history).getAllByRole('row')).toHaveLength(4));
     await user.click(within(history).getByRole('button', { name: '檢視 #1' }));
-    expect(await screen.findByRole('heading', { name: '推論結果 #1（20 筆）' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^推論結果 #1（20 筆）/ })).toBeInTheDocument();
     expect(within(history).getAllByRole('button', { name: /^下載 #/ })).toHaveLength(3);
   });
 
@@ -103,7 +103,7 @@ describe('inference page', () => {
     const { user } = await openModel('diagnosis-rf-run1');
     await user.click(screen.getByRole('button', { name: '批次推論' }));
     expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次推論排隊中…在背景執行');
-    expect(screen.getByRole('heading', { name: '推論結果 #1（20 筆）' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^推論結果 #1（20 筆）/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下載結果' })).not.toBeInTheDocument();
     const history = await screen.findByRole('table', { name: '推論歷史' });
     await waitFor(() => expect(within(history).getByRole('row', { name: /#1.*批次.*排隊中/ })).toBeInTheDocument());
@@ -122,7 +122,7 @@ describe('inference page', () => {
     expect(screen.queryByTestId('batch-status')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '批次推論' }));
-    await screen.findByRole('heading', { name: '推論結果 #2（20 筆）' });
+    await screen.findByRole('heading', { name: /^推論結果 #2（20 筆）/ });
     const history = await screen.findByRole('table', { name: '推論歷史' });
     await user.click(await within(history).findByRole('button', { name: '取消 #2' }));
     await waitFor(() => expect(within(history).getByRole('row', { name: /#2.*已取消/ })).toBeInTheDocument());

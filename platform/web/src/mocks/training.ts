@@ -525,6 +525,18 @@ function deploymentOut(row: Deployment): Deployment {
   return { ...row, cannot_use_in_platform: row.allowed_users.filter((u) => !able.has(u)) };
 }
 
+/** 模型的顯示名稱（照 service.model_titles）：優先用分享給這位使用者的最新一次，否則用最新一次分享。 */
+export function modelTitles(projectId: number, username: string): Map<number, string> {
+  const newest = new Map<number, string>();
+  const mine = new Map<number, string>();
+  for (const d of [...state().deployments].sort((a, b) => a.id - b.id)) {
+    if (d.project_id !== projectId || !d.title) continue;
+    newest.set(d.model_id, d.title);
+    if (d.allowed_users.includes(username)) mine.set(d.model_id, d.title);
+  }
+  return new Map([...newest, ...mine]);
+}
+
 /** 分享給這位使用者的模型（模型編號 → 分享者），照 service.shared_with。 */
 export function sharedWith(projectId: number, username: string): Map<number, string> {
   const out = new Map<number, string>();

@@ -132,3 +132,29 @@ describe('2 建議依演算法', () => {
     expect(advice('linear_regression', 'tabular_regression')).not.toMatch(/樹|深度|正則化|學習率/);
   });
 });
+
+describe('3 顯示名稱用在所有地方', () => {
+  it('after sharing with a Chinese name, the message, both model lists, the prediction heading and result use it', async () => {
+    const first = await renderApp('/deployment', 'pi01');
+    const form = await screen.findByRole('form', { name: '分享給同事使用' });
+    await first.user.selectOptions(within(form).getByLabelText('模型'), within(form).getByRole('option', { name: /^diagnosis-rf-run1/ }));
+    const title = within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）');
+    await first.user.clear(title);
+    await first.user.type(title, '心臟科確診預測（測試）');
+    await first.user.type(within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）'), 'md01');
+    await first.user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
+    const done = await screen.findByText(/^已把「心臟科確診預測（測試）」分享給 md01/);
+    expect(done).toHaveTextContent('選模型「心臟科確診預測（測試）」就能預測');
+    expect(done).not.toHaveTextContent('run1');
+    const models = screen.getByRole('table', { name: '可部署的模型' });
+    expect(await within(models).findByRole('rowheader', { name: '心臟科確診預測（測試）（模型名稱：diagnosis-rf-run1）' })).toBeInTheDocument();
+    expect(within(screen.getByRole('form', { name: '試用預測' })).getByRole('option', { name: '心臟科確診預測（測試）' })).toBeInTheDocument();
+    first.unmount();
+
+    await renderApp('/inference', 'md01');
+    const list = await screen.findByRole('table', { name: '模型清單' });
+    expect(within(list).getByRole('row', { name: /心臟科確診預測（測試）（模型名稱：diagnosis-rf-run1）/ })).toHaveTextContent('pi01 分享給你');
+    expect(screen.getAllByRole('heading', { name: /心臟科確診預測（測試）/ }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: /diagnosis-rf-run1/ })).toBeNull();
+  });
+});

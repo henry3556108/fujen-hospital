@@ -7,7 +7,8 @@ import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
-import { KIND_NAMES, isImageModel, type Model } from '../inference/api';
+import { KIND_NAMES, displayName, isImageModel, type Model } from '../inference/api';
+import { ModelName } from '../inference/ModelName';
 import { parseUsers, useTrainingApi, type Deployment, type TrainingApi } from '../training/api';
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
 import { TryPredict } from './TryPredict';
@@ -80,8 +81,9 @@ function Deployments({ api }: { api: TrainingApi }) {
     void act(async () => {
       const d = await api.deploy({ model_id: selected.id, title: form.title.trim() || suggestTitle(selected.name), allowed_users: users });
       deployments.reload();
+      models.reload();
       setForm({ model: '', title: '', users: '' });
-      return sharedMessage(d, selected);
+      return sharedMessage(d);
     });
   }
 
@@ -103,6 +105,7 @@ function Deployments({ api }: { api: TrainingApi }) {
     void act(async () => {
       await api.undeploy(target.id);
       deployments.reload();
+      models.reload();
       return `已停止分享「${titleOf(target)}」。專案成員仍可在「推論服務管理」使用這個模型，但程式呼叫的端點不再接受呼叫。`;
     });
   }
@@ -135,7 +138,9 @@ function Deployments({ api }: { api: TrainingApi }) {
               <tbody>
                 {models.data.map((m) => (
                   <tr key={m.id}>
-                    <th scope="row">{m.name}</th>
+                    <th scope="row">
+                      <ModelName model={m} />
+                    </th>
                     <td>{KIND_NAMES[m.kind]}</td>
                     <td>
                       {m.created_by}，{formatTime(m.created_at)}
@@ -143,7 +148,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                     {canTrain ? (
                       <td className="row-actions">
                         <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => downloadAndSave(() => api.downloadModel(m.id)))}>
-                          下載模型「{m.name}」
+                          下載模型「{displayName(m)}」
                         </button>
                       </td>
                     ) : null}
@@ -158,10 +163,10 @@ function Deployments({ api }: { api: TrainingApi }) {
       {canTrain && models.data.length > 0 ? (
         <form ref={formRef} aria-label="分享給同事使用" className="card section stack" onSubmit={deploy} noValidate>
           <h2>分享給同事使用</h2>
-          {prefilled ? <Alert tone="info">已選好剛訓練完成的模型「{selected?.name}」，請填要分享的同事帳號後按「分享給同事使用」。</Alert> : null}
+          {prefilled ? <Alert tone="info">已選好剛訓練完成的模型「{selected ? displayName(selected) : ''}」，請填要分享的同事帳號後按「分享給同事使用」。</Alert> : null}
           <p data-testid="share-explain">
-            分享後，同事（例如 md01）登入平台，點左側「推論服務管理」，在模型清單找到「{selected?.name ?? '這個模型'}」（標示「分享給你」）按「選擇」，
-            就能上傳病人資料（CSV）或選測試資料做預測。
+            分享後，同事（例如 md01）登入平台，點左側「推論服務管理」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「分享給你」）按「選擇」，
+            就能預測一位病人或多位病人。
           </p>
           <p className="field__hint">同一個專案中有「推論」權限的成員都看得到這個專案的模型；分享會把模型標示為「分享給你」，並允許資訊人員用程式呼叫。</p>
           <div className="form-grid">
@@ -174,7 +179,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                 }}>
                 {models.data.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name}（{KIND_NAMES[m.kind]}）
+                    {displayName(m)}（{KIND_NAMES[m.kind]}）
                   </option>
                 ))}
               </select>
@@ -220,7 +225,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                   {deployments.data.map((d) => (
                     <tr key={d.id}>
                       <th scope="row">{titleOf(d)}</th>
-                      <td>{modelOf(d.model_id)?.name ?? `#${d.model_id}`}</td>
+                      <td className="text-muted">{modelOf(d.model_id)?.name ?? `#${d.model_id}`}</td>
                       <td>
                         {d.allowed_users.join('、') || '（無）'}
                         {d.cannot_use_in_platform?.length ? (
@@ -318,9 +323,9 @@ function outsideNote(d: Deployment): string {
     : '';
 }
 
-function sharedMessage(d: Deployment, model?: Model): string {
+function sharedMessage(d: Deployment): string {
   const people = d.allowed_users.join('、');
-  return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「推論服務管理」，選模型「${model?.name ?? titleOf(d)}」就能預測。` + outsideNote(d);
+  return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「推論服務管理」，選模型「${titleOf(d)}」就能預測。` + outsideNote(d);
 }
 
 /** 呼叫方式範例：結構式送 JSON rows，影像以 multipart 上傳 files。 */

@@ -358,13 +358,15 @@ def verdict(kind: str, metrics: dict, executor: str = "template") -> str:
     return ""
 
 
-def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None) -> str:
-    """run 為 service.run_out() 的結果。"""
+def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None,
+          title: str | None = None, model_name: str | None = None) -> str:
+    """run 為 service.run_out() 的結果；title 是模型分享時取的顯示名稱（沒有分享過為 None），
+    model_name 是模型的技術名稱（顯示名稱下方以小字列出）。"""
     config, metrics = run["config"], run.get("metrics") or {}
     tabular = config.get("tabular") or {}
     model = run["artifacts"].get("model.pkl") or run["artifacts"].get("model.h5") or {}
     now = now or datetime.now(timezone.utc)
-    facts = [
+    facts = ([("顯示名稱（分享時取的名稱）", title)] if title else []) + [
         ("訓練種類", KIND_NAMES.get(run["kind"], run["kind"])),
         ("演算法", ALGORITHM_NAMES.get(tabular.get("algorithm"), tabular.get("algorithm")) if tabular else "卷積神經網路（Keras）"),
         ("驗證方式", validation_text(config)),
@@ -385,9 +387,10 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
     cv = metrics.get("cv")
     return f"""<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>訓練報表：{_e(run['name'])}（訓練 #{run['id']}）</title><style>{STYLE}</style></head>
+<title>訓練報表：{_e(title or run['name'])}（訓練 #{run['id']}）</title><style>{STYLE}</style></head>
 <body>
-<h1>訓練報表：{_e(run['name'])}（訓練 #{run['id']}）</h1>
+<h1>訓練報表：{_e(title or run['name'])}（訓練 #{run['id']}）</h1>
+{f'<p class="meta">模型名稱：{_e(model_name or run["name"])}</p>' if title else ''}
 <p class="meta">產生時間 {now.strftime('%Y-%m-%d %H:%M')} UTC，產生者 {_e(generated_by)}。用瀏覽器的「列印」可存成 PDF。</p>
 <h2>設定</h2>
 <table><tbody>{fact_rows}</tbody></table>

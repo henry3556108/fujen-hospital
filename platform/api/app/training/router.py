@@ -206,14 +206,18 @@ def dataset_version(version_id: int, request: Request, ctx: ProjectContext = Dep
 @router.get(BASE + "/models")
 def list_models(ctx: ProjectContext = Depends(can_predict)) -> list[dict]:
     shared = service.shared_with(ctx.session, ctx.project.id, ctx.user.username)
-    return [service.model_out(m) | {"shared_with_me": m.id in shared, "shared_by": shared.get(m.id)}
+    titles = service.model_titles(ctx.session, ctx.project.id, ctx.user.username)
+    return [service.model_out(m) | {"shared_with_me": m.id in shared, "shared_by": shared.get(m.id),
+                                    "title": titles.get(m.id)}
             for m in service.list_models(ctx.session, ctx.project.id)]
 
 
 @router.get(BASE + "/models/{model_id}")
 def get_model(model_id: int, ctx: ProjectContext = Depends(can_predict)) -> dict:
     with _errors():
-        return service.model_out(service.get_model(ctx.session, ctx.project.id, model_id))
+        model = service.get_model(ctx.session, ctx.project.id, model_id)
+        title = service.model_titles(ctx.session, ctx.project.id, ctx.user.username).get(model.id)
+        return service.model_out(model) | {"title": title}
 
 
 @router.get(BASE + "/models/{model_id}/download")

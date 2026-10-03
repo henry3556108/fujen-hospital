@@ -5,7 +5,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type { Permission } from '../api/types';
 import type { ImageResult, InferenceRecord, Model } from '../pages/inference/api';
 import { meFor, seedDb, type MockDb } from './data';
-import { sharedWith, trainedModels } from './training';
+import { modelTitles, sharedWith, trainedModels } from './training';
 
 let mockDb: () => MockDb = (() => {
   const db = seedDb();
@@ -135,7 +135,8 @@ const inferenceHandlers = [
     const ctx = authorize(request, params.pid, 'prediction');
     if (ctx instanceof Response) return ctx;
     const shared = sharedWith(ctx.projectId, ctx.username);
-    return json(models(ctx.projectId).map((m) => ({ ...m, shared_with_me: shared.has(m.id), shared_by: shared.get(m.id) ?? null })));
+    const titles = modelTitles(ctx.projectId, ctx.username);
+    return json(models(ctx.projectId).map((m) => ({ ...m, shared_with_me: shared.has(m.id), shared_by: shared.get(m.id) ?? null, title: titles.get(m.id) ?? null })));
   }),
   http.get(`${API}/models/:mid/inference`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');

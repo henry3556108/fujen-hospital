@@ -33,6 +33,8 @@ export interface Model {
   /** 有人把這個模型分享給目前的使用者（部署的授權帳號包含他）；舊版 API 沒有 */
   shared_with_me?: boolean;
   shared_by?: string | null;
+  /** 顯示名稱（分享時取的名稱）；沒有分享過為 null。分享多次時伺服器選一個（見 service.model_titles） */
+  title?: string | null;
   card: {
     label_names?: string[];
     input?: { resize?: number[] };
@@ -95,6 +97,11 @@ export interface InferenceRecord {
     | { results: ImageResult[]; label_names: string[]; blocked?: { name: string; reason: string }[] }
     | null;
 }
+
+/** 給人看的模型名稱：有顯示名稱用顯示名稱，否則用模型名稱。 */
+export const displayName = (m: Pick<Model, 'name' | 'title'>) => m.title || m.name;
+/** 顯示名稱和模型名稱不同時，模型名稱（技術名稱）以小字附在後面。 */
+export const technicalName = (m: Pick<Model, 'name' | 'title'>) => (m.title && m.title !== m.name ? m.name : null);
 
 export const isImageModel = (kind: ModelKind) => kind.startsWith('image_');
 

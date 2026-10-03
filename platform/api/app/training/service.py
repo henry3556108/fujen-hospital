@@ -509,8 +509,10 @@ def run_report(ctx: ProjectContext, state, backend: JobBackend, run: TrainingRun
     if run.status != JobStatus.SUCCEEDED.value:
         ctx.session.commit()
         raise Conflict(f"訓練 {run.id} 沒有成功完成（{run.status}），沒有可下載的報表")
+    model = _model_of(ctx.session, run)
+    title = model_titles(ctx.session, run.project_id, ctx.user.username).get(model.id) if model else None
     html = report.build(run=run_out(run), charts=run_charts(state.store, run)["charts"],
-                        generated_by=ctx.user.username)
+                        generated_by=ctx.user.username, title=title, model_name=model.name if model else None)
     data = html.encode("utf-8")
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training.report",
            target=f"training_run:{run.id}", source_ip=source_ip,
@@ -879,6 +881,21 @@ def deployment_out(row: Deployment, session: Session | None = None) -> dict[str,
         out["title"] = _title(session, row)
         out["cannot_use_in_platform"] = without_platform_access(session, row.project_id, list(row.allowed_users))
     return out
+
+
+def model_titles(session: Session, project_id: int, username: str | None = None) -> dict[int, str]:
+    """模型編號 → 顯示名稱（分享時取的名稱）。一個模型分享多次時：優先用分享給這位使用者的最新一次，
+    否則用最新一次分享。沒有分享過的模型不在結果中（畫面改用模型名稱）。"""
+    rows = session.execute(select(Deployment.model_id, Deployment.allowed_users, DeploymentTitle.title)
+                           .join(DeploymentTitle, DeploymentTitle.deployment_id == Deployment.id)
+                           .where(Deployment.project_id == project_id).order_by(Deployment.id)).all()
+    newest: dict[int, str] = {}
+    mine: dict[int, str] = {}
+    for model_id, users, title in rows:
+        newest[model_id] = title
+        if username and username in (users or []):
+            mine[model_id] = title
+    return newest | mine
 
 
 def shared_with(session: Session, project_id: int, username: str) -> dict[int, str]:

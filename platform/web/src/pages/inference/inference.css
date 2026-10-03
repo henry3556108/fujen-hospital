@@ -15,3 +15,4 @@
 .inference-form { min-width: 0; max-width: 100%; }
 .inference-form .field { min-width: 0; max-width: 100%; }
 .inference-form input[type='file'] { max-width: 100%; width: 100%; }
+.model-tech-name { display: block; font-size: 0.8125rem; font-weight: 400; color: var(--color-text-muted); }
