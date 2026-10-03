@@ -42,7 +42,9 @@ export function InferencePage() {
 function Inference({ inference }: { inference: InferenceApi }) {
   const models = useResource(() => inference.models(), [inference]);
   const [chosen, setChosen] = useState<number | null>(null);
-  const model = models.data?.find((m) => m.id === chosen) ?? models.data?.[0] ?? null;
+  // 預設選同事分享給我的模型（最新的一個），沒有時選第一個
+  const sharedFirst = [...(models.data ?? [])].reverse().find((m) => m.shared_with_me);
+  const model = models.data?.find((m) => m.id === chosen) ?? sharedFirst ?? models.data?.[0] ?? null;
 
   if (models.error) return <ApiErrorAlert error={models.error} />;
   if (!models.data) return <p role="status">載入中…</p>;
@@ -65,7 +67,10 @@ function Inference({ inference }: { inference: InferenceApi }) {
             <tbody>
               {models.data.map((m) => (
                 <tr key={m.id} aria-current={m.id === model?.id ? 'true' : undefined}>
-                  <td>{m.name}</td>
+                  <td>
+                    {m.name}
+                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
+                  </td>
                   <td>{KIND_NAMES[m.kind]}</td>
                   <td>{m.format.toUpperCase()}</td>
                   <td>{m.created_by}</td>

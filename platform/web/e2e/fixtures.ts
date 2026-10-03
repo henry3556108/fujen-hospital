@@ -23,10 +23,20 @@ const AUTH_KEY = '__AI_PLATFORM_TEST_AUTH__.user';
 export async function loginAs(page: Page, username: string) {
   await page.addInitScript(
     ([key, user]) => {
-      if (!window.sessionStorage.getItem('e2e-logged-out')) window.localStorage.setItem(key, user);
+      // switchUser() 在同一個分頁換人：以 sessionStorage 記住換成誰（模擬狀態也在同一個分頁的 sessionStorage）
+      const switched = window.sessionStorage.getItem('e2e-switch-user');
+      if (!window.sessionStorage.getItem('e2e-logged-out')) window.localStorage.setItem(key, switched ?? user);
     },
     [AUTH_KEY, username],
   );
+}
+
+/** 同一個分頁改以另一個帳號登入（例如分享模型後換同事 md01 看），模擬的資料保留；之後 goto 生效。 */
+export async function switchUser(page: Page, username: string) {
+  await page.evaluate(([key, user]) => {
+    window.sessionStorage.setItem('e2e-switch-user', user);
+    window.localStorage.setItem(key, user);
+  }, [AUTH_KEY, username]);
 }
 
 export const ENTRY_LABELS = [

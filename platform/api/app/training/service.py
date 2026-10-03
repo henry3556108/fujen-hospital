@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
-from app.models import Project, User, utcnow
+from app.models import Membership, Project, User, utcnow
+from app.permissions import Permission
 from app.scheduling import service as scheduling
 from app.scheduling.backend import JobBackend, Workload
 from app.scheduling.models import Job
@@ -26,7 +27,7 @@ from app.storage import ObjectNotFound, ObjectStore
 from app.training import bundle, config as cfg, report, snapshot, tracking
 from app.training.inference import (ImageInput, InferenceBackend, InferenceError, InferenceRejected,
                                     ModelNotLoaded)
-from app.training.models import (DatasetVersion, Deployment, InferenceRecord, TrainedModel, TrainingRun,
+from app.training.models import (DatasetVersion, Deployment, DeploymentTitle, InferenceRecord, TrainedModel, TrainingRun,
                                  TrainingSetting)
 
 ARTIFACTS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json",
@@ -850,10 +851,54 @@ def result_view(store: ObjectStore, row: InferenceRecord) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- 線上部署
 
-def deployment_out(row: Deployment) -> dict[str, Any]:
-    return {"id": row.id, "project_id": row.project_id, "model_id": row.model_id, "name": row.name,
-            "allowed_users": row.allowed_users, "endpoint": f"/api/inference/{row.name}/predict",
-            "created_by": row.created_by, "created_at": _iso(row.created_at)}
+def _title(session: Session, row: Deployment) -> str:
+    title = session.scalar(select(DeploymentTitle.title).where(DeploymentTitle.deployment_id == row.id))
+    if title:
+        return title
+    model = session.get(TrainedModel, row.model_id)
+    return model.name if model else row.name
+
+
+def without_platform_access(session: Session, project_id: int, users: list[str]) -> list[str]:
+    """授權帳號中不是本專案成員、或沒有 Prediction 權限的人：登入後在「推論服務管理」看不到這個模型，
+    只能用程式呼叫線上端點。"""
+    if not users:
+        return []
+    rows = session.execute(select(User.username, Membership.permissions)
+                           .join(Membership, Membership.user_id == User.id)
+                           .where(Membership.project_id == project_id, User.username.in_(users))).all()
+    able = {name for name, perms in rows if Permission.PREDICTION.value in (perms or [])}
+    return [u for u in users if u not in able]
+
+
+def deployment_out(row: Deployment, session: Session | None = None) -> dict[str, Any]:
+    out = {"id": row.id, "project_id": row.project_id, "model_id": row.model_id, "name": row.name,
+           "allowed_users": row.allowed_users, "endpoint": f"/api/inference/{row.name}/predict",
+           "created_by": row.created_by, "created_at": _iso(row.created_at)}
+    if session is not None:
+        out["title"] = _title(session, row)
+        out["cannot_use_in_platform"] = without_platform_access(session, row.project_id, list(row.allowed_users))
+    return out
+
+
+def shared_with(session: Session, project_id: int, username: str) -> dict[int, str]:
+    """分享給這位使用者的模型（模型編號 → 分享者）：部署的授權帳號包含他。"""
+    out: dict[int, str] = {}
+    for row in list_deployments(session, project_id):
+        if username in (row.allowed_users or []) and row.created_by != username:
+            out.setdefault(row.model_id, row.created_by)
+    return out
+
+
+def _auto_name(session: Session, model: TrainedModel) -> str:
+    base = f"model-{model.id}"
+    taken = set(session.scalars(select(Deployment.name).where(Deployment.name.like(f"{base}%"))))
+    if base not in taken:
+        return base
+    n = 2
+    while f"{base}-{n}" in taken:
+        n += 1
+    return f"{base}-{n}"
 
 
 def _users(session: Session, names: Any) -> list[str]:
@@ -880,9 +925,16 @@ def list_deployments(session: Session, project_id: int) -> list[Deployment]:
 
 
 def create_deployment(ctx: ProjectContext, state, *, model: TrainedModel, name: Any, allowed_users: Any,
-                      source_ip: str | None) -> Deployment:
+                      source_ip: str | None, title: Any = None) -> Deployment:
+    """name 是網址上的技術名稱（小寫英數字與 -）；沒給時自動產生 model-{模型編號}。
+    title 是給人看的顯示名稱（可用中文），沒給時用模型名稱。"""
+    if name is None or name == "":
+        name = _auto_name(ctx.session, model)
     if not isinstance(name, str) or not _NAME.match(name):
         raise Invalid("部署名稱只能用小寫英數字與連字號，開頭結尾必須是英數字，最多 63 字")
+    if title is not None and (not isinstance(title, str) or len(title.strip()) > 128):
+        raise Invalid("顯示名稱最多 128 字")
+    title = (title or "").strip() or model.name
     users = _users(ctx.session, allowed_users)
     if ctx.session.scalar(select(Deployment).where(Deployment.name == name)):
         raise Conflict(f"部署名稱「{name}」已被使用")
@@ -894,6 +946,7 @@ def create_deployment(ctx: ProjectContext, state, *, model: TrainedModel, name: 
                      created_by=ctx.user.username)
     ctx.session.add(row)
     ctx.session.flush()
+    ctx.session.add(DeploymentTitle(deployment_id=row.id, project_id=ctx.project.id, title=title[:128]))
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.INFERENCE, action="deployment.create",
            target=f"deployment:{row.id}", source_ip=source_ip,
            detail={"project_id": ctx.project.id, "model_id": model.id, "name": name, "allowed_users": users})
@@ -914,6 +967,9 @@ def set_access(ctx: ProjectContext, deployment: Deployment, *, allowed_users: An
 
 
 def delete_deployment(ctx: ProjectContext, state, deployment: Deployment, *, source_ip: str | None) -> None:
+    for title in ctx.session.scalars(select(DeploymentTitle).where(DeploymentTitle.deployment_id == deployment.id)):
+        ctx.session.delete(title)
+    ctx.session.flush()
     ctx.session.delete(deployment)
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.INFERENCE, action="deployment.delete",
            target=f"deployment:{deployment.id}", source_ip=source_ip,

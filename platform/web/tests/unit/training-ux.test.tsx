@@ -182,7 +182,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     await screen.findByText('已下載 training-run-1-report.html');
     expect(saved).toEqual(['training-run-1-report.html']);
 
-    const deploy = screen.getByRole('link', { name: '部署此模型' });
+    const deploy = screen.getByRole('link', { name: '分享給同事使用' });
     expect(deploy.getAttribute('href')).toMatch(/^\/deployment\?model=\d+$/);
   });
 
@@ -257,11 +257,11 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     seed('心臟科確診預測', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'sex'], steps: [], algorithm: 'random_forest' } }));
     const { user } = await renderApp('/training', 'pi01');
     await finish(user, '心臟科確診預測');
-    await user.click(screen.getByRole('link', { name: '部署此模型' }));
-    const form = await screen.findByRole('form', { name: '部署模型' });
+    await user.click(screen.getByRole('link', { name: '分享給同事使用' }));
+    const form = await screen.findByRole('form', { name: '分享給同事使用' });
     const modelId = String(trainingMock().runs[0].model_id);
     await waitFor(() => expect(within(form).getByLabelText('模型')).toHaveValue(modelId));
-    expect(within(form).getByLabelText('部署名稱（小寫英數字與 -）')).toHaveValue('run1');
+    expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科確診預測');
     expect(within(form).getByText(/已選好剛訓練完成的模型/)).toBeInTheDocument();
 
     const tryForm = screen.getByRole('form', { name: '試用預測' });

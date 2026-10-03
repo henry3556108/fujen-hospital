@@ -151,7 +151,7 @@ describe('2 缺值', () => {
     seed('補值試用', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'impute' }));
     const { user } = await renderApp('/training', 'pi01');
     await finish(user, '補值試用');
-    await user.click(screen.getByRole('link', { name: '部署此模型' }));
+    await user.click(screen.getByRole('link', { name: '分享給同事使用' }));
     const tryForm = await screen.findByRole('form', { name: '試用預測' });
     expect(tryForm).toHaveTextContent('沒有的資料可以留白');
     await user.type(within(tryForm).getByLabelText('age'), '61');

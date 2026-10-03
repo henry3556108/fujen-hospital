@@ -205,7 +205,9 @@ def dataset_version(version_id: int, request: Request, ctx: ProjectContext = Dep
 
 @router.get(BASE + "/models")
 def list_models(ctx: ProjectContext = Depends(can_predict)) -> list[dict]:
-    return [service.model_out(m) for m in service.list_models(ctx.session, ctx.project.id)]
+    shared = service.shared_with(ctx.session, ctx.project.id, ctx.user.username)
+    return [service.model_out(m) | {"shared_with_me": m.id in shared, "shared_by": shared.get(m.id)}
+            for m in service.list_models(ctx.session, ctx.project.id)]
 
 
 @router.get(BASE + "/models/{model_id}")
@@ -335,7 +337,8 @@ def inference_download(record_id: int, request: Request, ctx: ProjectContext = D
 
 class DeploymentIn(BaseModel):
     model_id: int
-    name: str
+    name: str | None = None        # 技術名稱（網址上的）；省略時自動產生 model-{模型編號}
+    title: str | None = None       # 顯示名稱，可用中文；省略時用模型名稱
     allowed_users: list[str] = []
 
 
@@ -347,14 +350,14 @@ class AccessIn(BaseModel):
 def create_deployment(body: DeploymentIn, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
     with _errors():
         model = service.get_model(ctx.session, ctx.project.id, body.model_id)
-        return service.deployment_out(service.create_deployment(
-            ctx, request.app.state, model=model, name=body.name, allowed_users=body.allowed_users,
-            source_ip=client_ip(request)))
+        row = service.create_deployment(ctx, request.app.state, model=model, name=body.name, title=body.title,
+                                        allowed_users=body.allowed_users, source_ip=client_ip(request))
+        return service.deployment_out(row, ctx.session)
 
 
 @router.get(BASE + "/deployments")
 def list_deployments(ctx: ProjectContext = Depends(can_train)) -> list[dict]:
-    return [service.deployment_out(d) for d in service.list_deployments(ctx.session, ctx.project.id)]
+    return [service.deployment_out(d, ctx.session) for d in service.list_deployments(ctx.session, ctx.project.id)]
 
 
 @router.put(BASE + "/deployments/{deployment_id}/access")
@@ -363,7 +366,7 @@ def set_access(deployment_id: int, body: AccessIn, request: Request,
     with _errors():
         deployment = service.get_deployment(ctx.session, ctx.project.id, deployment_id)
         return service.deployment_out(service.set_access(ctx, deployment, allowed_users=body.allowed_users,
-                                                         source_ip=client_ip(request)))
+                                                         source_ip=client_ip(request)), ctx.session)
 
 
 @router.delete(BASE + "/deployments/{deployment_id}", status_code=204)

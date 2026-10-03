@@ -30,6 +30,9 @@ export interface Model {
   filename: string;
   created_by: string;
   created_at: string;
+  /** 有人把這個模型分享給目前的使用者（部署的授權帳號包含他）；舊版 API 沒有 */
+  shared_with_me?: boolean;
+  shared_by?: string | null;
   card: {
     label_names?: string[];
     input?: { resize?: number[] };

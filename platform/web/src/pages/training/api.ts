@@ -129,7 +129,12 @@ export interface Deployment {
   id: number;
   project_id: number;
   model_id: number;
+  /** 技術名稱（網址上的，小寫英數字與 -） */
   name: string;
+  /** 顯示名稱（可用中文） */
+  title?: string;
+  /** 授權帳號中不是本專案成員或沒有推論權限的人：在「推論服務管理」看不到這個模型 */
+  cannot_use_in_platform?: string[];
   allowed_users: string[];
   endpoint: string;
   created_by: string;
@@ -185,7 +190,8 @@ export interface TrainingApi {
   models(): Promise<Model[]>;
   downloadModel(modelId: number): Promise<Download>;
   deployments(): Promise<Deployment[]>;
-  deploy(body: { model_id: number; name: string; allowed_users: string[] }): Promise<Deployment>;
+  /** name 省略時伺服器自動產生技術名稱；title 是顯示名稱 */
+  deploy(body: { model_id: number; name?: string; title?: string; allowed_users: string[] }): Promise<Deployment>;
   setAccess(id: number, users: string[]): Promise<Deployment>;
   undeploy(id: number): Promise<void>;
   studies(): Promise<Study[]>;
