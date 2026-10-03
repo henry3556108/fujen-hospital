@@ -221,7 +221,8 @@ def validate_and_load(src: Source, schema: Schema) -> tuple[dict[str, Any], pd.D
                     row_errors.append({
                         "row": i,
                         "column": name,
-                        "reason": f"值「{value}」重複（與第 {index[value]} 列相同），此欄位不可重複",
+                        # 原因給人看：列號與網頁「第幾列」一樣從 1 起算（"row" 欄位仍是 0 起算）
+                        "reason": f"值「{value}」重複（與第 {index[value] + 1} 列相同），此欄位不可重複",
                     })
         if row_errors:
             rejected.extend(row_errors)

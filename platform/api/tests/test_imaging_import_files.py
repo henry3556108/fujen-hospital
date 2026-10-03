@@ -1,6 +1,6 @@
 """TC-B01-03／04／05：NIfTI、ITK、makesense 匯入與影像↔標註配對。"""
 from imaging_support import (make_makesense, make_mha, make_nifti, member, orthanc, project, sop_uid,  # noqa: F401
-                             study_files, upload)
+                             STUDIES, study_files, study_uid, upload)
 
 
 def _cases(fmt, n=3):
@@ -80,6 +80,11 @@ def test_tc_b01_04_makesense_pairs_to_dicom_either_order(client, orthanc, projec
     label = _files(client, h, p1.id)["makesense/makesense_001.json"]
     assert label["pairing"] == "paired"
     assert label["paired_sop_instance_uids"] == sorted(sop_uid(1, s) for s in (1, 2, 3))
+    # 「檔案與配對」顯示配到哪個研究（Accession 與 Study Description），不只是張數
+    assert label["paired_studies"] == [{"study_instance_uid": study_uid(1), "accession_number": "ACC0001",
+                                        "study_description": STUDIES[1]["study"], "instances": 3}]
+    image = _files(client, h, p1.id)
+    assert all(f["paired_studies"] == [] for name, f in image.items() if name != "makesense/makesense_001.json")
 
 
 def test_makesense_does_not_pair_with_other_study(client, orthanc, project, member):

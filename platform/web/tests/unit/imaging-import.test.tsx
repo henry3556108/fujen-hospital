@@ -127,7 +127,8 @@ describe('匯入影像', () => {
     expect(by('case01_label.nii.gz').slice(1, 7)).toEqual(['NIfTI', '標註', 'case01', '尺寸 4 × 4 × 2', '已配對', 'case01_image.nii.gz']);
     expect(by('case02_label.mha').slice(5, 7)).toEqual(['已配對', 'case02_image.mha']);
     expect(by('case02_image.mha')[5]).toBe('影像（不需配對）');
-    expect(by('study1_makesense.json').slice(4, 7)).toEqual(['3 筆標註', '已配對', '3 張 DICOM 影像']);
+    // 配對對象寫出研究（Accession 與 Study Description），不只是張數
+    expect(by('study1_makesense.json').slice(4, 7)).toEqual(['3 筆標註', '已配對', 'ACC0001 CT CHEST WO CONTRAST（3 張）']);
     expect(screen.getByRole('status')).toHaveTextContent('共 5 個檔案，0 個標註尚未配對');
   });
 
@@ -183,6 +184,8 @@ describe('PACS 查詢取像', () => {
     await user.click(within(form).getByRole('button', { name: '查詢 PACS' }));
     const table = await screen.findByRole('table', { name: 'PACS 查詢結果' });
     expect(screen.getByText('PACS 回覆 2 個研究')).toBeInTheDocument();
+    // B-01 判準「30 秒內」：畫面顯示從送出到收到回應的時間
+    expect(screen.getByRole('status')).toHaveTextContent(/PACS 回覆 2 個研究，回應時間 \d+\.\d 秒/);
     expect(resultRows(table).map((r) => r.slice(0, 7))).toEqual([
       ['2024-02-20', 'ACC0002', 'PAT0002', 'M', 'MR', 'MR BRAIN WWO CONTRAST', '3'],
       ['2024-04-05', 'ACC0004', 'PAT0004', 'F', 'MR', 'MR KNEE WO CONTRAST', '3'],

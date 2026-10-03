@@ -1,6 +1,6 @@
 // 模擬 platform/api 的影像 API（app/imaging）。上傳的 DICOM 會真的解析標頭（Explicit VR Little Endian）。
 import { http } from 'msw';
-import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, Study } from '../pages/imaging/types';
+import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, PairedStudy, Study } from '../pages/imaging/types';
 import { API, detail, isoNow, json, jsonBody, moduleState, requireProject, validation } from './support';
 
 interface DicomInfo {
@@ -21,7 +21,7 @@ interface StoredInstance extends DicomInfo {
   sourcePath: string;
 }
 
-interface StoredFile extends Omit<ImagingFile, 'paired_image'> {
+interface StoredFile extends Omit<ImagingFile, 'paired_image' | 'paired_studies'> {
   projectId: number;
   digest: string;
   pairedFileId: number | null;
@@ -420,10 +420,27 @@ export const imagingHandlers = [
     if (ctx instanceof Response) return ctx;
     const s = state();
     const files = s.files.filter((f) => f.projectId === ctx.project.id);
+    const pairedStudies = (sops: string[]): PairedStudy[] => {
+      const byStudy = new Map<string, PairedStudy>();
+      for (const sop of sops) {
+        const i = s.instances.find((x) => x.projectId === ctx.project.id && x.sop === sop);
+        if (!i) continue;
+        const st = byStudy.get(i.study) ?? {
+          study_instance_uid: i.study,
+          accession_number: i.accession,
+          study_description: i.studyDescription,
+          instances: 0,
+        };
+        st.instances += 1;
+        byStudy.set(i.study, st);
+      }
+      return [...byStudy.values()].sort((a, b) => a.accession_number.localeCompare(b.accession_number));
+    };
     return json(
       files.map(({ projectId: _p, digest: _d, pairedFileId, ...f }) => ({
         ...f,
         paired_image: pairedFileId ? (files.find((x) => x.id === pairedFileId)?.filename ?? null) : null,
+        paired_studies: pairedStudies(f.paired_sop_instance_uids),
       })),
     );
   }),

@@ -27,6 +27,7 @@ export function ScatterChart({
     <ChartFrame
       title={title}
       description={`${title}：${points.length} 個點，橫軸 ${xLabel}，縱軸 ${yLabel}`}
+      note={`共 ${points.length} 點${points.length > TABLE_LIMIT ? `（表格檢視列出前 ${TABLE_LIMIT} 點）` : ''}`}
       table={{
         caption: `${title}（表格${points.length > TABLE_LIMIT ? `，前 ${TABLE_LIMIT} 筆` : ''}）`,
         head: [xLabel, yLabel],

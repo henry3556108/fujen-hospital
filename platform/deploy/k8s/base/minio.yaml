@@ -20,6 +20,8 @@ spec:
   template:
     metadata:
       labels: {app: minio}
+      # Prometheus 以註記探索抓取（platform/deploy/kind/monitoring/prometheus.yaml 的 ai-platform-pods；README「監控」）
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "9000", prometheus.io/path: /minio/v2/metrics/cluster}
     spec:
       nodeSelector: {platform/pool: cpu-web}
       automountServiceAccountToken: false
@@ -36,6 +38,8 @@ spec:
               valueFrom: {secretKeyRef: {name: platform-secrets, key: MINIO_ROOT_PASSWORD}}
             - {name: GOMEMLIMIT, value: 300MiB}
             - {name: MINIO_BROWSER, value: "off"}
+            # /minio/v2/metrics/cluster 不需權杖即可讀；9000 埠只有平台後端與 monitoring 命名空間連得到（networkpolicy.yaml）
+            - {name: MINIO_PROMETHEUS_AUTH_TYPE, value: public}
           ports:
             - {name: s3, containerPort: 9000}
           readinessProbe:

@@ -30,7 +30,7 @@ suite('mock tabular API matches the real API', () => {
     expect(report).toMatchObject({ total_rows: 30, valid_rows: 20, rejected_row_count: 10 });
     expect(report.rejected.map((r) => r.reason)).toEqual([
       '必填欄位為空值',
-      '值「P90001」重複（與第 0 列相同），此欄位不可重複',
+      '值「P90001」重複（與第 1 列相同），此欄位不可重複',
       '「12O」不是整數',
       '「unknown」不在允許值（M、F）之內',
       '「95.0」大於最大值 60',
@@ -38,7 +38,7 @@ suite('mock tabular API matches the real API', () => {
       '「sometimes」不在允許值（never、former、current）之內',
       '必填欄位為空值',
       '「forty」不是整數',
-      '值「P90001」重複（與第 0 列相同），此欄位不可重複',
+      '值「P90001」重複（與第 1 列相同），此欄位不可重複',
     ]);
   });
 

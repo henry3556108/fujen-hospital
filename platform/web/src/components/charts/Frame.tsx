@@ -28,6 +28,7 @@ export function ChartFrame({
   description,
   legend,
   table,
+  note,
   height = H,
   children,
 }: {
@@ -35,6 +36,8 @@ export function ChartFrame({
   description: string;
   legend?: LegendItem[];
   table: TableView;
+  /** 標題下的一行說明（例如散佈圖的點數） */
+  note?: string;
   /** SVG 的高度（viewBox）；預設 H，旋轉的軸標籤或橫條圖需要更高 */
   height?: number;
   children: (setActive: (text: string | null) => void) => ReactNode;
@@ -46,6 +49,7 @@ export function ChartFrame({
       <figcaption id={`${id}-title`} className="chart__title">
         {title}
       </figcaption>
+      {note && <p className="chart__note text-muted">{note}</p>}
       <svg className="chart__svg" viewBox={`0 0 ${W} ${height}`} role="img" aria-label={description}>
         {children(setActive)}
       </svg>

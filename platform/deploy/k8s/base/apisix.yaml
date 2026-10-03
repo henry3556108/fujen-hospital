@@ -23,6 +23,8 @@ spec:
   template:
     metadata:
       labels: {app: apisix}
+      # Prometheus 以註記探索抓取（platform/deploy/kind/monitoring/prometheus.yaml 的 ai-platform-pods；README「監控」）
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "9091", prometheus.io/path: /apisix/prometheus/metrics}
     spec:
       nodeSelector: {platform/pool: cpu-web}
       automountServiceAccountToken: false
@@ -43,6 +45,7 @@ spec:
             - {name: gateway, containerPort: 9080}
             - {name: viewer, containerPort: 9081}
             - {name: web, containerPort: 9082}
+            - {name: metrics, containerPort: 9091}   # prometheus 外掛的匯出埠（只對 monitoring 命名空間開放）
           readinessProbe:
             tcpSocket: {port: 9080}
             periodSeconds: 5

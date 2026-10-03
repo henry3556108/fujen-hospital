@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from app import admin_service, db_init, labeling_groups, scanning
+from app import admin_service, db_init, labeling_groups, metrics, scanning
 from app.db import make_engine, make_sessionmaker
 from app.fhir import router as fhir_router
 from app.imaging.router import router as imaging_router
@@ -67,6 +67,8 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(labeling_router)
     app.include_router(training_router)
     app.include_router(llm_router)
+
+    metrics.install(app)  # GET /metrics（TC-C02-01；叢集內只有 monitoring 命名空間連得到）
 
     @app.get("/healthz")
     def healthz() -> dict:

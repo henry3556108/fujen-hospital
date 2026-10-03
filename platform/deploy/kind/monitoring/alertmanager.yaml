@@ -1,6 +1,13 @@
-# Alertmanager：告警寄到 Mailpit。重複抑制：
+# Alertmanager：告警寄到 Mailpit（甲方換成甲方告警信箱）。
+# 3 類事件、3 條發送規則（合約 C-02「告警事件分類 3 類、告警發送規則 3 條」）：告警規則以 category 標籤分類，
+# route.routes 一類一條，各自的分組（group_by）與重寄間隔，都寄到維運信箱：
+#   job-failure  平台工作失敗（PlatformJobFailed）：依工作分組，每個失敗的 Job 一封
+#   resource     資源異常（HighPodCpu）：依 Pod 分組
+#   node         節點失聯（NodeNotReady）：依節點分組
+# 重複抑制：
 # - 同一告警群組只在第一次寄出，之後 repeat_interval（4 小時）內不再重寄；不寄「已解除」通知。
 # - 節點未就緒時，抑制同一節點上的 warning 告警（避免一個根因洗版）。
+# 沒有 category 的告警（將來新增規則忘了分類）走最上層的預設路由，仍會寄出。
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,6 +25,28 @@ data:
       group_wait: 5s
       group_interval: 1m
       repeat_interval: 4h
+      routes:
+        # 發送規則 1：平台工作失敗
+        - matchers: [category = job-failure]
+          receiver: ops-mail
+          group_by: [alertname, namespace, job_name]
+          group_wait: 5s
+          group_interval: 1m
+          repeat_interval: 4h
+        # 發送規則 2：資源異常
+        - matchers: [category = resource]
+          receiver: ops-mail
+          group_by: [alertname, namespace, pod, node]
+          group_wait: 5s
+          group_interval: 1m
+          repeat_interval: 4h
+        # 發送規則 3：節點失聯
+        - matchers: [category = node]
+          receiver: ops-mail
+          group_by: [alertname, node]
+          group_wait: 5s
+          group_interval: 1m
+          repeat_interval: 4h
     receivers:
       - name: ops-mail
         email_configs:

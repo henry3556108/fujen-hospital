@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { server } from '../../src/mocks/server';
 import { ENTRIES } from '../../src/access/entries';
@@ -126,6 +126,32 @@ describe('app shell', () => {
     await waitFor(async () =>
       expect(await navLabels()).toEqual(['數據管理', '建模管理', 'AI 模型部署', '推論服務管理', 'LLM No-code 開發']),
     );
+  });
+
+  it('a project created in another window appears in the switcher on window focus or when the menu gets focus', async () => {
+    const projects = [{ id: 1, name: 'P1-lung-ct', role: 'viewer', permissions: ['prediction', 'project'] }];
+    let calls = 0;
+    server.use(
+      http.get('*/api/me', () => {
+        calls += 1;
+        return HttpResponse.json({ username: 'multi', account_type: 'user', projects: [...projects] });
+      }),
+    );
+    const { user } = await renderApp('/', 'vw01');
+    const options = () => within(screen.getByLabelText('目前專案')).getAllByRole('option').map((o) => o.textContent);
+    await waitFor(() => expect(options()).toEqual(['P1-lung-ct']));
+    // 另一個視窗由 Admin 新增專案並加入成員；不按 F5
+    projects.push({ id: 4, name: 'P4-new', role: 'viewer', permissions: ['prediction', 'project'] });
+    fireEvent.focus(window);
+    await waitFor(() => expect(options()).toEqual(['P1-lung-ct', 'P4-new']));
+    expect(screen.getByLabelText('目前專案')).toHaveValue('1'); // 目前的選擇不變
+    projects.push({ id: 5, name: 'P5-newer', role: 'viewer', permissions: ['prediction', 'project'] });
+    const before = calls;
+    await user.click(screen.getByLabelText('目前專案'));
+    await waitFor(() => expect(options()).toEqual(['P1-lung-ct', 'P4-new', 'P5-newer']));
+    expect(calls).toBeGreaterThan(before);
+    // 重新讀取不會讓頁面回到載入中
+    expect(screen.getByRole('navigation', { name: '功能選單' })).toBeInTheDocument();
   });
 
   it('user without projects is told so and sees no entries', async () => {

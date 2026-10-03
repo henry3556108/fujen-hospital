@@ -18,6 +18,8 @@ interface SessionValue {
   login: (options?: { username?: string; returnTo?: string }) => Promise<void>;
   logout: () => Promise<void>;
   reload: () => void;
+  /** 不顯示載入中、重新讀取 /api/me（專案清單）；內容沒變就不更新 */
+  refreshMe: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -86,6 +88,37 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
     };
   }, [auth, api, nonce]);
 
+  // 另一個視窗新增的專案：視窗取得焦點或打開專案下拉時重新讀取，不必按 F5（B-01 已知問題 5）。
+  // 背景讀取：失敗就略過（401 仍由 onUnauthorized 處理）；內容相同不更新，頁面狀態不受影響。
+  const meRef = useRef(me);
+  meRef.current = me;
+  const refreshing = useRef(false);
+  const refreshMe = useCallback(() => {
+    if (!meRef.current || refreshing.current) return;
+    refreshing.current = true;
+    void (async () => {
+      try {
+        const data = await api.get<Me>('/api/me');
+        if (!meRef.current || JSON.stringify(data) === JSON.stringify(meRef.current)) return;
+        setMe(data);
+        setProjectId((current) =>
+          data.projects.some((p) => p.id === current) ? current : (data.projects[0]?.id ?? null),
+        );
+      } catch {
+        /* 背景更新失敗不影響目前畫面 */
+      } finally {
+        refreshing.current = false;
+      }
+    })();
+  }, [api]);
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const onFocus = () => refreshMe();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [status, refreshMe]);
+
   const selectProject = useCallback(
     (id: number) => {
       setProjectId(id);
@@ -129,6 +162,7 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
     login,
     logout,
     reload: () => setNonce((n) => n + 1),
+    refreshMe,
   };
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
