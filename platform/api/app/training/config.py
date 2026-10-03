@@ -66,6 +66,42 @@ HYPERPARAMETERS = {
 }
 _FAKE_HYPER = {"fake_sleep_seconds": ("fake-trainer 等待秒數", float, 0, 600, 0)}
 DEFAULT_SPLIT = {"train": 0.6, "validation": 0.2, "test": 0.2}
+# 驗證方式（只限結構式）：固定比例切分或 K 折交叉驗證
+FOLDS = ("交叉驗證折數（K）", int, 2, 10, 5)
+VALIDATION_METHODS = [
+    {"method": "holdout", "name": "固定比例切分",
+     "help": "依上面的比例把資料分成訓練、驗證、測試三份，訓練一次。速度快，資料多（數千筆以上）時建議使用。"},
+    {"method": "kfold", "name": "K 折交叉驗證",
+     "help": "先保留測試集，其餘資料平均分成 K 份，輪流拿一份檢查、其他份訓練，共訓練 K 次再取平均。"
+             "結果比較穩定，資料少（幾百筆）時建議使用；K 通常用 5。",
+     "folds": {"minimum": FOLDS[2], "maximum": FOLDS[3], "default": FOLDS[4]}},
+]
+
+# 每個參數的白話說明與建議值；advanced = 不常調整，網頁收在「進階設定」
+PARAM_HELP = {
+    "epochs": ("模型把全部訓練影像看過幾遍。太少學不會，太多可能只記住訓練資料；先用預設值試跑，再視結果調整（常見 10～50）。",
+               False),
+    "batch_size": ("一次交給模型幾張影像。電腦記憶體不足時調小；一般用預設值即可。", True),
+    "learning_rate": ("每一步修正模型的幅度。太大學得不穩，太小學得很慢；一般用預設值即可。", True),
+    "filters": ("模型的大小（每一層找幾種影像特徵）。越大越能學複雜的影像，但需要更多資料與時間；一般用預設值。", True),
+    "augmentation_copies": ("每張原始影像另外產生幾份「資料增強」後的影像。資料少時可設 1～3；設 0 代表不增強。", False),
+    "max_boxes": ("每張影像最多找出幾個方框。請設成一張影像中病灶可能出現的最多數量。", False),
+    "C": ("數值越小，模型越保守、越不容易只記住訓練資料；一般用預設值 1。", True),
+    "max_iter": ("模型最多計算幾輪來找答案。訓練輸出出現「未收斂」時再調大；一般用預設值。", True),
+    "n_estimators": ("用幾棵決策樹一起判斷。越多通常越穩定但訓練越久；建議 50～300。", False),
+    "max_depth": ("每棵樹最多連續問幾個問題。越深越能抓細節，但容易只記住訓練資料；留白代表不限制，梯度提升建議 2～5。",
+                  True),
+    "min_samples_leaf": ("每個最後分組至少要有幾筆資料。調大可避免被少數特殊個案帶偏；資料多時可設 5～20。", True),
+    "fit_intercept": ("一般保持勾選。只有確定所有特徵都是 0 時結果也應該是 0，才取消。", True),
+    "rotation_range": ("隨機旋轉影像的最大角度，模擬擺位不同；建議 0～15 度。", False),
+    "width_shift_range": ("隨機左右移動影像的最大比例（0.1 = 寬度的 10%）；建議 0～0.1。", False),
+    "height_shift_range": ("隨機上下移動影像的最大比例（0.1 = 高度的 10%）；建議 0～0.1。", False),
+    "shear_range": ("隨機把影像斜向拉扯的最大角度；一般用 0，最多 10 度。", False),
+    "zoom_range": ("隨機放大縮小的比例（0.1 = 90%～110%）；建議 0～0.2。", False),
+    "horizontal_flip": ("隨機左右翻轉。左右對稱、左右不影響判讀的影像才勾選。", False),
+    "vertical_flip": ("隨機上下翻轉。多數醫學影像不適合，一般不勾選。", False),
+}
+
 SOURCE_TYPES = {"image_classification": ("dicom",), "image_detection": ("dicom",),
                 "image_segmentation": ("files", "dicom"), "tabular_classification": ("tabular",),
                 "tabular_regression": ("tabular",)}
@@ -124,6 +160,25 @@ def normalise_split(value: Any) -> dict[str, float]:
     if abs(sum(out.values()) - 1) > 1e-6:
         raise ConfigError("訓練、驗證、測試的比例總和必須等於 1")
     return out
+
+
+def normalise_validation(value: Any) -> dict[str, Any]:
+    """結構式的驗證方式；沒有指定就是固定比例切分（舊設定也是）。"""
+    if value is not None and not isinstance(value, dict):
+        raise ConfigError("「驗證方式」格式錯誤，必須是物件")
+    raw = value or {"method": "holdout"}
+    unknown = sorted(set(raw) - {"method", "folds"})
+    if unknown:
+        raise ConfigError(f"不支援的驗證方式設定：{'、'.join(unknown)}")
+    method = raw.get("method", "holdout")
+    if method == "holdout":
+        if "folds" in raw:
+            raise ConfigError("固定比例切分不需要折數（folds），要用 K 折請把 method 設為 kfold")
+        return {"method": "holdout"}
+    if method == "kfold":
+        title, kind, low, high, default = FOLDS
+        return {"method": "kfold", "folds": _number(raw.get("folds", default), kind, title, low, high)}
+    raise ConfigError("驗證方式 method 必須是 holdout（固定比例切分）或 kfold（K 折交叉驗證）")
 
 
 def normalise_hyperparameters(value: Any, allowed: dict[str, tuple], *, fill: bool) -> dict[str, Any]:
@@ -231,7 +286,8 @@ def normalise(data: Any) -> dict[str, Any]:
     """回傳正規化後的設定。normalise(normalise(x)) == normalise(x)。"""
     if not isinstance(data, dict):
         raise ConfigError("訓練設定必須是物件")
-    known = {"version", "kind", "source", "split", "seed", "image", "tabular", "augmentation", "hyperparameters"}
+    known = {"version", "kind", "source", "split", "seed", "validation", "image", "tabular", "augmentation",
+             "hyperparameters"}
     unknown = sorted(set(data) - known)
     if unknown:
         raise ConfigError(f"不支援的設定欄位：{'、'.join(unknown)}")
@@ -248,6 +304,8 @@ def normalise(data: Any) -> dict[str, Any]:
     if kind in IMAGE_KINDS:
         if data.get("tabular"):
             raise ConfigError("影像訓練不可帶結構式設定（tabular）")
+        if data.get("validation") is not None:
+            raise ConfigError("影像訓練目前只支援固定比例切分，不可設定驗證方式（validation）")
         out["image"] = normalise_image(data.get("image"), kind)
         out["augmentation"] = normalise_augmentation(data.get("augmentation"))
         out["hyperparameters"] = normalise_hyperparameters(data.get("hyperparameters"), HYPERPARAMETERS[kind],
@@ -255,6 +313,7 @@ def normalise(data: Any) -> dict[str, Any]:
     else:
         if data.get("image") or data.get("augmentation"):
             raise ConfigError("結構式訓練不可帶影像設定或資料增強")
+        out["validation"] = normalise_validation(data.get("validation"))
         out["tabular"], allowed = normalise_tabular(data.get("tabular"), kind)
         out["hyperparameters"] = normalise_hyperparameters(data.get("hyperparameters"), allowed, fill=True)
     return out
@@ -271,7 +330,8 @@ def job_config(setting: dict[str, Any], *, executor: str, label_names: list[str]
 
 def _describe(params: dict[str, tuple]) -> list[dict]:
     return [{"name": k, "title": v[0], "type": v[1].__name__, "minimum": v[2], "maximum": v[3],
-             "default": v[4] if len(v) > 4 else (False if v[1] is bool else 0)} for k, v in params.items()]
+             "default": v[4] if len(v) > 4 else (False if v[1] is bool else 0),
+             "help": PARAM_HELP[k][0], "advanced": PARAM_HELP[k][1]} for k, v in params.items()]
 
 
 def catalogue() -> dict[str, Any]:
@@ -284,6 +344,7 @@ def catalogue() -> dict[str, Any]:
         else:
             entry["algorithms"] = [{"name": name, "hyperparameters": _describe(params)}
                                    for name, params in ALGORITHMS[kind].items()]
+            entry["validation_methods"] = copy.deepcopy(VALIDATION_METHODS)
         kinds.append(entry)
     return {"kinds": kinds, "augmentation": _describe(AUGMENTATION), "default_split": DEFAULT_SPLIT,
             "executors": list(EXECUTORS)}

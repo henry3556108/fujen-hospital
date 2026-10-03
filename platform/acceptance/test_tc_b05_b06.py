@@ -252,7 +252,7 @@ def test_tc_b06_01_batch_inference_twenty_or_more(trained, env):
         assert states[0] == "queued" and states[-1] == "succeeded", states
         assert record["started_at"] and record["finished_at"]
     assert out["count"] >= 20 and len(out["result"]["rows"]) == out["count"]
-    assert out["result"]["columns"][-2:] == ["prediction", "prediction_note"]
+    assert out["result"]["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"]
     assert image["count"] >= 20 and all(r["label"] in ("CT", "MR") for r in image["result"]["results"])
     finished = audit("inference", "inference.batch.finish", mark)
     assert {r["target"] for r in finished} == {f"inference:{tab['id']}", f"inference:{img['id']}"}

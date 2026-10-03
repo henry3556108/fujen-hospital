@@ -23,14 +23,14 @@ from app.scheduling.backend import JobBackend, Workload
 from app.scheduling.models import Job
 from app.scheduling.states import TERMINAL, JobStatus
 from app.storage import ObjectNotFound, ObjectStore
-from app.training import bundle, config as cfg, snapshot, tracking
+from app.training import bundle, config as cfg, report, snapshot, tracking
 from app.training.inference import (ImageInput, InferenceBackend, InferenceError, InferenceRejected,
                                     ModelNotLoaded)
 from app.training.models import (DatasetVersion, Deployment, InferenceRecord, TrainedModel, TrainingRun,
                                  TrainingSetting)
 
 ARTIFACTS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json",
-             "train.log")
+             "train.log", "charts.json")
 MAX_ARTIFACT_BYTES = int(os.environ.get("TRAINING_MAX_ARTIFACT_MB", "512")) * 1024 * 1024
 MAX_INFERENCE_BYTES = int(os.environ.get("INFERENCE_MAX_UPLOAD_MB", "50")) * 1024 * 1024
 MAX_ONLINE_ROWS = 1000
@@ -247,6 +247,42 @@ def _translate(exc: Exception) -> TrainingError:
     return Conflict(str(exc))
 
 
+APPLY_HINT = "資料集的 Target／Feature 或前處理可能已修改；請在訓練設定按「套用資料集設定」，或重新選擇欄位。"
+
+
+def check_tabular(store: ObjectStore, project_id: int, manifest: dict[str, Any], setting: dict[str, Any]) -> None:
+    """送出前先用凍結的資料檢查結構式設定，避免排隊後才失敗：欄位存在、目標欄位可訓練、特徵不是識別碼。
+    文字／類別特徵不用先編碼（範本會在 scikit-learn Pipeline 內自動 One-Hot）。"""
+    import pandas as pd
+    from tabular.errors import TabularError
+    from tabular.fitted import fit_pipeline
+    from tabular.schema import Schema
+    from tabular.validate import load_clean_csv
+
+    files = manifest["items"][0]["files"]
+    schema = Schema.from_dict(json.loads(store.get(snapshot.blob_key(project_id, files["schema"]["blob"]))))
+    frame = load_clean_csv(io.BytesIO(store.get(snapshot.blob_key(project_id, files["csv"]["blob"]))), schema)
+    spec = setting["tabular"]
+    try:
+        _, out = fit_pipeline(frame, spec.get("steps") or [])
+    except TabularError as exc:
+        raise Invalid(f"前處理步驟無法套用在資料集上：{exc}。{APPLY_HINT}") from exc
+    missing = [c for c in [spec["target"], *spec["features"]] if c not in out.columns]
+    if missing:
+        raise Invalid(f"訓練設定與資料集不一致：前處理後找不到欄位「{'、'.join(missing)}」。{APPLY_HINT}")
+    ids = [c for c in spec["features"]
+           if not pd.api.types.is_numeric_dtype(out[c]) and not pd.api.types.is_bool_dtype(out[c])
+           and out[c].nunique() > max(20, len(out) // 2)]
+    if ids:
+        raise Invalid(f"特徵欄位「{'、'.join(ids)}」幾乎每一列都不同（像病歷號或自由文字），不能當作特徵，"
+                      "請在訓練設定取消勾選。")
+    target = out[spec["target"]].dropna()
+    if setting["kind"] == "tabular_classification" and target.astype(str).nunique() < 2:
+        raise Invalid(f"目標欄位「{spec['target']}」只有一種類別，無法訓練分類模型")
+    if setting["kind"] == "tabular_regression" and not pd.api.types.is_numeric_dtype(target):
+        raise Invalid(f"目標欄位「{spec['target']}」不是數值，無法訓練迴歸模型；請改用「結構式分類」")
+
+
 def submit_run(ctx: ProjectContext, state, backend: JobBackend, *, setting: TrainingSetting, executor: Any,
                source_ip: str | None) -> TrainingRun:
     executor = _executor(executor)
@@ -258,6 +294,12 @@ def submit_run(ctx: ProjectContext, state, backend: JobBackend, *, setting: Trai
     except (cfg.ConfigError, snapshot.SnapshotError) as exc:
         ctx.session.rollback()
         raise _translate(exc) from exc
+    if setting.kind in cfg.TABULAR_KINDS:
+        try:
+            check_tabular(state.store, ctx.project.id, manifest, setting.config)
+        except Invalid:
+            ctx.session.rollback()
+            raise
     config = cfg.job_config(setting.config, executor=executor, label_names=manifest["label_names"])
     run = TrainingRun(project_id=ctx.project.id, setting_id=setting.id, dataset_version_id=version.id,
                       name=setting.name, kind=setting.kind, executor=executor, config=config, seed=config["seed"],
@@ -442,6 +484,32 @@ def run_log(store: ObjectStore, run: TrainingRun) -> str:
     return data.decode("utf-8", "replace") if data is not None else ""
 
 
+def run_charts(store: ObjectStore, run: TrainingRun) -> dict[str, Any]:
+    """結果圖表資料（範本另外寫的 charts.json）；影像、fake-trainer、舊訓練沒有時為 None。"""
+    charts = _json_artifact(store, run, "charts.json") if run.status == JobStatus.SUCCEEDED.value else None
+    return {"run_id": run.id, "kind": run.kind, "charts": charts}
+
+
+def run_report(ctx: ProjectContext, state, backend: JobBackend, run: TrainingRun, *,
+               source_ip: str | None) -> bytes:
+    """可列印的 HTML 報表。只有完成的訓練才有；下載寫 training 稽核。"""
+    sync_run(ctx.session, state, backend, run)
+    if run.status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value):
+        ctx.session.commit()
+        raise Conflict(f"訓練 {run.id} 尚未完成，完成後才能下載報表")
+    if run.status != JobStatus.SUCCEEDED.value:
+        ctx.session.commit()
+        raise Conflict(f"訓練 {run.id} 沒有成功完成（{run.status}），沒有可下載的報表")
+    html = report.build(run=run_out(run), charts=run_charts(state.store, run)["charts"],
+                        generated_by=ctx.user.username)
+    data = html.encode("utf-8")
+    record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training.report",
+           target=f"training_run:{run.id}", source_ip=source_ip,
+           detail={"project_id": run.project_id, "sha256": hashlib.sha256(data).hexdigest()})
+    ctx.session.commit()
+    return data
+
+
 def get_version(session: Session, project_id: int, version_id: int) -> DatasetVersion:
     version = session.get(DatasetVersion, version_id)
     if version is None or version.project_id != project_id:
@@ -597,12 +665,21 @@ def _write_csv(header: list[str], rows: list[list[Any]]) -> bytes:
 
 
 def _tabular_result(header: list[str], rows: list[list[str]], answer: dict[str, Any]) -> tuple[bytes, dict]:
+    """在原始資料後面加預測欄。分類模型另加「預測類別的機率」欄（0～1），說明欄寫成中文
+    （例如「預測為「1」的機率 83%」；無法預測時寫原因）。迴歸沒有機率欄。"""
     predictions, notes = answer.get("predictions", []), answer.get("notes") or [None] * len(rows)
     if len(predictions) != len(rows):
         raise InferenceError(f"推論服務回傳 {len(predictions)} 筆，輸入是 {len(rows)} 筆")
+    probabilities = answer.get("probabilities") or [None] * len(rows)
+    with_probability = any(p is not None for p in probabilities)
     column = _prediction_column(header)
-    out_header = header + [column, f"{column}_note"]
-    out_rows = [row + ["" if p is None else p, note or ""] for row, p, note in zip(rows, predictions, notes)]
+    out_header = header + [column] + ([f"{column}_probability"] if with_probability else []) + [f"{column}_note"]
+    out_rows = []
+    for row, p, prob, note in zip(rows, predictions, probabilities, notes):
+        if not note and p is not None and prob is not None:
+            note = f"預測為「{p}」的機率 {prob:.0%}"
+        out_rows.append(row + ["" if p is None else p] + (["" if prob is None else prob] if with_probability else [])
+                        + [note or ""])
     unpredicted = sum(1 for p in predictions if p is None)
     return _write_csv(out_header, out_rows), {"prediction_column": column, "unpredicted": unpredicted}
 
@@ -874,10 +951,14 @@ def online_predict(session: Session, state, *, name: str, user: User, rows: Any 
         row = _run_inference(session, state, backend, tabular=data, input_={"rows": len(rows)}, **common)
         header, body = _read_csv(result_bytes(state.store, row))
         column = row.input["prediction_column"]
-        index = header.index(column)
-        return {"inference_id": row.id, "deployment": name, "model_id": model.id,
-                "predictions": [r[index] if r[index] != "" else None for r in body],
-                "notes": [r[index + 1] or None for r in body]}
+        index, note = header.index(column), header.index(f"{column}_note")
+        prob = header.index(f"{column}_probability") if f"{column}_probability" in header else None
+        out = {"inference_id": row.id, "deployment": name, "model_id": model.id,
+               "predictions": [r[index] if r[index] != "" else None for r in body],
+               "notes": [r[note] or None for r in body]}
+        if prob is not None:
+            out["probabilities"] = [float(r[prob]) if r[prob] != "" else None for r in body]
+        return out
     if not files:
         raise Invalid("請上傳至少一個影像檔")
     if sum(len(d) for _, d in files) > MAX_INFERENCE_BYTES:

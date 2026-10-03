@@ -42,7 +42,7 @@ def test_tc_b06_01_batch_inference_on_test_split(client, pi, project, backend, t
     out = run_batch(client, backend, pi, queued, tmp_path / "test")
     assert out["status"] == "succeeded" and out["count"] == 20 and out["mode"] == "batch"
     result = out["result"]
-    assert result["prediction_column"] == "prediction" and result["columns"][-2:] == ["prediction", "prediction_note"]
+    assert result["prediction_column"] == "prediction" and result["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"]
     assert "diagnosis" not in result["columns"], "不把答案送進推論"
     assert all(r[-2] != "" or r[-1] for r in result["rows"])
     everything = run_batch(client, backend, pi, batch(client, pi, project.id, tabular_model["id"], "all"),
