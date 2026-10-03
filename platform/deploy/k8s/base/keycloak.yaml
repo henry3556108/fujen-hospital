@@ -48,6 +48,10 @@ spec:
             - {name: KC_HTTP_ENABLED, value: "true"}
             # 與 compose 相同：明確聽所有介面（26.6 起 start-dev 預設只聽 localhost）
             - {name: KC_HTTP_HOST, value: 0.0.0.0}
+            # 單一副本用本機快取：叢集快取會在滾動更新時讓新 Pod 嘗試加入舊 Pod（JGroups 7800 被 NetworkPolicy 擋下），
+            # 叢集健康檢查失敗、更新卡住。使用者工作階段在 Keycloak 26 存於資料庫，重啟不會遺失。
+            # 正式環境若要多副本，改回 ispn 並開放 keycloak Pod 之間的 7800 埠。
+            - {name: KC_CACHE, value: "local"}
             - {name: KC_HEALTH_ENABLED, value: "true"}
             - {name: KC_METRICS_ENABLED, value: "true"}   # 管理埠 9000 的 /metrics（Prometheus 抓取）
             - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=40 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=256m"}
