@@ -187,7 +187,7 @@ describe('描述統計與分布', () => {
     expect(row('sex')).toEqual(['sex', '類別', '100', '0', '2', '—', '—', '—', '—', '—', '—', '—', 'M', '51']);
     expect(screen.getByText('共 100 列、12 欄')).toBeInTheDocument();
     // 0／1 欄位顯示為是／否與比例；識別碼不顯示無意義的統計
-    expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '是／否（0／1）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
+    expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '整數（0／1，是／否）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
     expect(row('patient_id').slice(0, 2)).toEqual(['patient_id', '識別碼']);
     expect(row('patient_id')[12]).toBe('—');
     expect((screen.getByText(/^表頭說明/).closest('details') as HTMLDetailsElement).open).toBe(true);

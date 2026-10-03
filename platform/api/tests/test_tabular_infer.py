@@ -43,6 +43,9 @@ def test_infer_returns_schema_column_summary_and_dry_run_without_writing(client,
     assert names == [c["name"] for c in body["columns"]] and names[0] == "patient_id"
     types = {c["name"]: c["type"] for c in body["schema"]["columns"]}
     assert types["age"] == "int" and types["bmi"] == "float" and types["sex"] == "category"
+    # 0／1 欄位維持整數，摘要標成是／否（網頁顯示「整數（0／1，是／否）」，與資料頁一致）
+    binary = {c["name"]: c["binary01"] for c in body["columns"]}
+    assert types["diagnosis"] == "int" and binary["diagnosis"] is True and binary["age"] is False
     patient = body["columns"][0]
     assert patient["identifier"] is True and patient["distinct"] == 28 and len(patient["examples"]) == 3
     assert body["report"]["total_rows"] == 30

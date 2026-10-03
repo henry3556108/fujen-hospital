@@ -152,7 +152,7 @@ test.describe('Target 與 Feature', () => {
     await page.goto('/data/tabular/2/target');
     const form = page.getByRole('form', { name: '設定 Target 與 Feature' });
     const overview = form.getByRole('table', { name: '欄位總覽' });
-    await expect(overview.getByRole('row', { name: /^diagnosis/ })).toContainText('是／否（0／1）');
+    await expect(overview.getByRole('row', { name: /^diagnosis/ })).toContainText('整數（0／1，是／否）');
     await form.getByRole('radio', { name: '以 diagnosis 為 Target' }).check();
     for (const f of ['patient_id', 'age', 'sex', 'smoker', 'event']) await form.getByRole('checkbox', { name: f, exact: true }).check();
     await expect(overview.getByRole('row', { name: /^patient_id/ })).toContainText('建議不要當 Feature');

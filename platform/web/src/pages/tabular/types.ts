@@ -32,6 +32,8 @@ export interface InferColumn {
   identifier: boolean;
   range_source: 'name' | 'nonnegative' | null;
   notes: string[];
+  /** 整數欄只有 0 與 1（例如 diagnosis）：畫面上顯示「整數（0／1，是／否）」，與資料頁一致；舊版 API 沒有 */
+  binary01?: boolean;
 }
 
 export interface InferResult {
