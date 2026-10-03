@@ -26,7 +26,7 @@ export function models(projectId: number): Model[] {
   const base = { sha256: 'f'.repeat(64), created_by: 'pi01', created_at: '2026-09-29T01:00:00Z' };
   return [
     { ...base, id: projectId * 100 + 1, name: 'diagnosis-rf-run1', kind: 'tabular_classification', format: 'pkl',
-      filename: 'diagnosis-rf-run1.pkl', card: { target: 'diagnosis', features: FEATURES } },
+      filename: 'diagnosis-rf-run1.pkl', card: { target: 'diagnosis', features: FEATURES, classes: ['0', '1'] } },
     { ...base, id: projectId * 100 + 2, name: 'modality-cnn-run2', kind: 'image_classification', format: 'h5',
       filename: 'modality-cnn-run2.h5', card: { label_names: ['CT', 'MR'], input: { resize: [32, 32] } } },
     { ...base, id: projectId * 100 + 3, name: 'nodule-det-run3', kind: 'image_detection', format: 'h5',
@@ -74,12 +74,19 @@ function imageResult(model: Model, name: string): ImageResult {
   return { name, slice: 0, preview: PREVIEW, label, scores: Object.fromEntries(names.map((n) => [n, n === label ? top : 1 - top])) };
 }
 
-function tabular(rows: Record<string, string>[], columns: string[]) {
+/** 結構式推論結果：分類模型另加機率欄，說明欄寫中文（照 service._tabular_result）。 */
+function tabular(model: Model, rows: Record<string, string>[], columns: string[]) {
+  const features = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
+  const classify = model.kind === 'tabular_classification';
   const out = rows.map((r) => {
-    const missing = FEATURES.some((f) => (r[f] ?? '') === '');
-    return [...columns.map((c) => r[c] ?? ''), missing ? '' : String(hash(JSON.stringify(r)) % 2), missing ? '特徵含缺值，無法預測' : ''];
+    const missing = features.some((f) => (r[f] ?? '') === '');
+    const h = hash(JSON.stringify(r));
+    const prediction = missing ? '' : classify ? String(h % 2) : String(100 + (h % 50));
+    const probability = missing ? '' : String(0.5 + (h % 50) / 100);
+    const note = missing ? '特徵含缺值，無法預測' : classify ? `預測為「${prediction}」的機率 ${Math.round(Number(probability) * 100)}%` : '';
+    return [...columns.map((c) => r[c] ?? ''), prediction, ...(classify ? [probability] : []), note];
   });
-  return { columns: [...columns, 'prediction', 'prediction_note'], rows: out, prediction_column: 'prediction' };
+  return { columns: [...columns, 'prediction', ...(classify ? ['prediction_probability'] : []), 'prediction_note'], rows: out, prediction_column: 'prediction' };
 }
 
 function parseCsv(text: string): { columns: string[]; rows: Record<string, string>[] } {
@@ -141,7 +148,7 @@ const inferenceHandlers = [
       return json(view(store(ctx, model, 'batch', { results, label_names: model.card.label_names ?? [] })), 202);
     }
     const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120' }));
-    return json(view(store(ctx, model, 'batch', tabular(rows, ['patient_id', ...FEATURES]))), 202);
+    return json(view(store(ctx, model, 'batch', tabular(model, rows, ['patient_id', ...FEATURES]))), 202);
   }),
   http.post(`${API}/models/:mid/inference/upload`, async ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
@@ -160,9 +167,10 @@ const inferenceHandlers = [
       return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [], blocked })), 201);
     }
     const { columns, rows } = parseCsv(await files[0].text());
-    const missing = FEATURES.filter((f) => !columns.includes(f));
+    const needed = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
+    const missing = needed.filter((f) => !columns.includes(f));
     if (missing.length) return detail(422, `資料缺少特徵欄位：${missing.join('、')}`);
-    return json(view(store(ctx, model, 'upload', tabular(rows, columns))), 201);
+    return json(view(store(ctx, model, 'upload', tabular(model, rows, columns))), 201);
   }),
   http.get(`${API}/inference/:iid`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');

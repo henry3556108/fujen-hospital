@@ -35,7 +35,7 @@ describe('inference page', () => {
     const table = await screen.findByRole('table', { name: '結構式推論結果' });
     expect(screen.queryByTestId('batch-status')).not.toBeInTheDocument();
     const header = within(table).getAllByRole('columnheader').map((h) => h.textContent);
-    expect(header.slice(-2)).toEqual(['prediction', 'prediction_note']);
+    expect(header.slice(-3)).toEqual(['prediction', 'prediction_probability', 'prediction_note']);
     const rows = within(table).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(20);
     for (const row of rows) {

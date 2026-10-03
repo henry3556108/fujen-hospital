@@ -8,6 +8,7 @@ import { http, HttpResponse } from 'msw';
 import type { Model } from '../pages/inference/api';
 import type {
   Catalogue,
+  Charts,
   Deployment,
   ParamSpec,
   RunStatus,
@@ -15,6 +16,7 @@ import type {
   TrainingKind,
   TrainingRun,
   TrainingSetting,
+  ValidationMethod,
 } from '../pages/training/api';
 import { models as projectModels } from './inference';
 import { API, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject } from './support';
@@ -79,6 +81,36 @@ const HYPER: Partial<Record<TrainingKind, Record<string, Spec>>> = {
   image_segmentation: IMAGE_HYPER,
   image_detection: { ...IMAGE_HYPER, max_boxes: ['每張影像最多方框數', 'int', 1, 20, 2] },
 };
+// 白話說明與是否收在進階設定（照 config.py 的 PARAM_HELP）
+const PARAM_HELP: Record<string, [help: string, advanced: boolean]> = {
+  epochs: ['模型把全部訓練影像看過幾遍。太少學不會，太多可能只記住訓練資料；先用預設值試跑，再視結果調整（常見 10～50）。', false],
+  batch_size: ['一次交給模型幾張影像。電腦記憶體不足時調小；一般用預設值即可。', true],
+  learning_rate: ['每一步修正模型的幅度。太大學得不穩，太小學得很慢；一般用預設值即可。', true],
+  filters: ['模型的大小（每一層找幾種影像特徵）。越大越能學複雜的影像，但需要更多資料與時間；一般用預設值。', true],
+  augmentation_copies: ['每張原始影像另外產生幾份「資料增強」後的影像。資料少時可設 1～3；設 0 代表不增強。', false],
+  max_boxes: ['每張影像最多找出幾個方框。請設成一張影像中病灶可能出現的最多數量。', false],
+  C: ['數值越小，模型越保守、越不容易只記住訓練資料；一般用預設值 1。', true],
+  max_iter: ['模型最多計算幾輪來找答案。訓練輸出出現「未收斂」時再調大；一般用預設值。', true],
+  n_estimators: ['用幾棵決策樹一起判斷。越多通常越穩定但訓練越久；建議 50～300。', false],
+  max_depth: ['每棵樹最多連續問幾個問題。越深越能抓細節，但容易只記住訓練資料；留白代表不限制，梯度提升建議 2～5。', true],
+  min_samples_leaf: ['每個最後分組至少要有幾筆資料。調大可避免被少數特殊個案帶偏；資料多時可設 5～20。', true],
+  fit_intercept: ['一般保持勾選。只有確定所有特徵都是 0 時結果也應該是 0，才取消。', true],
+  rotation_range: ['隨機旋轉影像的最大角度，模擬擺位不同；建議 0～15 度。', false],
+  width_shift_range: ['隨機左右移動影像的最大比例（0.1 = 寬度的 10%）；建議 0～0.1。', false],
+  height_shift_range: ['隨機上下移動影像的最大比例（0.1 = 高度的 10%）；建議 0～0.1。', false],
+  shear_range: ['隨機把影像斜向拉扯的最大角度；一般用 0，最多 10 度。', false],
+  zoom_range: ['隨機放大縮小的比例（0.1 = 90%～110%）；建議 0～0.2。', false],
+  horizontal_flip: ['隨機左右翻轉。左右對稱、左右不影響判讀的影像才勾選。', false],
+  vertical_flip: ['隨機上下翻轉。多數醫學影像不適合，一般不勾選。', false],
+};
+const VALIDATION_METHODS: ValidationMethod[] = [
+  { method: 'holdout', name: '固定比例切分', help: '依上面的比例把資料分成訓練、驗證、測試三份，訓練一次。速度快，資料多（數千筆以上）時建議使用。' },
+  {
+    method: 'kfold', name: 'K 折交叉驗證',
+    help: '先保留測試集，其餘資料平均分成 K 份，輪流拿一份檢查、其他份訓練，共訓練 K 次再取平均。結果比較穩定，資料少（幾百筆）時建議使用；K 通常用 5。',
+    folds: { minimum: 2, maximum: 10, default: 5 },
+  },
+];
 const FAKE_HYPER: Record<string, Spec> = { fake_sleep_seconds: ['fake-trainer 等待秒數', 'float', 0, 600, null] };
 
 class ConfigError extends Error {}
@@ -138,6 +170,20 @@ function hyperparameters(value: unknown, allowed: Record<string, Spec>) {
     else if (def !== null && !(k in FAKE_HYPER)) out[k] = def;
   }
   return out;
+}
+
+function validation(value: unknown) {
+  if (value !== undefined && value !== null && (typeof value !== 'object' || Array.isArray(value))) throw new ConfigError('「驗證方式」格式錯誤，必須是物件');
+  const raw = (value ?? { method: 'holdout' }) as Obj;
+  const extra = unknownKeys(raw, ['method', 'folds']);
+  if (extra.length) throw new ConfigError(`不支援的驗證方式設定：${extra.join('、')}`);
+  const method = raw.method ?? 'holdout';
+  if (method === 'holdout') {
+    if ('folds' in raw) throw new ConfigError('固定比例切分不需要折數（folds），要用 K 折請把 method 設為 kfold');
+    return { method: 'holdout' as const };
+  }
+  if (method === 'kfold') return { method: 'kfold' as const, folds: number(raw.folds ?? 5, 'int', '交叉驗證折數（K）', 2, 10) as number };
+  throw new ConfigError('驗證方式 method 必須是 holdout（固定比例切分）或 kfold（K 折交叉驗證）');
 }
 
 function labels(value: unknown): string[] | null {
@@ -216,7 +262,7 @@ function tabular(value: unknown, kind: TrainingKind) {
 
 export function normalise(data: unknown): TrainingConfig {
   const raw = dict(data, '訓練設定');
-  const extra = unknownKeys(raw, ['version', 'kind', 'source', 'split', 'seed', 'image', 'tabular', 'augmentation', 'hyperparameters']);
+  const extra = unknownKeys(raw, ['version', 'kind', 'source', 'split', 'seed', 'validation', 'image', 'tabular', 'augmentation', 'hyperparameters']);
   if (extra.length) throw new ConfigError(`不支援的設定欄位：${extra.join('、')}`);
   if ((raw.version ?? 1) !== 1) throw new ConfigError(`不支援的設定版本：${String(raw.version)}`);
   const kind = raw.kind as TrainingKind;
@@ -225,11 +271,13 @@ export function normalise(data: unknown): TrainingConfig {
     seed: number(raw.seed ?? 42, 'int', '亂數種子', 0, 2 ** 31 - 1) };
   if (IMAGE_KINDS.includes(kind)) {
     if (raw.tabular) throw new ConfigError('影像訓練不可帶結構式設定（tabular）');
+    if (raw.validation !== undefined && raw.validation !== null) throw new ConfigError('影像訓練目前只支援固定比例切分，不可設定驗證方式（validation）');
     out.image = image(raw.image, kind);
     out.augmentation = augmentation(raw.augmentation);
     out.hyperparameters = hyperparameters(raw.hyperparameters, HYPER[kind]!);
   } else {
     if (raw.image || raw.augmentation) throw new ConfigError('結構式訓練不可帶影像設定或資料增強');
+    out.validation = validation(raw.validation);
     const t = tabular(raw.tabular, kind);
     out.tabular = t.value;
     out.hyperparameters = hyperparameters(raw.hyperparameters, t.allowed);
@@ -240,6 +288,7 @@ export function normalise(data: unknown): TrainingConfig {
 const describe = (params: Record<string, Spec>): ParamSpec[] =>
   Object.entries(params).map(([name, [title, type, minimum, maximum, def]]) => ({
     name, title, type, minimum, maximum, default: def ?? (type === 'bool' ? false : null),
+    help: PARAM_HELP[name]?.[0] ?? '', advanced: PARAM_HELP[name]?.[1] ?? false,
   }));
 
 export const CATALOGUE: Catalogue = {
@@ -247,7 +296,10 @@ export const CATALOGUE: Catalogue = {
     kind, name: KIND_NAMES[kind], model_format: FORMAT(kind), source_types: SOURCE_TYPES[kind] as ('dicom' | 'files' | 'tabular')[],
     ...(HYPER[kind]
       ? { hyperparameters: describe(HYPER[kind]!) }
-      : { algorithms: Object.entries(ALGORITHMS[kind]!).map(([name, p]) => ({ name, hyperparameters: describe(p) })) }),
+      : {
+          algorithms: Object.entries(ALGORITHMS[kind]!).map(([name, p]) => ({ name, hyperparameters: describe(p) })),
+          validation_methods: VALIDATION_METHODS,
+        }),
   })),
   augmentation: describe(AUGMENTATION),
   default_split: { train: 0.6, validation: 0.2, test: 0.2 },
@@ -293,21 +345,70 @@ export function trainedModels(projectId: number): Model[] {
 
 const slug = (name: string) => name.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'model';
 
-function metricsFor(kind: TrainingKind, id: number): Record<string, unknown> {
-  const score = Number((0.7 + ((id * 37) % 25) / 100).toFixed(4));
+const r4 = (v: number) => Number(v.toFixed(4));
+
+function metricsFor(run: StoredRun): Record<string, unknown> {
+  const { kind, id } = run;
+  const score = r4(0.7 + ((id * 37) % 25) / 100);
   const samples = { train: 6, validation: 2, test: 2 };
+  const kfold = run.config.validation?.method === 'kfold' ? run.config.validation.folds : 0;
+  const cv = (names: [string, number][]) => ({
+    method: 'kfold', folds: kfold, stratified: kind === 'tabular_classification', rows: 80,
+    ...Object.fromEntries(names.map(([n, base]) => {
+      const values = Array.from({ length: kfold }, (_, i) => r4(base + ((i % 3) - 1) * 0.03));
+      const mean = values.reduce((a, b) => a + b, 0) / kfold;
+      const std = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / kfold);
+      return [n, { mean: r4(mean), std: r4(std), values }];
+    })),
+  });
+  const rows = kfold ? { train: 80, validation: 0, test: 20 } : { train: 60, validation: 20, test: 20 };
   switch (kind) {
     case 'image_classification':
       return { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score } };
     case 'image_segmentation':
-      return { samples, training_samples: 12, test: { pixel_accuracy: score, dice: Number((score - 0.1).toFixed(4)) } };
+      return { samples, training_samples: 12, test: { pixel_accuracy: score, dice: r4(score - 0.1) } };
     case 'image_detection':
-      return { samples, training_samples: 12, test: { mean_iou: Number((score - 0.2).toFixed(4)) } };
-    case 'tabular_classification':
-      return { rows: { train: 60, validation: 20, test: 20 }, test: { accuracy: score, f1_macro: Number((score - 0.05).toFixed(4)) } };
-    default:
-      return { rows: { train: 60, validation: 20, test: 20 }, test: { r2: Number((score - 0.3).toFixed(4)), rmse: 12.5 } };
+      return { samples, training_samples: 12, test: { mean_iou: r4(score - 0.2) } };
+    case 'tabular_classification': {
+      const test = { accuracy: score, f1_macro: r4(score - 0.05), auc: r4(Math.min(0.99, score + 0.05)), sensitivity: 0.7, specificity: 0.75, baseline_accuracy: 0.55 };
+      const train = { ...test, accuracy: r4(Math.min(1, score + 0.05)) };
+      return {
+        rows, train, ...(kfold ? {} : { validation: test }), test, labels: { majority: '0', positive: '1' },
+        ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
+      };
+    }
+    default: {
+      const test = { r2: r4(score - 0.3), mae: 9.8, rmse: 12.5, baseline_rmse: 16.2 };
+      return { rows, test, ...(kfold ? { cv: cv([['r2', score - 0.3], ['mae', 9.8], ['rmse', 12.5]]) } : {}) };
+    }
   }
+}
+
+/** 模擬的 charts.json：形狀照 tabularkit.charts()；只有結構式且非快速測試的訓練才有。 */
+export function chartsFor(run: TrainingRun): Charts | null {
+  if (run.kind.startsWith('image_') || run.executor === 'fake' || run.status !== 'succeeded') return null;
+  const features = run.config.tabular?.features ?? [];
+  const importance = {
+    method: 'permutation', metric: run.kind === 'tabular_classification' ? 'accuracy' : 'r2', repeats: 5,
+    items: features.map((feature, i) => ({ feature, mean: r4(0.12 / (i + 1)), std: r4(0.01 / (i + 1)) })),
+  };
+  const base = { version: 1, kind: run.kind, subset: 'test' as const, rows: 20, feature_importance: importance };
+  if (run.kind === 'tabular_classification') {
+    return {
+      ...base, regression: null,
+      confusion_matrix: { labels: ['0', '1'], matrix: [[9, 2], [3, 6]] },
+      roc: { positive: '1', auc: (run.metrics.test as { auc: number }).auc,
+        points: [[0, 0], [0, 0.4], [0.1, 0.55], [0.2, 0.7], [0.35, 0.85], [0.6, 0.95], [1, 1]] },
+    };
+  }
+  const points: [number, number][] = Array.from({ length: 20 }, (_, i) => [110 + i * 3, r4(112 + i * 2.7 + ((i * 7) % 5) - 2)]);
+  return {
+    ...base, confusion_matrix: null, roc: null,
+    regression: {
+      points, total: 20, sampled: false,
+      residuals: [{ start: -6, end: -3, count: 3 }, { start: -3, end: 0, count: 7 }, { start: 0, end: 3, count: 7 }, { start: 3, end: 6, count: 3 }],
+    },
+  };
 }
 
 /** 瀏覽器裡每個狀態至少停留 stepMs，畫面上看得到排隊中與執行中；單元測試設為 0，只看查詢次數。 */
@@ -328,22 +429,30 @@ function advance(run: StoredRun) {
   run.finished_at = isoNow();
   if (run.fail) {
     run.status = 'failed';
-    run.message = '訓練工作失敗：訓練資料不足，驗證集沒有任何資料（模擬）';
+    run.message = '訓練資料不足，驗證集沒有任何資料（模擬）\n---\n訓練程式以 1 結束：\nTraceback (most recent call last):\n  File "/work/template/runtime.py", line 131, in main\nValueError: 訓練資料不足，驗證集沒有任何資料（模擬）';
     return;
   }
   const s = state();
   const fmt = FORMAT(run.kind);
   run.status = 'succeeded';
-  run.metrics = metricsFor(run.kind, run.id);
+  run.metrics = metricsFor(run);
   const sha = (run.id * 2654435761).toString(16).padStart(8, '0').repeat(8).slice(0, 64);
   run.artifacts = { [`model.${fmt}`]: { sha256: sha, size: 20480 + run.id }, 'metrics.json': { sha256: 'a'.repeat(64), size: 120 } };
+  if (chartsFor(run)) run.artifacts['charts.json'] = { sha256: 'c'.repeat(64), size: 2048 };
   const name = `${run.name}-run${run.id}`.slice(0, 128);
   const model: StoredModel = {
     id: 1000 + s.nextModel++, project_id: run.project_id, name, kind: run.kind, format: fmt, sha256: sha, filename: `${slug(name)}.${fmt}`,
     created_by: run.created_by, created_at: isoNow(),
     card: run.config.image
       ? { label_names: run.config.image.labels ?? ['A', 'B'], input: { resize: [...run.config.image.resize] }, metrics: run.metrics }
-      : { target: run.config.tabular?.target, features: run.config.tabular?.features, metrics: run.metrics },
+      : {
+          target: run.config.tabular?.target, features: run.config.tabular?.features, metrics: run.metrics,
+          ...(run.kind === 'tabular_classification' ? { classes: ['0', '1'] } : {}),
+          inputs: (run.config.tabular?.features ?? []).map((name) =>
+            ['sex', 'smoker'].includes(name)
+              ? { name, type: 'category' as const, values: name === 'sex' ? ['F', 'M'] : ['current', 'former', 'never'] }
+              : { name, type: 'number' as const, min: 0, max: 200 }),
+        },
   };
   s.models.push(model);
   run.model_id = model.id;
@@ -529,6 +638,24 @@ export const trainingHandlers = [
       ...(run.status === 'failed' ? [`[template] ${run.message}`] : []),
     ].join('\n');
     return json({ run_id: run.id, status: run.status, log });
+  }),
+  http.get(`${P}/training/runs/:rid/charts`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const run = findRun(ctx.project.id, params.rid);
+    if (run instanceof Response) return run;
+    return json({ run_id: run.id, kind: run.kind, charts: chartsFor(run) });
+  }),
+  http.get(`${P}/training/runs/:rid/report`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const run = findRun(ctx.project.id, params.rid);
+    if (run instanceof Response) return run;
+    if (run.status === 'queued' || run.status === 'running') return detail(409, `訓練 ${run.id} 尚未完成，完成後才能下載報表`);
+    if (run.status !== 'succeeded') return detail(409, `訓練 ${run.id} 沒有成功完成（${run.status}），沒有可下載的報表`);
+    const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>訓練報表：${run.name}（訓練 #${run.id}）</title>` +
+      `<h1>訓練報表：${run.name}（訓練 #${run.id}）</h1><pre>${JSON.stringify(run.metrics, null, 2)}</pre></html>`;
+    return file(html, `training-run-${run.id}-report.html`, 'text/html; charset=utf-8');
   }),
   http.get(`${P}/training/runs/:rid/source`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'coding');
