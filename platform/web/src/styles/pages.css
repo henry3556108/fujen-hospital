@@ -226,6 +226,11 @@
   margin-bottom: 0.25rem;
 }
 
+.chart__note {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+}
+
 .chart__svg {
   display: block;
   width: 100%;

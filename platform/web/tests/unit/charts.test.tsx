@@ -162,6 +162,15 @@ describe('chart components', () => {
       ['75', '26.9'],
       ['83', '23.1'],
     ]);
+    // TC-B04-05「資料筆數差異 0」：畫面直接寫出點數，與表格列數相同
+    expect(screen.getByText('共 3 點')).toBeInTheDocument();
+  });
+
+  it('ScatterChart: the point count says when the table view shows only the first 200', () => {
+    const points = Array.from({ length: 250 }, (_, i): [number, number] => [i, i * 2]);
+    render(<ScatterChart title="大量" xLabel="x" yLabel="y" points={points} />);
+    expect(screen.getByText('共 250 點（表格檢視列出前 200 點）')).toBeInTheDocument();
+    expect(bodyRows(screen.getByRole('table', { name: '大量（表格，前 200 筆）', hidden: true }))).toHaveLength(200);
   });
 
   it('ForestPlot: each row states the estimate and its interval', () => {
