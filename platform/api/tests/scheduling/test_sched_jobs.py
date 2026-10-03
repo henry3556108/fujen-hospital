@@ -162,11 +162,26 @@ def test_cancel_finished_job_is_409(client, backend, p1, ra):
     assert response.status_code == 409 and "已結束" in response.json()["detail"]
 
 
-def test_backend_regression_is_ignored(client, backend, p1, ra, monkeypatch):
+def test_backend_regression_is_ignored(client, backend, p1, ra, monkeypatch, caplog):
     job = submit(client, p1, ra)
     assert status(client, p1, ra, job) == "running"
     monkeypatch.setattr(backend, "get", lambda name: BackendJob(state=JobStatus.QUEUED))
-    assert status(client, p1, ra, job) == "running"
+    with caplog.at_level("INFO", logger="app.scheduling.service"):
+        got = client.get(jobs_url(p1, job["id"]), headers=ra).json()
+        listed = client.get(jobs_url(p1), headers=ra).json()
+    assert got["status"] == "running"
+    # 內部狀態判斷只寫 log，不顯示在使用者看到的「訊息」欄
+    assert got["message"] == "" and listed[0]["message"] == ""
+    assert "忽略後端回報的狀態 queued" in caplog.text and job["k8s_name"] in caplog.text
+
+
+def test_legacy_internal_message_is_not_shown(client, backend, p1, ra, session):
+    from app.scheduling.models import Job
+    job = submit(client, p1, ra)
+    row = session.get(Job, job["id"])
+    row.message = "忽略後端回報的狀態 queued（目前 running）"   # 舊版本寫進資料庫的內部訊息
+    session.commit()
+    assert client.get(jobs_url(p1), headers=ra).json()[0]["message"] == ""
 
 
 def test_job_vanished_from_cluster_is_failed(client, backend, p1, ra, monkeypatch):
