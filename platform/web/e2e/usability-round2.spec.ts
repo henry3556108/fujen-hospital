@@ -72,7 +72,7 @@ test.describe('使用性第二輪', () => {
       expect(scroll, `欄位確認表橫向溢出 ${scroll - client}px`).toBeLessThanOrEqual(client);
       await snap(page, testInfo.project.name, `round2/upload-table-${width}`);
 
-      await page.goto('/data/tabular/2');
+      await page.goto('/data/tabular/2/preview');
       const preview = page.getByRole('table', { name: '資料預覽' });
       await expect(preview.getByRole('row').nth(1).getByRole('rowheader')).toHaveText('1');
     });

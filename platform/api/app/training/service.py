@@ -787,7 +787,8 @@ def image_format(name: str, data: bytes) -> str:
 
 
 def upload_inference(ctx: ProjectContext, state, *, model: TrainedModel, files: list[tuple[str, bytes]],
-                     source_ip: str | None, blocked: list[dict] | None = None) -> InferenceRecord:
+                     source_ip: str | None, blocked: list[dict] | None = None,
+                     source: str | None = None) -> InferenceRecord:
     if not files:
         raise Invalid("請上傳至少一個檔案")
     if sum(len(d) for _, d in files) > MAX_INFERENCE_BYTES:
@@ -796,6 +797,8 @@ def upload_inference(ctx: ProjectContext, state, *, model: TrainedModel, files: 
     input_ = {"files": [{"name": n, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for n, d in files]}
     if blocked:
         input_["blocked"] = blocked          # 掃毒攔下的檔案：不推論，留在紀錄與結果裡
+    if source:
+        input_["source"] = source            # try＝網頁的單人試用；mode 仍是 upload，稽核不變
     common = dict(model=model, mode="upload", user=ctx.user.username, input_=input_, source_ip=source_ip,
                   action="inference.upload")
     if model.kind in cfg.TABULAR_KINDS:

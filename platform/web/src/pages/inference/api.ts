@@ -88,6 +88,8 @@ export interface InferenceRecord {
   result_format: 'csv' | 'json' | '';
   has_result: boolean;
   created_at: string;
+  /** 送出時的資訊；source: 'try' 是網頁的單人試用 */
+  input?: { source?: string } & Record<string, unknown>;
   /** 批次推論的排程工作與時間；其他方式為 null */
   job_id?: number | null;
   started_at?: string | null;
@@ -113,12 +115,13 @@ export interface InferenceApi {
   /** 送出批次推論，立即回傳（status: queued）；結果要以 record() 或 waitForRecord() 取得 */
   batch(modelId: number, subset: string): Promise<InferenceRecord>;
   cancel(id: number): Promise<InferenceRecord>;
-  upload(modelId: number, files: File[]): Promise<InferenceRecord>;
+  /** source: 'try' 表示網頁的單人試用（預測紀錄顯示「單人試用」） */
+  upload(modelId: number, files: File[], source?: 'try'): Promise<InferenceRecord>;
   download(id: number): Promise<{ blob: Blob; filename: string }>;
 }
 
 /** 多個檔案的 multipart/form-data；內容是位元組陣列，瀏覽器與測試環境的 fetch 都能送。 */
-export async function multipartFiles(files: File[]): Promise<{ body: Uint8Array<ArrayBuffer>; contentType: string }> {
+export async function multipartFiles(files: File[], fields: Record<string, string> = {}): Promise<{ body: Uint8Array<ArrayBuffer>; contentType: string }> {
   const boundary = `----ai-platform-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
   const enc = new TextEncoder();
   const safe = (text: string) => text.replace(/[\r\n]/g, ' ').replace(/"/g, '%22');
@@ -132,6 +135,9 @@ export async function multipartFiles(files: File[]): Promise<{ body: Uint8Array<
       new Uint8Array(await file.arrayBuffer()),
       enc.encode('\r\n'),
     );
+  }
+  for (const [name, value] of Object.entries(fields)) {
+    chunks.push(enc.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${safe(name)}"\r\n\r\n${value}\r\n`));
   }
   chunks.push(enc.encode(`--${boundary}--\r\n`));
   const body = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
@@ -183,8 +189,8 @@ export function createInferenceApi(
     record: (id) => api.get(`${root}/inference/${id}`),
     batch: (modelId, subset) => api.post(`${root}/models/${modelId}/inference/batch`, { subset }),
     cancel: (id) => api.post(`${root}/inference/${id}/cancel`),
-    async upload(modelId, files) {
-      const { body, contentType } = await multipartFiles(files);
+    async upload(modelId, files, source) {
+      const { body, contentType } = await multipartFiles(files, source ? { source } : {});
       const res = await raw(`${root}/models/${modelId}/inference/upload`, {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': contentType },

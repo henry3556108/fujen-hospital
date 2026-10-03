@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { NotFoundPage } from '../SimplePages';
 import { CorrelationTab } from './CorrelationTab';
 import { DatasetLayout } from './DatasetLayout';
@@ -15,8 +15,10 @@ export function TabularRoutes() {
     <Routes>
       <Route index element={<DatasetsPage />} />
       <Route path=":datasetId" element={<DatasetLayout />}>
-        <Route index element={<PreviewTab />} />
+        {/* 開啟資料集先看描述統計（每欄的平均、範圍與分布），逐列的原始資料在「預覽」 */}
+        <Route index element={<Navigate to="describe" replace />} />
         <Route path="describe" element={<DescribeTab />} />
+        <Route path="preview" element={<PreviewTab />} />
         <Route path="target" element={<TargetFeatureTab />} />
         <Route path="preprocess" element={<PreprocessTab />} />
         <Route path="correlation" element={<CorrelationTab />} />

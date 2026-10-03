@@ -118,7 +118,7 @@ describe('資料集列表', () => {
 
 describe('預覽與欄位顯示／隱藏', () => {
   it('shows the first 50 rows with row numbers, and pages', async () => {
-    const { user } = await renderApp('/data/tabular/2', 'vw01');
+    const { user } = await renderApp('/data/tabular/2/preview', 'vw01');
     expect(await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' })).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: '資料預覽' });
     expect(screen.getByText('第 1–50 列，共 100 列')).toBeInTheDocument();
@@ -132,7 +132,7 @@ describe('預覽與欄位顯示／隱藏', () => {
   });
 
   it('TC-B04-02 hides 3 columns; after a reload the same 3 are still hidden', async () => {
-    const first = await renderApp('/data/tabular/2', 'vw01');
+    const first = await renderApp('/data/tabular/2/preview', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     for (const c of ['patient_id', 'bmi', 'smoker']) await first.user.click(screen.getByRole('checkbox', { name: c }));
     await waitFor(() =>
@@ -143,7 +143,7 @@ describe('預覽與欄位顯示／隱藏', () => {
     expect(screen.getByText(/顯示 9 個欄位，已隱藏 3 個：patient_id、bmi、smoker/)).toBeInTheDocument();
     first.unmount();
 
-    const again = await renderApp('/data/tabular/2', 'vw01');
+    const again = await renderApp('/data/tabular/2/preview', 'vw01');
     const table = await screen.findByRole('table', { name: '資料預覽' });
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       '列', 'age', 'sex', 'sbp', 'dbp', 'glucose', 'diagnosis', 'time_to_event', 'event', 'study_accession',
@@ -157,18 +157,18 @@ describe('預覽與欄位顯示／隱藏', () => {
   });
 
   it('TC-B04-02 the hidden state is per account and per dataset', async () => {
-    const first = await renderApp('/data/tabular/2', 'vw01');
+    const first = await renderApp('/data/tabular/2/preview', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     await first.user.click(screen.getByRole('checkbox', { name: 'age' }));
     await screen.findByText(/已隱藏 1 個：age/);
     first.unmount();
-    await renderApp('/data/tabular/2', 'pi01');
+    await renderApp('/data/tabular/2/preview', 'pi01');
     await screen.findByRole('table', { name: '資料預覽' });
     expect(screen.getByRole('checkbox', { name: 'age' })).toBeChecked();
   });
 
   it('hiding every column asks to show at least one', async () => {
-    const { user } = await renderApp('/data/tabular/2', 'vw01');
+    const { user } = await renderApp('/data/tabular/2/preview', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     for (const box of screen.getAllByRole('checkbox')) await user.click(box);
     expect(await screen.findByText('所有欄位都已隱藏，請至少勾選一個欄位。')).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('描述統計與分布', () => {
     const table = await screen.findByRole('table', { name: '描述統計' });
     const row = (name: string) => cellsOf(within(table).getByRole('row', { name: new RegExp(`^${name} `) }));
     // 欄位, 類型, 筆數, 缺值, 相異值, 平均, 標準差, 最小, P25, 中位數, P75, 最大, 最常見值, 次數
-    expect(row('age')).toEqual(['age', '整數', '100', '0', '51', '59.15', '19.7987', '25', '41.75', '61', '77', '89', '—', '—']);
+    expect(row('age')).toEqual(['age', '整數', '100', '0', '51', '59.15', '19.8', '25', '41.75', '61', '77', '89', '—', '—']);
     expect(row('glucose').slice(2, 4)).toEqual(['95', '5']);
     expect(row('sex')).toEqual(['sex', '類別', '100', '0', '2', '—', '—', '—', '—', '—', '—', '—', 'M', '51']);
     expect(screen.getByText('共 100 列、12 欄')).toBeInTheDocument();

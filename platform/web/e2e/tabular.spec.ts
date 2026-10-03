@@ -96,6 +96,10 @@ test.describe('預覽', () => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular');
     await page.getByRole('link', { name: 'lung-clinical' }).click();
+    // 開啟資料集先看描述統計；逐列的原始資料在「預覽」
+    await expect(page.getByRole('table', { name: '描述統計' })).toBeVisible();
+    await expect(page.getByTestId('tab-hint')).toHaveText('描述統計：每一欄的平均、範圍與分布，先看資料長什麼樣子。');
+    await page.getByRole('link', { name: '預覽', exact: true }).click();
     const table = page.getByRole('table', { name: '資料預覽' });
     await expect(table.getByRole('columnheader')).toHaveCount(13);
     const hidden = ['patient_id', 'bmi', 'smoker'];

@@ -175,11 +175,15 @@ const inferenceHandlers = [
       const results = clean.map((f) => imageResult(model, f.name));
       return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [], blocked })), 201);
     }
+    const source = form.get('source');
+    if (source !== null && source !== '' && source !== 'try') return detail(422, 'source 只能是 try（單人試用）或省略');
     const { columns, rows } = parseCsv(await files[0].text());
     const needed = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
     const missing = needed.filter((f) => !columns.includes(f));
     if (missing.length) return detail(422, `資料缺少特徵欄位：${missing.join('、')}`);
-    return json(view(store(ctx, model, 'upload', tabular(model, rows, columns))), 201);
+    const record = store(ctx, model, 'upload', tabular(model, rows, columns));
+    record.input = { files: files.map((f) => ({ name: f.name, size: f.size })), ...(source === 'try' ? { source: 'try' } : {}) };
+    return json(view(record), 201);
   }),
   http.get(`${API}/inference/:iid`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');

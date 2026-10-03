@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, Header, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -299,14 +299,18 @@ def _read_uploads(files: list[UploadFile]) -> list[tuple[str, bytes]]:
 
 @router.post(BASE + "/models/{model_id}/inference/upload", status_code=201)
 def upload_inference(model_id: int, request: Request, files: list[UploadFile] = File(...),
+                     source: str | None = Form(default=None),
                      ctx: ProjectContext = Depends(can_predict)) -> dict:
+    """source=try：網頁的「單人試用」（填一位病人的表單），紀錄的 input.source 為 try，歷史顯示「單人試用」。"""
+    if source not in (None, "", "try"):
+        raise HTTPException(status_code=422, detail="source 只能是 try（單人試用）或省略")
     uploads = _read_uploads(files)
     with _errors():
         model = service.get_model(ctx.session, ctx.project.id, model_id)
     uploads, blocked = _scan(request, model, uploads)
     with _errors():
         row = service.upload_inference(ctx, request.app.state, model=model, files=uploads, blocked=blocked,
-                                       source_ip=client_ip(request))
+                                       source_ip=client_ip(request), source=source or None)
         return service.result_view(request.app.state.store, row)
 
 

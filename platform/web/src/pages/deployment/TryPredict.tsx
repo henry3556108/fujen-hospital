@@ -57,7 +57,7 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
     setBusy(true);
     try {
       const csv = `${inputs.map((i) => csvCell(i.name)).join(',')}\n${inputs.map((i) => csvCell((values[i.name] ?? '').trim())).join(',')}\n`;
-      const record = await api!.upload(model.id, [new File([csv], 'try.csv', { type: 'text/csv' })]);
+      const record = await api!.upload(model.id, [new File([csv], 'try.csv', { type: 'text/csv' })], 'try');
       const table = record.result && 'rows' in record.result ? record.result : null;
       if (!table || !table.rows.length) throw new Error('推論服務沒有回傳結果');
       const at = (name: string) => table.columns.indexOf(name);

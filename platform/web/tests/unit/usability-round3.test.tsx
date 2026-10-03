@@ -9,7 +9,8 @@ import { verdict, warnings } from '../../src/pages/training/metrics';
 import { renderApp } from '../render';
 import { resetInferenceMock } from '../../src/mocks/inference';
 import { inferencePolling, type Model } from '../../src/pages/inference/api';
-import { correctness } from '../../src/pages/inference/InferencePage';
+import { correctness, modeName } from '../../src/pages/inference/InferencePage';
+import { formatStat } from '../../src/components/format';
 import { createApiClient } from '../../src/api/client';
 import { featureCountText } from '../../src/pages/tabular/columnOverview';
 import { savedSummary } from '../../src/pages/tabular/TargetFeatureTab';
@@ -239,5 +240,50 @@ describe('5 在結果旁預測病人', () => {
     expect(correctness(result, model)).toEqual({ column: 'diagnosis', marks: ['對', '錯', '', '對'], right: 2, total: 3 });
     expect(correctness({ ...result, columns: ['id', 'x', 'prediction', 'prediction_note'] }, model)).toBeNull();
     expect(correctness(result, { ...model, kind: 'tabular_regression' } as Model)).toBeNull();
+  });
+});
+
+describe('6 次要問題', () => {
+  afterEach(() => resetInferenceMock());
+
+  it('a single try-out is recorded as 單人試用, not 上傳檔案', async () => {
+    const { user } = await renderApp('/inference?model=101', 'pi01');
+    const one = await screen.findByRole('form', { name: '一位病人' });
+    for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
+    await user.click(within(one).getByRole('button', { name: '預測' }));
+    await within(one).findByTestId('try-result');
+    const history = await screen.findByRole('table', { name: '預測紀錄' });
+    expect(await within(history).findByRole('row', { name: /#1\s*單人試用/ })).toBeInTheDocument();
+    expect(modeName({ mode: 'upload', input: {} })).toBe('上傳檔案');
+    expect(modeName({ mode: 'upload', input: { source: 'try' } })).toBe('單人試用');
+  });
+
+  it('statistics are rounded for display only; the full value is on hover', async () => {
+    expect([19.7987, 0.048532, 169.4567, 59.15, 41.75, 3].map(formatStat)).toEqual(['19.8', '0.0485', '169.5', '59.15', '41.75', '3']);
+    await renderApp('/data/tabular/2/describe', 'vw01');
+    const table = await screen.findByRole('table', { name: '描述統計' });
+    const std = within(within(table).getByRole('row', { name: /^age / })).getByText('19.8');
+    expect(std).toHaveAttribute('title', expect.stringMatching(/^19\.79/));
+  });
+
+  it('a dataset opens on 描述統計; each tab says in one line what it is for', async () => {
+    const { user } = await renderApp('/data/tabular/2', 'vw01');
+    expect(await screen.findByRole('table', { name: '描述統計' })).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: '資料集分頁' });
+    expect(within(tabs).getAllByRole('link').map((l) => l.textContent)).toEqual(['描述統計', '預覽', 'Target／Feature', '前處理', '相關與散佈圖', '統計分析']);
+    expect(screen.getByTestId('tab-hint')).toHaveTextContent('描述統計：每一欄的平均、範圍與分布');
+    await user.click(within(tabs).getByRole('link', { name: '統計分析' }));
+    expect(await screen.findByTestId('tab-hint')).toHaveTextContent('統計分析：找出哪些因素和結果有關');
+    await user.click(within(tabs).getByRole('link', { name: '預覽' }));
+    expect(await screen.findByRole('table', { name: '資料預覽' })).toBeInTheDocument();
+  });
+
+  it('preprocessing says most users do not need it; on Target／Feature adding steps is folded', async () => {
+    await renderApp('/data/tabular/2/target', 'pi01');
+    expect(await screen.findByTestId('steps-not-needed', {}, { timeout: 10_000 })).toHaveTextContent('大多數人不需要這一步');
+    const folded = screen.getByTestId('steps-advanced');
+    expect(folded.tagName).toBe('DETAILS');
+    expect(folded).not.toHaveAttribute('open');
+    expect(within(folded).getByText('進階：自己加前處理步驟（大多數人不需要）')).toBeInTheDocument();
   });
 });

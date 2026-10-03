@@ -26,8 +26,9 @@ import { FileInput } from '../../components/FileInput';
 
 const MODES = { batch: '資料集中的多位（批次）', upload: '上傳檔案', online: '程式呼叫' } as const;
 
-/** 預測紀錄的「方式」。 */
-export function modeName(record: Pick<InferenceRecord, 'mode'>): string {
+/** 預測紀錄的「方式」：網頁的單人試用（input.source = try）另外標示。 */
+export function modeName(record: Pick<InferenceRecord, 'mode' | 'input'>): string {
+  if (record.mode === 'upload' && record.input?.source === 'try') return '單人試用';
   return MODES[record.mode] ?? record.mode;
 }
 const SUBSETS = [

@@ -24,7 +24,7 @@ const PAGES: { name: string; path: string; ready: { role: 'table' | 'form' | 'li
   { name: 'imaging-allowlist', path: '/data/imaging/allowlist', ready: { role: 'form', name: '設定 Accession 清單' } },
   { name: 'imaging-pacs', path: '/data/imaging/pacs', ready: { role: 'form', name: '查詢 PACS' } },
   { name: 'tabular-datasets', path: '/data/tabular', ready: { role: 'form', name: '上傳 CSV' } },
-  { name: 'tabular-preview', path: '/data/tabular/2', ready: { role: 'table', name: '資料預覽' } },
+  { name: 'tabular-preview', path: '/data/tabular/2/preview', ready: { role: 'table', name: '資料預覽' } },
   { name: 'tabular-describe', path: '/data/tabular/2/describe', ready: { role: 'table', name: '描述統計' } },
   { name: 'tabular-target', path: '/data/tabular/2/target', ready: { role: 'form', name: '設定 Target 與 Feature' } },
   { name: 'tabular-preprocess', path: '/data/tabular/2/preprocess', ready: { role: 'form', name: '加入前處理步驟' } },

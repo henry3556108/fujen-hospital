@@ -220,7 +220,7 @@ export function TargetFeatureTab() {
           {missing('training', '儲存 Target 與 Feature 設定')}
         </Alert>
       )}
-      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} />}
+      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} folded />}
     </>
   );
 }

@@ -274,3 +274,19 @@ def test_models_carry_the_display_name_and_pick_one_when_shared_several_times(cl
     assert title(pi) == "給資訊室的版本"
     report = client.get(f"/api/projects/{project.id}/training/runs/{tabular_model['run_id']}/report", headers=pi).text
     assert "訓練報表：給資訊室的版本" in report and f"模型名稱：{tabular_model['name']}" in report
+
+
+def test_single_try_out_is_recorded_as_such_and_audited_as_an_upload(client, pi, project, tabular_model, session):
+    """網頁的「單人試用」以 source=try 送出：紀錄的 input.source 為 try（歷史顯示「單人試用」），mode 與稽核照舊是 upload。"""
+    one = "age,bmi,glucose,sbp\n60,25,100,130\n".encode()
+    url = f"{models(project.id)}/{tabular_model['id']}/inference/upload"
+    out = ok(client.post(url, headers=pi, files=[("files", ("try.csv", one, "text/csv"))], data={"source": "try"}), 201)
+    assert out["mode"] == "upload" and out["input"]["source"] == "try" and out["count"] == 1
+    plain = ok(client.post(url, headers=pi, files=[("files", ("a.csv", one, "text/csv"))]), 201)
+    assert "source" not in plain["input"]
+    history = ok(client.get(f"{models(project.id)}/{tabular_model['id']}/inference", headers=pi))
+    assert [h["input"].get("source") for h in history[:2]] == [None, "try"]
+    bad = client.post(url, headers=pi, files=[("files", ("a.csv", one, "text/csv"))], data={"source": "x"})
+    assert bad.status_code == 422 and "source" in bad.json()["detail"]
+    audit = session.query(AuditLog).filter_by(category="inference", action="inference.upload").all()
+    assert len(audit) == 2 and {a.detail["mode"] for a in audit} == {"upload"}
