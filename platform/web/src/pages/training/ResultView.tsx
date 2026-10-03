@@ -20,6 +20,9 @@ import {
   sortMetrics,
   splitScores,
   warnings,
+  verdict,
+  baselineSentence,
+  type Source,
 } from './metrics';
 import { downloadAndSave } from './ModelExport';
 
@@ -31,11 +34,16 @@ export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun })
   const [error, setError] = useState<unknown>(null);
   const splits = splitScores(run);
   const cv = cvOf(run);
-  const [mainSplit, main] = splits[0] ?? ['test', {}];
+  const conclusion = verdict(run);
+  // 重點指標卡與結論用同一個來源（K 折時是 K 折平均）
+  const source = conclusion?.source ?? null;
+  const main = source?.scores ?? {};
   const keys = sortMetrics(Object.keys(main).filter((k) => KEY_METRICS.includes(k)));
-  const baselines = BASELINES.filter((k) => typeof main[k] === 'number');
+  const baseline = source ? baselineSentence(run, source) : '';
   const notes = warnings(run);
   const fake = run.executor === 'fake';
+  const [testSplit, testScores] = splits[0] ?? ['test', {}];
+  const testBaselines = BASELINES.filter((k) => typeof testScores[k] === 'number');
 
   async function report() {
     setError(null);
@@ -58,45 +66,67 @@ export function ResultView({ api, run }: { api: TrainingApi; run: TrainingRun })
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
       {fake ? <Alert tone="info">這是「快速測試」，沒有真正訓練，以下數字沒有意義。</Alert> : null}
+      {conclusion ? (
+        <p className="result-verdict" data-testid="verdict">
+          <strong>整體表現：{conclusion.text}</strong>
+          {notes.length ? <span className="text-muted">（下方「詳細」有 {notes.length} 則提醒）</span> : null}
+        </p>
+      ) : null}
       {dataSentence(run) ? (
         <p className="data-usage" data-testid="data-usage">
           <strong>用了哪些病人：</strong>
           {dataSentence(run)}
         </p>
       ) : null}
-      {keys.length ? (
+      {keys.length && source ? (
         <>
           <p className="text-muted">
-            以下是{SPLIT_NAMES[mainSplit]}{rowsOf(run, mainSplit) ? `（${rowsOf(run, mainSplit)} 筆，訓練時沒看過）` : ''}的結果。
+            {source.key === 'cv' && cv
+              ? `以下數字是 ${cv.folds} 折平均（${cv.rows} 人輪流當檢查資料）。`
+              : `以下是${SPLIT_NAMES[source.key] ?? source.label}${rowsOf(run, source.key) ? `（${rowsOf(run, source.key)} 人，訓練時沒看過）` : ''}的結果。`}
           </p>
           <ul className="metric-cards" aria-label={`訓練 #${run.id} 的重點指標`}>
             {keys.map((k) => (
               <li key={k} className="metric-card">
                 <span className="metric-card__label">{metricLabel(k)}</span>
                 <span className="metric-card__value">{formatMetric(k, main[k])}</span>
-                {plainSentence(run, mainSplit, k, main[k]) ? <span className="metric-card__plain">{plainSentence(run, mainSplit, k, main[k])}</span> : null}
+                {cardSentence(run, source, k, main[k]) ? <span className="metric-card__plain">{cardSentence(run, source, k, main[k])}</span> : null}
                 <span className="metric-card__help">{METRICS[k]?.help}</span>
               </li>
             ))}
           </ul>
-          {baselines.map((k) => (
-            <p key={k} className="metric-baseline">
-              <strong>{metricLabel(k)}：{formatMetric(k === 'baseline_rmse' ? 'rmse' : 'accuracy', main[k])}</strong>
-              {plainSentence(run, mainSplit, k, main[k]) ? `（${plainSentence(run, mainSplit, k, main[k])}）` : ''}。{METRICS[k].help}
-            </p>
-          ))}
+          {baseline ? <p className="metric-baseline" data-testid="baseline">{baseline}</p> : null}
         </>
       ) : null}
-      {notes.map((n) => (
-        <Alert key={n} tone="warning">
-          {n}
-        </Alert>
-      ))}
-      {cv ? <CvTable runId={run.id} cv={cv} /> : null}
-      <AllMetrics run={run} />
+      <details className="training-details" data-testid="result-details">
+        <summary>詳細（{[cv ? '測試集與各折的數字' : '各資料的數字', notes.length ? `${notes.length} 則提醒` : ''].filter(Boolean).join('、')}）</summary>
+        <div className="stack">
+          {notes.map((n) => (
+            <Alert key={n} tone="warning">
+              {n}
+            </Alert>
+          ))}
+          {testBaselines.map((k) => (
+            <p key={k} className="metric-baseline">
+              {metricLabel(k)}（{SPLIT_NAMES[testSplit]}）：{formatMetric(k === 'baseline_rmse' ? 'rmse' : 'accuracy', testScores[k])}
+              {plainSentence(run, testSplit, k, testScores[k]) ? `。${plainSentence(run, testSplit, k, testScores[k])}` : ''}。
+            </p>
+          ))}
+          {cv ? <CvTable runId={run.id} cv={cv} /> : null}
+          <AllMetrics run={run} />
+        </div>
+      </details>
       {!isImageKind(run.kind) && run.status === 'succeeded' ? <RunCharts api={api} run={run} /> : null}
     </section>
   );
+}
+
+/** 指標卡的一句白話：K 折時說幾人輪流檢查；切分時說幾人中猜對幾人。 */
+function cardSentence(run: TrainingRun, source: Source, name: string, value: number): string {
+  if (source.key !== 'cv') return plainSentence(run, source.key, name, value);
+  const cv = cvOf(run);
+  if (name === 'accuracy' && cv) return `${cv.rows} 人輪流當檢查資料，平均猜對 ${Math.round(value * 100)}%`;
+  return plainSentence(run, 'test', name, value);
 }
 
 function CvTable({ runId, cv }: { runId: number; cv: NonNullable<ReturnType<typeof cvOf>> }) {
@@ -194,14 +224,14 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
       {c.roc ? (
         <div>
           <LineChart
-            title={`ROC 曲線（陽性＝「${c.roc.positive}」，AUC ${formatNumber(c.roc.auc, 3)}）`}
+            title={`ROC 曲線（${SPLIT_NAMES[c.subset]}，陽性＝「${c.roc.positive}」）`}
             series={[{ name: '模型', points: c.roc.points }]}
             xLabel="偽陽性率（1 − 特異度）"
             yLabel="真陽性率（敏感度）"
             yRange={[0, 1]}
             diagonal
           />
-          <p className="field__hint">曲線越往左上角彎越好；斜的直線代表亂猜。</p>
+          <p className="field__hint">曲線越往左上角彎越好；斜的直線代表亂猜。{cvOf(run) ? `這張圖只用${SPLIT_NAMES[c.subset]}的 ${c.rows} 人（AUC ${formatNumber(c.roc.auc, 2)}），和上方用 K 折平均的結論不同時，以結論為準。` : ''}</p>
         </div>
       ) : null}
       {c.regression ? (

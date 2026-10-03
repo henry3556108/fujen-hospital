@@ -292,6 +292,72 @@ def data_text(data: dict | None) -> str:
     return text
 
 
+PRIMARY = {"tabular_classification": ("auc", "accuracy"), "tabular_regression": ("r2",),
+           "image_classification": ("accuracy",), "image_segmentation": ("dice", "pixel_accuracy"),
+           "image_detection": ("mean_iou",)}
+PERCENT = {"accuracy", "sensitivity", "specificity", "baseline_accuracy", "pixel_accuracy"}
+
+
+def _numbers(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    return {k: v for k, v in value.items() if isinstance(v, (int, float)) and not isinstance(v, bool)}
+
+
+def _sources(metrics: dict) -> list[tuple[str, dict[str, float]]]:
+    """結論用的數字來源，依可靠程度：K 折平均、測試集、驗證集、訓練集。"""
+    out = []
+    cv = metrics.get("cv")
+    if isinstance(cv, dict) and cv.get("folds"):
+        out.append((f"{cv['folds']} 折平均", {k: v["mean"] for k, v in cv.items() if isinstance(v, dict) and "mean" in v}))
+    for split, label in (("test", "測試集"), ("validation", "驗證集"), ("train", "訓練集，可能過度樂觀")):
+        scores = _numbers(metrics.get(split))
+        if scores:
+            out.append((label, scores))
+    return out
+
+
+def _step(value: float, levels: list[tuple[float, str]], last: str) -> str:
+    return next((name for at, name in levels if value >= at), last)
+
+
+def grade(name: str, value: float, baseline: float | None = None) -> str | None:
+    """等級門檻與網頁 platform/web/src/pages/training/metrics.ts 的 grade() 相同。"""
+    if name == "auc":
+        return _step(value, [(0.9, "優秀"), (0.8, "良好"), (0.7, "尚可"), (0.55, "偏弱")], "接近亂猜")
+    if name == "r2":
+        return _step(value, [(0.9, "優秀"), (0.7, "良好"), (0.5, "尚可"), (0.2, "偏弱")], "幾乎沒有預測能力")
+    if name == "accuracy" and baseline is not None:
+        return _step(value - baseline + 1e-9, [(0.2, "良好"), (0.1, "尚可"), (0.05, "偏弱")], "沒有比全部猜最常見的類別好")
+    if name == "dice":
+        return _step(value, [(0.8, "良好"), (0.7, "尚可")], "偏弱")
+    if name == "mean_iou":
+        return _step(value, [(0.7, "良好"), (0.5, "尚可")], "偏弱")
+    return None
+
+
+def headline_number(name: str, value: float) -> str:
+    def half_up(v: float) -> int:
+        return math.floor(v + 0.5 + 1e-9)
+    if name in PERCENT:
+        return f"{half_up(value * 100)}%"
+    return f"{half_up(value * 100) / 100:.2f}"
+
+
+def verdict(kind: str, metrics: dict, executor: str = "template") -> str:
+    """一句結論，例如「良好（AUC 0.84，5 折平均）」；與網頁的訓練清單、結果頁同一個數字與等級。沒有指標時回空字串。"""
+    sources = _sources(metrics or {})
+    for name in PRIMARY.get(kind, ()):
+        for label, scores in sources:
+            if name in scores:
+                value = scores[name]
+                g = "快速測試，沒有意義" if executor == "fake" else grade(name, value, scores.get("baseline_accuracy"))
+                shown = {"auc": "AUC", "r2": "R²"}.get(name, METRICS.get(name, (name,))[0])
+                numbers = f"{shown} {headline_number(name, value)}，{label}"
+                return f"{g}（{numbers}）" if g else numbers
+    return ""
+
+
 def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None) -> str:
     """run 為 service.run_out() 的結果。"""
     config, metrics = run["config"], run.get("metrics") or {}
@@ -326,6 +392,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
 <h2>設定</h2>
 <table><tbody>{fact_rows}</tbody></table>
 <h2>模型表現</h2>
+{f'<p class="verdict"><strong>整體表現：{_e(verdict(run["kind"], metrics, run.get("executor", "template")))}</strong></p>' if verdict(run["kind"], metrics) else ''}
 {f'<p class="data-usage">{_e(data_text(metrics.get("data")))}</p>' if metrics.get("data") else ''}
 {_metric_rows(metrics)}
 {f'<h2>K 折交叉驗證</h2>{_cv_rows(cv)}' if isinstance(cv, dict) else ''}

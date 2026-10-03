@@ -261,7 +261,7 @@ describe('6 次要問題', () => {
   it('explains when the test result differs from the K-fold mean', () => {
     const r = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.667, auc: 0.818 },
       cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.791, std: 0.06, values: [] }, auc: { mean: 0.835, std: 0.04, values: [] } } });
-    expect(warnings(r).join('\n')).toContain('測試集的準確率（66.7%）和 K 折平均（79.1%）差 12.4 個百分點：測試集只有 18 人，剛好分到哪些人影響很大；K 折平均是 80 人輪流當檢查資料的結果，通常比較可靠。');
+    expect(warnings(r).join('\n')).toContain('測試集的準確率（66.7%）和 K 折平均（79.1%）差很多：測試集人數少，剛好分到哪些人影響很大；以 K 折平均為準。');
     const close = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.75 },
       cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.79, std: 0.06, values: [] } } });
     expect(warnings(close).join('\n')).not.toContain('K 折平均（');

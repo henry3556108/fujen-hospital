@@ -11,7 +11,7 @@ import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
 import { KIND_NAMES } from '../inference/api';
 import { JOB_STATUS_LABELS } from '../scheduling/types';
 import type { RunStatus, TrainingApi, TrainingRun, TrainingSetting } from './api';
-import { formatMetric, metricLabel, primaryScore, splitFailure } from './metrics';
+import { primaryScore, splitFailure, verdict } from './metrics';
 import { ModelExport, useHasPermission } from './ModelExport';
 import { ResultView } from './ResultView';
 import { RunSteps, STATUS_TEXT } from './RunSteps';
@@ -37,9 +37,9 @@ export function flatMetrics(metrics: Record<string, unknown>, prefix = ''): [str
   return out;
 }
 
+/** 清單的主要分數：與結果頁最上方的結論同一句（同一個數字、同一個等級）。 */
 function scoreText(run: TrainingRun): string {
-  const score = primaryScore(run);
-  return score ? `${metricLabel(score.name)} ${formatMetric(score.name, score.value)}（${score.source}）` : '—';
+  return verdict(run)?.text ?? '—';
 }
 
 type Sort = { by: 'id' | 'score'; desc: boolean };

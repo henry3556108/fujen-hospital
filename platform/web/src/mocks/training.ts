@@ -390,7 +390,7 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       return {
         rows, data, train, ...(kfold ? {} : { validation: test }), test,
         labels: { majority: '0', positive: '1', majority_train: { count: Math.round(rows.train * 0.6), rows: rows.train } },
-        ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
+        ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)], ['sensitivity', 0.72], ['specificity', 0.8], ['baseline_accuracy', 0.6]]) } : {}),
       };
     }
     default: {
