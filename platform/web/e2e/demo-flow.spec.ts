@@ -190,6 +190,9 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     // 步驟條自動更新：已送出 → 排隊中 → 訓練中 → 完成；最上方一句結論（K 折平均），重點指標（白話說明），
     // 測試集數字、提醒與 K 折各折收在「詳細」；圖表；下載報表
     await expect(page.getByTestId('run-status')).toContainText('已完成');
+    // 頂端的訊息跟著狀態更新，不再寫「目前排隊中」
+    await expect(page.getByText(/^完成：訓練 #1（demo-diagnosis）已完成，結果在下方「訓練紀錄」。$/)).toBeVisible();
+    await expect(page.getByText(/目前排隊中/)).toHaveCount(0);
     await expect(page.getByTestId('verdict')).toHaveText(/^整體表現：(優秀|良好|尚可|偏弱|接近亂猜)（AUC 0\.\d\d，5 折平均）/);
     await expect(page.getByRole('table', { name: '訓練清單' })).toContainText(/（AUC 0\.\d\d，5 折平均）/);
     await expect(page.getByRole('list', { name: '訓練 #1 的重點指標' })).toContainText(/80 人輪流當檢查資料，平均猜對 \d+%/);

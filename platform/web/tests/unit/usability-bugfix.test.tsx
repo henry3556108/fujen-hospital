@@ -1,13 +1,25 @@
 // 第三輪後使用性測試的五個缺陷（docs/usability/2026-10-03-round3.md、docs/superpowers/plans/2026-10-03-qoca-ux.md「修正五個缺陷」）。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { renderApp } from '../render';
 import { resetInferenceMock } from '../../src/mocks/inference';
 import { inferencePolling, type Model } from '../../src/pages/inference/api';
 import { positiveChance, positiveLabel } from '../../src/pages/inference/positive';
 import { resultText } from '../../src/pages/deployment/TryPredict';
 import { positiveSentence } from '../../src/pages/training/metrics';
-import type { TrainingRun } from '../../src/pages/training/api';
+import type { TrainingConfig, TrainingRun } from '../../src/pages/training/api';
+import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
+
+trainingMockOptions.stepMs = 0;
+
+function seed(name: string) {
+  const config: TrainingConfig = { version: 1, kind: 'tabular_classification', source: { type: 'tabular', dataset_id: 2 },
+    split: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 1,
+    tabular: { target: 'diagnosis', features: ['age', 'bmi'], steps: [], algorithm: 'random_forest' }, hyperparameters: {} };
+  const s = trainingMock();
+  s.settings.push({ id: s.nextSetting++, project_id: 1, name, kind: config.kind, config, created_by: 'pi01', updated_by: 'pi01',
+    created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' });
+}
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -70,5 +82,31 @@ describe('缺陷 1：機率一律是陽性類別的機率', () => {
       config: { tabular: { target: 'diagnosis' } } } as unknown as TrainingRun;
     expect(positiveSentence(run)).toBe('陽性＝diagnosis 為「1」：敏感度、特異度、ROC 曲線，以及預測時顯示的「diagnosis＝1 的機率」都以這一類計算。');
     expect(positiveSentence({ ...run, metrics: { labels: { majority: 'a' } } } as unknown as TrainingRun)).toBe('');
+  });
+});
+
+describe('缺陷 2：送出訓練的訊息跟著狀態更新', () => {
+  it('replaces 「目前排隊中」 with 訓練中 and then 已完成', async () => {
+    seed('心臟科');
+    const { user } = await renderApp('/training', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '送出訓練「心臟科」' }));
+    const id = trainingMock().runs[0].id;
+    expect(await screen.findByText(`已送出訓練 #${id}（心臟科），目前排隊中。`)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '重新整理' }));
+    expect(await screen.findByText(`訓練 #${id}（心臟科）訓練中，完成後下方會顯示結果。`)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '重新整理' }));
+    expect(await screen.findByText(`訓練 #${id}（心臟科）已完成，結果在下方「訓練紀錄」。`)).toBeInTheDocument();
+    expect(screen.queryByText(/目前排隊中/)).toBeNull();
+  });
+
+  it('says so when the run fails', async () => {
+    seed('會失敗的設定');
+    const { user } = await renderApp('/training', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '送出訓練「會失敗的設定」' }));
+    const id = trainingMock().runs[0].id;
+    await user.click(await screen.findByRole('button', { name: '重新整理' }));
+    await user.click(screen.getByRole('button', { name: '重新整理' }));
+    await waitFor(() => expect(screen.getByText(`訓練 #${id}（會失敗的設定）失敗，原因在下方「訓練紀錄」。`)).toBeInTheDocument());
+    expect(screen.queryByText(/目前排隊中/)).toBeNull();
   });
 });

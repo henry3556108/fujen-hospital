@@ -44,12 +44,17 @@ function scoreText(run: TrainingRun): string {
 
 type Sort = { by: 'id' | 'score'; desc: boolean };
 
-export function Runs({ api, selected, onSelect, settings }: {
+export function Runs({ api, selected, onSelect, settings, onRuns }: {
   api: TrainingApi; selected: number | null; onSelect: (id: number | null) => void; settings: TrainingSetting[];
+  /** 清單每次更新後通知（例如讓頂端「已送出訓練」的訊息跟著狀態更新） */
+  onRuns?: (runs: TrainingRun[]) => void;
 }) {
   const { me } = useSession();
   const runs = useResource(() => api.runs(), [api]);
   const { reload } = runs;
+  useEffect(() => {
+    if (runs.data) onRuns?.(runs.data);
+  }, [runs.data, onRuns]);
   const [mineOnly, setMineOnly] = useState(true);
   const [sort, setSort] = useState<Sort>({ by: 'id', desc: true });
   const hasActive = (runs.data ?? []).some((r) => active(r.status));
