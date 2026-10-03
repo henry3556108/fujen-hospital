@@ -35,18 +35,20 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     seed, hyper = int(config["seed"]), config.get("hyperparameters") or {}
 
     def fit(x, y):
-        model = ALGORITHMS[algorithm](seed, hyper)
+        model = tabularkit.build_model(ALGORITHMS[algorithm](seed, hyper), x)   # 文字特徵自動 One-Hot
         model.fit(x, y.astype("float64"))
         return model
 
     metrics = {"rows": {name: len(part[0]) for name, part in prepared["data"].items()}}
     if prepared["folds"]:
         metrics["cv"] = tabularkit.cross_validate(
-            config, prepared, lambda xt, yt, xv, yv: tabularkit.regression_metrics(fit(xt, yt), xv, yv))
+            config, prepared, lambda xt, yt, xv, yv: tabularkit.regression_metrics(
+                fit(xt, yt), xv, yv, mean=float(yt.astype("float64").mean())))
     model = fit(x_train, y_train)
+    mean = float(y_train.astype("float64").mean())
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
-            metrics[name] = tabularkit.regression_metrics(model, x, y)
+            metrics[name] = tabularkit.regression_metrics(model, x, y, mean=mean)
     return tabularkit.save(out_dir, config=config, prepared=prepared, model=model, metrics=metrics, card={},
                            charts=tabularkit.charts(config, prepared, model))
 

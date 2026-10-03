@@ -36,15 +36,43 @@ def load_frame(data_dir: Path, manifest: dict) -> pd.DataFrame:
 
 
 def feature_matrix(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
+    """特徵矩陣：數值與是否欄位轉成小數；文字／類別欄位保留文字（缺值仍是缺值），
+    由 build_model() 在 scikit-learn Pipeline 內做 One-Hot，使用者不必先自己編碼。"""
     missing = [c for c in features if c not in frame.columns]
     if missing:
         raise TabularError(f"前處理後找不到特徵欄位：{'、'.join(missing)}", code="column_not_found")
-    x = frame[features]
-    bad = [c for c in features if not (pd.api.types.is_numeric_dtype(x[c]) or pd.api.types.is_bool_dtype(x[c]))]
-    if bad:
-        raise TabularError(f"特徵欄位「{'、'.join(bad)}」不是數值，請先做類別編碼（例如 One-Hot）",
+    dates = [c for c in features if pd.api.types.is_datetime64_any_dtype(frame[c])]
+    if dates:
+        raise TabularError(f"特徵欄位「{'、'.join(dates)}」是日期，不能直接當特徵；請先用前處理轉成天數或年齡等數字",
                            code="column_not_numeric")
-    return x.astype("float64")
+    out = {}
+    for c in features:
+        col = frame[c]
+        if pd.api.types.is_numeric_dtype(col) or pd.api.types.is_bool_dtype(col):
+            out[c] = col.astype("float64")
+        else:
+            out[c] = col.astype(object).where(col.isna(), col.astype(str))
+    return pd.DataFrame(out, index=frame.index)
+
+
+def categorical_columns(x: pd.DataFrame) -> list[str]:
+    return [c for c in x.columns if x[c].dtype == object]
+
+
+def build_model(estimator: Any, x: pd.DataFrame) -> Any:
+    """有文字／類別特徵時，把估計器包成 Pipeline（OneHotEncoder → 估計器）。只用 scikit-learn 的類別，
+    所以 model.pkl 在平台外只要 scikit-learn 就能載入；沒看過的類別編成全 0（handle_unknown="ignore"）。
+    沒有文字特徵時維持原本的估計器，與先前產出的模型檔相同。"""
+    cats = categorical_columns(x)
+    if not cats:
+        return estimator
+    from sklearn.compose import ColumnTransformer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    encode = ColumnTransformer([("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cats)],
+                               remainder="passthrough", verbose_feature_names_out=False)
+    return Pipeline([("encode", encode), ("model", estimator)])
 
 
 def usable_rows(x: pd.DataFrame, y: pd.Series | None = None) -> pd.Series:
@@ -170,25 +198,67 @@ def binary_auc(model: Any, x: pd.DataFrame, y: pd.Series) -> float | None:
     return float(roc_auc_score(truth == classes[1], model.predict_proba(x)[:, 1]))
 
 
-def classification_metrics(model: Any, x: pd.DataFrame, y: pd.Series) -> dict[str, float]:
+def majority_label(y: pd.Series) -> str:
+    """最常見的類別（同數時取排序在前者）：「全部都猜這一類」是分類的比較基準。"""
+    counts = y.astype(str).value_counts()
+    return str(sorted(counts[counts == counts.max()].index)[0])
+
+
+def classification_metrics(model: Any, x: pd.DataFrame, y: pd.Series, *, majority: str | None = None) -> dict:
+    """準確率、F1；二元分類另有 AUC、敏感度、特異度（陽性＝排序後的第二類，例如 0／1 的 1）；
+    給了 majority 時另算「全部都猜最常見類別」的準確率（baseline_accuracy）。"""
     from sklearn.metrics import accuracy_score, f1_score
 
-    truth, predicted = y.astype(str), model.predict(x)
+    truth, predicted = y.astype(str), pd.Series(model.predict(x)).astype(str).to_numpy()
     out = {"accuracy": float(accuracy_score(truth, predicted)),
            "f1_macro": float(f1_score(truth, predicted, average="macro", zero_division=0))}
     auc = binary_auc(model, x, y)
     if auc is not None:
         out["auc"] = auc
+    classes = [str(c) for c in model.classes_]
+    if len(classes) == 2:
+        positive = truth.to_numpy() == classes[1]
+        hit = predicted == classes[1]
+        if positive.any():
+            out["sensitivity"] = float((hit & positive).sum() / positive.sum())
+        if (~positive).any():
+            out["specificity"] = float((~hit & ~positive).sum() / (~positive).sum())
+    if majority is not None:
+        out["baseline_accuracy"] = float((truth == majority).mean())
     return out
 
 
-def regression_metrics(model: Any, x: pd.DataFrame, y: pd.Series) -> dict[str, float | None]:
+def regression_metrics(model: Any, x: pd.DataFrame, y: pd.Series, *, mean: float | None = None) -> dict:
+    """R²、MAE、RMSE；給了訓練資料的平均值時另算「每次都猜平均值」的 RMSE（baseline_rmse）。"""
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
     predicted, truth = model.predict(x), y.astype("float64")
-    return {"r2": float(r2_score(truth, predicted)) if len(x) > 1 else None,
-            "mae": float(mean_absolute_error(truth, predicted)),
-            "rmse": float(np.sqrt(mean_squared_error(truth, predicted)))}
+    out = {"r2": float(r2_score(truth, predicted)) if len(x) > 1 else None,
+           "mae": float(mean_absolute_error(truth, predicted)),
+           "rmse": float(np.sqrt(mean_squared_error(truth, predicted)))}
+    if mean is not None:
+        out["baseline_rmse"] = float(np.sqrt(np.mean((truth - mean) ** 2)))
+    return out
+
+
+def input_spec(prepared: dict, spec: dict) -> list[dict]:
+    """推論時要提供的原始欄位與可填的值（模型卡用，網頁的「試用預測」依此產生表單）。"""
+    frame = prepared["frame"]
+    out = []
+    for name in needed_columns({"pipeline": prepared["fitted"], "features": spec["features"],
+                                "target": spec["target"]}):
+        col = frame[name]
+        if pd.api.types.is_bool_dtype(col):
+            out.append({"name": name, "type": "category", "values": ["false", "true"]})
+        elif pd.api.types.is_numeric_dtype(col):
+            values = col.dropna()
+            out.append({"name": name, "type": "number",
+                        "min": _r(values.min()) if len(values) else None,
+                        "max": _r(values.max()) if len(values) else None})
+        else:
+            values = sorted({str(v) for v in col.dropna()})
+            out.append({"name": name, "type": "category", "values": values[:50]})
+    return out
 
 
 # ---------------------------------------------------------------- 結果圖表（charts.json；不進模型檔）
@@ -290,7 +360,8 @@ def save(out_dir: Path, *, config: dict, prepared: dict, model: Any, metrics: di
         out_dir, config=config, manifest=prepared["manifest"], model_file="model.pkl", model_format="pkl",
         metrics=metrics, splits=splits,
         card={"target": spec["target"], "features": spec["features"], "algorithm": spec["algorithm"],
-              "validation": validation_of(config),
+              "validation": validation_of(config), "inputs": input_spec(prepared, spec),
+              "encoded_features": categorical_columns(prepared["data"]["train"][0]),
               "rows": {"total": prepared["frame_rows"], "dropped_for_missing": dropped}, **card},
         libraries=LIBRARIES)
 
@@ -309,9 +380,10 @@ def needed_columns(preprocess: dict) -> list[str]:
     return [c for c in dict.fromkeys(wanted) if c in raw and c != target]
 
 
-def predict_frame(model: Any, preprocess: dict, frame: pd.DataFrame) -> tuple[list, list[str | None]]:
+def predict_frame(model: Any, preprocess: dict, frame: pd.DataFrame, *, with_probability: bool = False):
     """推論：套用訓練時擬合的前處理再預測。含缺值而無法預測的列回傳 None 與原因，不會少列。
-    沒用到的原始欄位（例如病歷號、目標欄）可以不提供。"""
+    沒用到的原始欄位（例如病歷號、目標欄）可以不提供。
+    with_probability=True 時另回傳每列「預測類別的機率」（分類模型；迴歸為 None）。"""
     pipeline: FittedPipeline = preprocess["pipeline"]
     optional = set(pipeline.input_columns) - set(needed_columns(preprocess))
     out = pipeline.transform(frame, optional=optional)
@@ -320,9 +392,15 @@ def predict_frame(model: Any, preprocess: dict, frame: pd.DataFrame) -> tuple[li
     x = feature_matrix(out, preprocess["features"])
     ok = usable_rows(x).to_numpy()
     predictions: list = [None] * len(frame)
+    probabilities: list[float | None] = [None] * len(frame)
     notes: list[str | None] = [None if good else "特徵含缺值，無法預測" for good in ok]
     if ok.any():
         values = model.predict(x[ok])
         for position, value in zip(np.flatnonzero(ok), values):
             predictions[position] = value.item() if hasattr(value, "item") else value
+        if with_probability and hasattr(model, "predict_proba"):
+            for position, row in zip(np.flatnonzero(ok), model.predict_proba(x[ok])):
+                probabilities[position] = round(float(np.max(row)), 4)
+    if with_probability:
+        return predictions, notes, probabilities
     return predictions, notes

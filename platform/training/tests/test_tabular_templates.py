@@ -36,7 +36,7 @@ def test_tc_b05_01_tabular_regression_trains(tabular_dataset, tmp_path, algorith
     card = run_template("tabular_regression", config("tabular_regression", "sbp", algorithm,
                                                      features=["age", "bmi", "glucose"], steps=STEPS[:2]),
                         tabular_dataset, tmp_path / "out")
-    assert set(card["metrics"]["test"]) == {"r2", "mae", "rmse"}
+    assert set(card["metrics"]["test"]) == {"r2", "mae", "rmse", "baseline_rmse"}
 
 
 @pytest.mark.parametrize("kind,target,algorithm", [("tabular_classification", "diagnosis", "random_forest"),
@@ -101,14 +101,66 @@ def test_inference_keeps_rows_and_marks_unpredictable_ones(tabular_dataset, tmp_
     assert all((n is not None) == m for n, m in zip(notes, missing))
 
 
-def test_non_numeric_feature_reports_clear_error(tabular_dataset, tmp_path):
-    cfg = config("tabular_classification", "diagnosis", "logistic_regression", features=["age", "smoker"], steps=[])
-    (tmp_path / "c.json").write_text(json.dumps(cfg))
-    from conftest import TEMPLATES
-    result = subprocess.run([sys.executable, str(TEMPLATES / "tabular_classification.py"), "--config",
-                             str(tmp_path / "c.json"), "--data", str(tabular_dataset), "--out", str(tmp_path / "o")],
-                            capture_output=True, text=True, cwd=TEMPLATES)
-    assert result.returncode != 0 and "不是數值" in result.stderr
+def test_text_features_are_encoded_inside_the_scikit_learn_model(tabular_dataset, tmp_path):
+    """使用者不必先做 One-Hot：文字／類別特徵在 model.pkl 內的 scikit-learn Pipeline 自動編碼，
+    平台外只要 scikit-learn，直接給原始欄位（sex、smoker 的文字）就能預測。"""
+    out = tmp_path / "out"
+    cfg = config("tabular_classification", "diagnosis", "logistic_regression",
+                 features=["age", "sex", "smoker", "glucose"], steps=STEPS[:1])
+    card = run_template("tabular_classification", cfg, tabular_dataset, out)
+    assert card["encoded_features"] == ["sex", "smoker"]
+    script = (
+        "import pickle, sys, pandas as pd\n"
+        "model = pickle.load(open(sys.argv[1], 'rb'))\n"
+        "assert not [m for m in sys.modules if m.split('.')[0] in ('tabular', 'trainer', 'runtime', 'tabularkit')]\n"
+        "rows = pd.DataFrame([[60, 'M', 'current', 100.0], [40, 'F', 'unknown', 90.0]],\n"
+        "                    columns=['age', 'sex', 'smoker', 'glucose'])\n"
+        "print(list(model.predict(rows)), model.predict_proba(rows).shape)\n")
+    result = subprocess.run([sys.executable, "-S", "-c", "import site; site.main()\n" + script,
+                             str(out / "model.pkl")], capture_output=True, text=True, cwd=tmp_path,
+                            env={"PATH": "/usr/bin:/bin"})
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert "(2, 2)" in result.stdout, "沒看過的類別（unknown）也能預測"
+    inputs = {i["name"]: i for i in card["inputs"]}
+    assert list(inputs) == ["age", "sex", "smoker", "glucose"]
+    assert inputs["smoker"] == {"name": "smoker", "type": "category", "values": ["current", "former", "never"]}
+    assert inputs["age"]["type"] == "number" and inputs["age"]["min"] <= inputs["age"]["max"]
+
+
+def test_text_feature_inference_returns_probability(tabular_dataset, tmp_path):
+    import runtime
+    import tabularkit
+
+    out = tmp_path / "out"
+    run_template("tabular_classification", config("tabular_classification", "diagnosis", "random_forest",
+                                                  features=["age", "sex", "smoker"], steps=[]), tabular_dataset, out)
+    model = pickle.load(open(out / "model.pkl", "rb"))
+    preprocess = pickle.load(open(out / "preprocess.pkl", "rb"))
+    frame = tabularkit.load_frame(tabular_dataset, runtime.load_manifest(tabular_dataset)).head(5)
+    predictions, notes, probabilities = tabularkit.predict_frame(model, preprocess, frame, with_probability=True)
+    assert len(predictions) == len(probabilities) == 5 and all(0.5 <= p <= 1 for p in probabilities)
+    assert tabularkit.predict_frame(model, preprocess, frame)[0] == predictions
+
+
+def test_datetime_feature_reports_clear_error(tabular_dataset, tmp_path):
+    import pandas as pd
+    import tabularkit
+
+    frame = pd.DataFrame({"when": pd.to_datetime(["2024-01-01", "2024-02-01"]), "age": [1, 2]})
+    with pytest.raises(Exception, match="日期"):
+        tabularkit.feature_matrix(frame, ["when", "age"])
+
+
+def test_binary_metrics_include_sensitivity_specificity_and_baseline(tabular_dataset, tmp_path):
+    card = run_template("tabular_classification", config("tabular_classification", "diagnosis", "random_forest"),
+                        tabular_dataset, tmp_path / "out")
+    test = card["metrics"]["test"]
+    assert {"accuracy", "f1_macro", "auc", "sensitivity", "specificity", "baseline_accuracy"} <= set(test)
+    assert card["metrics"]["labels"] == {"majority": "0", "positive": "1"}
+    reg = run_template("tabular_regression", config("tabular_regression", "sbp", "linear_regression",
+                                                    features=REG_FEATURES, steps=STEPS[:1]),
+                       tabular_dataset, tmp_path / "reg")
+    assert reg["metrics"]["test"]["baseline_rmse"] > 0
 
 
 # ---------------------------------------------------------------- K 折交叉驗證與結果圖表（2026-10-03 B3、B4、B7）
@@ -198,7 +250,7 @@ def test_kfold_regression_reports_r2_mae_rmse(tabular_dataset, tmp_path, algorit
                         tabular_dataset, tmp_path / "out")
     cv = card["metrics"]["cv"]
     assert cv["folds"] == 4 and cv["stratified"] is False
-    assert {k for k in cv if isinstance(cv[k], dict)} == {"r2", "mae", "rmse"}
+    assert {k for k in cv if isinstance(cv[k], dict)} == {"r2", "mae", "rmse", "baseline_rmse"}
     assert all(len(cv[k]["values"]) == 4 for k in ("r2", "mae", "rmse"))
 
 

@@ -48,8 +48,12 @@ class TabularPredictor:
         missing = [c for c in tabularkit.needed_columns(self.preprocess) if c not in frame.columns]
         if missing:
             raise InputError(f"資料缺少特徵欄位：{'、'.join(missing)}")
-        predictions, notes = tabularkit.predict_frame(self.model, self.preprocess, frame)
-        return {"predictions": predictions, "notes": notes}
+        predictions, notes, probabilities = tabularkit.predict_frame(self.model, self.preprocess, frame,
+                                                                     with_probability=True)
+        answer = {"predictions": predictions, "notes": notes}
+        if any(p is not None for p in probabilities):
+            answer["probabilities"] = probabilities     # 分類：預測類別的機率
+        return answer
 
 
 def _png(image: np.ndarray) -> str:

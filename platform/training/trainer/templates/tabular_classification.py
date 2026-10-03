@@ -29,7 +29,7 @@ def fit(make, x, y, *, where="訓練資料"):
     y = y.astype(str)
     if y.nunique() < 2:
         raise ValueError(f"{where}的目標欄位只有一種類別，無法訓練分類模型")
-    model = make()
+    model = tabularkit.build_model(make(), x)     # 文字／類別特徵在 Pipeline 內自動 One-Hot
     model.fit(x, y)
     return model
 
@@ -46,12 +46,15 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     if prepared["folds"]:
         metrics["cv"] = tabularkit.cross_validate(
             config, prepared, lambda xt, yt, xv, yv: tabularkit.classification_metrics(
-                fit(make, xt, yt, where="交叉驗證某一折的訓練資料"), xv, yv))
+                fit(make, xt, yt, where="交叉驗證某一折的訓練資料"), xv, yv, majority=tabularkit.majority_label(yt)))
     x_train, y_train, _ = prepared["data"]["train"]
     model = fit(make, x_train, y_train)
+    majority = tabularkit.majority_label(y_train)
+    classes = [str(c) for c in model.classes_]
+    metrics["labels"] = {"majority": majority, **({"positive": classes[1]} if len(classes) == 2 else {})}
     for name, (x, y, _) in prepared["data"].items():
         if len(x):
-            metrics[name] = tabularkit.classification_metrics(model, x, y)
+            metrics[name] = tabularkit.classification_metrics(model, x, y, majority=majority)
     return tabularkit.save(out_dir, config=config, prepared=prepared, model=model, metrics=metrics,
                            card={"classes": [str(c) for c in model.classes_]},
                            charts=tabularkit.charts(config, prepared, model))
