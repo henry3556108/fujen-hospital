@@ -57,7 +57,14 @@ load() {  # load <ref> <nodes>
     if [[ "$ref" == *@sha256:* ]]; then
       docker exec "$n" ctr -n k8s.io images tag --force "$name" "$(full_name "$ref")" >/dev/null
     fi
+    drop_import_refs "$n"
   done
+}
+
+# `ctr images import --digests` 每次載入都另外留下一個 import-<日期>@sha256:… 參照；舊版映像因此一直被留著，
+# 節點磁碟會越用越多（2026-10-04 曾把主機磁碟用滿）。平台用到的映像都有正式名稱，所以載入後刪掉所有 import- 參照。
+drop_import_refs() {
+  docker exec "$1" sh -c 'ctr -n k8s.io images ls -q | grep "^import-" | while read r; do ctr -n k8s.io images rm "$r" >/dev/null 2>&1; done' || true
 }
 
 for ref in $(python3 images.py upstream); do

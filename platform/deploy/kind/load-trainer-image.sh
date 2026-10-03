@@ -9,4 +9,8 @@ IMAGE="${TRAINING_IMAGE:-platform-trainer:dev}"
 [ -n "${SKIP_BUILD:-}" ] || docker build -f ../../training/Dockerfile -t "$IMAGE" ../..
 NODES="${NODES:-ai-platform-worker2,ai-platform-worker3,ai-platform-worker4}"
 kind load docker-image "$IMAGE" --name ai-platform --nodes "$NODES"
+# kind load 會留下 import-<日期>@sha256:… 參照，舊版訓練映像因此不會被回收；載入後刪掉（正式名稱 platform-trainer:dev 仍在）
+for n in ${NODES//,/ }; do
+  docker exec "$n" sh -c 'ctr -n k8s.io images ls -q | grep "^import-" | while read r; do ctr -n k8s.io images rm "$r" >/dev/null 2>&1; done' || true
+done
 echo "已載入 $IMAGE 到 $NODES"
