@@ -67,7 +67,7 @@ describe('B1 從資料集建立訓練', () => {
     expect(within(form).getByLabelText('訓練種類')).toHaveValue('tabular_classification');
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
     await waitFor(() => expect(within(form).getByLabelText('目標欄位（Target）')).toHaveValue('diagnosis'));
-    const features = within(form).getByRole('group', { name: '特徵欄位（Feature）' });
+    const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
     expect(within(features).getByRole('checkbox', { name: 'sex' })).toBeChecked();
     expect(within(form).getByTestId('text-features')).toHaveTextContent('「sex、smoker」是文字或類別欄位，訓練時會自動轉成 0／1 欄位');
     await first.user.click(within(form).getByRole('button', { name: '儲存設定' }));
@@ -113,7 +113,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
     await user.selectOptions(await within(form).findByLabelText('資料集'), await within(form).findByRole('option', { name: /^lung-clinical/ }));
     await waitFor(() => expect(within(form).getByLabelText('目標欄位（Target）')).toBeEnabled());
     await user.selectOptions(within(form).getByLabelText('目標欄位（Target）'), 'diagnosis');
-    await user.click(within(within(form).getByRole('group', { name: '特徵欄位（Feature）' })).getByRole('checkbox', { name: 'age' }));
+    await user.click(within(within(form).getByRole('group', { name: '用來預測的資料（Feature）' })).getByRole('checkbox', { name: 'age' }));
     await user.click(within(form).getByRole('radio', { name: 'K 折交叉驗證' }));
     expect(within(form).queryByLabelText('訓練集（%）')).toBeNull();
     const folds = within(form).getByLabelText('交叉驗證折數（K）');

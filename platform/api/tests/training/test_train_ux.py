@@ -202,6 +202,17 @@ def test_submit_checks_the_setting_against_the_dataset(client, pi, project, back
     assert ok(client.get(f"{base(project.id)}/runs", headers=pi)) == [], "沒有送出、沒有排隊"
 
 
+def test_original_column_next_to_its_onehot_step_names_the_generated_columns(client, pi, project, backend, table):
+    """使用性測試第二輪：sex 已 One-Hot 成 sex_F、sex_M，又勾了 sex 時，訊息說出產生的欄位。"""
+    body = setting_body("tabular_classification", dataset_id=table)
+    body["config"]["tabular"] |= {"features": ["age", "sex", "sex_F", "sex_M"],
+                                  "steps": [{"id": "onehot", "columns": ["sex"]}]}
+    setting = ok(client.post(f"{base(project.id)}/settings", headers=pi, json=body), 201)
+    response = client.post(f"{base(project.id)}/settings/{setting['id']}/runs", headers=pi, json={"executor": "fake"})
+    assert response.status_code == 422, response.text
+    assert "「sex」已轉成 sex_F、sex_M（One-Hot）" in response.json()["detail"]
+
+
 def test_regression_on_text_target_is_rejected_before_queueing(client, pi, project, backend, table):
     body = setting_body("tabular_regression", dataset_id=table)
     body["config"]["tabular"] |= {"target": "smoker"}

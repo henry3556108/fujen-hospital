@@ -135,7 +135,7 @@ describe('建模管理：訓練設定', () => {
     await user.selectOptions(await within(form).findByLabelText('資料集'), await within(form).findByRole('option', { name: /^lung-clinical/ }));
     await waitFor(() => expect(within(form).getByLabelText('目標欄位（Target）')).toBeEnabled());
     await user.selectOptions(within(form).getByLabelText('目標欄位（Target）'), 'sbp');
-    const features = within(form).getByRole('group', { name: '特徵欄位（Feature）' });
+    const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
     await user.click(within(features).getByRole('checkbox', { name: 'age' }));
     await user.click(within(features).getByRole('checkbox', { name: 'bmi' }));
     await user.selectOptions(within(form).getByLabelText('演算法'), 'random_forest');

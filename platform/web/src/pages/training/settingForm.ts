@@ -206,3 +206,67 @@ export function configFromForm(catalogue: Catalogue, form: FormState): TrainingC
     augmentation,
   };
 }
+
+/** 訓練表單的一個 Feature 選項：原始欄位一項；One-Hot 過的欄位也只有一項，勾選時列入它產生的全部欄位。 */
+export interface FeatureChoice {
+  /** 畫面上的名稱（原始欄位名，或前處理產生、不屬於任何 One-Hot 的新欄位） */
+  name: string;
+  /** 勾選時列入 features 的欄位（前處理後的欄位名稱） */
+  columns: string[];
+  /** 是否為 One-Hot 轉換過的原始欄位 */
+  encoded: boolean;
+}
+
+function onehotSources(steps: Step[]): Set<string> {
+  return new Set(steps.filter((s) => s.id === 'onehot').flatMap((s) => s.columns ?? []));
+}
+
+/**
+ * 由原始欄位與前處理後的欄位組出 Feature 選項。processed 為 null（還不知道前處理結果）時每個原始欄位一項。
+ * One-Hot 產生的欄位以「原始欄位名_」開頭；多個來源都符合時歸給名稱最長的來源（例如 smoker 與 smoker_x）。
+ */
+export function featureChoices(original: string[], processed: string[] | null, steps: Step[], target: string): FeatureChoice[] {
+  if (!processed) return original.filter((c) => c !== target).map((c) => ({ name: c, columns: [c], encoded: false }));
+  const originals = new Set(original);
+  const sources = [...onehotSources(steps)].filter((c) => originals.has(c) && !processed.includes(c));
+  const owner = (col: string) =>
+    sources.filter((s) => col.startsWith(`${s}_`)).sort((a, b) => b.length - a.length)[0] ?? null;
+  const children = new Map<string, string[]>();
+  const extra: string[] = [];
+  for (const col of processed) {
+    if (originals.has(col) || col === target) continue;
+    const src = owner(col);
+    if (src) children.set(src, [...(children.get(src) ?? []), col]);
+    else extra.push(col);
+  }
+  const out: FeatureChoice[] = [];
+  for (const col of original) {
+    if (col === target) continue;
+    if (processed.includes(col)) out.push({ name: col, columns: [col], encoded: false });
+    else if (children.get(col)?.length) out.push({ name: col, columns: children.get(col)!, encoded: true });
+  }
+  return [...out, ...extra.map((c) => ({ name: c, columns: [c], encoded: false }))];
+}
+
+/** 把 features 裡 One-Hot 過的原始欄位換成它產生的欄位（舊設定可能同時存原始欄位與 One-Hot 步驟）；不重複、保留順序。 */
+export function normaliseFeatures(features: string[], choices: FeatureChoice[]): string[] {
+  const encoded = new Map(choices.filter((c) => c.encoded).map((c) => [c.name, c.columns]));
+  return [...new Set(features.flatMap((f) => encoded.get(f) ?? [f]))];
+}
+
+/** 前處理後不存在的 Feature（送出前在畫面上檢查）。 */
+export function unknownFeatures(features: string[], processed: string[] | null): string[] {
+  return processed ? features.filter((f) => !processed.includes(f)) : [];
+}
+
+export const choiceChecked = (choice: FeatureChoice, features: string[]) => choice.columns.every((c) => features.includes(c));
+
+export function toggleChoice(choice: FeatureChoice, features: string[]): string[] {
+  return choiceChecked(choice, features)
+    ? features.filter((f) => !choice.columns.includes(f))
+    : [...features, ...choice.columns.filter((c) => !features.includes(c))];
+}
+
+export function choiceLabel(choice: FeatureChoice): string {
+  return choice.encoded ? `${choice.name}（已轉成 ${choice.columns.join('、')}）` : choice.name;
+}

@@ -268,6 +268,14 @@ def check_tabular(store: ObjectStore, project_id: int, manifest: dict[str, Any],
     except TabularError as exc:
         raise Invalid(f"前處理步驟無法套用在資料集上：{exc}。{APPLY_HINT}") from exc
     missing = [c for c in [spec["target"], *spec["features"]] if c not in out.columns]
+    encoded = {c for s in spec.get("steps") or [] if s.get("id") == "onehot" for c in s.get("columns") or []}
+    converted = [c for c in missing if c in encoded and c != spec["target"]]
+    if converted:
+        parts = []
+        for c in converted:
+            made = [o for o in out.columns if str(o).startswith(f"{c}_") and o not in frame.columns]
+            parts.append(f"「{c}」已轉成 {'、'.join(map(str, made))}（One-Hot）")
+        raise Invalid(f"{'；'.join(parts)}，請取消勾選原本的欄位，改用轉換後的欄位（在訓練設定勾選「{converted[0]}」那一項即可）。")
     if missing:
         raise Invalid(f"訓練設定與資料集不一致：前處理後找不到欄位「{'、'.join(missing)}」。{APPLY_HINT}")
     ids = [c for c in spec["features"]

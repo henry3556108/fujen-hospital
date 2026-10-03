@@ -64,7 +64,7 @@ test.describe('建模管理', () => {
     await form.getByLabel('訓練種類').selectOption('tabular_classification');
     await form.getByLabel('資料集').selectOption({ label: 'lung-clinical（100 列）' });
     await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
-    const features = form.getByRole('group', { name: '特徵欄位（Feature）' });
+    const features = form.getByRole('group', { name: '用來預測的資料（Feature）' });
     for (const f of ['age', 'bmi', 'glucose']) await features.getByRole('checkbox', { name: f, exact: true }).check();
     await form.getByLabel('演算法').selectOption('random_forest');
     await form.getByRole('button', { name: '儲存設定' }).click();
@@ -102,7 +102,7 @@ test.describe('建模端使用性（從資料集到部署）', () => {
     await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
     await expect(form.getByLabel('設定名稱')).toHaveValue('lung-clinical 訓練');
     await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
-    const features = form.getByRole('group', { name: '特徵欄位（Feature）' });
+    const features = form.getByRole('group', { name: '用來預測的資料（Feature）' });
     for (const f of ['age', 'sex', 'smoker', 'sbp']) await features.getByRole('checkbox', { name: f, exact: true }).check();
     await expect(form.getByTestId('text-features')).toContainText('「sex、smoker」是文字或類別欄位');
     await expect(form.getByText('進階設定（一般不需要調整）')).toBeVisible();

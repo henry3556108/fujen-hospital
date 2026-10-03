@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { ApiError, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
 import type { Study } from '../imaging/types';
-import type { Dataset, DatasetDetail, Step, TargetFeature } from '../tabular/types';
+import type { ColumnInfo, Dataset, DatasetDetail, Step, TargetFeature } from '../tabular/types';
 import type { Model, ModelKind } from '../inference/api';
 import { platformEnv } from '../../runtimeConfig';
 
@@ -194,6 +194,8 @@ export interface TrainingApi {
   targetFeature(id: number): Promise<TargetFeature | null>;
   /** 欄位的不同值數（用來判斷 Target 是分類還是迴歸） */
   distinct(datasetId: number, column: string): Promise<number>;
+  /** 套用前處理步驟後的欄位（名稱、型態、缺值數）；不改動資料集 */
+  processedColumns(datasetId: number, steps: Step[]): Promise<ColumnInfo[]>;
 }
 
 async function errorOf(res: Response): Promise<ApiError> {
@@ -258,6 +260,10 @@ export function createTrainingApi(
         `${root}/tabular/datasets/${datasetId}/value-counts?column=${encodeURIComponent(column)}&limit=1`,
       );
       return out.distinct;
+    },
+    async processedColumns(datasetId, steps) {
+      const out = await api.post<{ columns: ColumnInfo[] }>(`${root}/tabular/datasets/${datasetId}/preprocess/preview`, { steps, limit: 1 });
+      return out.columns;
     },
     async targetFeature(id) {
       try {
