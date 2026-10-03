@@ -175,7 +175,7 @@ export function validateCsv(text: string, schema: { columns: SchemaColumn[] }): 
       }
       if (spec.unique) {
         const index0 = (seen[spec.name] ??= new Map()).get(text);
-        if (index0 !== undefined) return reject(spec.name, `值「${text}」重複（與第 ${index0} 列相同），此欄位不可重複`);
+        if (index0 !== undefined) return reject(spec.name, `值「${text}」重複（與第 ${index0 + 1} 列相同），此欄位不可重複`);
       }
     }
     for (const spec of specs.filter((s) => s.unique)) seen[spec.name].set(cells[header.indexOf(spec.name)], index);

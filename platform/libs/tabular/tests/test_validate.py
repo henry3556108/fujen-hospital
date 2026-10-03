@@ -215,3 +215,11 @@ def test_undecodable_bytes_are_a_clear_error():
     schema = Schema.from_dict({"columns": [{"name": "a", "type": "int"}]})
     with pytest.raises(TabularError, match="編碼"):
         validate_csv(io.BytesIO(b"a\n\xff\xfe\xfa\n"), schema)
+
+
+def test_duplicate_reason_counts_rows_from_one_like_the_table(schema):
+    # 網頁的「第幾列」是 row + 1（rejected[].row 仍是 0 起算，bad_rows.json 照舊比對）；原因裡的列號要與畫面一致
+    report = validate_csv(io.StringIO(_bad_csv_text()), schema)
+    [dup] = [r for r in report["rejected"] if "重複" in r["reason"]]
+    assert dup["row"] == 39
+    assert dup["reason"] == "值「1」重複（與第 1 列相同），此欄位不可重複"
