@@ -10,8 +10,8 @@ uv sync && uv run pytest
 
 | 模組 | 功能 | 對應驗收案例 |
 |---|---|---|
-| `tabular.schema` | 欄位結構定義（int / float / str / category / date / bool；required、min、max、allowed、unique），可由 dict / JSON 載入 | TC-B01-10 |
-| `tabular.validate` | `validate_csv` 驗證報告、`load_clean_csv` 取得乾淨資料；逐列攔截欄位數錯誤、型別、範圍、允許值、必填、重複值；缺必要欄位與空檔為檔案層級錯誤，未知欄位為警告 | TC-B01-10 |
+| `tabular.schema` | 欄位結構定義（int / float / str / category / date / bool；required、min、max、allowed、unique、pattern、missing_values），可由 dict / JSON 載入；沒有 `missing_values` 時只有空白是缺值 | TC-B01-10 |
+| `tabular.validate` | `validate_csv` 驗證報告、`load_clean_csv` 取得乾淨資料；逐列攔截欄位數錯誤、型別、範圍、允許值、必填、重複值；缺必要欄位與空檔為檔案層級錯誤，未知欄位為警告；不是 UTF-8 時以 Big5（cp950）讀取並加一則警告 | TC-B01-10 |
 | `tabular.explore` | `describe`、`histogram`、`value_counts`、`preview`（可指定可見欄位）、`column_info`、`correlation`、`scatter` | TC-B04-01、TC-B04-02、TC-B04-05、TC-B04-08 |
 | `tabular.preprocess` | 前處理方法註冊表 `catalogue()`、`validate_steps` 與 `apply_pipeline(df, steps)` | TC-B04-04、TC-B04-06 |
 | `tabular.modeling_config` | `TargetFeatureConfig(target, features, steps)`，`to_dict` / `from_dict` 往返一致，檢查 Target 不在 Features、欄位存在 | TC-B04-03 |

@@ -38,18 +38,35 @@ class _CellError(Exception):
     pass
 
 
-def _read_text(src: Source) -> str:
+BIG5_WARNING = {
+    "code": "big5_encoding",
+    "message": "檔案不是 UTF-8 編碼，已以 Big5（Excel 繁體中文預設）讀取；若中文顯示異常，請另存為「CSV UTF-8」",
+}
+
+
+def read_text(src: Source) -> tuple[str, str]:
+    """Return ``(text, encoding)``: UTF-8 (BOM allowed) first, then Big5 (cp950), which is what
+    Excel on Traditional Chinese Windows writes for "Save as CSV"."""
     if isinstance(src, (str, PathLike)):
         with open(src, "rb") as fh:
             raw: Any = fh.read()
     else:
         raw = src.read()
+    encoding = "utf-8"
     if isinstance(raw, bytes):
         try:
             raw = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
-            raise TabularError("檔案編碼無法辨識，請使用 UTF-8 編碼的 CSV", code="bad_encoding") from None
-    return raw.lstrip("﻿")
+            try:
+                raw, encoding = raw.decode("cp950"), "cp950"
+            except UnicodeDecodeError:
+                raise TabularError("檔案編碼無法辨識，請使用 UTF-8 編碼的 CSV", code="bad_encoding") from None
+    return raw.lstrip("\ufeff"), encoding
+
+
+def read_rows(text: str) -> list[list[str]]:
+    """CSV rows with blank lines dropped."""
+    return [row for row in csv.reader(io.StringIO(text)) if any(cell.strip() for cell in row)]
 
 
 def _parse(spec: ColumnSpec, text: str) -> Any:
@@ -131,10 +148,8 @@ def _to_frame(schema: Schema, used: list[ColumnSpec], records: list[dict[str, An
 
 def validate_and_load(src: Source, schema: Schema) -> tuple[dict[str, Any], pd.DataFrame]:
     """Validate a CSV and return ``(report, clean_frame)``. Never raises on bad rows."""
-    text = _read_text(src)
-    lines = [row for row in csv.reader(io.StringIO(text))]
-    # drop blank lines
-    lines = [row for row in lines if any(cell.strip() for cell in row)]
+    text, encoding = read_text(src)
+    lines = read_rows(text)
     if not lines:
         report = _empty_report([])
         report["errors"].append({"code": "empty_file", "message": "檔案是空的，沒有任何欄位或資料"})
@@ -143,6 +158,8 @@ def validate_and_load(src: Source, schema: Schema) -> tuple[dict[str, Any], pd.D
     header = [h.strip() for h in lines[0]]
     body = lines[1:]
     report = _empty_report(header, total=len(body))
+    if encoding != "utf-8":
+        report["warnings"].append(dict(BIG5_WARNING))
 
     dupes = sorted({h for h in header if header.count(h) > 1})
     if dupes:
@@ -171,6 +188,7 @@ def validate_and_load(src: Source, schema: Schema) -> tuple[dict[str, Any], pd.D
     used = [c for c in schema.columns if c.name in header]
     positions = {name: header.index(name) for name in schema.names if name in header}
     seen: dict[str, dict[Any, int]] = {c.name: {} for c in used if c.unique}
+    tokens = {c.name: c.missing_tokens() for c in used}
     rejected: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
 
@@ -186,9 +204,10 @@ def validate_and_load(src: Source, schema: Schema) -> tuple[dict[str, Any], pd.D
         row_errors: list[dict[str, Any]] = []
         for spec in used:
             raw = row[positions[spec.name]].strip()
-            if raw == "":
+            if raw == "" or (tokens[spec.name] and raw.casefold() in tokens[spec.name]):
                 if spec.required:
-                    row_errors.append({"row": i, "column": spec.name, "reason": "必填欄位為空值"})
+                    reason = "必填欄位為空值" if raw == "" else f"必填欄位為缺值（「{raw}」）"
+                    row_errors.append({"row": i, "column": spec.name, "reason": reason})
                 record[spec.name] = None
                 continue
             try:
