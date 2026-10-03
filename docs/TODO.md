@@ -74,6 +74,7 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁
 - [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳；批次完成後 jobs 表要等有人列出工作才更新狀態；工作頁顯示原始代碼 inference、inference-cpu
 - [ ] 甲方環境部署（見第四節）
+- [ ] AutoML：暫不導入，之後再評估；評估結果與建議做法（Optuna 搜尋現有 scikit-learn 範本）見 `docs/superpowers/plans/2026-10-03-automl-evaluation.md`
 
 ## 2. 需要甲方確認
 
