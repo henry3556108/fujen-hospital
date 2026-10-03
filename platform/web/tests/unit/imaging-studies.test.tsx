@@ -18,13 +18,15 @@ async function loaded(count: number) {
 }
 
 describe('數據管理入口', () => {
-  it('opens on 醫療影像 › 研究列表 with both data tabs', async () => {
-    await renderApp('/data', 'vw01');
+  it('opens on a choice between CSV tables and medical images, with both data tabs', async () => {
+    const { user } = await renderApp('/data', 'vw01');
     expect(await screen.findByRole('heading', { level: 1, name: '數據管理' })).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { level: 2, name: '研究列表' })).toBeInTheDocument();
+    const kinds = await screen.findByRole('list', { name: '資料種類' });
     const tabs = screen.getByRole('navigation', { name: '數據管理分頁' });
+    expect(within(tabs).getByRole('link', { name: '結構式資料（CSV 表格）' })).toBeInTheDocument();
+    await user.click(within(kinds).getByRole('link', { name: /^醫療影像/ }));
+    expect(await screen.findByRole('heading', { level: 2, name: '研究列表' })).toBeInTheDocument();
     expect(within(tabs).getByRole('link', { name: '醫療影像' })).toHaveAttribute('aria-current', 'page');
-    expect(within(tabs).getByRole('link', { name: '結構式資料' })).toBeInTheDocument();
   });
 
   it('TC-A02-04 a user outside every project cannot open data pages by URL', async () => {

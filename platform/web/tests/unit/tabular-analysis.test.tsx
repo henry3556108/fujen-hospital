@@ -133,7 +133,7 @@ describe('Target 與 Feature', () => {
       expect(checked.map((b) => b.getAttribute('aria-label'))).toEqual(features);
       again.unmount();
     }
-  });
+  }, 30_000); // 六次載入頁面，整套平行執行時放寬時限
 
   it('preprocessing steps built in the 前處理 tab are saved with the settings and restored', async () => {
     const first = await renderApp('/data/tabular/2/preprocess', 'ra01');
