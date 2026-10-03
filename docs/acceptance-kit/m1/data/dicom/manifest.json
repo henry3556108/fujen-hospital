@@ -1,0 +1,571 @@
+{
+  "accession_allowlist": [
+    "ACC0001",
+    "ACC0002",
+    "ACC0006",
+    "ACC0008",
+    "ACC0009",
+    "ACC0011",
+    "ACC0015",
+    "ACC0016",
+    "ACC0018",
+    "ACC0019"
+  ],
+  "counts": {
+    "instances": 100,
+    "series": 20,
+    "studies": 20
+  },
+  "filter_fields": {
+    "Modality": "modality",
+    "PatientSex": "patient_sex",
+    "SeriesDescription": "series_description",
+    "StudyDate": "study_date",
+    "StudyDescription": "study_description"
+  },
+  "kind": "dicom",
+  "seed": 42,
+  "studies": [
+    {
+      "accession_number": "ACC0001",
+      "files": [
+        "study_0001/series_001/IM0001.dcm",
+        "study_0001/series_001/IM0002.dcm",
+        "study_0001/series_001/IM0003.dcm",
+        "study_0001/series_001/IM0004.dcm",
+        "study_0001/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19650320",
+      "patient_id": "SYN-42-0001",
+      "patient_name": "TSAI^JACK",
+      "patient_sex": "M",
+      "series_description": "AXIAL 5MM SOFT TISSUE",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.1.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.1.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.1.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.1.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.1.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.1.5"
+      ],
+      "study_date": "20240724",
+      "study_description": "CT CHEST WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.1"
+    },
+    {
+      "accession_number": "ACC0002",
+      "files": [
+        "study_0002/series_001/IM0001.dcm",
+        "study_0002/series_001/IM0002.dcm",
+        "study_0002/series_001/IM0003.dcm",
+        "study_0002/series_001/IM0004.dcm",
+        "study_0002/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19890603",
+      "patient_id": "SYN-42-0002",
+      "patient_name": "LIN^JACK",
+      "patient_sex": "F",
+      "series_description": "AX T2 FLAIR",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.2.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.2.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.2.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.2.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.2.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.2.5"
+      ],
+      "study_date": "20240520",
+      "study_description": "MR BRAIN WWO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.2"
+    },
+    {
+      "accession_number": "ACC0003",
+      "files": [
+        "study_0003/series_001/IM0001.dcm",
+        "study_0003/series_001/IM0002.dcm",
+        "study_0003/series_001/IM0003.dcm",
+        "study_0003/series_001/IM0004.dcm",
+        "study_0003/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19530629",
+      "patient_id": "SYN-42-0003",
+      "patient_name": "HALL^JIE",
+      "patient_sex": "F",
+      "series_description": "AXIAL 1MM LUNG",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.3.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.3.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.3.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.3.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.3.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.3.5"
+      ],
+      "study_date": "20240331",
+      "study_description": "CT ABDOMEN PELVIS W CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.3"
+    },
+    {
+      "accession_number": "ACC0004",
+      "files": [
+        "study_0004/series_001/IM0001.dcm",
+        "study_0004/series_001/IM0002.dcm",
+        "study_0004/series_001/IM0003.dcm",
+        "study_0004/series_001/IM0004.dcm",
+        "study_0004/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19531105",
+      "patient_id": "SYN-42-0004",
+      "patient_name": "BROWN^HENRY",
+      "patient_sex": "M",
+      "series_description": "AX T1",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.4.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.4.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.4.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.4.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.4.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.4.5"
+      ],
+      "study_date": "20240821",
+      "study_description": "MR BRAIN WWO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.4"
+    },
+    {
+      "accession_number": "ACC0005",
+      "files": [
+        "study_0005/series_001/IM0001.dcm",
+        "study_0005/series_001/IM0002.dcm",
+        "study_0005/series_001/IM0003.dcm",
+        "study_0005/series_001/IM0004.dcm",
+        "study_0005/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19450806",
+      "patient_id": "SYN-42-0005",
+      "patient_name": "HSU^GRACE",
+      "patient_sex": "M",
+      "series_description": "AXIAL 5MM SOFT TISSUE",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.5.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.5.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.5.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.5.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.5.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.5.5"
+      ],
+      "study_date": "20240815",
+      "study_description": "CT ABDOMEN PELVIS W CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.5"
+    },
+    {
+      "accession_number": "ACC0006",
+      "files": [
+        "study_0006/series_001/IM0001.dcm",
+        "study_0006/series_001/IM0002.dcm",
+        "study_0006/series_001/IM0003.dcm",
+        "study_0006/series_001/IM0004.dcm",
+        "study_0006/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19620913",
+      "patient_id": "SYN-42-0006",
+      "patient_name": "SMITH^WEI",
+      "patient_sex": "F",
+      "series_description": "AX T2 FLAIR",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.6.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.6.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.6.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.6.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.6.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.6.5"
+      ],
+      "study_date": "20240703",
+      "study_description": "MR BRAIN WWO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.6"
+    },
+    {
+      "accession_number": "ACC0007",
+      "files": [
+        "study_0007/series_001/IM0001.dcm",
+        "study_0007/series_001/IM0002.dcm",
+        "study_0007/series_001/IM0003.dcm",
+        "study_0007/series_001/IM0004.dcm",
+        "study_0007/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19650816",
+      "patient_id": "SYN-42-0007",
+      "patient_name": "TAYLOR^DAVID",
+      "patient_sex": "F",
+      "series_description": "AXIAL 5MM SOFT TISSUE",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.7.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.7.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.7.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.7.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.7.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.7.5"
+      ],
+      "study_date": "20240702",
+      "study_description": "CT ABDOMEN PELVIS W CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.7"
+    },
+    {
+      "accession_number": "ACC0008",
+      "files": [
+        "study_0008/series_001/IM0001.dcm",
+        "study_0008/series_001/IM0002.dcm",
+        "study_0008/series_001/IM0003.dcm",
+        "study_0008/series_001/IM0004.dcm",
+        "study_0008/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19510722",
+      "patient_id": "SYN-42-0008",
+      "patient_name": "HSU^DAVID",
+      "patient_sex": "M",
+      "series_description": "AX T2 FLAIR",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.8.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.8.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.8.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.8.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.8.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.8.5"
+      ],
+      "study_date": "20240512",
+      "study_description": "MR KNEE WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.8"
+    },
+    {
+      "accession_number": "ACC0009",
+      "files": [
+        "study_0009/series_001/IM0001.dcm",
+        "study_0009/series_001/IM0002.dcm",
+        "study_0009/series_001/IM0003.dcm",
+        "study_0009/series_001/IM0004.dcm",
+        "study_0009/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19880423",
+      "patient_id": "SYN-42-0009",
+      "patient_name": "WU^LING",
+      "patient_sex": "M",
+      "series_description": "AXIAL 1MM LUNG",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.9.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.9.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.9.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.9.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.9.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.9.5"
+      ],
+      "study_date": "20241210",
+      "study_description": "CT CHEST WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.9"
+    },
+    {
+      "accession_number": "ACC0010",
+      "files": [
+        "study_0010/series_001/IM0001.dcm",
+        "study_0010/series_001/IM0002.dcm",
+        "study_0010/series_001/IM0003.dcm",
+        "study_0010/series_001/IM0004.dcm",
+        "study_0010/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19911230",
+      "patient_id": "SYN-42-0010",
+      "patient_name": "WANG^BEN",
+      "patient_sex": "F",
+      "series_description": "AX T1",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.10.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.10.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.10.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.10.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.10.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.10.5"
+      ],
+      "study_date": "20240403",
+      "study_description": "MR BRAIN WWO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.10"
+    },
+    {
+      "accession_number": "ACC0011",
+      "files": [
+        "study_0011/series_001/IM0001.dcm",
+        "study_0011/series_001/IM0002.dcm",
+        "study_0011/series_001/IM0003.dcm",
+        "study_0011/series_001/IM0004.dcm",
+        "study_0011/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19610131",
+      "patient_id": "SYN-42-0011",
+      "patient_name": "WU^JIE",
+      "patient_sex": "M",
+      "series_description": "AXIAL 5MM SOFT TISSUE",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.11.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.11.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.11.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.11.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.11.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.11.5"
+      ],
+      "study_date": "20241017",
+      "study_description": "CT CHEST WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.11"
+    },
+    {
+      "accession_number": "ACC0012",
+      "files": [
+        "study_0012/series_001/IM0001.dcm",
+        "study_0012/series_001/IM0002.dcm",
+        "study_0012/series_001/IM0003.dcm",
+        "study_0012/series_001/IM0004.dcm",
+        "study_0012/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19970528",
+      "patient_id": "SYN-42-0012",
+      "patient_name": "WANG^DAVID",
+      "patient_sex": "M",
+      "series_description": "AX T1",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.12.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.12.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.12.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.12.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.12.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.12.5"
+      ],
+      "study_date": "20240801",
+      "study_description": "MR KNEE WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.12"
+    },
+    {
+      "accession_number": "ACC0013",
+      "files": [
+        "study_0013/series_001/IM0001.dcm",
+        "study_0013/series_001/IM0002.dcm",
+        "study_0013/series_001/IM0003.dcm",
+        "study_0013/series_001/IM0004.dcm",
+        "study_0013/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19940325",
+      "patient_id": "SYN-42-0013",
+      "patient_name": "CLARK^HAO",
+      "patient_sex": "F",
+      "series_description": "AXIAL 1MM LUNG",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.13.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.13.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.13.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.13.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.13.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.13.5"
+      ],
+      "study_date": "20240219",
+      "study_description": "CT ABDOMEN PELVIS W CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.13"
+    },
+    {
+      "accession_number": "ACC0014",
+      "files": [
+        "study_0014/series_001/IM0001.dcm",
+        "study_0014/series_001/IM0002.dcm",
+        "study_0014/series_001/IM0003.dcm",
+        "study_0014/series_001/IM0004.dcm",
+        "study_0014/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19850221",
+      "patient_id": "SYN-42-0014",
+      "patient_name": "JONES^ANNA",
+      "patient_sex": "F",
+      "series_description": "AX T1",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.14.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.14.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.14.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.14.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.14.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.14.5"
+      ],
+      "study_date": "20240224",
+      "study_description": "MR KNEE WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.14"
+    },
+    {
+      "accession_number": "ACC0015",
+      "files": [
+        "study_0015/series_001/IM0001.dcm",
+        "study_0015/series_001/IM0002.dcm",
+        "study_0015/series_001/IM0003.dcm",
+        "study_0015/series_001/IM0004.dcm",
+        "study_0015/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19411013",
+      "patient_id": "SYN-42-0015",
+      "patient_name": "CLARK^JUN",
+      "patient_sex": "F",
+      "series_description": "AXIAL 1MM LUNG",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.15.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.15.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.15.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.15.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.15.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.15.5"
+      ],
+      "study_date": "20240326",
+      "study_description": "CT CHEST WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.15"
+    },
+    {
+      "accession_number": "ACC0016",
+      "files": [
+        "study_0016/series_001/IM0001.dcm",
+        "study_0016/series_001/IM0002.dcm",
+        "study_0016/series_001/IM0003.dcm",
+        "study_0016/series_001/IM0004.dcm",
+        "study_0016/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19660709",
+      "patient_id": "SYN-42-0016",
+      "patient_name": "LEWIS^LING",
+      "patient_sex": "M",
+      "series_description": "AX T2 FLAIR",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.16.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.16.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.16.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.16.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.16.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.16.5"
+      ],
+      "study_date": "20240630",
+      "study_description": "MR KNEE WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.16"
+    },
+    {
+      "accession_number": "ACC0017",
+      "files": [
+        "study_0017/series_001/IM0001.dcm",
+        "study_0017/series_001/IM0002.dcm",
+        "study_0017/series_001/IM0003.dcm",
+        "study_0017/series_001/IM0004.dcm",
+        "study_0017/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19700406",
+      "patient_id": "SYN-42-0017",
+      "patient_name": "CHENG^FRANK",
+      "patient_sex": "M",
+      "series_description": "AXIAL 5MM SOFT TISSUE",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.17.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.17.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.17.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.17.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.17.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.17.5"
+      ],
+      "study_date": "20240903",
+      "study_description": "CT CHEST WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.17"
+    },
+    {
+      "accession_number": "ACC0018",
+      "files": [
+        "study_0018/series_001/IM0001.dcm",
+        "study_0018/series_001/IM0002.dcm",
+        "study_0018/series_001/IM0003.dcm",
+        "study_0018/series_001/IM0004.dcm",
+        "study_0018/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19850211",
+      "patient_id": "SYN-42-0018",
+      "patient_name": "HALL^MEI",
+      "patient_sex": "F",
+      "series_description": "AX T1",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.18.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.18.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.18.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.18.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.18.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.18.5"
+      ],
+      "study_date": "20240612",
+      "study_description": "MR KNEE WO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.18"
+    },
+    {
+      "accession_number": "ACC0019",
+      "files": [
+        "study_0019/series_001/IM0001.dcm",
+        "study_0019/series_001/IM0002.dcm",
+        "study_0019/series_001/IM0003.dcm",
+        "study_0019/series_001/IM0004.dcm",
+        "study_0019/series_001/IM0005.dcm"
+      ],
+      "modality": "CT",
+      "patient_birth_date": "19681021",
+      "patient_id": "SYN-42-0019",
+      "patient_name": "CHENG^EMMA",
+      "patient_sex": "F",
+      "series_description": "AXIAL 1MM LUNG",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.19.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.19.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.19.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.19.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.19.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.19.5"
+      ],
+      "study_date": "20240917",
+      "study_description": "CT ABDOMEN PELVIS W CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.19"
+    },
+    {
+      "accession_number": "ACC0020",
+      "files": [
+        "study_0020/series_001/IM0001.dcm",
+        "study_0020/series_001/IM0002.dcm",
+        "study_0020/series_001/IM0003.dcm",
+        "study_0020/series_001/IM0004.dcm",
+        "study_0020/series_001/IM0005.dcm"
+      ],
+      "modality": "MR",
+      "patient_birth_date": "19850616",
+      "patient_id": "SYN-42-0020",
+      "patient_name": "CHANG^JIE",
+      "patient_sex": "M",
+      "series_description": "AX T2 FLAIR",
+      "series_instance_uid": "1.2.826.0.1.3680043.10.9999.42.2.20.1",
+      "sop_instance_uids": [
+        "1.2.826.0.1.3680043.10.9999.42.3.20.1",
+        "1.2.826.0.1.3680043.10.9999.42.3.20.2",
+        "1.2.826.0.1.3680043.10.9999.42.3.20.3",
+        "1.2.826.0.1.3680043.10.9999.42.3.20.4",
+        "1.2.826.0.1.3680043.10.9999.42.3.20.5"
+      ],
+      "study_date": "20241117",
+      "study_description": "MR BRAIN WWO CONTRAST",
+      "study_instance_uid": "1.2.826.0.1.3680043.10.9999.42.1.20"
+    }
+  ],
+  "uid_root": "1.2.826.0.1.3680043.10.9999."
+}

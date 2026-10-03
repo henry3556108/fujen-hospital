@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "case_id": "case_001",
+      "classes": [
+        1
+      ],
+      "image": "case_001_image.nii.gz",
+      "label": "case_001_label.nii.gz",
+      "shape": [
+        32,
+        32,
+        16
+      ],
+      "spacing": [
+        1.5,
+        1.5,
+        3.0
+      ]
+    },
+    {
+      "case_id": "case_002",
+      "classes": [
+        1,
+        2
+      ],
+      "image": "case_002_image.nii.gz",
+      "label": "case_002_label.nii.gz",
+      "shape": [
+        32,
+        32,
+        16
+      ],
+      "spacing": [
+        1.5,
+        1.5,
+        3.0
+      ]
+    },
+    {
+      "case_id": "case_003",
+      "classes": [
+        1
+      ],
+      "image": "case_003_image.nii.gz",
+      "label": "case_003_label.nii.gz",
+      "shape": [
+        32,
+        32,
+        16
+      ],
+      "spacing": [
+        1.5,
+        1.5,
+        3.0
+      ]
+    }
+  ],
+  "counts": {
+    "cases": 3
+  },
+  "kind": "nifti",
+  "seed": 42
+}

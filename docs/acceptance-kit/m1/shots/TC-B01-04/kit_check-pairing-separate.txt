@@ -1,0 +1,10 @@
+case_001_label.nii.gz    paired    → case_001_image.nii.gz（應為 case_001_image.nii.gz）  正確
+case_002_label.nii.gz    paired    → case_002_image.nii.gz（應為 case_002_image.nii.gz）  正確
+case_003_label.nii.gz    paired    → case_003_image.nii.gz（應為 case_003_image.nii.gz）  正確
+case_001_label.mha       paired    → case_001_image.mha（應為 case_001_image.mha）  正確
+case_002_label.mha       paired    → case_002_image.mha（應為 case_002_image.mha）  正確
+case_003_label.mha       paired    → case_003_image.mha（應為 case_003_image.mha）  正確
+makesense_001.json       paired    → 5 張 DICOM（應為 ACC0001 的 5 張）  正確
+makesense_002.json       paired    → 5 張 DICOM（應為 ACC0002 的 5 張）  正確
+makesense_003.json       paired    → 5 張 DICOM（應為 ACC0003 的 5 張）  正確
+配對錯誤：0

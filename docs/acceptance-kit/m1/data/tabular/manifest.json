@@ -1,0 +1,19 @@
+{
+  "bad_file": "bad.csv",
+  "bad_rows_file": "bad_rows.json",
+  "clean_files": [
+    "cohort_01.csv",
+    "cohort_02.csv",
+    "cohort_03.csv"
+  ],
+  "counts": {
+    "bad_file_rows": 30,
+    "bad_rows": 10,
+    "clean_files": 3,
+    "clean_rows": 300,
+    "columns": 12
+  },
+  "kind": "tabular",
+  "schema_file": "schema.json",
+  "seed": 42
+}

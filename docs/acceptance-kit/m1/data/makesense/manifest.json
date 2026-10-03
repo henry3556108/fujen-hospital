@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "exports": 3
+  },
+  "exports": [
+    {
+      "accession_number": "ACC0001",
+      "annotations": 9,
+      "file": "makesense_001.json",
+      "images": 5,
+      "study": "study_0001"
+    },
+    {
+      "accession_number": "ACC0002",
+      "annotations": 6,
+      "file": "makesense_002.json",
+      "images": 5,
+      "study": "study_0002"
+    },
+    {
+      "accession_number": "ACC0003",
+      "annotations": 8,
+      "file": "makesense_003.json",
+      "images": 5,
+      "study": "study_0003"
+    }
+  ],
+  "image_source": "dicom",
+  "image_source_note": "file_name = DICOM slice path relative to the `dicom` output dir",
+  "kind": "makesense",
+  "seed": 42
+}
