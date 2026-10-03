@@ -103,3 +103,32 @@ describe('1 一個結論', () => {
     expect(notes.join('\n')).toContain('以 K 折平均為準');
   });
 });
+
+describe('2 建議依演算法', () => {
+  // 訓練集 95%、測試集 70%：只記住訓練資料
+  const overfit = { rows: { train: 300, validation: 0, test: 100 }, train: { accuracy: 0.95, r2: 0.95 }, test: { accuracy: 0.7, r2: 0.6 } };
+  const advice = (algorithm: string, kind: TrainingKind = 'tabular_classification') =>
+    warnings(run(overfit, kind, algorithm)).find((n) => n.includes('只記住'))!;
+
+  it('logistic regression: stronger regularisation or fewer features, never tree depth', () => {
+    expect(advice('logistic_regression')).toContain('把「正則化強度的倒數（C）」調小');
+    expect(advice('logistic_regression')).toContain('減少用來預測的欄位');
+    expect(advice('logistic_regression')).not.toMatch(/樹|深度/);
+  });
+
+  it('random forest: depth and leaf size', () => {
+    expect(advice('random_forest')).toContain('「最大深度」設小一點');
+    expect(advice('random_forest')).toContain('「葉節點最少樣本數」調大');
+    expect(advice('random_forest', 'tabular_regression')).toContain('「最大深度」設小一點');
+  });
+
+  it('gradient boosting: learning rate and number of trees', () => {
+    expect(advice('gradient_boosting')).toContain('「學習率」調低');
+    expect(advice('gradient_boosting')).toContain('減少「樹的數量」');
+  });
+
+  it('linear regression: fewer features, no hyperparameter that does not exist', () => {
+    expect(advice('linear_regression', 'tabular_regression')).toContain('減少用來預測的欄位');
+    expect(advice('linear_regression', 'tabular_regression')).not.toMatch(/樹|深度|正則化|學習率/);
+  });
+});

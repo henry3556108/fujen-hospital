@@ -256,9 +256,19 @@ export function warnings(run: TrainingRun): string[] {
   return out;
 }
 
-/** 「只記住訓練資料」時的建議。 */
-export function overfitAdvice(_run: TrainingRun): string {
-  return '減少樹的深度、增加資料，或減少特徵';
+/** 「只記住訓練資料」時的建議，依演算法（名稱與訓練表單的超參數名稱相同）。 */
+const OVERFIT_ADVICE: Record<string, string> = {
+  random_forest: '把「最大深度」設小一點（例如 3～5）、把「葉節點最少樣本數」調大（例如 5～10），或增加資料',
+  logistic_regression: '把「正則化強度的倒數（C）」調小（例如 0.1）讓模型簡單一點，或減少用來預測的欄位',
+  gradient_boosting: '把「學習率」調低（例如 0.05）、減少「樹的數量」或把「最大深度」設小一點',
+  linear_regression: '減少用來預測的欄位，或增加資料',
+};
+
+export function overfitAdvice(run: TrainingRun): string {
+  const algorithm = run.config?.tabular?.algorithm;
+  if (algorithm && OVERFIT_ADVICE[algorithm]) return OVERFIT_ADVICE[algorithm];
+  if (run.kind.startsWith('image_')) return '減少「訓練回合數」、提高「每張影像的增強份數」，或增加影像';
+  return '增加資料，或減少用來預測的欄位';
 }
 
 /** 比較基準一句話（顯示在結論下方）：與結論同一個來源。 */
