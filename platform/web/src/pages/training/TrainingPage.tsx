@@ -9,7 +9,7 @@ import { formatTime } from '../../components/format';
 import { KIND_NAMES } from '../inference/api';
 import { useTrainingApi, type Catalogue, type TrainingApi, type TrainingSetting } from './api';
 import { SettingForm } from './SettingForm';
-import { emptyForm, formFromSetting, suggestKind, type FormState } from './settingForm';
+import { emptyForm, formFromSetting, settingDifference, suggestKind, type FormState } from './settingForm';
 import type { TargetFeature } from '../tabular/types';
 import { Runs } from './Runs';
 import '../../styles/pages.css';
@@ -49,15 +49,13 @@ async function formFromDataset(api: TrainingApi, cat: Catalogue, datasetId: numb
   return { form, notice };
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
-/** 結構式設定與資料集目前的 Target／Feature／前處理不同時，回傳資料集的設定（可套用）。 */
-function outdated(s: TrainingSetting, saved: Record<number, TargetFeature | null>): TargetFeature | null {
+/** 結構式設定與資料集目前的設定真的不同時，回傳資料集的設定（可套用）與一句話說明差在哪裡。 */
+function outdated(s: TrainingSetting, saved: Record<number, TargetFeature | null>): { tf: TargetFeature; text: string } | null {
   if (s.config.source.type !== 'tabular' || !s.config.tabular) return null;
   const tf = saved[s.config.source.dataset_id];
   if (!tf) return null;
-  const t = s.config.tabular;
-  return same([t.target, t.features, t.steps], [tf.config.target, tf.config.features, tf.config.steps]) ? null : tf;
+  const text = settingDifference(s.config.tabular, tf.config);
+  return text ? { tf, text } : null;
 }
 
 function Training({ api }: { api: TrainingApi }) {
@@ -134,7 +132,8 @@ function Training({ api }: { api: TrainingApi }) {
     setError(null);
     setNotice('');
     try {
-      const config = { ...s.config, tabular: { ...s.config.tabular!, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps } };
+      const config = { ...s.config, tabular: { ...s.config.tabular!, target: tf.config.target, features: [...tf.config.features], steps: tf.config.steps,
+        ...(tf.config.missing ? { missing: tf.config.missing } : {}) } };
       await api.updateSetting(s.id, s.name, config);
       setNotice(`已把資料集目前的 Target、Feature 與前處理套用到「${s.name}」。`);
       settings.reload();
@@ -204,17 +203,18 @@ function Training({ api }: { api: TrainingApi }) {
                 </thead>
                 <tbody>
                   {visible.map((s) => {
-                    const tf = outdated(s, saved.data ?? {});
+                    const diff = outdated(s, saved.data ?? {});
                     return (
                     <tr key={s.id}>
                       <th scope="row">{s.name}</th>
                       <td>{KIND_NAMES[s.kind]}</td>
                       <td>
                         {s.config.source.type === 'tabular' ? datasetName(s.config.source.dataset_id) : '影像'}
-                        {tf ? (
+                        {diff ? (
                           <span className="stack">
-                            <span className="badge status-badge status-badge--warning">資料集設定已更新</span>
-                            <button type="button" className="btn btn--small btn--secondary" onClick={() => void apply(s, tf)}>
+                            <span className="badge status-badge status-badge--warning">與資料集設定不同</span>
+                            <span className="field__hint" data-testid="setting-difference">{diff.text}</span>
+                            <button type="button" className="btn btn--small btn--secondary" onClick={() => void apply(s, diff.tf)}>
                               套用資料集設定到「{s.name}」
                             </button>
                           </span>

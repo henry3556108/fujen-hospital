@@ -236,11 +236,12 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     seed('舊的', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'smoker_current'], steps: [], algorithm: 'random_forest' } }));
     await saveTargetFeature('diagnosis', ['age', 'smoker']);
     const { user } = await renderApp('/training', 'pi01');
-    expect(await screen.findByText('資料集設定已更新')).toBeInTheDocument();
+    expect(await screen.findByText('與資料集設定不同')).toBeInTheDocument();
+    expect(screen.getByTestId('setting-difference')).toHaveTextContent('與資料集目前的設定不同：Feature 多了 smoker_current，少了 smoker。');
     await user.click(screen.getByRole('button', { name: '套用資料集設定到「舊的」' }));
     await screen.findByText('已把資料集目前的 Target、Feature 與前處理套用到「舊的」。');
     expect(trainingMock().settings[0].config.tabular!.features).toEqual(['age', 'smoker']);
-    await waitFor(() => expect(screen.queryByText('資料集設定已更新')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('與資料集設定不同')).toBeNull());
   });
 
   it('only administrators see the fake-trainer option; settings default to mine', async () => {

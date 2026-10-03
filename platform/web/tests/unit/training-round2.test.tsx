@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingConfig, TrainingKind } from '../../src/pages/training/api';
-import { featureChoices, normaliseFeatures, unknownFeatures } from '../../src/pages/training/settingForm';
+import { featureChoices, normaliseFeatures, settingDifference, unknownFeatures } from '../../src/pages/training/settingForm';
 import { createApiClient } from '../../src/api/client';
 import { renderApp } from '../render';
 
@@ -157,5 +157,36 @@ describe('2 缺值', () => {
     await user.type(within(tryForm).getByLabelText('age'), '61');
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
     expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/glucose 缺值，已用訓練資料的中位數補上/);
+  });
+});
+
+describe('4 與資料集設定的差異', () => {
+  const tf = { target: 'diagnosis', features: ['age', 'sex_F', 'sex_M'], steps: [{ id: 'onehot', columns: ['sex'], params: { drop_first: false } }] };
+
+  it('ignores feature order, key order and empty params, and the missing choice when the dataset has none', () => {
+    expect(settingDifference({ ...tf, features: ['sex_M', 'age', 'sex_F'] }, tf)).toBeNull();
+    expect(settingDifference({ ...tf, steps: [{ params: { drop_first: false }, columns: ['sex'], id: 'onehot' }] }, tf)).toBeNull();
+    expect(settingDifference({ target: 'y', features: ['a'], steps: [{ id: 'impute_mean', columns: ['a'], params: {} }] },
+      { target: 'y', features: ['a'], steps: [{ id: 'impute_mean', columns: ['a'] } as never] })).toBeNull();
+    expect(settingDifference({ ...tf, missing: 'impute' }, tf)).toBeNull();
+  });
+
+  it('says in one sentence what really differs', () => {
+    expect(settingDifference({ ...tf, features: ['age', 'sex_F', 'sex_M', 'glucose'] }, tf)).toBe('與資料集目前的設定不同：Feature 多了 glucose。');
+    expect(settingDifference({ ...tf, target: 'event', missing: 'drop' }, { ...tf, missing: 'impute' })).toBe(
+      '與資料集目前的設定不同：要預測的結果是「event」，資料集是「diagnosis」；缺值處理是「不使用有缺值的病人」，資料集是「補上缺值」。');
+    expect(settingDifference({ ...tf, steps: [] }, tf)).toBe('與資料集目前的設定不同：前處理步驟不同（這裡 0 個，資料集 1 個）。');
+  });
+
+  it('a setting saved from the dataset shows no difference right after saving', async () => {
+    await saveTargetFeature('diagnosis', ['sex_F', 'sex_M', 'age', 'glucose'], [{ id: 'onehot', columns: ['sex'] }], { missing: 'impute' });
+    const { user } = await renderApp('/training?dataset=2', 'pi01');
+    const form = await screen.findByRole('form', { name: '新增訓練設定' });
+    await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' });
+    await user.click(within(form).getByRole('button', { name: '儲存設定' }));
+    await screen.findByText(/已新增訓練設定/);
+    await screen.findByRole('button', { name: /^送出訓練/ });
+    await new Promise((r) => setTimeout(r, 300));     // 等資料集設定載入後再確認沒有差異提示
+    expect(screen.queryByText('與資料集設定不同')).toBeNull();
   });
 });

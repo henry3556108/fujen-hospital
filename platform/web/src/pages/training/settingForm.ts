@@ -274,3 +274,41 @@ export function toggleChoice(choice: FeatureChoice, features: string[]): string[
 export function choiceLabel(choice: FeatureChoice): string {
   return choice.encoded ? `${choice.name}（已轉成 ${choice.columns.join('、')}）` : choice.name;
 }
+
+/** 遞迴排序物件的鍵，空的 params 與沒有 params 視為相同（比較前處理步驟用）。 */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value as object).sort().map((k) => [k, canonical((value as Record<string, unknown>)[k])]));
+  }
+  return value;
+}
+
+const stepKey = (steps: Step[]) => JSON.stringify(canonical(steps.map((s) => ({ id: s.id, columns: s.columns ?? [], params: s.params ?? {} }))));
+
+const MISSING_NAMES: Record<MissingChoice, string> = { impute: '補上缺值', drop: '不使用有缺值的病人' };
+
+/**
+ * 訓練設定與資料集目前的 Target／Feature／前處理／缺值處理的差異，一句話；相同時回傳 null。
+ * Feature 不看順序；前處理以正規化後的內容比較；資料集沒有選缺值處理時不比較缺值處理。
+ */
+export function settingDifference(
+  setting: { target: string; features: string[]; steps: Step[]; missing?: MissingChoice },
+  dataset: { target: string; features: string[]; steps: Step[]; missing?: MissingChoice },
+): string | null {
+  const parts: string[] = [];
+  if (setting.target !== dataset.target) parts.push(`要預測的結果是「${setting.target}」，資料集是「${dataset.target}」`);
+  const more = setting.features.filter((f) => !dataset.features.includes(f));
+  const fewer = dataset.features.filter((f) => !setting.features.includes(f));
+  if (more.length || fewer.length) {
+    const bits = [more.length ? `多了 ${more.join('、')}` : '', fewer.length ? `少了 ${fewer.join('、')}` : ''].filter(Boolean);
+    parts.push(`Feature ${bits.join('，')}`);
+  }
+  if (stepKey(setting.steps) !== stepKey(dataset.steps)) {
+    parts.push(`前處理步驟不同（這裡 ${setting.steps.length} 個，資料集 ${dataset.steps.length} 個）`);
+  }
+  if (dataset.missing && (setting.missing ?? 'drop') !== dataset.missing) {
+    parts.push(`缺值處理是「${MISSING_NAMES[setting.missing ?? 'drop']}」，資料集是「${MISSING_NAMES[dataset.missing]}」`);
+  }
+  return parts.length ? `與資料集目前的設定不同：${parts.join('；')}。` : null;
+}
