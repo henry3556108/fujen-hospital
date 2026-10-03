@@ -61,3 +61,23 @@ test.describe('Account 與 Dashboard', () => {
     await expect(p1.getByRole('cell').nth(2)).toHaveText('1');
   });
 });
+
+test.describe('專案成員', () => {
+  test('選 ra01 帶入目前的 Research Assistant；改角色前要確認，取消就不改', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/members');
+    const table = page.getByRole('table', { name: '目前的專案成員' });
+    await expect(table.getByRole('row', { name: /ra01/ })).toContainText('Research Assistant');
+    const form = page.getByRole('form', { name: '設定專案成員' });
+    await form.getByLabel('帳號').selectOption({ label: 'ra01（已是成員）' });
+    await expect(form.getByLabel('角色')).toHaveValue('research_assistant');
+    await expect(form.getByRole('checkbox', { name: /^Training/ })).toBeChecked();
+    await form.getByLabel('角色').selectOption('viewer');
+    await form.getByRole('button', { name: '儲存變更' }).click();
+    const dialog = page.getByRole('dialog', { name: '變更角色' });
+    await expect(dialog).toContainText('從 Research Assistant 改為 Viewer');
+    await dialog.getByRole('button', { name: '取消' }).click();
+    await page.reload();
+    await expect(page.getByRole('table', { name: '目前的專案成員' }).getByRole('row', { name: /ra01/ })).toContainText('Research Assistant');
+  });
+});
