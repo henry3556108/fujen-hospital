@@ -19,9 +19,11 @@ CORRELATION_METHODS = ("pearson", "spearman", "kendall")
 
 
 def column_info(df: pd.DataFrame) -> list[dict[str, Any]]:
-    """Column list for the show/hide UI: name, dtype, kind, missing count."""
+    """Column list for the show/hide UI and the column overview: name, dtype, kind, missing count and
+    number of distinct non-missing values."""
     return to_jsonable([
-        {"name": str(c), "dtype": str(df[c].dtype), "kind": column_kind(df[c]), "missing": int(df[c].isna().sum())}
+        {"name": str(c), "dtype": str(df[c].dtype), "kind": column_kind(df[c]), "missing": int(df[c].isna().sum()),
+         "unique": int(df[c].nunique())}
         for c in df.columns
     ])
 
