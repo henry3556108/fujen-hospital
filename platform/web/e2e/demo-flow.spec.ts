@@ -178,7 +178,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     const form = page.getByRole('form', { name: '新增訓練設定' });
     await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
     await form.getByLabel('設定名稱').fill('demo-diagnosis');
-    await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
+    await form.getByLabel('要預測的結果（Target）').selectOption('diagnosis');
     const features = form.getByRole('group', { name: '用來預測的資料（Feature）' });
     for (const f of ['age', 'sex', 'bmi', 'smoker']) await features.getByRole('checkbox', { name: f, exact: true }).check();
     await form.getByRole('radio', { name: 'K 折交叉驗證' }).check();

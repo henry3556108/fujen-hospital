@@ -190,7 +190,7 @@ describe('描述統計與分布', () => {
     expect(row('diagnosis').slice(0, 7)).toEqual(['diagnosis', '是／否（0／1）', '100', '0', '2', expect.stringMatching(/% 為 1$/), '—']);
     expect(row('patient_id').slice(0, 2)).toEqual(['patient_id', '識別碼']);
     expect(row('patient_id')[12]).toBe('—');
-    expect(screen.getByText('表頭說明')).toBeInTheDocument();
+    expect((screen.getByText(/^表頭說明/).closest('details') as HTMLDetailsElement).open).toBe(true);
   });
 
   it('draws a histogram for a numeric column and category counts for a categorical one', async () => {

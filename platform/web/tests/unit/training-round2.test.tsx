@@ -1,7 +1,8 @@
 // 使用性測試第二輪（docs/usability/2026-10-03-after.md）：One-Hot 欄位在訓練表單的呈現、缺值、分享、設定差異、
 // 術語與圖表、次要問題。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { BarChart, tickLayout } from '../../src/components/charts/BarChart';
 import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingConfig, TrainingKind } from '../../src/pages/training/api';
 import { featureChoices, normaliseFeatures, settingDifference, unknownFeatures } from '../../src/pages/training/settingForm';
@@ -188,5 +189,58 @@ describe('4 與資料集設定的差異', () => {
     await screen.findByRole('button', { name: /^送出訓練/ });
     await new Promise((r) => setTimeout(r, 300));     // 等資料集設定載入後再確認沒有差異提示
     expect(screen.queryByText('與資料集設定不同')).toBeNull();
+  });
+});
+
+describe('5 術語與圖表', () => {
+  it('histogram labels that would overlap are drawn slanted; short ones stay flat', () => {
+    const band = 568 / 10;
+    expect(tickLayout(['25–31.4', '31.4–37.8', '37.8–44.2'], band).angle).toBe(-40);
+    expect(tickLayout(['25–31.4', '31.4–37.8'], band).extra).toBeGreaterThan(0);
+    expect(tickLayout(['0', '1'], 284)).toEqual({ angle: 0, extra: 0, every: 1 });
+  });
+
+  it('feature importance is a horizontal bar chart with every feature name readable', async () => {
+    render(<BarChart horizontal title="特徵重要性" xLabel="準確率下降（百分點）" yLabel="特徵"
+      bars={[{ label: 'smoker_current', value: 9.5 }, { label: 'age', value: 3 }]} />);
+    const fig = screen.getByRole('figure', { name: '特徵重要性' });
+    expect(within(fig).getByRole('img', { name: '特徵重要性：2 個橫條，最大值 9.5' })).toBeInTheDocument();
+    expect(fig.querySelector('svg')!.textContent).toContain('smoker_current');
+  });
+
+  it('the overview and the form use plain names for Target and Feature; statistics terms are explained up front', async () => {
+    await renderApp('/data/tabular/2/target', 'pi01');
+    const form = await screen.findByRole('form', { name: '設定 Target 與 Feature' }, { timeout: 10_000 });
+    expect(within(form).getByRole('columnheader', { name: '要預測的結果（Target）' })).toBeInTheDocument();
+    expect(within(form).getByRole('columnheader', { name: '用來預測的資料（Feature）' })).toBeInTheDocument();
+  });
+
+  it('describe headers carry hover help and the explanation is open by default', async () => {
+    await renderApp('/data/tabular/2/describe', 'vw01');
+    const table = await screen.findByRole('table', { name: '描述統計' });
+    expect(within(table).getByText('P25')).toHaveAttribute('title', expect.stringContaining('25% 位置'));
+    expect(within(table).getByText('標準差')).toHaveAttribute('title', expect.stringContaining('分散'));
+    expect((screen.getByText(/^表頭說明/).closest('details') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('One-Hot hides “drop first category” under advanced with its default, and the summary leaves defaults out', async () => {
+    const { user } = await renderApp('/data/tabular/2/preprocess', 'vw01');
+    const form = await screen.findByRole('form', { name: '加入前處理步驟' });
+    await user.selectOptions(within(form).getByLabelText('類別'), within(form).getByRole('option', { name: /^類別編碼/ }));
+    await user.selectOptions(within(form).getByLabelText('方法'), 'One-Hot 編碼');
+    const advanced = within(form).getByText('進階（一般不需要調整）').closest('details')!;
+    expect(advanced.open).toBe(false);
+    expect(within(advanced).getByLabelText('移除第一個類別（避免共線）')).toBeInTheDocument();
+    await user.click(within(form).getByRole('checkbox', { name: 'sex' }));
+    await user.click(within(form).getByRole('button', { name: '加入步驟' }));
+    expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getByText('One-Hot 編碼：sex')).toBeInTheDocument();
+  });
+
+  it('K-fold results explain each metric, including F1', async () => {
+    seed('kf', tabularConfig('tabular_classification', {}, { split: { train: 0.8, validation: 0, test: 0.2 }, validation: { method: 'kfold', folds: 5 } }));
+    const { user } = await renderApp('/training', 'pi01');
+    await finish(user, 'kf');
+    const table = screen.getByRole('table', { name: '訓練 #1 的 K 折結果' });
+    expect(within(table).getByRole('row', { name: /F1 分數/ })).toHaveTextContent('同時考慮「抓得到」與「抓得準」');
   });
 });

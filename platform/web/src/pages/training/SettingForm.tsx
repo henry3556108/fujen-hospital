@@ -408,7 +408,7 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
 
   return (
     <fieldset>
-      <legend>資料集、Target 與 Feature</legend>
+      <legend>資料集、要預測的結果與用來預測的資料</legend>
       <div className="stack">
         <ApiErrorAlert error={datasets.error ?? detail.error} />
         {datasets.data && datasets.data.length === 0 ? (
@@ -428,7 +428,7 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="ts-target">目標欄位（Target）</label>
+            <label htmlFor="ts-target">要預測的結果（Target）</label>
             <select id="ts-target" className="select" value={form.target} disabled={!detail.data}
               onChange={(e) => setForm((f) => ({ ...f, target: e.target.value, features: f.features.filter((x) => x !== e.target.value) }))}>
               <option value="">請選擇</option>
@@ -450,7 +450,7 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
             </select>
           </div>
         </div>
-        {prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的 Target、Feature 與前處理步驟。</p> : null}
+        {prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的要預測的結果（Target）、用來預測的資料（Feature）與前處理步驟。</p> : null}
         {textFeatures.length ? (
           <p className="field__hint" data-testid="text-features">
             「{textFeatures.join('、')}」是文字或類別欄位，訓練時會自動轉成 0／1 欄位（One-Hot），不需要先自己處理。

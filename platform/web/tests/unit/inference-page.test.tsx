@@ -22,11 +22,12 @@ async function openModel(name: RegExp | string, username = 'vw01') {
 }
 
 describe('inference page', () => {
-  it('lists trained models with kind and format', async () => {
+  it('lists trained models with their kind; the file format (PKL/H5) is only shown when exporting', async () => {
     await renderApp('/inference', 'vw01');
     const table = await screen.findByRole('table', { name: '模型清單' });
-    expect(within(table).getByRole('row', { name: /diagnosis-rf-run1.*結構式分類.*PKL/ })).toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /modality-cnn-run2.*影像分類.*H5/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /diagnosis-rf-run1.*結構式分類/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /modality-cnn-run2.*影像分類/ })).toBeInTheDocument();
+    expect(table).not.toHaveTextContent(/PKL|H5/);
   });
 
   it('TC-B06-01 / 04 batch inference on tabular data adds a prediction column to every row', async () => {

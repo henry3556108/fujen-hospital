@@ -96,25 +96,25 @@ export function DescribeTab() {
                     缺值
                   </th>
                   <th scope="col" className="num">
-                    相異值
+                    <abbr title="這一欄有幾種不同的值（不算缺值）。等於列數時，多半是病歷號等識別碼。">相異值</abbr>
                   </th>
                   <th scope="col" className="num">
                     平均
                   </th>
                   <th scope="col" className="num">
-                    標準差
+                    <abbr title="數值分散的程度：越大代表大家差異越大。">標準差</abbr>
                   </th>
                   <th scope="col" className="num">
                     最小
                   </th>
                   <th scope="col" className="num">
-                    P25
+                    <abbr title="由小排到大，位在 25% 位置的值；例如 P25＝41 表示四分之一的人小於 41。">P25</abbr>
                   </th>
                   <th scope="col" className="num">
-                    中位數
+                    <abbr title="由小排到大，正中間的值；一半的人小於它。">中位數</abbr>
                   </th>
                   <th scope="col" className="num">
-                    P75
+                    <abbr title="由小排到大，位在 75% 位置的值；四分之三的人小於它。">P75</abbr>
                   </th>
                   <th scope="col" className="num">
                     最大
@@ -153,15 +153,15 @@ export function DescribeTab() {
               </tbody>
             </table>
           </div>
-          <details className="section">
-            <summary>表頭說明</summary>
+          <details className="section" open>
+            <summary>表頭說明（P25、中位數、P75、標準差、相異值是什麼）</summary>
             <dl className="kv">
               <dt>相異值</dt>
               <dd>這一欄有幾種不同的值（不算缺值）。等於列數時，多半是病歷號等識別碼。</dd>
               <dt>平均、標準差</dt>
               <dd>標準差表示數值分散的程度：越大代表大家差異越大。是／否欄位改顯示「為 1 的比例」。</dd>
               <dt>P25、中位數、P75</dt>
-              <dd>由小排到大，位在 25%、50%、75% 位置的值；例如 P25＝41 表示四分之一的人小於 41。</dd>
+              <dd>由小排到大，位在 25%、50%、75% 位置的值；例如 P25＝41 表示四分之一的人小於 41，P25 到 P75 之間是中間一半的人。</dd>
               <dt>最常見值、次數</dt>
               <dd>類別欄位中出現最多的值，以及出現幾次。</dd>
             </dl>

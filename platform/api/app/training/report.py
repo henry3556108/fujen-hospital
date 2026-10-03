@@ -302,8 +302,8 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("訓練種類", KIND_NAMES.get(run["kind"], run["kind"])),
         ("演算法", ALGORITHM_NAMES.get(tabular.get("algorithm"), tabular.get("algorithm")) if tabular else "卷積神經網路（Keras）"),
         ("驗證方式", validation_text(config)),
-        ("目標欄位（Target）", tabular.get("target")),
-        ("特徵欄位（Feature）", "、".join(tabular.get("features") or [])),
+        ("要預測的結果（Target）", tabular.get("target")),
+        ("用來預測的資料（Feature）", "、".join(tabular.get("features") or [])),
         ("前處理步驟", " → ".join(s.get("id", "") for s in tabular.get("steps") or []) or "無"),
         ("超參數", "、".join(f"{k} = {v}" for k, v in (config.get("hyperparameters") or {}).items()) or "預設值"),
         ("資料版本", f"#{run['dataset_version_id']}"),
@@ -313,7 +313,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("模型檔 SHA-256", model.get("sha256", "—")),
     ]
     if not tabular:
-        facts = [f for f in facts if f[0] not in ("目標欄位（Target）", "特徵欄位（Feature）", "前處理步驟")]
+        facts = [f for f in facts if f[0] not in ("要預測的結果（Target）", "用來預測的資料（Feature）", "前處理步驟")]
     fact_rows = "".join(f"<tr><th scope=\"row\">{_e(k)}</th><td>{_e(v if v is not None else '—')}</td></tr>"
                         for k, v in facts)
     cv = metrics.get("cv")

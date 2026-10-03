@@ -80,9 +80,9 @@ export function TargetFeatureTab() {
         <h3 id="tf-current">已儲存的設定</h3>
         {saved ? (
           <dl className="kv">
-            <dt>Target</dt>
+            <dt>要預測的結果（Target）</dt>
             <dd data-testid="saved-target">{saved.config.target}</dd>
-            <dt>Feature</dt>
+            <dt>用來預測的資料（Feature）</dt>
             <dd data-testid="saved-features">{saved.config.features.join('、')}</dd>
             {saved.config.missing ? (
               <>
@@ -110,10 +110,10 @@ export function TargetFeatureTab() {
           <h3>欄位總覽與設定</h3>
           <ul className="text-muted">
             <li>
-              <strong>Target</strong>：要預測的欄位（例如是否診斷為疾病），只能選一個。
+              <strong>要預測的結果（Target）</strong>：模型要學會猜的欄位（例如是否確診），只能選一個。
             </li>
             <li>
-              <strong>Feature</strong>：用來預測的欄位（例如年齡、血壓），可選多個。
+              <strong>用來預測的資料（Feature）</strong>：模型拿來猜的欄位（例如年齡、血壓），可選多個。
             </li>
             <li>
               <strong>當作類別</strong>：把類別拆成多個 0／1 欄位（One-Hot 編碼），模型才能使用文字或代碼欄位；例如性別 sex 變成 sex_F、sex_M。
@@ -145,8 +145,8 @@ export function TargetFeatureTab() {
                   <th scope="col" className="num">
                     不同值
                   </th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Feature</th>
+                  <th scope="col">要預測的結果（Target）</th>
+                  <th scope="col">用來預測的資料（Feature）</th>
                   <th scope="col">當作類別</th>
                   <th scope="col">提示</th>
                 </tr>

@@ -115,6 +115,7 @@ function CvTable({ runId, cv }: { runId: number; cv: NonNullable<ReturnType<type
               <th scope="col">指標</th>
               <th scope="col">平均 ± 標準差</th>
               <th scope="col">各折</th>
+              <th scope="col">怎麼看</th>
             </tr>
           </thead>
           <tbody>
@@ -125,6 +126,7 @@ function CvTable({ runId, cv }: { runId: number; cv: NonNullable<ReturnType<type
                   {formatMetric(k, cv.metrics[k].mean)} ± {formatMetric(k, cv.metrics[k].std)}
                 </td>
                 <td>{cv.metrics[k].values.map((v) => formatMetric(k, v)).join('、')}</td>
+                <td className="field__hint">{METRICS[k]?.help ?? ''}</td>
               </tr>
             ))}
           </tbody>
@@ -224,9 +226,10 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
         <div>
           <BarChart
             title="特徵重要性（打亂後分數下降多少）"
+            horizontal
             bars={c.feature_importance.items.slice(0, 15).map((i) => ({ label: i.feature, value: Number((Math.max(i.mean, 0) * 100).toFixed(1)), detail: `${i.feature}（±${formatNumber(i.std * 100, 2)}）` }))}
-            xLabel="特徵"
-            yLabel={`${metricLabel(c.feature_importance.metric)}下降（百分點）`}
+            xLabel={`${metricLabel(c.feature_importance.metric)}下降（百分點）`}
+            yLabel="特徵"
           />
           <p className="field__hint">
             把一個特徵的值隨機打亂後分數掉越多，代表模型越依賴它。這只代表模型的依賴程度，不代表因果關係；接近 0 代表幾乎沒用到。

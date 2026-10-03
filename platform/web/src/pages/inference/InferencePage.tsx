@@ -59,7 +59,6 @@ function Inference({ inference }: { inference: InferenceApi }) {
               <tr>
                 <th scope="col">名稱</th>
                 <th scope="col">種類</th>
-                <th scope="col">格式</th>
                 <th scope="col">建立者</th>
                 <th scope="col">選擇</th>
               </tr>
@@ -72,7 +71,6 @@ function Inference({ inference }: { inference: InferenceApi }) {
                     {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
                   </td>
                   <td>{KIND_NAMES[m.kind]}</td>
-                  <td>{m.format.toUpperCase()}</td>
                   <td>{m.created_by}</td>
                   <td>
                     <button type="button" className="btn btn--small" onClick={() => setChosen(m.id)} disabled={m.id === model?.id}>
