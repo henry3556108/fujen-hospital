@@ -33,6 +33,18 @@ def test_cors_preflight_allows_web_origin_only(api):
     assert evil.headers.get("access-control-allow-origin") != "http://evil.test"
 
 
+def test_tc_ss_07_no_api_modifies_or_deletes_audit_records(api, auth):
+    """TC-SS-07 第 1 部分：Admin 呼叫修改或刪除稽核紀錄 → 沒有這種 API（只有唯讀的 GET）。"""
+    admin = auth("admin01")
+    rows = api.get("/api/admin/audit", headers=admin, params={"page_size": 1}).json()["items"]
+    audit_id = rows[0]["id"] if rows else 1
+    for method in ("PUT", "PATCH", "DELETE"):
+        for path in (f"/api/admin/audit/{audit_id}", "/api/admin/audit"):
+            status = api.request(method, path, headers=admin, json={"actor": "x"}).status_code
+            assert status in (404, 405), (method, path, status)
+    assert api.get("/api/admin/audit", headers=admin, params={"page_size": 1}).json()["items"] == rows
+
+
 def _app_db_account() -> tuple[str, str]:
     url = urlsplit(pe.env_of("api", "DATABASE_URL").replace("postgresql+psycopg://", "postgresql://"))
     return unquote(url.username or ""), unquote(url.password or "")

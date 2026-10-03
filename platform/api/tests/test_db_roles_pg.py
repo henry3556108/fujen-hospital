@@ -174,6 +174,11 @@ def test_whole_api_runs_as_the_app_role_and_audits(pg, rsa_key, make_token, capl
     with app.state.sessionmaker() as s:
         actions = s.scalars(text("select action from audit_log order by id")).all()
     assert actions[:2] == ["create", "labeling_group.create"] and "delete" in actions
+    page = client.get("/api/admin/audit", headers=headers,
+                      params={"category": "project", "since": "2000-01-01T00:00:00Z", "until": "2999-01-01T00:00:00+08:00",
+                              "action": "labeling_group."}).json()
+    assert page["total"] == 2 and {i["action"] for i in page["items"]} == {"labeling_group.create",
+                                                                           "labeling_group.delete"}
 
 
 def test_api_started_with_the_owner_account_logs_a_warning(pg, caplog):

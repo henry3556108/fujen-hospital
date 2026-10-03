@@ -134,3 +134,46 @@ export interface AdminDashboard {
     jobs: number;
   }[];
 }
+
+export const AUDIT_CATEGORIES = [
+  'account',
+  'role',
+  'permission',
+  'project',
+  'dataset',
+  'training',
+  'inference',
+  'data_exchange',
+] as const;
+export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
+
+export const AUDIT_CATEGORY_LABELS: Record<AuditCategory, string> = {
+  account: '帳號',
+  role: '角色',
+  permission: '權限',
+  project: '專案',
+  dataset: '資料集',
+  training: '訓練',
+  inference: '推論',
+  data_exchange: '資料交換',
+};
+
+/** 稽核紀錄（GET /api/admin/audit） */
+export interface AuditEntry {
+  id: number;
+  at: string;
+  actor: string;
+  category: string;
+  action: string;
+  target: string;
+  result: string;
+  source_ip: string | null;
+  detail: Record<string, unknown>;
+}
+
+export interface AuditPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: AuditEntry[];
+}

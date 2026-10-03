@@ -12,6 +12,7 @@ from app.labeling.router import router as labeling_router
 from app.llm.router import router as llm_router
 from app.models import Base
 from app.routers import admin, authz_check, me
+from app.routers import audit as audit_router
 from app.routers import labeling_groups as labeling_groups_router
 from app.tabular_api.router import router as tabular_router
 from app.scheduling import router as scheduling
@@ -57,6 +58,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.include_router(me.router)
     app.include_router(admin.router)
     app.include_router(labeling_groups_router.router)
+    app.include_router(audit_router.router)
     app.include_router(authz_check.router)
     app.include_router(tabular_router)
     app.include_router(imaging_router)

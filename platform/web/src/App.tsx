@@ -13,6 +13,7 @@ import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
 import { LabelGroupsPage } from './pages/admin/LabelGroupsPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
+import { AuditPage } from './pages/admin/AuditPage';
 import { InferencePage } from './pages/inference/InferencePage';
 import { FhirRoutes } from './pages/fhir/FhirLayout';
 import { LabelingPage } from './pages/labeling/LabelingPage';
@@ -80,6 +81,9 @@ function AdminLayout() {
         <NavLink to="/admin/labeling-groups" className="tabs__item">
           標註群組
         </NavLink>
+        <NavLink to="/admin/audit" className="tabs__item">
+          稽核紀錄
+        </NavLink>
         <NavLink to="/admin/scheduling" className="tabs__item">
           共享排程設定
         </NavLink>
@@ -140,6 +144,7 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
               <Route path="labeling-groups" element={<LabelGroupsPage />} />
+              <Route path="audit" element={<AuditPage />} />
             </Route>
             {/* WP6：C-03 不是 8 個功能入口之一，由帳號管理（Admin）進入 */}
             <Route

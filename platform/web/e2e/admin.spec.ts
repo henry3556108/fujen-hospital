@@ -1,4 +1,4 @@
-import { expect, loginAs, test } from './fixtures';
+import { expect, expectNoHorizontalOverflow, loginAs, test } from './fixtures';
 
 // A-03 第 1 項：Admin 建立標註群組、檢視 Account 與 Dashboard 頁（TC-A03-10，模擬 API）
 
@@ -79,5 +79,29 @@ test.describe('專案成員', () => {
     await dialog.getByRole('button', { name: '取消' }).click();
     await page.reload();
     await expect(page.getByRole('table', { name: '目前的專案成員' }).getByRole('row', { name: /ra01/ })).toContainText('Research Assistant');
+  });
+});
+
+test.describe('稽核紀錄', () => {
+  test('A-03／D-01 抽查：唯讀列表顯示所有欄位，可依類別篩選與翻頁，不破版', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/members');
+    const form = page.getByRole('form', { name: '設定專案成員' });
+    await form.getByLabel('帳號').selectOption({ label: 'user01' });
+    await form.getByRole('button', { name: '加入專案' }).click();
+    await expect(page.getByText(/已將「user01」設定為/)).toBeVisible();
+
+    await page.getByRole('navigation', { name: '帳號管理分頁' }).getByRole('link', { name: '稽核紀錄' }).click();
+    const table = page.getByRole('table', { name: '稽核紀錄' });
+    await expect(table.getByRole('row').nth(1)).toContainText('grant');
+    await expect(table.getByRole('row').nth(1)).toContainText('127.0.0.1');
+    await expect(table.getByRole('row').nth(2)).toContainText('assign');
+    await expect(table.getByRole('button')).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+
+    await page.getByLabel('類別').selectOption('account');
+    await page.getByRole('button', { name: '查詢' }).click();
+    await expect(page.getByRole('status').filter({ hasText: '共 7 筆' })).toBeVisible();
+    await expect(table.getByRole('row').nth(1)).toContainText('本機指令：建立測試基線');
   });
 });

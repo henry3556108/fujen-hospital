@@ -130,3 +130,17 @@ def test_tc_a03_10_labeling_group_and_dashboard_match_database(api, auth):
         assert p1["labeling_groups"] == count("label_groups", f"where project_id = {pid}") >= 1
     finally:
         assert api.delete(f"/api/admin/projects/{pid}/labeling-groups/{gid}", headers=admin).status_code == 204
+
+
+def test_tc_a03_09_audit_view_shows_twenty_complete_rows(api, auth):
+    """TC-A03-09／D-01 抽查：經唯讀稽核 API 取最近 20 筆，必填欄位（誰、何時、類別、動作、對象、結果、來源）無缺漏，
+    帳號、角色、權限、專案 4 類都有。先跑 TC-A03-01～08。"""
+    admin = auth("admin01")
+    page = api.get("/api/admin/audit", headers=admin, params={"page_size": 20}).json()
+    assert len(page["items"]) == 20
+    for row in page["items"]:
+        for field in ("at", "actor", "category", "action", "target", "result", "source_ip"):
+            assert row[field], (field, row)
+    seen = {c: api.get("/api/admin/audit", headers=admin, params={"category": c, "page_size": 1}).json()["total"]
+            for c in ("account", "role", "permission", "project")}
+    assert all(seen.values()), seen
