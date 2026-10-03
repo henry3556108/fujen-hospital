@@ -1,0 +1,20 @@
+# TC-C02-04 事件 2：在 cpu-data 節點跑 1 核忙迴圈，觸發 HighPodCpu（> 0.8 核持續 20 秒）。
+# 建立：kubectl apply -f TC-C02-04-cpu-burner.yaml
+# 刪除：kubectl -n platform-web delete pod kit-cpu-burner --grace-period=0
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kit-cpu-burner
+  namespace: platform-web
+  labels: { acceptance: tc-c02-04 }
+spec:
+  nodeSelector: { platform/pool: cpu-data }
+  terminationGracePeriodSeconds: 0
+  restartPolicy: Never
+  containers:
+    - name: burn
+      image: busybox:1.36
+      command: ["sh", "-c", "while :; do :; done"]
+      resources:
+        requests: { cpu: 10m, memory: 8Mi }
+        limits: { cpu: "1", memory: 16Mi }

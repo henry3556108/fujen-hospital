@@ -1,0 +1,30 @@
+{
+  "title": "TC-C02-03 驗收儀表板",
+  "uid": "tc-c02-03-kit",
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "各命名空間 Pod 記憶體使用",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (namespace) (container_memory_working_set_bytes{container!=\"\"})", "legendFormat": "{{namespace}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "GPU 可分配份數",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(kube_node_status_allocatable{resource=\"nvidia_com_gpu\"})" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+# TC-A01-03：在叢集內檢查 GPU、CUDA、cuDNN、PyTorch、TensorFlow。
+# 用法：把 IMAGE 換成 GPU 版訓練映像後
+#   sed "s#IMAGE#<GPU 版訓練映像>#; s#RUN#1#" TC-A01-03-gpu-check.yaml | kubectl apply -f -
+#   kubectl -n platform-jobs wait --for=condition=complete job/tc-a01-03-gpu-check-1 --timeout=300s
+#   kubectl -n platform-jobs logs job/tc-a01-03-gpu-check-1
+# 第 2、3 次把 RUN 換成 2、3。檢查完：kubectl -n platform-jobs delete job -l acceptance=tc-a01-03
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tc-a01-03-gpu-check-RUN
+  namespace: platform-jobs
+  labels:
+    acceptance: tc-a01-03
+    kueue.x-k8s.io/queue-name: gpu-exclusive
+spec:
+  backoffLimit: 0
+  suspend: true          # 由 Kueue 放行
+  template:
+    metadata:
+      labels: { acceptance: tc-a01-03 }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { platform/pool: gpu-exclusive }
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+      containers:
+        - name: check
+          image: IMAGE
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits: { nvidia.com/gpu: 1, memory: 4Gi }
+            requests: { cpu: 500m, memory: 2Gi }
+          command:
+            - python
+            - -c
+            - |
+              import os, platform, subprocess, sys
+              print("節點:", os.environ.get("NODE_NAME", "?"), " Python:", platform.python_version())
+              try:
+                  out = subprocess.run(["nvidia-smi", "--query-gpu=index,name,driver_version,memory.total",
+                                        "--format=csv,noheader"], capture_output=True, text=True, timeout=30)
+                  print("nvidia-smi:", out.stdout.strip() or out.stderr.strip())
+              except FileNotFoundError:
+                  print("nvidia-smi: 容器內沒有 nvidia-smi")
+              try:
+                  import torch
+                  print("PyTorch:", torch.__version__, " CUDA:", torch.version.cuda,
+                        " cuDNN:", torch.backends.cudnn.version(), " GPU 數:", torch.cuda.device_count(),
+                        " 可用:", torch.cuda.is_available())
+                  if torch.cuda.is_available():
+                      x = torch.rand(1024, 1024, device="cuda"); print("PyTorch GPU 運算:", float((x @ x).sum()) > 0)
+              except Exception as e:
+                  print("PyTorch: 失敗", type(e).__name__, e)
+              try:
+                  import tensorflow as tf
+                  info = tf.sysconfig.get_build_info()
+                  gpus = tf.config.list_physical_devices("GPU")
+                  print("TensorFlow:", tf.__version__, " CUDA:", info.get("cuda_version"), " cuDNN:", info.get("cudnn_version"),
+                        " GPU 數:", len(gpus))
+                  if gpus:
+                      with tf.device("/GPU:0"):
+                          print("TensorFlow GPU 運算:", float(tf.reduce_sum(tf.random.uniform((1024, 1024)))) > 0)
+              except Exception as e:
+                  print("TensorFlow: 失敗", type(e).__name__, e)
+          env:
+            - name: NODE_NAME
+              valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
