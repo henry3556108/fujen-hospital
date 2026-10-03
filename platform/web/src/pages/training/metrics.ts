@@ -134,7 +134,7 @@ export function warnings(run: TrainingRun): string[] {
   const cv = cvOf(run);
   if (n !== null && n > 0 && n < 50) {
     out.push(`測試集只有 ${n} 人，少數幾個人猜對或猜錯就會讓數字變動很多（1 人約 ${Math.round(1000 / n) / 10}%）。` +
-      (cv ? '請以上面的 K 折平均為主。' : '建議改用「K 折交叉驗證」或收集更多資料再確認。'));
+      (cv ? '請以下方的 K 折平均為主。' : '建議改用「K 折交叉驗證」或收集更多資料再確認。'));
   }
   const main = run.kind === 'tabular_regression' ? 'r2' : run.kind.startsWith('image_') ? null : 'accuracy';
   if (main && typeof test[main] === 'number') {

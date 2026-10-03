@@ -217,9 +217,9 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
         <div>
           <BarChart
             title="特徵重要性（打亂後分數下降多少）"
-            bars={c.feature_importance.items.slice(0, 15).map((i) => ({ label: i.feature, value: Number(Math.max(i.mean, 0).toFixed(4)), detail: `${i.feature}（±${formatNumber(i.std, 2)}）` }))}
+            bars={c.feature_importance.items.slice(0, 15).map((i) => ({ label: i.feature, value: Number((Math.max(i.mean, 0) * 100).toFixed(1)), detail: `${i.feature}（±${formatNumber(i.std * 100, 2)}）` }))}
             xLabel="特徵"
-            yLabel={`${metricLabel(c.feature_importance.metric)} 下降`}
+            yLabel={`${metricLabel(c.feature_importance.metric)}下降（百分點）`}
           />
           <p className="field__hint">
             把一個特徵的值隨機打亂後分數掉越多，代表模型越依賴它。這只代表模型的依賴程度，不代表因果關係；接近 0 代表幾乎沒用到。
