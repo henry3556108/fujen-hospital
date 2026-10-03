@@ -8,6 +8,11 @@ const TONE: Record<ImagingFile['pairing'], BadgeTone> = { 'n/a': 'neutral', pair
 
 function pairedWith(f: ImagingFile): string {
   if (f.paired_image) return f.paired_image;
+  if (f.paired_studies?.length) {
+    return f.paired_studies
+      .map((st) => `${[st.accession_number || '（無 Accession）', st.study_description].filter(Boolean).join(' ')}（${st.instances} 張）`)
+      .join('；');
+  }
   if (f.paired_sop_instance_uids.length) return `${f.paired_sop_instance_uids.length} 張 DICOM 影像`;
   return '—';
 }

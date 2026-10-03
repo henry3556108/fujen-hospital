@@ -127,7 +127,8 @@ describe('匯入影像', () => {
     expect(by('case01_label.nii.gz').slice(1, 7)).toEqual(['NIfTI', '標註', 'case01', '尺寸 4 × 4 × 2', '已配對', 'case01_image.nii.gz']);
     expect(by('case02_label.mha').slice(5, 7)).toEqual(['已配對', 'case02_image.mha']);
     expect(by('case02_image.mha')[5]).toBe('影像（不需配對）');
-    expect(by('study1_makesense.json').slice(4, 7)).toEqual(['3 筆標註', '已配對', '3 張 DICOM 影像']);
+    // 配對對象寫出研究（Accession 與 Study Description），不只是張數
+    expect(by('study1_makesense.json').slice(4, 7)).toEqual(['3 筆標註', '已配對', 'ACC0001 CT CHEST WO CONTRAST（3 張）']);
     expect(screen.getByRole('status')).toHaveTextContent('共 5 個檔案，0 個標註尚未配對');
   });
 

@@ -452,11 +452,36 @@ def resolve_pairings(session: Session, project_id: int) -> None:
     session.flush()
 
 
+def _paired_studies(session: Session, project_id: int, sops: set[str]) -> dict[str, dict]:
+    """SOP Instance UID → 所屬研究（Accession、Study Description），「檔案與配對」顯示 makesense 配到哪個研究。"""
+    if not sops:
+        return {}
+    rows = session.execute(
+        select(ImagingInstance.sop_instance_uid, ImagingStudy.study_instance_uid, ImagingStudy.accession_number,
+               ImagingStudy.study_description)
+        .join(ImagingSeries, ImagingSeries.id == ImagingInstance.series_id)
+        .join(ImagingStudy, ImagingStudy.id == ImagingSeries.study_id)
+        .where(ImagingInstance.project_id == project_id, ImagingInstance.sop_instance_uid.in_(sops))).all()
+    return {sop: {"study_instance_uid": uid, "accession_number": acc, "study_description": desc}
+            for sop, uid, acc, desc in rows}
+
+
+def _studies_of(sops: list[str], by_sop: dict[str, dict]) -> list[dict]:
+    studies: dict[str, dict] = {}
+    for sop in sops:
+        study = by_sop.get(sop)
+        if study:
+            studies.setdefault(study["study_instance_uid"], {**study, "instances": 0})["instances"] += 1
+    return sorted(studies.values(), key=lambda s: (s["accession_number"], s["study_instance_uid"]))
+
+
 def list_files(session: Session, project_id: int) -> list[dict]:
     files = session.scalars(select(ImagingFile).where(ImagingFile.project_id == project_id)
                             .order_by(ImagingFile.id)).all()
     names = {f.id: f.filename for f in files}
+    by_sop = _paired_studies(session, project_id, {sop for f in files for sop in (f.paired_sops or [])})
     return [{"id": f.id, "filename": f.filename, "format": f.format, "role": f.role, "case": f.case,
              "meta": f.meta, "pairing": f.pairing, "pairing_note": f.pairing_note,
              "paired_image": names.get(f.paired_file_id) if f.paired_file_id else None,
-             "paired_sop_instance_uids": f.paired_sops} for f in files]
+             "paired_sop_instance_uids": f.paired_sops,
+             "paired_studies": _studies_of(f.paired_sops or [], by_sop)} for f in files]

@@ -50,6 +50,15 @@ export interface ImagingFile {
   pairing_note: string;
   paired_image: string | null;
   paired_sop_instance_uids: string[];
+  /** makesense：配到的 DICOM 所屬研究 */
+  paired_studies: PairedStudy[];
+}
+
+export interface PairedStudy {
+  study_instance_uid: string;
+  accession_number: string;
+  study_description: string;
+  instances: number;
 }
 
 export interface Allowlist {
