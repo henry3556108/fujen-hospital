@@ -1,26 +1,33 @@
-// 訓練清單與單筆訓練：狀態（排隊中 → 執行中 → 完成／失敗，進行中自動更新）、指標、訓練輸出、取消、重跑、模型匯出。
-import { useEffect, useState } from 'react';
+// 訓練紀錄：清單可依編號或主要分數排序、預設只看自己的；點「展開」在清單內看細節。
+// 細節：圖示步驟條（進行中自動更新）、失敗原因（技術細節收合、前往修正）、結果與圖表、模型匯出、部署此模型。
+import { Fragment, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
+import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { formatNumber, formatTime } from '../../components/format';
+import { formatTime } from '../../components/format';
 import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
 import { KIND_NAMES } from '../inference/api';
 import { JOB_STATUS_LABELS } from '../scheduling/types';
-import type { RunStatus, TrainingApi, TrainingRun } from './api';
-import { ModelExport } from './ModelExport';
+import type { RunStatus, TrainingApi, TrainingRun, TrainingSetting } from './api';
+import { formatMetric, metricLabel, primaryScore, splitFailure } from './metrics';
+import { ModelExport, useHasPermission } from './ModelExport';
+import { ResultView } from './ResultView';
+import { RunSteps, STATUS_TEXT } from './RunSteps';
 
 export const POLL_MS = 1500;
 
 const TONE: Record<RunStatus, BadgeTone> = { queued: 'info', running: 'warning', succeeded: 'success', failed: 'error', cancelled: 'neutral' };
+const LABELS: Record<RunStatus, string> = { ...JOB_STATUS_LABELS, running: '訓練中' };
 const active = (s: RunStatus) => s === 'queued' || s === 'running';
-const EXECUTORS: Record<string, string> = { template: '平台範本', fake: '快速測試', source: '修改後的原始碼' };
+const EXECUTORS: Record<string, string> = { fake: '快速測試', source: '修改後的原始碼' };
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {
-  return <StatusBadge tone={TONE[status] ?? 'neutral'}>{JOB_STATUS_LABELS[status] ?? status}</StatusBadge>;
+  return <StatusBadge tone={TONE[status] ?? 'neutral'}>{LABELS[status] ?? status}</StatusBadge>;
 }
 
-/** 巢狀指標攤平成「test.accuracy」；只留數值，樣本數另列。 */
+/** 巢狀指標攤平成「test.accuracy」；只留數值。 */
 export function flatMetrics(metrics: Record<string, unknown>, prefix = ''): [string, number][] {
   const out: [string, number][] = [];
   for (const [k, v] of Object.entries(metrics ?? {})) {
@@ -30,17 +37,21 @@ export function flatMetrics(metrics: Record<string, unknown>, prefix = ''): [str
   return out;
 }
 
-const isCount = (key: string) => /^(samples|rows)\.|^training_samples$/.test(key);
-
-function metricSummary(run: TrainingRun): string {
-  const scores = flatMetrics(run.metrics).filter(([k]) => !isCount(k));
-  const shown = scores.filter(([k]) => k.startsWith('test.'));
-  return (shown.length ? shown : scores).map(([k, v]) => `${k} ${formatNumber(v)}`).join('、') || '—';
+function scoreText(run: TrainingRun): string {
+  const score = primaryScore(run);
+  return score ? `${metricLabel(score.name)} ${formatMetric(score.name, score.value)}（${score.source}）` : '—';
 }
 
-export function Runs({ api, selected, onSelect }: { api: TrainingApi; selected: number | null; onSelect: (id: number) => void }) {
+type Sort = { by: 'id' | 'score'; desc: boolean };
+
+export function Runs({ api, selected, onSelect, settings }: {
+  api: TrainingApi; selected: number | null; onSelect: (id: number | null) => void; settings: TrainingSetting[];
+}) {
+  const { me } = useSession();
   const runs = useResource(() => api.runs(), [api]);
   const { reload } = runs;
+  const [mineOnly, setMineOnly] = useState(true);
+  const [sort, setSort] = useState<Sort>({ by: 'id', desc: true });
   const hasActive = (runs.data ?? []).some((r) => active(r.status));
   useEffect(() => {
     if (!hasActive) return;
@@ -48,73 +59,114 @@ export function Runs({ api, selected, onSelect }: { api: TrainingApi; selected: 
     return () => window.clearInterval(timer);
   }, [hasActive, reload]);
 
-  const list = [...(runs.data ?? [])].reverse();
-  const run = list.find((r) => r.id === selected) ?? null;
+  const all = runs.data ?? [];
+  const shown = all.filter((r) => !mineOnly || r.created_by === me?.username || r.id === selected);
+  const value = (r: TrainingRun) => (sort.by === 'id' ? r.id : primaryScore(r)?.value ?? -Infinity);
+  const list = [...shown].sort((a, b) => (sort.desc ? value(b) - value(a) : value(a) - value(b)) || b.id - a.id);
+  const toggleSort = (by: Sort['by']) => setSort((s) => ({ by, desc: s.by === by ? !s.desc : true }));
+  const ariaSort = (by: Sort['by']) => (sort.by === by ? (sort.desc ? 'descending' : 'ascending') : 'none');
 
   return (
-    <>
-      <section className="card section" aria-labelledby="runs-title">
-        <div className="training-head">
-          <h2 id="runs-title">訓練紀錄</h2>
+    <section className="card section" aria-labelledby="runs-title">
+      <div className="training-head">
+        <h2 id="runs-title">訓練紀錄</h2>
+        <div className="row-actions">
+          <label className="checkbox">
+            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+            只看我送出的
+          </label>
           <button type="button" className="btn btn--secondary btn--small" onClick={reload}>
             重新整理
           </button>
         </div>
-        <ApiErrorAlert error={runs.error} />
-        {hasActive ? <p className="text-muted">有訓練在排隊或執行中，狀態每 {POLL_MS / 1000} 秒自動更新。</p> : null}
-        {runs.data && runs.data.length === 0 ? <p className="text-muted">還沒有訓練。在上方的訓練設定按「送出訓練」。</p> : null}
-        {list.length > 0 ? (
-          <div className="table-wrap">
-            <table className="table" aria-label="訓練清單">
-              <thead>
-                <tr>
-                  <th scope="col">編號</th>
-                  <th scope="col">設定名稱</th>
-                  <th scope="col">種類</th>
-                  <th scope="col">狀態</th>
-                  <th scope="col">指標</th>
-                  <th scope="col">建立</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((r) => (
-                  <tr key={r.id} aria-current={r.id === selected ? 'true' : undefined}>
-                    <td>#{r.id}</td>
-                    <td>{r.name}</td>
-                    <td>
-                      {KIND_NAMES[r.kind]}
-                      <span className="text-muted">（{EXECUTORS[r.executor] ?? r.executor}）</span>
-                    </td>
-                    <td>
-                      <RunStatusBadge status={r.status} />
-                    </td>
-                    <td>{metricSummary(r)}</td>
-                    <td>
-                      {r.created_by}，{formatTime(r.created_at)}
-                    </td>
-                    <td>
-                      <button type="button" className="btn btn--small" onClick={() => onSelect(r.id)} disabled={r.id === selected}>
-                        檢視訓練 #{r.id}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
-      {run ? <RunDetail key={run.id} api={api} run={run} onChanged={reload} onSelect={onSelect} /> : null}
-    </>
+      </div>
+      <ApiErrorAlert error={runs.error} />
+      {hasActive ? <p className="text-muted">有訓練在排隊或訓練中，狀態每 {POLL_MS / 1000} 秒自動更新。</p> : null}
+      {runs.data && shown.length === 0 ? (
+        <p className="text-muted">
+          {all.length ? `沒有你送出的訓練（全部共 ${all.length} 筆，取消勾選「只看我送出的」可查看）。` : '還沒有訓練。在上方的訓練設定按「送出訓練」。'}
+        </p>
+      ) : null}
+      {list.length > 0 ? (
+        <div className="table-wrap">
+          <table className="table" aria-label="訓練清單">
+            <thead>
+              <tr>
+                <th scope="col" aria-sort={ariaSort('id')}>
+                  <button type="button" className="sort-button" onClick={() => toggleSort('id')}>
+                    編號（依時間排序）
+                  </button>
+                </th>
+                <th scope="col">設定名稱</th>
+                <th scope="col">種類</th>
+                <th scope="col">狀態</th>
+                <th scope="col" aria-sort={ariaSort('score')}>
+                  <button type="button" className="sort-button" onClick={() => toggleSort('score')}>
+                    主要分數（依分數排序）
+                  </button>
+                </th>
+                <th scope="col">建立</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => {
+                const open = r.id === selected;
+                return (
+                  <Fragment key={r.id}>
+                    <tr aria-current={open ? 'true' : undefined}>
+                      <td>#{r.id}</td>
+                      <td>{r.name}</td>
+                      <td>
+                        {KIND_NAMES[r.kind]}
+                        {EXECUTORS[r.executor] ? <span className="text-muted">（{EXECUTORS[r.executor]}）</span> : null}
+                      </td>
+                      <td>
+                        <RunStatusBadge status={r.status} />
+                      </td>
+                      <td>{scoreText(r)}</td>
+                      <td>
+                        {r.created_by}，{formatTime(r.created_at)}
+                      </td>
+                      <td>
+                        <button type="button" className="btn btn--small" aria-expanded={open} onClick={() => onSelect(open ? null : r.id)}>
+                          {open ? `收合訓練 #${r.id}` : `展開訓練 #${r.id}`}
+                        </button>
+                      </td>
+                    </tr>
+                    {open ? (
+                      <tr className="run-expanded">
+                        <td colSpan={7}>
+                          <RunDetail api={api} run={r} settings={settings} onChanged={reload} onSelect={onSelect} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-function RunDetail({ api, run, onChanged, onSelect }: { api: TrainingApi; run: TrainingRun; onChanged: () => void; onSelect: (id: number) => void }) {
+/** 設定所用的結構式資料集（前往修正用）；設定已刪除時為 null。 */
+function datasetOf(run: TrainingRun, settings: TrainingSetting[]): number | null {
+  const source = settings.find((s) => s.id === run.setting_id)?.config.source;
+  return source?.type === 'tabular' ? source.dataset_id : null;
+}
+
+function RunDetail({ api, run, settings, onChanged, onSelect }: {
+  api: TrainingApi; run: TrainingRun; settings: TrainingSetting[]; onChanged: () => void; onSelect: (id: number) => void;
+}) {
   const [log, setLog] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [cancelling, setCancelling] = useState(false);
-  const metrics = flatMetrics(run.metrics);
+  const canDeploy = useHasPermission('prediction');
+  const failure = run.status === 'failed' ? splitFailure(run.message) : null;
+  const dataset = datasetOf(run, settings);
 
   async function act(call: () => Promise<unknown>) {
     setError(null);
@@ -126,54 +178,70 @@ function RunDetail({ api, run, onChanged, onSelect }: { api: TrainingApi; run: T
   }
 
   return (
-    <section className="card section" aria-labelledby="run-title">
-      <h2 id="run-title">
+    <div className="stack run-detail">
+      <h3>
         訓練 #{run.id}：{run.name}
-      </h2>
-      <p data-testid="run-status">
-        狀態：<RunStatusBadge status={run.status} />
+      </h3>
+      <RunSteps status={run.status} runId={run.id} />
+      <p data-testid="run-status" aria-live="polite">
+        目前狀態：{STATUS_TEXT[run.status] ?? run.status}
       </p>
-      {run.status === 'failed' ? <Alert tone="error" title="訓練失敗">{run.message || '訓練工作失敗'}</Alert> : null}
+      {failure ? (
+        <Alert tone="error" title="訓練失敗">
+          <span className="stack">
+            <span>{failure.reason}</span>
+            {dataset !== null ? (
+              <span>
+                <Link to={`/data/tabular/${dataset}/target`}>前往修正：資料集的 Target／Feature 設定</Link>
+                ，修改後回到這裡在訓練設定按「套用資料集設定」再送出。
+              </span>
+            ) : null}
+            {failure.details ? (
+              <details>
+                <summary>技術細節（給資訊人員）</summary>
+                <pre className="training-log">{failure.details}</pre>
+              </details>
+            ) : null}
+          </span>
+        </Alert>
+      ) : null}
       {run.status !== 'failed' && run.message ? <Alert tone="info">{run.message}</Alert> : null}
       <ApiErrorAlert error={error} />
-      <dl className="training-facts">
-        <dt>種類</dt>
-        <dd>{KIND_NAMES[run.kind]}</dd>
-        <dt>資料版本</dt>
-        <dd>#{run.dataset_version_id}</dd>
-        <dt>亂數種子</dt>
-        <dd>{run.seed}</dd>
-        <dt>開始</dt>
-        <dd>{formatTime(run.started_at)}</dd>
-        <dt>結束</dt>
-        <dd>{formatTime(run.finished_at)}</dd>
-        {run.parent_run_id ? (
-          <>
-            <dt>重跑自</dt>
-            <dd>#{run.parent_run_id}</dd>
-          </>
-        ) : null}
-      </dl>
-      {metrics.length ? (
-        <div className="table-wrap">
-          <table className="table" aria-label={`訓練 #${run.id} 的指標`}>
-            <thead>
-              <tr>
-                <th scope="col">指標</th>
-                <th scope="col">數值</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map(([k, v]) => (
-                <tr key={k}>
-                  <th scope="row">{k}</th>
-                  <td>{formatNumber(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {run.status === 'succeeded' ? <ResultView api={api} run={run} /> : null}
+      {run.status === 'succeeded' && run.model_id !== null ? (
+        <div className="row-actions">
+          {canDeploy ? (
+            <Link className="btn btn--primary" to={`/deployment?model=${run.model_id}`}>
+              部署此模型
+            </Link>
+          ) : (
+            <span className="text-muted">部署模型需要 Prediction 權限，請聯絡專案負責人。</span>
+          )}
         </div>
       ) : null}
+      <details className="training-details">
+        <summary>這次訓練的資料與設定</summary>
+        <dl className="training-facts">
+          <dt>種類</dt>
+          <dd>{KIND_NAMES[run.kind]}</dd>
+          <dt>驗證方式</dt>
+          <dd>{run.config.validation?.method === 'kfold' ? `K 折交叉驗證（K = ${run.config.validation.folds}）` : '固定比例切分'}</dd>
+          <dt>資料版本</dt>
+          <dd>#{run.dataset_version_id}（送出當下凍結的資料，之後修改資料集不影響這次訓練）</dd>
+          <dt>亂數種子</dt>
+          <dd>{run.seed}</dd>
+          <dt>開始</dt>
+          <dd>{formatTime(run.started_at)}</dd>
+          <dt>結束</dt>
+          <dd>{formatTime(run.finished_at)}</dd>
+          {run.parent_run_id ? (
+            <>
+              <dt>重跑自</dt>
+              <dd>#{run.parent_run_id}</dd>
+            </>
+          ) : null}
+        </dl>
+      </details>
       <div className="row-actions">
         {active(run.status) ? (
           <button type="button" className="btn btn--danger" onClick={() => setCancelling(true)}>
@@ -199,9 +267,9 @@ function RunDetail({ api, run, onChanged, onSelect }: { api: TrainingApi; run: T
         <ConfirmDialog title="取消訓練" confirmLabel="確定取消"
           onConfirm={() => void act(async () => { await api.cancel(run.id); onChanged(); }).finally(() => setCancelling(false))}
           onCancel={() => setCancelling(false)}>
-          確定要取消訓練 #{run.id}（{JOB_STATUS_LABELS[run.status]}）嗎？取消後無法恢復。
+          確定要取消訓練 #{run.id}（{LABELS[run.status]}）嗎？取消後無法恢復。
         </ConfirmDialog>
       ) : null}
-    </section>
+    </div>
   );
 }

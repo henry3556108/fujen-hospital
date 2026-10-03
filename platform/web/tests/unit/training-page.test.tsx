@@ -60,11 +60,11 @@ function formValues(form: HTMLElement) {
 }
 
 describe('建模管理：訓練設定', () => {
-  it('shows the five training kinds and model formats', async () => {
+  it('shows the five training kinds without file formats in the labels', async () => {
     const { user } = await renderApp('/training', 'ra01');
     const form = await openForm(user);
     const options = within(within(form).getByLabelText('訓練種類')).getAllByRole('option').map((o) => o.textContent);
-    expect(options).toEqual(['影像分類（H5）', '影像分割（H5）', '物件偵測（H5）', '結構式分類（PKL）', '結構式迴歸（PKL）']);
+    expect(options).toEqual(['影像分類', '影像分割', '物件偵測', '結構式分類', '結構式迴歸']);
   });
 
   it('TC-B05-02 / 03 image range, label, resize, split, seed and six augmentations are saved and read back identical', async () => {
@@ -97,7 +97,7 @@ describe('建模管理：訓練設定', () => {
     await waitFor(() => expect(within(studies).getAllByRole('checkbox', { checked: true })).toHaveLength(2));
 
     // 不改任何欄位直接儲存：伺服器的設定逐欄相同
-    await user.click(within(edit).getByRole('button', { name: '儲存修改' }));
+    await user.click(within(edit).getByRole('button', { name: '儲存設定' }));
     expect(await screen.findByText('已儲存訓練設定「胸部 CT 分類」的修改。')).toBeInTheDocument();
     expect(trainingMock().settings[0].config).toEqual(saved);
   }, 30_000); // 逐欄輸入較多，整套平行執行時放寬時限
@@ -169,11 +169,11 @@ describe('建模管理：訓練設定', () => {
 });
 
 /** 建立一份設定（直接寫進模擬狀態，省去填表）並回傳名稱。 */
-function seedSetting(kind: TrainingKind, name: string) {
+function seedSetting(kind: TrainingKind, name: string, owner = 'ra01') {
   const s = trainingMock();
   const image = kind.startsWith('image_');
   s.settings.push({
-    id: s.nextSetting++, project_id: 1, name, kind, created_by: 'ra01', updated_by: 'ra01', created_at: '2026-09-30T00:00:00Z', updated_at: '2026-09-30T00:00:00Z',
+    id: s.nextSetting++, project_id: 1, name, kind, created_by: owner, updated_by: owner, created_at: '2026-09-30T00:00:00Z', updated_at: '2026-09-30T00:00:00Z',
     config: image
       ? { version: 1, kind, source: kind === 'image_segmentation' ? { type: 'files', format: 'nifti', cases: 'all' } : { type: 'dicom', studies: 'all', label_source: { provider: 'annotations' } },
           split: { train: 0.6, validation: 0.2, test: 0.2 }, seed: 1, image: { resize: [32, 32], labels: ['a', 'b'] }, augmentation: {}, hyperparameters: {} }
@@ -193,13 +193,13 @@ describe('建模管理：送出訓練與狀態', () => {
       await screen.findByText(new RegExp(`已送出訓練 #\\d+（run-${k}），目前排隊中`));
     }
     const table = await screen.findByRole('table', { name: '訓練清單' });
-    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(6));
+    await waitFor(() => expect(within(table).getAllByRole('button', { name: /^(展開|收合)訓練 #/ })).toHaveLength(5));
     const refresh = screen.getByRole('button', { name: '重新整理' });
     await user.click(refresh);
     await user.click(refresh);
     await waitFor(() => expect(within(table).getAllByText('已完成')).toHaveLength(5));
-    expect(within(table).getByRole('row', { name: /run-tabular_regression.*test\.r2/ })).toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /run-image_classification.*test\.accuracy/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /run-tabular_regression.*R²（解釋量）.*（測試集）/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /run-image_classification.*準確率 \d+(\.\d)?%（測試集）/ })).toBeInTheDocument();
     expect(trainingMock().runs.map((r) => r.status)).toEqual(Array(5).fill('succeeded'));
   });
 
@@ -211,10 +211,10 @@ describe('建模管理：送出訓練與狀態', () => {
     const status = await screen.findByTestId('run-status');
     expect(status).toHaveTextContent('排隊中');
     await user.click(screen.getByRole('button', { name: '重新整理' }));
-    await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('執行中'));
+    await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('訓練中'));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
-    expect(screen.getByRole('table', { name: '訓練 #1 的指標' })).toHaveTextContent('test.accuracy');
+    expect(screen.getByRole('table', { name: '訓練 #1 的指標' })).toHaveTextContent('測試集（2 筆）準確率');
     await user.click(screen.getByRole('button', { name: '檢視訓練輸出' }));
     expect(await screen.findByLabelText('訓練 #1 的輸出')).toHaveTextContent('完成，輸出 model.h5');
 
@@ -222,7 +222,12 @@ describe('建模管理：送出訓練與狀態', () => {
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('失敗'));
-    expect(screen.getByRole('alert')).toHaveTextContent('訓練資料不足');
+    const alert = screen.getAllByRole('alert').find((a) => a.textContent?.includes('訓練失敗'))!;
+    expect(alert).toHaveTextContent('訓練資料不足，驗證集沒有任何資料（模擬）');
+    // 只顯示中文原因；Python 堆疊收在「技術細節」
+    const details = within(alert).getByText('技術細節（給資訊人員）').closest('details')!;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent('runtime.py');
   });
 
   it('cancels a queued run and reruns a finished one with the same seed', async () => {
@@ -252,7 +257,7 @@ describe('模型匯出', () => {
   afterEach(() => vi.restoreAllMocks());
 
   async function finishedRun(username: string, kind: TrainingKind, name: string) {
-    seedSetting(kind, name);
+    seedSetting(kind, name, username);
     const utils = await renderApp('/training', username);
     await utils.user.click(await screen.findByRole('button', { name: `送出訓練「${name}」` }));
     await utils.user.click(await screen.findByRole('button', { name: '重新整理' }));
