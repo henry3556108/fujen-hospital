@@ -55,6 +55,35 @@ async function body(request: Request): Promise<Record<string, unknown>> {
   }
 }
 
+
+function groupOut(g: MockDb['labelGroups'][number]) {
+  const members = g.member_ids
+    .map((id) => db.users.find((u) => u.id === id))
+    .filter((u): u is User => !!u)
+    .sort((x, y) => x.username.localeCompare(y.username))
+    .map((u) => ({ user_id: u.id, username: u.username }));
+  const { member_ids: _ids, ...rest } = g;
+  return { ...rest, members };
+}
+
+const groupsOf = (pid: number) =>
+  db.labelGroups
+    .filter((g) => g.project_id === pid)
+    .sort((x, y) => x.name.localeCompare(y.name))
+    .map(groupOut);
+
+function checkGroupMembers(pid: number, ids: number[]): Response | null {
+  const missing = ids.filter((id) => !db.users.some((u) => u.id === id));
+  if (missing.length) return detail(404, `找不到帳號 ${missing.join(', ')}`);
+  const outsiders = ids
+    .filter((id) => !db.memberships.some((m) => m.project_id === pid && m.user_id === id))
+    .map((id) => db.users.find((u) => u.id === id)!.username)
+    .sort();
+  const project = db.projects.find((p) => p.id === pid)!;
+  if (outsiders.length) return detail(409, `${outsiders.join('、')} 不是專案「${project.name}」的成員，請先在「專案成員」加入`);
+  return null;
+}
+
 export const handlers = [
   http.get(`${API}/me`, ({ request }) => {
     const u = authUser(request);
@@ -106,6 +135,7 @@ export const handlers = [
     if (!db.projects.some((p) => p.id === id)) return detail(404, `找不到 projects ${id}`);
     db.projects = db.projects.filter((p) => p.id !== id);
     db.memberships = db.memberships.filter((m) => m.project_id !== id);
+    db.labelGroups = db.labelGroups.filter((g) => g.project_id !== id);
     return noContent();
   }),
 
@@ -151,6 +181,7 @@ export const handlers = [
     if (u.account_type === 'admin' && adminCount() <= 1) return detail(409, '至少要保留 1 個 Admin');
     db.users = db.users.filter((x) => x.id !== u.id);
     db.memberships = db.memberships.filter((m) => m.user_id !== u.id);
+    for (const g of db.labelGroups) g.member_ids = g.member_ids.filter((x) => x !== u.id);
     return noContent();
   }),
   http.post(`${API}/admin/users/:id/reset-password`, async ({ request, params }) => {
@@ -196,6 +227,86 @@ export const handlers = [
     const before = db.memberships.length;
     db.memberships = db.memberships.filter((m) => !(m.project_id === pid && m.user_id === uid));
     if (db.memberships.length === before) return detail(404, `找不到成員資格：使用者 ${uid} 不在專案 ${pid}`);
+    for (const g of db.labelGroups) if (g.project_id === pid) g.member_ids = g.member_ids.filter((x) => x !== uid);
+    return noContent();
+  }),
+  http.get(`${API}/admin/projects/:pid/members`, ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const pid = Number(params.pid);
+    if (!db.projects.some((p) => p.id === pid)) return detail(404, `找不到 projects ${pid}`);
+    const rows = db.memberships
+      .filter((m) => m.project_id === pid)
+      .map((m) => {
+        const u = db.users.find((x) => x.id === m.user_id)!;
+        return { user_id: u.id, username: u.username, role: m.role, permissions: [...m.permissions].sort() };
+      })
+      .sort((x, y) => x.username.localeCompare(y.username));
+    return json(rows as unknown as JsonBodyType);
+  }),
+
+  // ---- 標註群組 ----
+  http.get(`${API}/admin/projects/:pid/labeling-groups`, ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const pid = Number(params.pid);
+    if (!db.projects.some((p) => p.id === pid)) return detail(404, `找不到專案 ${pid}`);
+    return json(groupsOf(pid) as unknown as JsonBodyType);
+  }),
+  http.post(`${API}/admin/projects/:pid/labeling-groups`, async ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const pid = Number(params.pid);
+    if (!db.projects.some((p) => p.id === pid)) return detail(404, `找不到專案 ${pid}`);
+    const b = await body(request);
+    const name = typeof b.name === 'string' ? b.name.trim() : '';
+    if (!name) return validation(['name']);
+    if (db.labelGroups.some((g) => g.project_id === pid && g.name === name))
+      return detail(409, `標註群組「${name}」已存在於這個專案`);
+    const ids = Array.isArray(b.member_ids) ? (b.member_ids as number[]) : [];
+    const bad = checkGroupMembers(pid, ids);
+    if (bad) return bad;
+    const g = {
+      id: db.nextLabelGroupId++,
+      project_id: pid,
+      name,
+      description: typeof b.description === 'string' ? b.description.trim() : '',
+      created_by: a.username,
+      created_at: new Date().toISOString(),
+      member_ids: [...new Set(ids)],
+    };
+    db.labelGroups.push(g);
+    return json(groupOut(g) as unknown as JsonBodyType, 201);
+  }),
+  http.patch(`${API}/admin/projects/:pid/labeling-groups/:gid`, async ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const pid = Number(params.pid);
+    const g = db.labelGroups.find((x) => x.id === Number(params.gid) && x.project_id === pid);
+    if (!g) return detail(404, `找不到標註群組 ${params.gid}（專案 ${pid}）`);
+    const b = await body(request);
+    if ('name' in b) {
+      const name = typeof b.name === 'string' ? b.name.trim() : '';
+      if (!name) return validation(['name']);
+      if (db.labelGroups.some((x) => x.project_id === pid && x.name === name && x.id !== g.id))
+        return detail(409, `標註群組「${name}」已存在於這個專案`);
+      g.name = name;
+    }
+    if (typeof b.description === 'string') g.description = b.description.trim();
+    if (Array.isArray(b.member_ids)) {
+      const bad = checkGroupMembers(pid, b.member_ids as number[]);
+      if (bad) return bad;
+      g.member_ids = [...new Set(b.member_ids as number[])];
+    }
+    return json(groupOut(g) as unknown as JsonBodyType);
+  }),
+  http.delete(`${API}/admin/projects/:pid/labeling-groups/:gid`, ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const pid = Number(params.pid);
+    const before = db.labelGroups.length;
+    db.labelGroups = db.labelGroups.filter((x) => !(x.id === Number(params.gid) && x.project_id === pid));
+    if (db.labelGroups.length === before) return detail(404, `找不到標註群組 ${params.gid}（專案 ${pid}）`);
     return noContent();
   }),
   // WP6 FHIR（C-03）

@@ -10,8 +10,20 @@ import {
   type User,
 } from '../api/types';
 
+export interface MockLabelGroup {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  member_ids: number[];
+}
+
 export interface MockDb {
   projects: Project[];
+  labelGroups: MockLabelGroup[];
+  nextLabelGroupId: number;
   users: User[];
   memberships: Membership[];
   passwords: Record<number, string>;
@@ -55,6 +67,8 @@ export function seedDb(): MockDb {
     }));
   return {
     projects,
+    labelGroups: [],
+    nextLabelGroupId: 1,
     users,
     memberships,
     passwords: {},

@@ -90,3 +90,23 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   admin: 'Admin',
   user: 'User',
 };
+
+/** 標註群組（GET /api/admin/projects/{id}/labeling-groups） */
+export interface LabelGroup {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  members: { user_id: number; username: string }[];
+}
+
+/** 專案成員（GET /api/admin/projects/{id}/members） */
+export interface MemberRow {
+  user_id: number;
+  username: string;
+  role: Role;
+  permissions: Permission[];
+  unknown_permissions?: string[];
+}

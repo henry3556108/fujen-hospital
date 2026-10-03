@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import audit, project_cleanup
+from app import audit, labeling_groups, project_cleanup
 from app.audit import AuditCategory, record
 from app.identity import IdentityProvider
 from app.models import Membership, Project, User
@@ -59,6 +59,9 @@ def update_project(session: Session, *, actor: str, project_id: int, changes: di
 def _revoke_memberships(session: Session, condition, *, actor: str, reason: str, source_ip: str | None) -> None:
     """刪除帳號或專案時連帶移除成員資格：每筆各寫 1 筆 role 稽核，與刪除同一個交易。"""
     for m in session.scalars(select(Membership).where(condition).order_by(Membership.id)).all():
+        if reason != "project_deleted":  # 刪除專案時群組已先整個刪除
+            labeling_groups.remove_user(session, session.get(User, m.user_id), actor=actor, source_ip=source_ip,
+                                        reason=reason, project_id=m.project_id)
         record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
                target=f"project:{m.project_id}/user:{m.user_id}", source_ip=source_ip,
                detail={"role": m.role, "reason": reason})
@@ -72,6 +75,7 @@ def delete_project(session: Session, *, actor: str, project_id: int, source_ip: 
     （失敗可重試，見 app.project_cleanup）。"""
     project = _get(session, Project, project_id)
     name = project.name
+    labeling_groups.delete_project_groups(session, project_id, actor=actor, source_ip=source_ip)
     _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
                         source_ip=source_ip)
     project_cleanup.stage(session, project_id, fhir=fhir is not None)
@@ -165,6 +169,7 @@ def delete_user(session: Session, idp: IdentityProvider, *, actor_user: User, us
         raise Conflict("至少要保留 1 個 Admin")
     _revoke_memberships(session, Membership.user_id == user_id, actor=actor_user.username, reason="user_deleted",
                         source_ip=source_ip)
+    labeling_groups.remove_user(session, user, actor=actor_user.username, source_ip=source_ip, reason="user_deleted")
     session.delete(user)
     record(session, actor=actor_user.username, category=AuditCategory.ACCOUNT, action="delete",
            target=f"user:{user_id}", source_ip=source_ip, detail={"username": user.username})
@@ -216,6 +221,8 @@ def remove_membership(session: Session, *, actor: str, project_id: int, user_id:
     )
     if membership is None:
         raise NotFound(f"找不到成員資格：使用者 {user_id} 不在專案 {project_id}")
+    labeling_groups.remove_user(session, session.get(User, user_id), actor=actor, source_ip=source_ip,
+                                reason="membership_revoked", project_id=project_id)
     session.delete(membership)
     record(session, actor=actor, category=AuditCategory.ROLE, action="revoke",
            target=f"project:{project_id}/user:{user_id}", source_ip=source_ip, detail={"role": membership.role})

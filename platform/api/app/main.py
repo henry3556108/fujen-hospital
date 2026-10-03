@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
-from app import admin_service, scanning
+from app import admin_service, labeling_groups, scanning
 from app.db import make_engine, make_sessionmaker
 from app.fhir import router as fhir_router
 from app.imaging.router import router as imaging_router
@@ -10,6 +10,7 @@ from app.labeling.router import router as labeling_router
 from app.llm.router import router as llm_router
 from app.models import Base
 from app.routers import admin, authz_check, me
+from app.routers import labeling_groups as labeling_groups_router
 from app.tabular_api.router import router as tabular_router
 from app.scheduling import router as scheduling
 from app.training.router import router as training_router
@@ -26,10 +27,12 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
     app.state.store = store
     scanning.install(app)  # 掃毒：app.state.scanner、物件儲存寫入前掃描、錯誤回應
 
+    @app.exception_handler(labeling_groups.Conflict)
     @app.exception_handler(admin_service.Conflict)
     def _conflict(request: Request, exc: admin_service.Conflict):
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    @app.exception_handler(labeling_groups.NotFound)
     @app.exception_handler(admin_service.NotFound)
     def _not_found(request: Request, exc: admin_service.NotFound):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -41,6 +44,7 @@ def create_app(*, database_url: str = "sqlite://", verifier=None, idp=None, stor
 
     app.include_router(me.router)
     app.include_router(admin.router)
+    app.include_router(labeling_groups_router.router)
     app.include_router(authz_check.router)
     app.include_router(tabular_router)
     app.include_router(imaging_router)
