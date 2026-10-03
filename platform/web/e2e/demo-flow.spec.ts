@@ -157,46 +157,57 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await loginAs(page, 'pi01');
     await page.goto('/');
 
-    // 建模管理：新增影像分類的訓練設定（資料來源＝影像標註平台的標註），存檔後送出訓練
-    await openEntry(page, '建模管理');
-    await page.getByRole('button', { name: '新增訓練設定' }).click();
+    // 數據管理 → 結構式資料 → 資料集「lung-clinical」→「用這份資料建立訓練」
+    await openEntry(page, '數據管理');
+    await page.getByRole('navigation', { name: '數據管理分頁' }).getByRole('link', { name: '結構式資料' }).click();
+    await page.getByRole('table', { name: '資料集列表' }).getByRole('link', { name: 'lung-clinical' }).click();
+    await page.getByRole('link', { name: '用這份資料建立訓練' }).click();
+
+    // 建模管理的新增表單已帶入資料集並預選「結構式分類」：選 Target、Feature，驗證方式選 K 折，儲存後送出
     const form = page.getByRole('form', { name: '新增訓練設定' });
-    await form.getByLabel('設定名稱').fill('demo-modality');
-    await form.getByLabel('訓練種類').selectOption('image_classification');
-    await form.getByLabel('標註來源').selectOption('annotations');
-    await form.getByLabel('Label（以逗號分隔）').fill('CT, MR');
-    await form.getByLabel('Resize 高（像素）').fill('64');
-    await form.getByLabel('Resize 寬（像素）').fill('64');
-    await form.getByLabel('亂數種子').fill('7');
-    await form.getByLabel('旋轉角度範圍（度）').fill('10');
-    await form.getByRole('checkbox', { name: '水平翻轉' }).check();
+    await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
+    await form.getByLabel('設定名稱').fill('demo-diagnosis');
+    await form.getByLabel('目標欄位（Target）').selectOption('diagnosis');
+    const features = form.getByRole('group', { name: '特徵欄位（Feature）' });
+    for (const f of ['age', 'sex', 'bmi', 'smoker']) await features.getByRole('checkbox', { name: f, exact: true }).check();
+    await form.getByRole('radio', { name: 'K 折交叉驗證' }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText('已新增訓練設定「demo-modality」。')).toBeVisible();
-    await page.getByRole('button', { name: '送出訓練「demo-modality」' }).click();
-    await expect(page.getByText(/^完成：已送出訓練 #1（demo-modality），目前排隊中。$/)).toBeVisible();
+    await expect(page.getByText('已新增訓練設定「demo-diagnosis」。')).toBeVisible();
+    await page.getByRole('button', { name: '送出訓練「demo-diagnosis」' }).click();
+    await expect(page.getByText(/^完成：已送出訓練 #1（demo-diagnosis），目前排隊中。$/)).toBeVisible();
 
-    // 狀態自動更新：排隊中 → 執行中 → 已完成，看指標
-    const status = page.getByTestId('run-status');
-    await expect(status).toContainText('已完成');
-    await expect(page.getByRole('table', { name: '訓練 #1 的指標' })).toContainText('test.accuracy');
+    // 步驟條自動更新：已送出 → 排隊中 → 訓練中 → 完成；看重點指標（白話說明）、K 折結果、圖表，下載報表
+    await expect(page.getByTestId('run-status')).toContainText('已完成');
+    await expect(page.getByRole('list', { name: '訓練 #1 的重點指標' })).toContainText(/測試集的 20 人中猜對 \d+ 人/);
+    await expect(page.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toContainText('±');
+    await expect(page.getByRole('table', { name: '訓練 #1 的混淆矩陣' })).toBeVisible();
+    const report = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下載報表（可列印）' }).click();
+    expect((await report).suggestedFilename()).toBe('training-run-1-report.html');
 
-    // 模型匯出：下載 Keras H5、匯出原始碼
+    // 模型匯出：下載 scikit-learn PKL、匯出原始碼
     const model = page.waitForEvent('download');
-    await page.getByRole('button', { name: '下載模型（H5）' }).click();
-    expect((await model).suggestedFilename()).toBe('demo-modality-run1.h5');
+    await page.getByRole('button', { name: '下載模型（PKL）' }).click();
+    expect((await model).suggestedFilename()).toBe('demo-diagnosis-run1.pkl');
     const source = page.waitForEvent('download');
     await page.getByRole('button', { name: '匯出原始碼' }).click();
     expect((await source).suggestedFilename()).toBe('training-run-1-source.zip');
 
-    // AI 模型部署：部署剛訓練好的模型，授權 md01 與 pi01，看呼叫端點
-    await openEntry(page, 'AI 模型部署');
+    // 「部署此模型」：AI 模型部署頁已選好模型並建議部署名稱，填授權帳號後部署，再用「試用預測」
+    await page.getByRole('link', { name: '部署此模型' }).click();
     const deploy = page.getByRole('form', { name: '部署模型' });
-    await deploy.getByLabel('模型').selectOption({ label: 'demo-modality-run1（影像分類，H5）' });
-    await deploy.getByLabel('部署名稱（小寫英數字與 -）').fill('demo-modality');
+    await expect(deploy.getByLabel('部署名稱（小寫英數字與 -）')).toHaveValue('demo-diagnosis-run1');
     await deploy.getByLabel('授權帳號（以逗號分隔）').fill('md01, pi01');
     await deploy.getByRole('button', { name: '部署' }).click();
-    await expect(page.getByText('已部署「demo-modality」：POST /api/inference/demo-modality/predict')).toBeVisible();
-    await expect(page.getByRole('table', { name: '線上部署清單' }).getByRole('row', { name: /demo-modality/ })).toContainText('md01、pi01');
+    await expect(page.getByText('已部署「demo-diagnosis-run1」：POST /api/inference/demo-diagnosis-run1/predict')).toBeVisible();
+    await expect(page.getByRole('table', { name: '線上部署清單' }).getByRole('row', { name: /demo-diagnosis-run1/ })).toContainText('md01、pi01');
+    const trial = page.getByRole('form', { name: '試用預測' });
+    await trial.getByLabel('age').fill('61');
+    await trial.getByLabel('sex').selectOption('M');
+    await trial.getByLabel('bmi').fill('27');
+    await trial.getByLabel('smoker').selectOption('former');
+    await trial.getByRole('button', { name: '預測' }).click();
+    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis：[01]（模型認為的機率 \d+%）$/);
 
     // 推論：選已訓練完成的模型，上傳影像推論
     await openEntry(page, '推論服務管理');
@@ -207,7 +218,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     const cards = page.getByTestId('image-result');
     await expect(cards).toHaveCount(2);
     await expect(cards.first().getByTestId('result-label')).toHaveText(/^分類：(CT|MR)（\d+%）$/);
-    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('button', { name: '下載 #1' })).toBeVisible();
+    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
   });
 
   test('段落 5：FHIR 資料來源、對應規則、排程', async ({ page }) => {
