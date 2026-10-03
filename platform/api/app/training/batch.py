@@ -31,7 +31,8 @@ from app.training import config as cfg, snapshot
 from app.training.inference import InferenceError
 from app.training.models import DatasetVersion, InferenceBatch, InferenceRecord, TrainedModel, TrainingRun
 from app.training.service import (SUBSETS, Conflict, Invalid, NotFound, TrainingError, Unauthorized, Unavailable,
-                                  _artifact, _read_csv, _splits, _store_result, _tabular_result, _write_csv)
+                                  _artifact, _read_csv, _splits, _store_result, _tabular_result, _write_csv,
+                                  positive_label)
 
 DONE = {s.value for s in TERMINAL}
 MEMORY_MB = {"image": 2048, "tabular": 1024}
@@ -269,7 +270,8 @@ def _result(session: Session, store: ObjectStore, row: InferenceRecord, answer: 
         if not isinstance(predictions, list) or len(predictions) != len(rows):
             got = len(predictions) if isinstance(predictions, list) else 0
             raise InferenceError(f"批次推論工作回傳 {got} 筆，輸入是 {len(rows)} 筆")
-        data, extra = _tabular_result(header, rows, answer)
+        data, extra = _tabular_result(header, rows, answer, target=(model.card or {}).get("target"),
+                                      positive=positive_label(model))
         return data, "csv", len(rows), extra
     results = answer.get("results")
     if not isinstance(results, list):

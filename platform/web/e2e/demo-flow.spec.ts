@@ -223,7 +223,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await trial.getByLabel('bmi').fill('27');
     await trial.getByLabel('smoker').selectOption('former');
     await trial.getByRole('button', { name: '預測' }).click();
-    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
+    await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）。$/);
 
     // 回到建模管理的結果：「用這個模型預測病人」→ 推論服務管理已選好模型（顯示分享時取的名稱）
     await openEntry(page, '建模管理');
@@ -238,7 +238,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await one.getByLabel('bmi').fill('24');
     await one.getByLabel('smoker').selectOption('never');
     await one.getByRole('button', { name: '預測' }).click();
-    await expect(one.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%/);
+    await expect(one.getByTestId('try-result')).toHaveText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）/);
     await page.getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-correct')).toContainText(/^有實際的 diagnosis 可以對照：\d+ 位中預測對 \d+ 位/);
     // AI 模型部署頁的試用預測與這裡的「一位病人」都記成「單人試用」

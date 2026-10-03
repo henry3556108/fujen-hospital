@@ -270,6 +270,15 @@ svg { max-width: 100%; height: auto; display: block; margin: 8px 0; }
 """
 
 
+def positive_text(metrics: dict, target: str | None) -> str:
+    """二元分類：說出陽性類別（類別排序後的第二個），預測時顯示的機率就是這一類的機率。"""
+    positive = (metrics.get("labels") or {}).get("positive")
+    if positive is None or not target:
+        return ""
+    return (f"陽性＝{target} 為「{positive}」：敏感度、特異度、ROC 曲線，以及預測時顯示的"
+            f"「{target}＝{positive} 的機率」都以這一類計算。")
+
+
 def data_text(data: dict | None) -> str:
     """一句話說明這次訓練用了幾位病人、哪些沒用與原因、補了幾位的缺值（metrics.json 的 data）。"""
     if not isinstance(data, dict):
@@ -408,6 +417,7 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
 <h2>模型表現</h2>
 {f'<p class="verdict"><strong>整體表現：{_e(verdict(run["kind"], metrics, run.get("executor", "template")))}</strong></p>' if verdict(run["kind"], metrics) else ''}
 {f'<p class="data-usage">{_e(data_text(metrics.get("data")))}</p>' if metrics.get("data") else ''}
+{f'<p class="positive">{_e(positive_text(metrics, tabular.get("target")))}</p>' if positive_text(metrics, tabular.get("target")) else ''}
 {_metric_rows(metrics)}
 {f'<h2>K 折交叉驗證</h2>{_cv_rows(cv)}' if isinstance(cv, dict) else ''}
 <h2>圖表</h2>

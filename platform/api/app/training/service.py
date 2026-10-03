@@ -675,24 +675,54 @@ def _write_csv(header: list[str], rows: list[list[Any]]) -> bytes:
     return out.getvalue().encode("utf-8")
 
 
-def _tabular_result(header: list[str], rows: list[list[str]], answer: dict[str, Any]) -> tuple[bytes, dict]:
-    """在原始資料後面加預測欄。分類模型另加「預測類別的機率」欄（0～1），說明欄寫成中文
-    （例如「預測為「1」的機率 83%」；無法預測時寫原因）。迴歸沒有機率欄。"""
+def positive_label(model: TrainedModel) -> str | None:
+    """二元分類的陽性類別：訓練資料的類別排序後的第二個（scikit-learn 的 classes_[1]；0／1 時是「1」），
+    與 ROC、敏感度、metrics.json 的 labels.positive 相同。不是二元分類時為 None。"""
+    classes = (model.card or {}).get("classes") or []
+    return str(classes[1]) if model.kind == "tabular_classification" and len(classes) == 2 else None
+
+
+def _same_label(a: Any, b: str) -> bool:
+    if str(a) == b:
+        return True
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return False
+
+
+def _tabular_result(header: list[str], rows: list[list[str]], answer: dict[str, Any], *,
+                    target: str | None = None, positive: str | None = None) -> tuple[bytes, dict]:
+    """在原始資料後面加預測欄。分類模型另加「預測類別的機率」欄（0～1，`prediction_probability`，意義不變）；
+    二元分類（positive 不是 None）再加「陽性類別的機率」欄 `prediction_positive_probability`，放在 `prediction`
+    前面，最後三欄維持 `prediction, prediction_probability, prediction_note`（驗收測試與外部程式依賴）。
+    陽性的機率由預測類別與其機率換算：預測為陽性時是 p，否則 1 − p（二元分類兩類機率相加為 1）。
+    說明欄寫成中文：二元分類「diagnosis＝1 的機率 6%」，多類別「預測為「b」的機率 70%」；無法預測時寫原因。
+    迴歸沒有機率欄。"""
     predictions, notes = answer.get("predictions", []), answer.get("notes") or [None] * len(rows)
     if len(predictions) != len(rows):
         raise InferenceError(f"推論服務回傳 {len(predictions)} 筆，輸入是 {len(rows)} 筆")
     probabilities = answer.get("probabilities") or [None] * len(rows)
     with_probability = any(p is not None for p in probabilities)
+    binary = with_probability and positive is not None
     column = _prediction_column(header)
-    out_header = header + [column] + ([f"{column}_probability"] if with_probability else []) + [f"{column}_note"]
+    out_header = (header + ([f"{column}_positive_probability"] if binary else []) + [column]
+                  + ([f"{column}_probability"] if with_probability else []) + [f"{column}_note"])
     out_rows = []
     for row, p, prob, note in zip(rows, predictions, probabilities, notes):
-        if p is not None and prob is not None:   # 補過缺值的列：機率後面附上補了什麼
+        chance = None
+        if p is not None and prob is not None and binary:
+            chance = prob if _same_label(p, positive) else round(1 - prob, 4)
+            note = f"{target or '結果'}＝{positive} 的機率 {chance:.0%}" + (f"（{note}）" if note else "")
+        elif p is not None and prob is not None:   # 補過缺值的列：機率後面附上補了什麼
             note = f"預測為「{p}」的機率 {prob:.0%}" + (f"（{note}）" if note else "")
-        out_rows.append(row + ["" if p is None else p] + (["" if prob is None else prob] if with_probability else [])
-                        + [note or ""])
+        out_rows.append(row + (["" if chance is None else chance] if binary else []) + ["" if p is None else p]
+                        + (["" if prob is None else prob] if with_probability else []) + [note or ""])
     unpredicted = sum(1 for p in predictions if p is None)
-    return _write_csv(out_header, out_rows), {"prediction_column": column, "unpredicted": unpredicted}
+    extra = {"prediction_column": column, "unpredicted": unpredicted}
+    if binary:
+        extra["positive_label"] = positive
+    return _write_csv(out_header, out_rows), extra
 
 
 def _record(session: Session, *, model: TrainedModel, mode: str, user: str, status: str, count: int,
@@ -724,7 +754,8 @@ def _run_inference(session: Session, state, backend: InferenceBackend, *, model:
         if tabular is not None:
             header, rows = _read_csv(tabular)
             answer = _predict(backend, session, store, model, lambda: backend.predict_tabular(model.id, tabular))
-            data, extra = _tabular_result(header, rows, answer)
+            data, extra = _tabular_result(header, rows, answer, target=(model.card or {}).get("target"),
+                                          positive=positive_label(model))
             fmt, count = "csv", len(rows)
         else:
             answer = _predict(backend, session, store, model, lambda: backend.predict_images(model.id, images))
@@ -850,7 +881,8 @@ def result_view(store: ObjectStore, row: InferenceRecord) -> dict[str, Any]:
     if row.result_format == "csv":
         header, rows = _read_csv(data)
         return out | {"result": {"columns": header, "rows": rows,
-                                 "prediction_column": row.input.get("prediction_column")}}
+                                 "prediction_column": row.input.get("prediction_column"),
+                                 "positive_label": row.input.get("positive_label")}}
     return out | {"result": json.loads(data)}
 
 
@@ -1042,6 +1074,11 @@ def online_predict(session: Session, state, *, name: str, user: User, rows: Any 
                "notes": [r[note] or None for r in body]}
         if prob is not None:
             out["probabilities"] = [float(r[prob]) if r[prob] != "" else None for r in body]
+        positive = f"{column}_positive_probability"
+        if row.input.get("positive_label") is not None and positive in header:   # 二元分類：陽性類別的機率
+            at = header.index(positive)
+            out["positive_label"] = row.input["positive_label"]
+            out["positive_probabilities"] = [float(r[at]) if r[at] != "" else None for r in body]
         return out
     if not files:
         raise Invalid("請上傳至少一個影像檔")

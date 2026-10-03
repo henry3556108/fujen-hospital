@@ -8,6 +8,7 @@ import { TryPredict } from '../deployment/TryPredict';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ModelName } from './ModelName';
+import { percent, positiveChance, positiveLabel, positiveNote, sameLabel } from './positive';
 import {
   KIND_NAMES,
   displayName,
@@ -374,10 +375,8 @@ export function tableSummary(result: { columns: string[]; rows: string[][]; pred
   return text;
 }
 
-type Table = { columns: string[]; rows: string[][]; prediction_column: string };
+type Table = { columns: string[]; rows: string[][]; prediction_column: string; positive_label?: string | null };
 
-/** 數字與文字都能比：「1」與「1.0」視為相同。 */
-const same = (a: string, b: string) => a === b || (a.trim() !== '' && b.trim() !== '' && !Number.isNaN(Number(a)) && Number(a) === Number(b));
 
 /** 結構式分類而且資料裡有實際結果欄（例如測試資料的 diagnosis）時，每一列預測對不對；不能對照時為 null。 */
 export function correctness(result: Table, model: Pick<Model, 'kind' | 'card'>): { column: string; marks: ('對' | '錯' | '')[]; right: number; total: number } | null {
@@ -386,38 +385,57 @@ export function correctness(result: Table, model: Pick<Model, 'kind' | 'card'>):
   const actual = result.columns.indexOf(target);
   const at = result.columns.indexOf(result.prediction_column);
   if (actual < 0 || at < 0 || actual >= at) return null;
-  const marks = result.rows.map((r) => ((r[at] ?? '') === '' || (r[actual] ?? '') === '' ? '' : same(r[actual], r[at]) ? '對' : '錯'));
+  const marks = result.rows.map((r) => ((r[at] ?? '') === '' || (r[actual] ?? '') === '' ? '' : sameLabel(r[actual], r[at]) ? '對' : '錯'));
   const total = marks.filter((m) => m !== '').length;
   return { column: target, marks, right: marks.filter((m) => m === '對').length, total };
 }
 
-/** 畫面上的欄名（下載的 CSV 仍用 prediction、prediction_probability、prediction_note，外部程式與驗收測試依賴這些名稱）。 */
-function headerName(column: string, result: Table, target: string | undefined): string {
+/**
+ * 結果表的欄位順序：病歷號（第一欄）、實際值、預測結果、機率、預測對／錯、說明，其餘輸入欄位放後面。
+ * 二元分類的機率欄是陽性類別的機率（表頭「diagnosis＝1 的機率」）；多類別是「預測類別的機率」。
+ * 下載的 CSV 仍用英文欄名（prediction、prediction_positive_probability、prediction_probability、prediction_note），
+ * 外部程式與驗收測試依賴這些名稱。
+ */
+type Shown = { key: string; head: string; important: boolean; value: (row: string[], r: number) => string };
+
+export function tableColumns(result: Table, model: Model): Shown[] {
   const p = result.prediction_column;
-  if (column === p) return '預測結果';
-  if (column === `${p}_probability`) return '機率';
-  if (column === `${p}_note`) return '說明';
-  if (column === target) return `${column}（實際）`;
-  return column;
+  const at = result.columns.indexOf(p);
+  const target = model.card.target;
+  const check = correctness(result, model);
+  const positive = positiveLabel(model, result);
+  const raw = (i: number) => (row: string[]) => row[i] ?? '';
+  const prob = result.columns.indexOf(`${p}_probability`);
+  const noteAt = result.columns.indexOf(`${p}_note`);
+  const added = new Set([p, `${p}_probability`, `${p}_positive_probability`, `${p}_note`]);
+  const chance = (row: string[]) => (positive !== null ? positiveChance(row, result.columns, p, positive) : null);
+  const actual = check ? result.columns.indexOf(check.column) : -1;
+  const lead = [0, ...(actual > 0 ? [actual] : [])].filter((i) => i < at && !added.has(result.columns[i]));
+  const out: Shown[] = lead.map((i) => ({ key: `c${i}`, head: result.columns[i] === target ? `${result.columns[i]}（實際）` : result.columns[i], important: false, value: raw(i) }));
+  out.push({ key: 'prediction', head: '預測結果', important: true, value: raw(at) });
+  if (prob >= 0) {
+    out.push(positive !== null && target
+      ? { key: 'positive', head: `${target}＝${positive} 的機率`, important: true, value: (row) => { const c = chance(row); return c === null ? '' : percent(c); } }
+      : { key: 'probability', head: '預測類別的機率', important: true, value: (row) => (row[prob] && !Number.isNaN(Number(row[prob])) ? percent(Number(row[prob])) : row[prob] ?? '') });
+  }
+  if (check) out.push({ key: 'check', head: '預測對／錯', important: true, value: (_, r) => check.marks[r] || '—' });
+  if (noteAt >= 0) {
+    out.push({ key: 'note', head: '說明', important: true,
+      value: (row) => (positive !== null && target ? positiveNote(row[noteAt] ?? '', target, positive, chance(row)) : row[noteAt] ?? '') });
+  }
+  result.columns.forEach((c, i) => {
+    if (!lead.includes(i) && !added.has(c)) out.push({ key: `c${i}`, head: c, important: false, value: raw(i) });
+  });
+  return out;
 }
 
 function TableResult({ result, model }: { result: Table; model: Model }) {
-  const at = result.columns.indexOf(result.prediction_column);
-  const target = model.card.target;
   const check = correctness(result, model);
-  const prob = result.columns.indexOf(`${result.prediction_column}_probability`);
-  // 畫面上把第一欄（通常是病歷號）、實際值、預測結果放在前面，其他原始欄位放後面
-  const added = result.columns.map((_, i) => i).filter((i) => i >= at);
-  const actual = check ? result.columns.indexOf(check.column) : -1;
-  const lead = [0, ...(actual > 0 ? [actual] : [])].filter((i) => i < at);
-  const rest = result.columns.map((_, i) => i).filter((i) => i < at && !lead.includes(i));
-  const shown = [...lead, ...added.slice(0, added.length - 1), ...(check ? [-1] : []), ...added.slice(-1), ...rest];
-  const cell = (row: string[], i: number, r: number) => {
-    if (i === -1) return check!.marks[r] || '—';
-    const v = row[i] ?? '';
-    if (i === prob && v !== '' && !Number.isNaN(Number(v))) return `${Math.round(Number(v) * 100)}%`;
-    return v;
-  };
+  const shown = tableColumns(result, model);
+  const positive = positiveLabel(model, result);
+  const p = result.prediction_column;
+  const names = [`${p}（預測結果）`, ...(positive !== null && model.card.target ? [`${p}_positive_probability（${model.card.target}＝${positive} 的機率）`] : []),
+    ...(result.columns.includes(`${p}_probability`) ? [`${p}_probability（預測類別的機率）`] : []), `${p}_note（說明）`];
   return (
     <>
       <p data-testid="table-summary">{tableSummary(result)}</p>
@@ -428,14 +446,14 @@ function TableResult({ result, model }: { result: Table; model: Model }) {
           </strong>
         </p>
       ) : null}
-      <p className="field__hint">畫面上的欄名是中文；下載的 CSV 保留原本的英文欄名（prediction、prediction_probability、prediction_note），方便其他程式讀取。</p>
+      <p className="field__hint">畫面上的欄名是中文；下載的 CSV 保留英文欄名：{names.join('、')}，方便其他程式讀取。</p>
       <div className="table-wrap inference-table">
         <table className="table" aria-label="預測結果">
           <thead>
             <tr>
-              {shown.map((i) => (
-                <th key={i} scope="col" className={i === -1 || i >= at ? 'inference-prediction' : undefined}>
-                  {i === -1 ? '預測對／錯' : headerName(result.columns[i], result, target)}
+              {shown.map((c) => (
+                <th key={c.key} scope="col" className={c.important ? 'inference-prediction' : undefined}>
+                  {c.head}
                 </th>
               ))}
             </tr>
@@ -443,9 +461,9 @@ function TableResult({ result, model }: { result: Table; model: Model }) {
           <tbody>
             {result.rows.map((row, r) => (
               <tr key={r}>
-                {shown.map((i) => (
-                  <td key={i} className={[i === -1 || i >= at ? 'inference-prediction' : '', i === at + added.length - 1 ? 'inference-note' : ''].filter(Boolean).join(' ') || undefined}>
-                    {cell(row, i, r)}
+                {shown.map((c) => (
+                  <td key={c.key} className={[c.important ? 'inference-prediction' : '', c.key === 'note' ? 'inference-note' : ''].filter(Boolean).join(' ') || undefined}>
+                    {c.value(row, r)}
                   </td>
                 ))}
               </tr>

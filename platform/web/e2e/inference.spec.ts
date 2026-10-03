@@ -18,7 +18,7 @@ test.describe('推論服務管理', () => {
     await expect(table.getByRole('row')).toHaveCount(21, { timeout: 15_000 });
     await expect(page.getByTestId('batch-status')).toHaveCount(0);
     await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('row', { name: /#1.*批次.*成功/ })).toBeVisible();
-    await expect(table.getByRole('columnheader')).toHaveText(['patient_id', 'diagnosis（實際）', '預測結果', '機率', '預測對／錯', '說明', 'age', 'bmi', 'glucose', 'sbp']);
+    await expect(table.getByRole('columnheader')).toHaveText(['patient_id', 'diagnosis（實際）', '預測結果', 'diagnosis＝1 的機率', '預測對／錯', '說明', 'age', 'bmi', 'glucose', 'sbp']);
     await expect(page.getByTestId('table-correct')).toContainText(/\d+ 位中預測對 \d+ 位/);
     const rows = await table.locator('tbody tr').evaluateAll((trs) =>
       trs.map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => td.textContent ?? '')));

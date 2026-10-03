@@ -285,6 +285,14 @@ export function baselineSentence(run: TrainingRun, source: Source): string {
   return '';
 }
 
+/** 二元分類：說出陽性類別，預測時顯示的機率就是這一類的機率（與報表 report.positive_text 同一句）。 */
+export function positiveSentence(run: TrainingRun): string {
+  const positive = obj(run.metrics?.labels).positive;
+  const target = run.config?.tabular?.target;
+  if (positive === undefined || positive === null || !target) return '';
+  return `陽性＝${target} 為「${String(positive)}」：敏感度、特異度、ROC 曲線，以及預測時顯示的「${target}＝${String(positive)} 的機率」都以這一類計算。`;
+}
+
 /** 訓練失敗的訊息：第一段是給使用者看的原因，分隔線（或舊格式的 Python 堆疊）之後是技術細節。 */
 export function splitFailure(message: string): { reason: string; details: string } {
   const text = message || '訓練工作失敗';

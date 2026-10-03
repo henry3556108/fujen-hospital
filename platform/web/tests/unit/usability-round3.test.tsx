@@ -224,7 +224,7 @@ describe('5 在結果旁預測病人', () => {
     expect(within(one).queryByLabelText('模型')).toBeNull();
     for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
     await user.click(within(one).getByRole('button', { name: '預測' }));
-    expect(await within(one).findByTestId('try-result')).toHaveTextContent(/^diagnosis 預測為「[01]」的機率 \d+%/);
+    expect(await within(one).findByTestId('try-result')).toHaveTextContent(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）/);
     expect(await within(await screen.findByRole('table', { name: '預測紀錄' })).findByRole('row', { name: /#1/ })).toBeInTheDocument();
 
     // 多位病人：測試資料含實際的 diagnosis → 預測對／錯與一行統計
