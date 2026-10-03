@@ -55,7 +55,7 @@ def test_tc_b06_01_submit_returns_at_once_and_the_job_does_the_work(client, pi, 
     assert done["status"] == "succeeded" and done["count"] == 20 and done["started_at"] and done["finished_at"]
     result = done["result"]
     assert result["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"] and len(result["rows"]) == 20
-    assert "diagnosis" not in result["columns"], "不把答案送進推論"
+    assert "diagnosis" in result["columns"][:-3], "結果保留實際值（輸入包的 input.csv 仍不含答案）"
     assert all(r[-2] != "" or r[-1] for r in result["rows"])
 
     submitted, finished = audits(session, "inference.batch"), audits(session, "inference.batch.finish")

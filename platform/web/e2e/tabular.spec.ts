@@ -96,6 +96,10 @@ test.describe('預覽', () => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular');
     await page.getByRole('link', { name: 'lung-clinical' }).click();
+    // 開啟資料集先看描述統計；逐列的原始資料在「預覽」
+    await expect(page.getByRole('table', { name: '描述統計' })).toBeVisible();
+    await expect(page.getByTestId('tab-hint')).toHaveText('描述統計：每一欄的平均、範圍與分布，先看資料長什麼樣子。');
+    await page.getByRole('link', { name: '預覽', exact: true }).click();
     const table = page.getByRole('table', { name: '資料預覽' });
     await expect(table.getByRole('columnheader')).toHaveCount(13);
     const hidden = ['patient_id', 'bmi', 'smoker'];
@@ -132,7 +136,7 @@ test.describe('Target 與 Feature', () => {
       for (const box of await form.getByRole('checkbox').all()) await box.uncheck();
       for (const f of features) await form.getByRole('checkbox', { name: f, exact: true }).check();
       await form.getByRole('button', { name: '儲存設定' }).click();
-      await expect(page.getByText(`已儲存：Target ${target}，${features.length} 個 Feature，0 個前處理步驟`)).toBeVisible();
+      await expect(page.getByText(`已儲存：要預測的結果 ${target}；用來預測的資料 ${features.length} 個欄位；有缺值的病人：補上缺值後使用；沒有前處理步驟`)).toBeVisible();
 
       await page.reload();
       await expect(page.getByTestId('saved-target')).toHaveText(target);
@@ -157,7 +161,7 @@ test.describe('Target 與 Feature', () => {
     await form.getByRole('button', { name: '全部轉成 One-Hot' }).click();
     await form.getByRole('switch', { name: 'event 當作類別', exact: true }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText('已儲存：Target diagnosis，8 個 Feature，3 個前處理步驟')).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 4 個欄位（sex、smoker、event 自動拆成 7 欄）；/)).toBeVisible();
     await expect(page.getByTestId('saved-features')).toHaveText('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
     await page.reload();
     await expect(form.getByRole('checkbox', { name: 'sex', exact: true })).toBeChecked();

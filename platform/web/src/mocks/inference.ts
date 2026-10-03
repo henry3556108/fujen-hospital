@@ -5,7 +5,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type { Permission } from '../api/types';
 import type { ImageResult, InferenceRecord, Model } from '../pages/inference/api';
 import { meFor, seedDb, type MockDb } from './data';
-import { sharedWith, trainedModels } from './training';
+import { modelTitles, sharedWith, trainedModels } from './training';
 
 let mockDb: () => MockDb = (() => {
   const db = seedDb();
@@ -135,7 +135,8 @@ const inferenceHandlers = [
     const ctx = authorize(request, params.pid, 'prediction');
     if (ctx instanceof Response) return ctx;
     const shared = sharedWith(ctx.projectId, ctx.username);
-    return json(models(ctx.projectId).map((m) => ({ ...m, shared_with_me: shared.has(m.id), shared_by: shared.get(m.id) ?? null })));
+    const titles = modelTitles(ctx.projectId, ctx.username);
+    return json(models(ctx.projectId).map((m) => ({ ...m, shared_with_me: shared.has(m.id), shared_by: shared.get(m.id) ?? null, title: titles.get(m.id) ?? null })));
   }),
   http.get(`${API}/models/:mid/inference`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
@@ -152,8 +153,11 @@ const inferenceHandlers = [
       const results = Array.from({ length: 20 }, (_, i) => imageResult(model, `study_${String(i + 1).padStart(4, '0')}/IM0001.dcm`));
       return json(view(store(ctx, model, 'batch', { results, label_names: model.card.label_names ?? [] })), 202);
     }
-    const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120' }));
-    return json(view(store(ctx, model, 'batch', tabular(model, rows, ['patient_id', ...FEATURES]))), 202);
+    // 結果保留實際值（照 batch._result：送進模型的輸入不含答案，結果把實際值放回原位置）
+    const target = model.card.target;
+    const rows = Array.from({ length: 20 }, (_, i) => ({ patient_id: `P${1000 + i}`, age: String(40 + i), bmi: '24.5', glucose: i === 3 ? '' : '101', sbp: '120',
+      ...(target ? { [target]: String(hash(`P${1000 + i}`) % 2) } : {}) }));
+    return json(view(store(ctx, model, 'batch', tabular(model, rows, ['patient_id', ...FEATURES, ...(target ? [target] : [])]))), 202);
   }),
   http.post(`${API}/models/:mid/inference/upload`, async ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');
@@ -171,11 +175,15 @@ const inferenceHandlers = [
       const results = clean.map((f) => imageResult(model, f.name));
       return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [], blocked })), 201);
     }
+    const source = form.get('source');
+    if (source !== null && source !== '' && source !== 'try') return detail(422, 'source 只能是 try（單人試用）或省略');
     const { columns, rows } = parseCsv(await files[0].text());
     const needed = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
     const missing = needed.filter((f) => !columns.includes(f));
     if (missing.length) return detail(422, `資料缺少特徵欄位：${missing.join('、')}`);
-    return json(view(store(ctx, model, 'upload', tabular(model, rows, columns))), 201);
+    const record = store(ctx, model, 'upload', tabular(model, rows, columns));
+    record.input = { files: files.map((f) => ({ name: f.name, size: f.size })), ...(source === 'try' ? { source: 'try' } : {}) };
+    return json(view(record), 201);
   }),
   http.get(`${API}/inference/:iid`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'prediction');

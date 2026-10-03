@@ -82,6 +82,11 @@ function ParamField({ id, name, spec, value, onChange }: { id: string; name: str
   );
 }
 
+/** 大多數使用者不需要自己加步驟：Target／Feature 分頁會自動處理類別欄位（One-Hot）與缺值。 */
+export const NOT_NEEDED =
+  '大多數人不需要這一步：類別欄位（例如 sex）在「Target／Feature」按「全部轉成 One-Hot」或打開「當作類別」，缺值在「有缺值的病人怎麼處理」選擇就好。' +
+  '只有要做標準化、離散化、K 近鄰補值等特別處理時才需要自己加步驟。';
+
 /** 前處理步驟編輯器：依序套用；方法清單來自 API（TC-B04-06）。 */
 export function StepsEditor({
   catalogue,
@@ -89,6 +94,7 @@ export function StepsEditor({
   steps,
   onChange,
   readOnly = false,
+  folded = false,
 }: {
   catalogue: CatalogueItem[];
   /** 原始資料集的欄位（步驟產生的新欄位可在欄位清單手動輸入） */
@@ -96,6 +102,8 @@ export function StepsEditor({
   steps: Step[];
   onChange: (steps: Step[]) => void;
   readOnly?: boolean;
+  /** true：新增步驟的表單收在「進階」（Target／Feature 分頁用；大多數人不需要） */
+  folded?: boolean;
 }) {
   const categories = [...new Map(catalogue.map((c) => [c.category, c.category_zh])).entries()];
   const [category, setCategory] = useState(categories[0]?.[0] ?? '');
@@ -154,6 +162,7 @@ export function StepsEditor({
   return (
     <section aria-label="前處理步驟">
       <h3>前處理步驟</h3>
+      {!readOnly ? <p className="field__hint" data-testid="steps-not-needed">{NOT_NEEDED}</p> : null}
       {steps.length === 0 ? (
         <p className="text-muted">尚未加入步驟。</p>
       ) : (
@@ -190,7 +199,19 @@ export function StepsEditor({
         </ol>
       )}
 
-      {!readOnly && method && (
+      {!readOnly && method && folded ? (
+        <details className="training-details" data-testid="steps-advanced">
+          <summary>進階：自己加前處理步驟（大多數人不需要）</summary>
+          {form()}
+        </details>
+      ) : null}
+      {!readOnly && method && !folded ? form() : null}
+    </section>
+  );
+
+  function form() {
+    if (!method) return null;
+    return (
         <form aria-label="加入前處理步驟" className="card section" onSubmit={add} noValidate>
           {error && <Alert tone="error">{error}</Alert>}
           <div className="form-grid">
@@ -269,7 +290,6 @@ export function StepsEditor({
             </button>
           </div>
         </form>
-      )}
-    </section>
-  );
+    );
+  }
 }

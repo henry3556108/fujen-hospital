@@ -114,7 +114,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     for (const f of ['age', 'sbp', 'sex']) await tf.getByRole('checkbox', { name: f, exact: true }).check();
     await tf.getByRole('button', { name: '全部轉成 One-Hot' }).click();
     await tf.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText('已儲存：Target diagnosis，4 個 Feature，1 個前處理步驟')).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex）$/)).toBeVisible();
   });
 
   test('段落 3：影像標註、自動標註、修改後儲存', async ({ page }) => {
@@ -187,9 +187,13 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await page.getByRole('button', { name: '送出訓練「demo-diagnosis」' }).click();
     await expect(page.getByText(/^完成：已送出訓練 #1（demo-diagnosis），目前排隊中。$/)).toBeVisible();
 
-    // 步驟條自動更新：已送出 → 排隊中 → 訓練中 → 完成；看重點指標（白話說明）、K 折結果、圖表，下載報表
+    // 步驟條自動更新：已送出 → 排隊中 → 訓練中 → 完成；最上方一句結論（K 折平均），重點指標（白話說明），
+    // 測試集數字、提醒與 K 折各折收在「詳細」；圖表；下載報表
     await expect(page.getByTestId('run-status')).toContainText('已完成');
-    await expect(page.getByRole('list', { name: '訓練 #1 的重點指標' })).toContainText(/測試集的 20 人中猜對 \d+ 人/);
+    await expect(page.getByTestId('verdict')).toHaveText(/^整體表現：(優秀|良好|尚可|偏弱|接近亂猜)（AUC 0\.\d\d，5 折平均）/);
+    await expect(page.getByRole('table', { name: '訓練清單' })).toContainText(/（AUC 0\.\d\d，5 折平均）/);
+    await expect(page.getByRole('list', { name: '訓練 #1 的重點指標' })).toContainText(/80 人輪流當檢查資料，平均猜對 \d+%/);
+    await page.getByTestId('result-details').locator(':scope > summary').click();
     await expect(page.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toContainText('±');
     await expect(page.getByRole('table', { name: '訓練 #1 的混淆矩陣' })).toBeVisible();
     const report = page.waitForEvent('download');
@@ -221,16 +225,33 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await trial.getByRole('button', { name: '預測' }).click();
     await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%（為「[01]」的機率 \d+%）。$/);
 
-    // 推論：選已訓練完成的模型，上傳影像推論
-    await openEntry(page, '推論服務管理');
+    // 回到建模管理的結果：「用這個模型預測病人」→ 推論服務管理已選好模型（顯示分享時取的名稱）
+    await openEntry(page, '建模管理');
+    await page.getByRole('button', { name: '展開訓練 #1' }).click();
+    await page.getByRole('link', { name: '用這個模型預測病人' }).click();
     await expect(page.getByRole('heading', { level: 1, name: '推論服務管理' })).toBeVisible();
+    await expect(page.getByText('用模型預測病人')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '預測：心臟科確診預測' })).toBeVisible();
+    const one = page.getByRole('form', { name: '一位病人' });
+    await one.getByLabel('age').fill('58');
+    await one.getByLabel('sex').selectOption('F');
+    await one.getByLabel('bmi').fill('24');
+    await one.getByLabel('smoker').selectOption('never');
+    await one.getByRole('button', { name: '預測' }).click();
+    await expect(one.getByTestId('try-result')).toHaveText(/^diagnosis 預測為「[01]」的機率 \d+%/);
+    await page.getByRole('button', { name: '多位病人一起預測' }).click();
+    await expect(page.getByTestId('table-correct')).toContainText(/^有實際的 diagnosis 可以對照：\d+ 位中預測對 \d+ 位/);
+    // AI 模型部署頁的試用預測與這裡的「一位病人」都記成「單人試用」
+    await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('row', { name: /單人試用/ })).toHaveCount(2);
+
+    // 影像模型：選模型，上傳影像預測
     await page.getByRole('button', { name: '選擇 modality-cnn-run2' }).click();
     await page.getByLabel('影像檔').setInputFiles([DICOM(0), DICOM(1)]);
-    await page.getByRole('button', { name: '上傳並推論' }).click();
+    await page.getByRole('button', { name: '上傳並預測' }).click();
     const cards = page.getByTestId('image-result');
     await expect(cards).toHaveCount(2);
     await expect(cards.first().getByTestId('result-label')).toHaveText(/^分類：(CT|MR)（\d+%）$/);
-    await expect(page.getByRole('table', { name: '推論歷史' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
+    await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
   });
 
   test('段落 5：FHIR 資料來源、對應規則、排程', async ({ page }) => {

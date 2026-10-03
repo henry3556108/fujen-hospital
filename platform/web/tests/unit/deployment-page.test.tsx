@@ -35,12 +35,12 @@ describe('AI 模型部署', () => {
     await user.selectOptions(within(form).getByLabelText('模型'), within(form).getByRole('option', { name: /^diagnosis-rf-run1/ }));
     const title = within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）');
     expect(title).toHaveValue('diagnosis-rf');
-    expect(within(form).getByTestId('share-explain')).toHaveTextContent('點左側「推論服務管理」，在模型清單找到「diagnosis-rf-run1」');
+    expect(within(form).getByTestId('share-explain')).toHaveTextContent('點左側「推論服務管理」，在模型清單找到「diagnosis-rf」');
     await user.clear(title);
     await user.type(title, '心臟科確診預測');
     await user.type(within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）'), 'md01, pi01');
     await user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
-    expect(await screen.findByText('已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「推論服務管理」，選模型「diagnosis-rf-run1」就能預測。')).toBeInTheDocument();
+    expect(await screen.findByText('已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「推論服務管理」，選模型「心臟科確診預測」就能預測。')).toBeInTheDocument();
     expect(trainingMock().deployments[0]).toMatchObject({ name: 'model-101', title: '心臟科確診預測' });
 
     const table = await screen.findByRole('table', { name: '已分享的模型' });
@@ -100,10 +100,10 @@ describe('AI 模型部署', () => {
 
     const second = await renderApp('/inference', 'md01');
     const models = await screen.findByRole('table', { name: '模型清單' });
-    const row = within(models).getByRole('row', { name: /心臟科訓練-run1/ });
+    const row = within(models).getByRole('row', { name: /心臟科訓練（模型名稱：心臟科訓練-run1）/ });
     expect(row).toHaveTextContent('pi01 分享給你');
     expect(within(row).getByRole('button', { name: '已選擇' })).toBeDisabled();
-    await second.user.click(screen.getByRole('button', { name: '批次推論' }));
+    await second.user.click(screen.getByRole('button', { name: '多位病人一起預測' }));
     expect(await screen.findByTestId('table-summary', {}, { timeout: 10_000 })).toHaveTextContent(/^共 20 位/);
   });
 

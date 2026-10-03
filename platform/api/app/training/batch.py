@@ -56,10 +56,11 @@ def _blob(store: ObjectStore, model: TrainedModel, ref: dict) -> bytes:
 
 
 def _tabular_input(store: ObjectStore, model: TrainedModel, manifest: dict,
-                   picked: list[int]) -> tuple[list[str], list[list[str]]]:
-    """凍結資料中選定的列，去掉目標欄（推論不送答案，避免洩漏）。"""
+                   picked: list[int], *, with_target: bool = False) -> tuple[list[str], list[list[str]]]:
+    """凍結資料中選定的列。送進模型的輸入去掉目標欄（推論不送答案，避免洩漏）；
+    with_target=True 時保留（結果把實際值放回原本的位置，讓使用者對照預測對不對）。"""
     header, rows = _read_csv(_blob(store, model, manifest["items"][0]["files"]["csv"]))
-    keep = [i for i, name in enumerate(header) if name != model.card.get("target")]
+    keep = [i for i, name in enumerate(header) if with_target or name != model.card.get("target")]
     return [header[i] for i in keep], [[rows[r][i] for i in keep] for r in picked]
 
 
@@ -263,7 +264,7 @@ def _result(session: Session, store: ObjectStore, row: InferenceRecord, answer: 
     model = session.get(TrainedModel, row.model_id)
     if not _image(model):
         manifest = snapshot.load_manifest(store, _version(session, model))
-        header, rows = _tabular_input(store, model, manifest, row.input["rows"])
+        header, rows = _tabular_input(store, model, manifest, row.input["rows"], with_target=True)
         predictions = answer.get("predictions")
         if not isinstance(predictions, list) or len(predictions) != len(rows):
             got = len(predictions) if isinstance(predictions, list) else 0

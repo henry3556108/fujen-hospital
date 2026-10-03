@@ -43,7 +43,8 @@ def test_tc_b06_01_batch_inference_on_test_split(client, pi, project, backend, t
     assert out["status"] == "succeeded" and out["count"] == 20 and out["mode"] == "batch"
     result = out["result"]
     assert result["prediction_column"] == "prediction" and result["columns"][-3:] == ["prediction", "prediction_probability", "prediction_note"]
-    assert "diagnosis" not in result["columns"], "不把答案送進推論"
+    # 送進模型的輸入不含答案（見 test_train_batch 的 input.csv）；結果把實際值放回原位置，方便對照預測對不對
+    assert result["columns"].index("diagnosis") < result["columns"].index("prediction")
     assert all(r[-2] != "" or r[-1] for r in result["rows"])
     everything = run_batch(client, backend, pi, batch(client, pi, project.id, tabular_model["id"], "all"),
                            tmp_path / "all")
@@ -248,3 +249,44 @@ def test_display_name_is_limited_and_explicit_technical_names_still_work(client,
     assert response.status_code == 422 and "顯示名稱" in response.json()["detail"]
     named = ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "name": "diagnosis-rf"}), 201)
     assert named["name"] == "diagnosis-rf" and named["title"] == tabular_model["name"]
+
+
+# ---------------------------------------------------------------- 使用性測試第三輪：顯示名稱用在所有地方
+
+def test_models_carry_the_display_name_and_pick_one_when_shared_several_times(client, pi, member, project,
+                                                                              tabular_model, backend, tmp_path):
+    """一個模型分享多次（多個顯示名稱）時：優先用分享給目前使用者的最新一次，否則用最新一次；沒分享過為 null。"""
+    md01 = member("md01", Role.MEDICAL_DOCTOR)
+    base = f"/api/projects/{project.id}/deployments"
+    assert ok(client.get(f"{models(project.id)}/{tabular_model['id']}", headers=pi))["title"] is None
+    ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "title": "心臟科確診預測（測試）",
+                                           "allowed_users": ["md01"]}), 201)
+    ok(client.post(base, headers=pi, json={"model_id": tabular_model["id"], "title": "給資訊室的版本",
+                                           "allowed_users": ["pi01"]}), 201)
+
+    def title(headers):
+        listed = next(m for m in ok(client.get(models(project.id), headers=headers)) if m["id"] == tabular_model["id"])
+        single = ok(client.get(f"{models(project.id)}/{tabular_model['id']}", headers=headers))
+        assert listed["title"] == single["title"]
+        return listed["title"]
+
+    assert title(md01) == "心臟科確診預測（測試）", "md01 看到分享給他的名稱"
+    assert title(pi) == "給資訊室的版本"
+    report = client.get(f"/api/projects/{project.id}/training/runs/{tabular_model['run_id']}/report", headers=pi).text
+    assert "訓練報表：給資訊室的版本" in report and f"模型名稱：{tabular_model['name']}" in report
+
+
+def test_single_try_out_is_recorded_as_such_and_audited_as_an_upload(client, pi, project, tabular_model, session):
+    """網頁的「單人試用」以 source=try 送出：紀錄的 input.source 為 try（歷史顯示「單人試用」），mode 與稽核照舊是 upload。"""
+    one = "age,bmi,glucose,sbp\n60,25,100,130\n".encode()
+    url = f"{models(project.id)}/{tabular_model['id']}/inference/upload"
+    out = ok(client.post(url, headers=pi, files=[("files", ("try.csv", one, "text/csv"))], data={"source": "try"}), 201)
+    assert out["mode"] == "upload" and out["input"]["source"] == "try" and out["count"] == 1
+    plain = ok(client.post(url, headers=pi, files=[("files", ("a.csv", one, "text/csv"))]), 201)
+    assert "source" not in plain["input"]
+    history = ok(client.get(f"{models(project.id)}/{tabular_model['id']}/inference", headers=pi))
+    assert [h["input"].get("source") for h in history[:2]] == [None, "try"]
+    bad = client.post(url, headers=pi, files=[("files", ("a.csv", one, "text/csv"))], data={"source": "x"})
+    assert bad.status_code == 422 and "source" in bad.json()["detail"]
+    audit = session.query(AuditLog).filter_by(category="inference", action="inference.upload").all()
+    assert len(audit) == 2 and {a.detail["mode"] for a in audit} == {"upload"}

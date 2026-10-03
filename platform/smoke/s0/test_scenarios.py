@@ -474,7 +474,7 @@ def test_scenario_06_train_on_tabular(world, tmp_path):
     data = c.get(f"/api/projects/{p2}/inference/{out['id']}/download", headers=ra).content.decode()
     rows = list(csv.DictReader(io.StringIO(data)))
     assert len(rows) == 20 and all(r["prediction"] or r["prediction_note"] for r in rows)
-    assert "diagnosis" not in rows[0]
+    assert "diagnosis" in rows[0], "結果保留實際值，方便對照；送進模型的 input.csv 不含答案"
 
 
 # ---------------------------------------------------------------- 情境 7：建一個院內知識問答

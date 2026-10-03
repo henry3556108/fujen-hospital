@@ -76,6 +76,8 @@ test.describe('建模管理', () => {
     await expect(status).toContainText('訓練中');
     await expect(status).toContainText('已完成');
     await expect(page.getByRole('table', { name: '訓練清單' }).getByRole('row', { name: /^#1 diagnosis-cls/ })).toContainText('AUC');
+    // 各資料的數字收在「詳細」裡
+    await page.getByTestId('result-details').locator(':scope > summary').click();
     await page.getByText('所有指標（訓練、驗證、測試）').click();
     await expect(page.getByRole('table', { name: '訓練 #1 的指標' })).toContainText('F1 分數');
 
@@ -121,11 +123,13 @@ test.describe('建模端使用性（從資料集到部署）', () => {
     await expect(page.getByTestId('run-status')).toContainText('已完成');
 
     const cards = page.getByRole('list', { name: '訓練 #1 的重點指標' });
-    await expect(cards).toContainText(/測試集的 20 人中猜對 \d+ 人/);
+    await expect(page.getByTestId('verdict')).toContainText(/整體表現：.+（AUC 0\.\d\d，5 折平均）/);
+    await expect(cards).toContainText(/80 人輪流當檢查資料，平均猜對 \d+%/);
     await expect(cards).toContainText('0.5 等於亂猜');
+    await page.getByTestId('result-details').locator(':scope > summary').click();
     await expect(page.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toContainText('±');
     await expect(page.getByRole('table', { name: '訓練 #1 的混淆矩陣' })).toContainText('正確');
-    await expect(page.getByText(/^ROC 曲線（陽性＝「1」/)).toBeVisible();
+    await expect(page.getByText(/^ROC 曲線（測試集，陽性＝「1」/)).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await snap(page, testInfo.project.name, 'training/kfold-result');
 
@@ -190,7 +194,7 @@ test.describe('AI 模型部署', () => {
     const shared = page.getByRole('table', { name: '模型清單' }).getByRole('row', { name: /diagnosis-rf-run1/ });
     await expect(shared).toContainText('pi01 分享給你');
     await expect(shared.getByRole('button', { name: '已選擇' })).toBeDisabled();
-    await page.getByRole('form', { name: '批次推論' }).getByRole('button', { name: '批次推論' }).click();
+    await page.getByRole('form', { name: '多位病人一起預測' }).getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-summary')).toContainText(/^共 20 位/);
     await snap(page, testInfo.project.name, 'deployment/md01-inference');
 

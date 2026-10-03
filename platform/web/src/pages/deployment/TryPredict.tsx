@@ -2,7 +2,7 @@
 // 經「上傳推論」API 執行（需要 Prediction），結果與稽核都記在推論歷史。
 import { useState, type FormEvent } from 'react';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { useInferenceApi, type Model, type ModelInput } from '../inference/api';
+import { displayName, useInferenceApi, type Model, type ModelInput } from '../inference/api';
 
 function inputsOf(model: Model): ModelInput[] {
   if (model.card.inputs?.length) return model.card.inputs;
@@ -29,7 +29,11 @@ export function resultText(model: Model, result: { prediction: string; probabili
 
 const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
 
-export function TryPredict({ models, initial }: { models: Model[]; initial?: number }) {
+/**
+ * fixed：模型已選好（推論服務管理的「一位病人」），不顯示模型選單，標題改為「一位病人」。
+ * onDone：預測完成後通知（例如重新載入預測紀錄）。
+ */
+export function TryPredict({ models, initial, fixed = false, onDone }: { models: Model[]; initial?: number; fixed?: boolean; onDone?: () => void }) {
   const api = useInferenceApi();
   const tabular = models.filter((m) => m.kind.startsWith('tabular_'));
   const [modelId, setModelId] = useState(String(tabular.find((m) => m.id === initial)?.id ?? tabular[0]?.id ?? ''));
@@ -53,13 +57,14 @@ export function TryPredict({ models, initial }: { models: Model[]; initial?: num
     setBusy(true);
     try {
       const csv = `${inputs.map((i) => csvCell(i.name)).join(',')}\n${inputs.map((i) => csvCell((values[i.name] ?? '').trim())).join(',')}\n`;
-      const record = await api!.upload(model.id, [new File([csv], 'try.csv', { type: 'text/csv' })]);
+      const record = await api!.upload(model.id, [new File([csv], 'try.csv', { type: 'text/csv' })], 'try');
       const table = record.result && 'rows' in record.result ? record.result : null;
       if (!table || !table.rows.length) throw new Error('推論服務沒有回傳結果');
       const at = (name: string) => table.columns.indexOf(name);
       const col = table.prediction_column;
       const row = table.rows[0];
       setResult({ prediction: row[at(col)] ?? '', probability: at(`${col}_probability`) >= 0 ? row[at(`${col}_probability`)] : '', note: row[at(`${col}_note`)] ?? '' });
+      onDone?.();
     } catch (err) {
       setError(err);
     } finally {
@@ -68,22 +73,24 @@ export function TryPredict({ models, initial }: { models: Model[]; initial?: num
   }
 
   return (
-    <form aria-label="試用預測" className="card section stack" onSubmit={submit} noValidate>
-      <h2>試用預測</h2>
+    <form aria-label={fixed ? '一位病人' : '試用預測'} className="card section stack" onSubmit={submit} noValidate>
+      <h2>{fixed ? '一位病人' : '試用預測'}</h2>
       <p className="text-muted">
-        填一位病人的資料，看模型會怎麼預測。結果會記在「推論服務管理」的推論歷史。
+        {fixed ? '填這位病人的資料後按「預測」。' : '填一位病人的資料，看模型會怎麼預測。結果會記在「推論服務管理」的預測紀錄。'}
         {fills ? '沒有的資料可以留白，會用訓練資料的中位數（類別用最常見的值）補上。' : ''}
       </p>
-      <div className="field">
-        <label htmlFor="try-model">模型</label>
-        <select id="try-model" className="select" value={String(model.id)} onChange={(e) => { setModelId(e.target.value); setValues({}); setResult(null); }}>
-          {tabular.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {fixed ? null : (
+        <div className="field">
+          <label htmlFor="try-model">模型</label>
+          <select id="try-model" className="select" value={String(model.id)} onChange={(e) => { setModelId(e.target.value); setValues({}); setResult(null); }}>
+            {tabular.map((m) => (
+              <option key={m.id} value={m.id}>
+                {displayName(m)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="form-grid">
         {inputs.map((i) => (
           <div key={i.name} className="field">

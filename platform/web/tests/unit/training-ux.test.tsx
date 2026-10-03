@@ -62,7 +62,7 @@ describe('B1 從資料集建立訓練', () => {
     await first.user.click(link);
 
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
-    expect(screen.getByText(/已帶入資料集「lung-clinical」的 Target（diagnosis）、3 個 Feature/)).toBeInTheDocument();
+    expect(screen.getByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
     expect(screen.getByText(/預選「結構式分類」/)).toBeInTheDocument();
     expect(within(form).getByLabelText('訓練種類')).toHaveValue('tabular_classification');
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
@@ -165,19 +165,22 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
 
     const cards = screen.getByRole('list', { name: '訓練 #1 的重點指標' });
-    expect(cards).toHaveTextContent(/準確率\d+(\.\d)?%測試集的 20 人中猜對 \d+ 人/);
+    expect(cards).toHaveTextContent(/準確率\d+(\.\d)?%80 人輪流當檢查資料，平均猜對 \d+%/);
     expect(cards).toHaveTextContent('AUC（ROC 曲線下面積）');
     expect(cards).toHaveTextContent('0.5 等於亂猜');
-    expect(cards).toHaveTextContent('敏感度70%實際為「1」的人，模型抓到 70%');
+    expect(cards).toHaveTextContent(/敏感度\d+(\.\d)?%實際為「1」的人，模型抓到 \d+%/);
     expect(cards).toHaveTextContent('特異度');
-    expect(screen.getByText(/比較基準：全部猜訓練資料最常見的類別：55%/).closest('p')).toHaveTextContent(
+    expect(screen.getByTestId('baseline')).toHaveTextContent(/比較基準：每個人都猜「0」（訓練資料最常見的）可猜對 \d+%/);
+    // 測試集的比較基準細節、提醒、K 折表在「詳細」裡
+    const details = screen.getByTestId('result-details');
+    expect(within(details).getByText(/比較基準：全部猜訓練資料最常見的類別（測試集）：55%/).closest('p')).toHaveTextContent(
       '訓練資料中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
-    expect(screen.getByText(/測試集只有 20 人/)).toHaveTextContent('請以下方的 K 折平均為主');
+    expect(within(details).getByText(/測試集只有 20 人/)).toHaveTextContent('上方的結論用 K 折平均');
     expect(screen.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toHaveTextContent(/準確率\d+(\.\d)?% ± \d/);
     expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('9 人（82%），正確');
-    expect(screen.getByText(/ROC 曲線（陽性＝「1」/)).toBeInTheDocument();
+    expect(screen.getByText(/ROC 曲線（測試集，陽性＝「1」）/)).toBeInTheDocument();
     expect(screen.getByText('特徵重要性（打亂後分數下降多少）')).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: '訓練清單' })).toHaveTextContent(/AUC（ROC 曲線下面積） 0\.\d+（5 折平均）/);
+    expect(screen.getByRole('table', { name: '訓練清單' })).toHaveTextContent(/（AUC 0\.\d\d，5 折平均）/);
 
     await user.click(screen.getByRole('button', { name: '下載報表（可列印）' }));
     await screen.findByText('已下載 training-run-1-report.html');
@@ -192,7 +195,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     const { user } = await renderApp('/training', 'pi01');
     await finish(user, 'reg');
     expect(screen.getByRole('list', { name: '訓練 #1 的重點指標' })).toHaveTextContent('R²（解釋量）');
-    expect(screen.getByText(/比較基準：每次都猜平均值：16\.2/)).toBeInTheDocument();
+    expect(screen.getByTestId('baseline')).toHaveTextContent('比較基準：每次都猜平均值，RMSE 是 16.2；模型的 RMSE 要明顯低於它才有用。');
     expect(await screen.findByText('預測值與實際值')).toBeInTheDocument();
     expect(screen.getByText('殘差分布（實際值 − 預測值）')).toBeInTheDocument();
   });
@@ -290,7 +293,7 @@ describe('metric helpers', () => {
   it('warns about validation/test gaps, memorising the training data and no gain over the baseline', () => {
     const notes = warnings(run({ rows: { train: 300, validation: 100, test: 100 }, train: { accuracy: 0.95 }, validation: { accuracy: 0.8 },
       test: { accuracy: 0.62, baseline_accuracy: 0.6 } }));
-    expect(notes.join('\n')).toMatch(/驗證集與測試集的準確率相差 18%/);
+    expect(notes.join('\n')).toMatch(/驗證集與測試集的準確率差很多（80% 對 62%）/);
     expect(notes.join('\n')).toMatch(/模型可能只記住了訓練資料/);
     expect(notes.join('\n')).toMatch(/沒有明顯高於「全部都猜最常見類別」/);
     expect(notes.join('\n')).not.toMatch(/測試集只有/);

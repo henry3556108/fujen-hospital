@@ -6,6 +6,7 @@ import type { ParamSpec, TrainingApi, TrainingKind, TrainingSetting, Catalogue }
 import { isImageKind } from './api';
 import type { ColumnInfo } from '../tabular/types';
 import { MissingChoiceField } from '../tabular/MissingChoiceField';
+import { stepLabel } from '../tabular/columnOverview';
 import {
   changeAlgorithm,
   changeKind,
@@ -488,7 +489,7 @@ function TabularSource({ api, form, setForm, catalogue, processed }: {
         ) : null}
         {form.steps.length ? (
           <p className="field__hint">
-            前處理步驟 {form.steps.length} 個（在「數據管理」的資料集設定）：{form.steps.map((s) => s.id).join('、')}
+            前處理步驟 {form.steps.length} 個（在「數據管理」的資料集設定）：{form.steps.map(stepLabel).join(' → ')}
           </p>
         ) : null}
       </div>

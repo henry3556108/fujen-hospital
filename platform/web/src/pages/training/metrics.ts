@@ -85,22 +85,81 @@ const PRIMARY: Record<TrainingKind, string[]> = {
   image_detection: ['mean_iou'],
 };
 
-/** 主要分數（清單排序用）：K 折用平均；否則測試集，再否則驗證集。越大越好。 */
-export function primaryScore(run: TrainingRun): { name: string; value: number; source: string } | null {
+/** 結論用的數字從哪裡來：有 K 折用 K 折平均，否則測試集，再否則驗證集，最後才用訓練集。 */
+export interface Source {
+  /** 'cv' 或切分名稱 */
+  key: 'cv' | 'test' | 'validation' | 'train';
+  /** 給人看的來源，例如「5 折平均」「測試集」 */
+  label: string;
+  scores: Scores;
+}
+
+export function sourcesOf(run: TrainingRun): Source[] {
   const cv = cvOf(run);
+  const out: Source[] = [];
+  if (cv) out.push({ key: 'cv', label: `${cv.folds} 折平均`, scores: Object.fromEntries(Object.entries(cv.metrics).map(([k, v]) => [k, v.mean])) });
+  for (const [split, scores] of splitScores(run)) {
+    out.push({ key: split as Source['key'], label: split === 'train' ? '訓練集，可能過度樂觀' : SPLIT_NAMES[split], scores });
+  }
+  return out;
+}
+
+/** 主要分數（清單排序用，與結論同一個數字）：K 折用平均；否則測試集，再否則驗證集。越大越好。 */
+export function primaryScore(run: TrainingRun): { name: string; value: number; source: string } | null {
+  const sources = sourcesOf(run);
   for (const name of PRIMARY[run.kind] ?? []) {
-    if (cv?.metrics[name]) return { name, value: cv.metrics[name].mean, source: `${cv.folds} 折平均` };
-    for (const [split, scores] of splitScores(run)) {
-      if (split !== 'train' && typeof scores[name] === 'number') return { name, value: scores[name], source: SPLIT_NAMES[split] };
+    for (const s of sources) {
+      if (typeof s.scores[name] === 'number') return { name, value: s.scores[name], source: s.label };
     }
   }
-  const fallback = splitScores(run)[0];
+  const fallback = sources.find((s) => s.key !== 'cv');
   if (fallback) {
-    const [split, scores] = fallback;
-    const name = sortMetrics(Object.keys(scores))[0];
-    if (name) return { name, value: scores[name], source: SPLIT_NAMES[split] };
+    const name = sortMetrics(Object.keys(fallback.scores))[0];
+    if (name) return { name, value: fallback.scores[name], source: fallback.label };
   }
   return null;
+}
+
+/** 結論句的數字：比例用整數百分比，其他取兩位小數（例如 AUC 0.84）。四捨五入（0.725 → 0.73），與報表相同。 */
+export function headlineNumber(name: string, value: number): string {
+  const round = (v: number) => Math.floor(v + 0.5 + 1e-9);
+  if (METRICS[name]?.percent) return `${round(value * 100)}%`;
+  return (round(value * 100) / 100).toFixed(2);
+}
+
+const step = (value: number, levels: [number, string][], last: string) => levels.find(([at]) => value >= at)?.[1] ?? last;
+
+/** 等級：與 platform/api/app/training/report.py 的 verdict() 相同的門檻。 */
+export function grade(name: string, value: number, baseline?: number): string | null {
+  if (name === 'auc') return step(value, [[0.9, '優秀'], [0.8, '良好'], [0.7, '尚可'], [0.55, '偏弱']], '接近亂猜');
+  if (name === 'r2') return step(value, [[0.9, '優秀'], [0.7, '良好'], [0.5, '尚可'], [0.2, '偏弱']], '幾乎沒有預測能力');
+  if (name === 'accuracy' && typeof baseline === 'number') {
+    return step(value - baseline + 1e-9, [[0.2, '良好'], [0.1, '尚可'], [0.05, '偏弱']], '沒有比全部猜最常見的類別好');
+  }
+  if (name === 'dice') return step(value, [[0.8, '良好'], [0.7, '尚可']], '偏弱');
+  if (name === 'mean_iou') return step(value, [[0.7, '良好'], [0.5, '尚可']], '偏弱');
+  return null;
+}
+
+export interface Verdict {
+  name: string;
+  value: number;
+  source: Source;
+  grade: string | null;
+  /** 例如「良好（AUC 0.84，5 折平均）」；清單與結果卡片共用 */
+  text: string;
+}
+
+/** 這個模型好不好的一個結論：清單、結果頁、報表都用它（同一個數字、同一個等級）。 */
+export function verdict(run: TrainingRun): Verdict | null {
+  const score = primaryScore(run);
+  if (!score) return null;
+  const source = sourcesOf(run).find((s) => s.label === score.source)!;
+  const baseline = source.scores.baseline_accuracy;
+  const g = run.executor === 'fake' ? '快速測試，沒有意義' : grade(score.name, score.value, baseline);
+  const label = score.name === 'auc' ? 'AUC' : score.name === 'r2' ? 'R²' : metricLabel(score.name);
+  const numbers = `${label} ${headlineNumber(score.name, score.value)}，${source.label}`;
+  return { name: score.name, value: score.value, source, grade: g, text: g ? `${g}（${numbers}）` : numbers };
 }
 
 export function rowsOf(run: TrainingRun, split: string): number | null {
@@ -153,7 +212,7 @@ export function dataSentence(run: TrainingRun): string {
   return text;
 }
 
-/** 結果的提醒：測試人數少、驗證與測試差很多、只記住訓練資料、沒有比基準好。 */
+/** 結果的提醒（收在「詳細」裡，每則一兩句）：測試人數少、測試集與 K 折差很多、驗證與測試差很多、只記住訓練資料、沒有比基準好。 */
 export function warnings(run: TrainingRun): string[] {
   const out: string[] = [];
   const scores = Object.fromEntries(splitScores(run));
@@ -161,31 +220,31 @@ export function warnings(run: TrainingRun): string[] {
   const n = rowsOf(run, 'test');
   const cv = cvOf(run);
   if (n !== null && n > 0 && n < 50) {
-    out.push(`測試集只有 ${n} 人，少數幾個人猜對或猜錯就會讓數字變動很多（1 人約 ${Math.round(1000 / n) / 10}%）。` +
-      (cv ? '請以下方的 K 折平均為主。' : '建議改用「K 折交叉驗證」或收集更多資料再確認。'));
+    out.push(`測試集只有 ${n} 人，1 人猜對或猜錯就差 ${Math.round(1000 / n) / 10}%，數字不穩定。` +
+      (cv ? '上方的結論用 K 折平均。' : '建議改用「K 折交叉驗證」或收集更多資料。'));
   }
-  // 測試集與 K 折平均差很多：說明為什麼兩個數字不同、該看哪一個
   if (cv) {
     for (const name of ['accuracy', 'auc', 'r2']) {
       const mean = cv.metrics[name]?.mean;
       if (typeof mean !== 'number' || typeof test[name] !== 'number' || Math.abs(mean - test[name]) < 0.1) continue;
-      const gap = METRICS[name]?.percent ? `${Math.round(Math.abs(mean - test[name]) * 1000) / 10} 個百分點` : formatNumber(Math.abs(mean - test[name]), 3);
-      out.push(`測試集的${metricLabel(name)}（${formatMetric(name, test[name])}）和 K 折平均（${formatMetric(name, mean)}）差 ${gap}：` +
-        `測試集${n ? `只有 ${n} 人` : '人數少'}，剛好分到哪些人影響很大；K 折平均是 ${cv.rows || '全部'} 人輪流當檢查資料的結果，通常比較可靠。`);
+      out.push(`測試集的${metricLabel(name)}（${formatMetric(name, test[name])}）和 K 折平均（${formatMetric(name, mean)}）差很多：` +
+        `測試集人數少，剛好分到哪些人影響很大；以 K 折平均為準。`);
       break;
     }
   }
   const main = run.kind === 'tabular_regression' ? 'r2' : run.kind.startsWith('image_') ? null : 'accuracy';
-  if (main && typeof test[main] === 'number') {
+  // 和訓練集比較的對象：有 K 折用 K 折平均（比較可靠），否則測試集
+  const reference = main ? (cv?.metrics[main]?.mean ?? test[main]) : undefined;
+  if (main && typeof reference === 'number') {
     const val = scores.validation?.[main];
-    if (typeof val === 'number' && Math.abs(val - test[main]) >= 0.1) {
-      out.push(`驗證集與測試集的${metricLabel(main)}相差 ${formatMetric(main, Math.abs(val - test[main]))}（${formatMetric(main, val)} 對 ${formatMetric(main, test[main])}）。` +
-        '兩者都是模型沒看過的資料，差這麼多通常是資料太少、分到的人剛好不同，結果還不穩定；建議用 K 折交叉驗證確認。');
+    if (!cv && typeof val === 'number' && typeof test[main] === 'number' && Math.abs(val - test[main]) >= 0.1) {
+      out.push(`驗證集與測試集的${metricLabel(main)}差很多（${formatMetric(main, val)} 對 ${formatMetric(main, test[main])}），` +
+        '結果還不穩定；建議用 K 折交叉驗證確認。');
     }
     const train = scores.train?.[main];
-    if (typeof train === 'number' && train - test[main] >= 0.15) {
-      out.push(`訓練集的${metricLabel(main)}（${formatMetric(main, train)}）比測試集（${formatMetric(main, test[main])}）高很多，` +
-        '模型可能只記住了訓練資料。可以試著減少樹的深度、增加資料，或減少特徵。');
+    if (typeof train === 'number' && train - reference >= 0.15) {
+      out.push(`訓練集的${metricLabel(main)}（${formatMetric(main, train)}）比${cv ? ' K 折平均' : '測試集'}（${formatMetric(main, reference)}）高很多，` +
+        `模型可能只記住了訓練資料。可以試著：${overfitAdvice(run)}。`);
     }
   }
   if (typeof test.accuracy === 'number' && typeof test.baseline_accuracy === 'number' && test.accuracy - test.baseline_accuracy < 0.05) {
@@ -195,6 +254,35 @@ export function warnings(run: TrainingRun): string[] {
     out.push(`模型的 RMSE（${formatNumber(test.rmse, 3)}）沒有明顯低於「每次都猜平均值」（${formatNumber(test.baseline_rmse, 3)}），目前還沒有實際用處。`);
   }
   return out;
+}
+
+/** 「只記住訓練資料」時的建議，依演算法（名稱與訓練表單的超參數名稱相同）。 */
+const OVERFIT_ADVICE: Record<string, string> = {
+  random_forest: '把「最大深度」設小一點（例如 3～5）、把「葉節點最少樣本數」調大（例如 5～10），或增加資料',
+  logistic_regression: '把「正則化強度的倒數（C）」調小（例如 0.1）讓模型簡單一點，或減少用來預測的欄位',
+  gradient_boosting: '把「學習率」調低（例如 0.05）、減少「樹的數量」或把「最大深度」設小一點',
+  linear_regression: '減少用來預測的欄位，或增加資料',
+};
+
+export function overfitAdvice(run: TrainingRun): string {
+  const algorithm = run.config?.tabular?.algorithm;
+  if (algorithm && OVERFIT_ADVICE[algorithm]) return OVERFIT_ADVICE[algorithm];
+  if (run.kind.startsWith('image_')) return '減少「訓練回合數」、提高「每張影像的增強份數」，或增加影像';
+  return '增加資料，或減少用來預測的欄位';
+}
+
+/** 比較基準一句話（顯示在結論下方）：與結論同一個來源。 */
+export function baselineSentence(run: TrainingRun, source: Source): string {
+  const labels = obj(run.metrics.labels);
+  const pick = (name: string) => source.scores[name] ?? splitScores(run).find(([, s]) => typeof s[name] === 'number')?.[1][name];
+  const acc = pick('baseline_accuracy');
+  if (typeof acc === 'number') {
+    const label = labels.majority !== undefined ? `「${String(labels.majority)}」` : '最常見的類別';
+    return `比較基準：每個人都猜${label}（訓練資料最常見的）可猜對 ${Math.round(acc * 100)}%；模型要明顯高於它才有用。`;
+  }
+  const rmse = pick('baseline_rmse');
+  if (typeof rmse === 'number') return `比較基準：每次都猜平均值，RMSE 是 ${formatNumber(rmse, 3)}；模型的 RMSE 要明顯低於它才有用。`;
+  return '';
 }
 
 /** 訓練失敗的訊息：第一段是給使用者看的原因，分隔線（或舊格式的 Python 堆疊）之後是技術細節。 */

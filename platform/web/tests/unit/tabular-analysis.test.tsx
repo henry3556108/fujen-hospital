@@ -121,7 +121,7 @@ describe('Target 與 Feature', () => {
     for (const [target, features] of settings) {
       const first = await renderApp('/data/tabular/2/target', 'ra01');
       await save(first.user, target, features);
-      expect(await screen.findByText(`已儲存：Target ${target}，${features.length} 個 Feature，0 個前處理步驟`)).toBeInTheDocument();
+      expect(await screen.findByText(`已儲存：要預測的結果 ${target}；用來預測的資料 ${features.length} 個欄位；有缺值的病人：補上缺值後使用；沒有前處理步驟`)).toBeInTheDocument();
       first.unmount();
 
       const again = await renderApp('/data/tabular/2/target', 'ra01');
@@ -140,7 +140,7 @@ describe('Target 與 Feature', () => {
     await addStep(first.user, '缺值處理', '中位數補值', ['glucose']);
     await first.user.click(within(screen.getByRole('navigation', { name: '資料集分頁' })).getByRole('link', { name: 'Target／Feature' }));
     await save(first.user, 'diagnosis', ['age', 'glucose']);
-    expect(await screen.findByText('已儲存：Target diagnosis，2 個 Feature，1 個前處理步驟')).toBeInTheDocument();
+    expect(await screen.findByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 2 個欄位；有缺值的病人：補上缺值後使用；前處理 1 個步驟（中位數補值：glucose）$/)).toBeInTheDocument();
     first.unmount();
 
     await renderApp('/data/tabular/2/target', 'ra01');
@@ -194,7 +194,8 @@ describe('Target 與 Feature', () => {
       expect.stringContaining('One-Hot 編碼：event'),
     ]);
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
-    expect(await screen.findByText('已儲存：Target diagnosis，8 個 Feature，3 個前處理步驟')).toBeInTheDocument();
+    expect(await screen.findByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 4 個欄位（sex、smoker、event 自動拆成 7 欄）；有缺值的病人：補上缺值後使用；前處理 3 個步驟（One-Hot 編碼：sex、smoker → 轉換資料型別：event/)).toBeInTheDocument();
+    expect(screen.getByTestId('saved-feature-count')).toHaveTextContent('4 個欄位（sex、smoker、event 自動拆成 7 欄）');
     expect(screen.getByTestId('saved-features')).toHaveTextContent('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
     // 表上仍顯示原始欄位被勾選
     expect(within(form).getByRole('checkbox', { name: 'sex' })).toBeChecked();
@@ -206,7 +207,7 @@ describe('Target 與 Feature', () => {
   it('TC-A03-05 without Training permission the settings are read-only', async () => {
     const owner = await renderApp('/data/tabular/2/target', 'ra01');
     await save(owner.user, 'diagnosis', ['age']);
-    await screen.findByText(/^已儲存：Target diagnosis/);
+    await screen.findByText(/^已儲存：要預測的結果 diagnosis/);
     owner.unmount();
     await renderApp('/data/tabular/2/target', 'vw01');
     expect(await screen.findByTestId('saved-target')).toHaveTextContent('diagnosis');

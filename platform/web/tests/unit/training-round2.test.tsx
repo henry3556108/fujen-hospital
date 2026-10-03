@@ -79,7 +79,9 @@ describe('1 One-Hot 欄位在訓練表單', () => {
     const { user } = await renderApp('/training', 'pi01');
     await user.click(await screen.findByRole('button', { name: '編輯「舊設定」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「舊設定」' });
-    expect(await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' })).toBeChecked();
+    // 前處理後的欄位載入後才換成產生的欄位：等它換好（整套平行執行時較慢）
+    const sex = await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' });
+    await waitFor(() => expect(sex).toBeChecked());
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
     await screen.findByText('已儲存訓練設定「舊設定」的修改。');
     expect(trainingMock().settings[0].config.tabular!.features).toEqual(['age', 'sex_F', 'sex_M']);
@@ -261,7 +263,7 @@ describe('6 次要問題', () => {
   it('explains when the test result differs from the K-fold mean', () => {
     const r = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.667, auc: 0.818 },
       cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.791, std: 0.06, values: [] }, auc: { mean: 0.835, std: 0.04, values: [] } } });
-    expect(warnings(r).join('\n')).toContain('測試集的準確率（66.7%）和 K 折平均（79.1%）差 12.4 個百分點：測試集只有 18 人，剛好分到哪些人影響很大；K 折平均是 80 人輪流當檢查資料的結果，通常比較可靠。');
+    expect(warnings(r).join('\n')).toContain('測試集的準確率（66.7%）和 K 折平均（79.1%）差很多：測試集人數少，剛好分到哪些人影響很大；以 K 折平均為準。');
     const close = run({ rows: { train: 80, validation: 0, test: 18 }, test: { accuracy: 0.75 },
       cv: { method: 'kfold', folds: 5, rows: 80, stratified: true, accuracy: { mean: 0.79, std: 0.06, values: [] } } });
     expect(warnings(close).join('\n')).not.toContain('K 折平均（');

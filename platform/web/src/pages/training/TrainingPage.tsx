@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
+import { featureCountText, missingText, stepLabel } from '../tabular/columnOverview';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -44,7 +45,10 @@ async function formFromDataset(api: TrainingApi, cat: Catalogue, datasetId: numb
   if (tf) Object.assign(form, { target, features: [...tf.config.features], steps: tf.config.steps, missing: tf.config.missing ?? form.missing });
   const kindName = cat.kinds.find((k) => k.kind === kind)?.name ?? kind;
   const notice = tf
-    ? `已帶入資料集「${dataset.name}」的 Target（${target}）、${tf.config.features.length} 個 Feature 與 ${tf.config.steps.length} 個前處理步驟，並依目標欄位預選「${kindName}」。請確認後按「儲存設定」。`
+    ? `已帶入資料集「${dataset.name}」的設定：要預測的結果 ${target}；用來預測的資料 ${featureCountText(tf.config.features, dataset.columns.map((c) => c.name), tf.config.steps)}` +
+      `${missingText(tf.config.missing) ? `；${missingText(tf.config.missing)}` : ''}` +
+      `${tf.config.steps.length ? `；前處理 ${tf.config.steps.length} 個步驟（${tf.config.steps.map(stepLabel).join(' → ')}）` : ''}。` +
+      `並依目標欄位預選「${kindName}」。請確認後按「儲存設定」。`
     : `已選好資料集「${dataset.name}」。這個資料集還沒有設定 Target 與 Feature，請在下方選擇。`;
   return { form, notice };
 }

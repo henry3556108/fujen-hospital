@@ -5,7 +5,7 @@ import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { BarChart } from '../../components/charts/BarChart';
 import { formatTick } from '../../components/charts/scale';
-import { formatNumber } from '../../components/format';
+import { formatNumber, formatStat } from '../../components/format';
 import { cellText } from './DataTable';
 import { useDataset } from './DatasetLayout';
 import { facts, isBinary01, isIdentifier, typeLabel } from './columnOverview';
@@ -72,6 +72,8 @@ export function DescribeTab() {
   const [column, setColumn] = useState(dataset.columns.find((c) => c.kind === 'numeric')?.name ?? dataset.columns[0]?.name ?? '');
   const kind = dataset.columns.find((c) => c.name === column)?.kind;
   const n = (v: number | undefined) => (v === undefined ? '—' : formatNumber(v, 6));
+  // 計算出的統計量四捨五入到好讀的位數，滑鼠移上去看完整數值
+  const stat = (v: number | undefined) => (v === undefined ? '—' : <span title={String(v)}>{formatStat(v)}</span>);
   const overview = stats.data ? facts(stats.data.columns, stats.data.row_count, dataset.schema.columns, stats.data.columns) : [];
 
   return (
@@ -138,12 +140,12 @@ export function DescribeTab() {
                       <td className="num">{c.count}</td>
                       <td className="num">{c.missing}</td>
                       <td className="num">{c.unique}</td>
-                      <td className="num">{binary && c.mean !== undefined ? `${formatNumber(c.mean * 100, 3)}% 為 1` : id ? '—' : n(c.mean)}</td>
-                      <td className="num">{dash ? '—' : n(c.std)}</td>
+                      <td className="num">{binary && c.mean !== undefined ? `${formatNumber(c.mean * 100, 3)}% 為 1` : id ? '—' : stat(c.mean)}</td>
+                      <td className="num">{dash ? '—' : stat(c.std)}</td>
                       <td className="num">{id ? '—' : n(c.min)}</td>
-                      <td className="num">{dash ? '—' : n(c.p25)}</td>
-                      <td className="num">{dash ? '—' : n(c.p50)}</td>
-                      <td className="num">{dash ? '—' : n(c.p75)}</td>
+                      <td className="num">{dash ? '—' : stat(c.p25)}</td>
+                      <td className="num">{dash ? '—' : stat(c.p50)}</td>
+                      <td className="num">{dash ? '—' : stat(c.p75)}</td>
                       <td className="num">{id ? '—' : n(c.max)}</td>
                       <td>{c.top === undefined || id ? '—' : cellText(c.top)}</td>
                       <td className="num">{id ? '—' : (c.freq ?? '—')}</td>

@@ -11,7 +11,7 @@ test.describe('使用性第二輪', () => {
     for (const f of ['age', 'sex', 'bmi']) await overview.getByRole('checkbox', { name: f, exact: true }).check();
     await overview.getByRole('switch', { name: 'sex 當作類別' }).check();
     await overview.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText(/^已儲存：Target diagnosis/)).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis/)).toBeVisible();
 
     await page.getByRole('link', { name: '用這份資料建立訓練' }).click();
     const form = page.getByRole('form', { name: '新增訓練設定' });
@@ -49,7 +49,7 @@ test.describe('使用性第二輪', () => {
 
     await page.goto('/inference');
     await page.getByRole('button', { name: '選擇 lung-clinical 訓練-run1' }).click();
-    await page.getByRole('form', { name: '批次推論' }).getByRole('button', { name: '批次推論' }).click();
+    await page.getByRole('form', { name: '多位病人一起預測' }).getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-summary')).toContainText('共 20 位，20 位有預測結果。其中 1 位有缺值');
     await expectNoHorizontalOverflow(page);
   });
@@ -72,7 +72,7 @@ test.describe('使用性第二輪', () => {
       expect(scroll, `欄位確認表橫向溢出 ${scroll - client}px`).toBeLessThanOrEqual(client);
       await snap(page, testInfo.project.name, `round2/upload-table-${width}`);
 
-      await page.goto('/data/tabular/2');
+      await page.goto('/data/tabular/2/preview');
       const preview = page.getByRole('table', { name: '資料預覽' });
       await expect(preview.getByRole('row').nth(1).getByRole('rowheader')).toHaveText('1');
     });

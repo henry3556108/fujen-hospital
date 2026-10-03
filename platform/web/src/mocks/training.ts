@@ -390,7 +390,7 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
       return {
         rows, data, train, ...(kfold ? {} : { validation: test }), test,
         labels: { majority: '0', positive: '1', majority_train: { count: Math.round(rows.train * 0.6), rows: rows.train } },
-        ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)]]) } : {}),
+        ...(kfold ? { cv: cv([['accuracy', score], ['f1_macro', score - 0.05], ['auc', Math.min(0.96, score + 0.05)], ['sensitivity', 0.72], ['specificity', 0.8], ['baseline_accuracy', 0.6]]) } : {}),
       };
     }
     default: {
@@ -523,6 +523,18 @@ function deploymentOut(row: Deployment): Deployment {
   const able = new Set(db.memberships.filter((m) => m.project_id === row.project_id && m.permissions.includes('prediction'))
     .map((m) => db.users.find((u) => u.id === m.user_id)?.username));
   return { ...row, cannot_use_in_platform: row.allowed_users.filter((u) => !able.has(u)) };
+}
+
+/** 模型的顯示名稱（照 service.model_titles）：優先用分享給這位使用者的最新一次，否則用最新一次分享。 */
+export function modelTitles(projectId: number, username: string): Map<number, string> {
+  const newest = new Map<number, string>();
+  const mine = new Map<number, string>();
+  for (const d of [...state().deployments].sort((a, b) => a.id - b.id)) {
+    if (d.project_id !== projectId || !d.title) continue;
+    newest.set(d.model_id, d.title);
+    if (d.allowed_users.includes(username)) mine.set(d.model_id, d.title);
+  }
+  return new Map([...newest, ...mine]);
 }
 
 /** 分享給這位使用者的模型（模型編號 → 分享者），照 service.shared_with。 */

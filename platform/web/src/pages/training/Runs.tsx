@@ -11,7 +11,7 @@ import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
 import { KIND_NAMES } from '../inference/api';
 import { JOB_STATUS_LABELS } from '../scheduling/types';
 import type { RunStatus, TrainingApi, TrainingRun, TrainingSetting } from './api';
-import { formatMetric, metricLabel, primaryScore, splitFailure } from './metrics';
+import { primaryScore, splitFailure, verdict } from './metrics';
 import { ModelExport, useHasPermission } from './ModelExport';
 import { ResultView } from './ResultView';
 import { RunSteps, STATUS_TEXT } from './RunSteps';
@@ -37,9 +37,9 @@ export function flatMetrics(metrics: Record<string, unknown>, prefix = ''): [str
   return out;
 }
 
+/** 清單的主要分數：與結果頁最上方的結論同一句（同一個數字、同一個等級）。 */
 function scoreText(run: TrainingRun): string {
-  const score = primaryScore(run);
-  return score ? `${metricLabel(score.name)} ${formatMetric(score.name, score.value)}（${score.source}）` : '—';
+  return verdict(run)?.text ?? '—';
 }
 
 type Sort = { by: 'id' | 'score'; desc: boolean };
@@ -207,17 +207,25 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
       ) : null}
       {run.status !== 'failed' && run.message ? <Alert tone="info">{run.message}</Alert> : null}
       <ApiErrorAlert error={error} />
-      {run.status === 'succeeded' ? <ResultView api={api} run={run} /> : null}
-      {run.status === 'succeeded' && run.model_id !== null ? (
-        <div className="row-actions">
-          {canDeploy ? (
-            <Link className="btn btn--primary" to={`/deployment?model=${run.model_id}`}>
-              分享給同事使用
-            </Link>
-          ) : (
-            <span className="text-muted">分享模型需要 Prediction 權限，請聯絡專案負責人。</span>
-          )}
-        </div>
+      {run.status === 'succeeded' ? (
+        <ResultView
+          api={api}
+          run={run}
+          actions={
+            run.model_id === null ? null : canDeploy ? (
+              <div className="row-actions">
+                <Link className="btn btn--primary" to={`/inference?model=${run.model_id}`}>
+                  用這個模型預測病人
+                </Link>
+                <Link className="btn btn--secondary" to={`/deployment?model=${run.model_id}`}>
+                  分享給同事使用
+                </Link>
+              </div>
+            ) : (
+              <p className="text-muted">預測病人與分享模型需要 Prediction 權限，請聯絡專案負責人。</p>
+            )
+          }
+        />
       ) : null}
       <details className="training-details">
         <summary>這次訓練的資料與設定</summary>

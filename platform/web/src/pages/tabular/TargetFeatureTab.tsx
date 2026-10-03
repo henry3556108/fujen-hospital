@@ -4,11 +4,11 @@ import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
 import { useProjectAccess } from '../data/access';
-import { collapseFeatures, encode, encodedColumns, expandFeatures, facts, hints, isTextual, typeLabel, unencode } from './columnOverview';
+import { collapseFeatures, encode, encodedColumns, expandFeatures, facts, featureCountText, hints, isTextual, missingText, typeLabel, unencode } from './columnOverview';
 import { useDataset } from './DatasetLayout';
 import { StepsEditor, stepSummary } from './StepsEditor';
 import { MissingChoiceField } from './MissingChoiceField';
-import type { Describe, MissingChoice, PipelinePreview, TargetFeature } from './types';
+import type { CatalogueItem, Describe, MissingChoice, PipelinePreview, TargetFeature } from './types';
 
 /** TC-B04-03 Target 與 Feature：欄位總覽表上選 Target（單選）與 Feature（勾選）；需要 Training 權限才能儲存。 */
 export function TargetFeatureTab() {
@@ -66,7 +66,7 @@ export function TargetFeatureTab() {
       const back = collapseFeatures(tf.config.features, names, encodedColumns(tf.config.steps));
       setFeatures(back.columns);
       setExtra(back.other.join(', '));
-      setNotice(`已儲存：Target ${tf.config.target}，${tf.config.features.length} 個 Feature，${tf.config.steps.length} 個前處理步驟`);
+      setNotice(savedSummary(tf, names, catalogue));
     } catch (err) {
       setError(err);
     } finally {
@@ -83,7 +83,12 @@ export function TargetFeatureTab() {
             <dt>要預測的結果（Target）</dt>
             <dd data-testid="saved-target">{saved.config.target}</dd>
             <dt>用來預測的資料（Feature）</dt>
-            <dd data-testid="saved-features">{saved.config.features.join('、')}</dd>
+            <dd>
+              <span data-testid="saved-features">{saved.config.features.join('、')}</span>
+              <span className="field__hint" data-testid="saved-feature-count">
+                {' '}（{featureCountText(saved.config.features, names, saved.config.steps)}）
+              </span>
+            </dd>
             {saved.config.missing ? (
               <>
                 <dt>有缺值的病人</dt>
@@ -215,7 +220,16 @@ export function TargetFeatureTab() {
           {missing('training', '儲存 Target 與 Feature 設定')}
         </Alert>
       )}
-      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} />}
+      {writable && <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={setSteps} folded />}
     </>
   );
+}
+
+/** 儲存後的一句話：數目以使用者勾的欄位計，並列出缺值處理與前處理步驟（讓人確定都存了）。 */
+export function savedSummary(tf: TargetFeature, original: string[], catalogue: CatalogueItem[]): string {
+  const c = tf.config;
+  const parts = [`要預測的結果 ${c.target}`, `用來預測的資料 ${featureCountText(c.features, original, c.steps)}`];
+  if (missingText(c.missing)) parts.push(missingText(c.missing));
+  parts.push(c.steps.length ? `前處理 ${c.steps.length} 個步驟（${c.steps.map((s) => stepSummary(s, catalogue)).join(' → ')}）` : '沒有前處理步驟');
+  return `已儲存：${parts.join('；')}`;
 }
