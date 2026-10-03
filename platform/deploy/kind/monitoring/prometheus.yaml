@@ -1,5 +1,5 @@
 # Prometheus：抓取平台監控目標，評估 3 條告警規則，送到 Alertmanager。
-# 抓取工作（job）名稱與被監控的 Deployment 同名，TC-C02-01 直接用名稱比對覆蓋率。
+# 抓取工作（job）名稱與被監控的 Deployment／StatefulSet 同名，TC-C02-01 直接用名稱比對覆蓋率。
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -54,6 +54,22 @@ data:
         tls_config: { insecure_skip_verify: true }
         authorization: { credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token }
         static_configs: [{ targets: ["kueue-controller-manager-metrics-service.kueue-system.svc:8443"] }]
+      # 平台（命名空間 ai-platform）：抓取對象由平台 manifest 的 Pod 註記宣告（platform/deploy/k8s/base 的
+      # prometheus.io/scrape、port、path），這裡不列服務名稱。job 取 Pod 的 app 標籤（與 Deployment／StatefulSet 同名）。
+      # 甲方以自己的 Prometheus 監控時，複製這個工作即可（platform/deploy/k8s/README「監控」）。
+      - job_name: ai-platform-pods
+        kubernetes_sd_configs: [{ role: pod, namespaces: { names: [ai-platform] } }]
+        relabel_configs:
+          - { source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape], regex: "true", action: keep }
+          - { source_labels: [__meta_kubernetes_pod_phase], regex: Running, action: keep }
+          - { source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path], regex: (.+), target_label: __metrics_path__ }
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            regex: (.+);(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - { source_labels: [__meta_kubernetes_pod_label_app], target_label: job }
+          - { source_labels: [__meta_kubernetes_namespace], target_label: namespace }
+          - { source_labels: [__meta_kubernetes_pod_name], target_label: pod }
       # 每個節點的 kubelet 與 cAdvisor（節點、Pod、CPU、記憶體指標來源）
       - job_name: kubelet
         scheme: https
@@ -113,7 +129,7 @@ spec:
       labels: { app: prometheus }
       annotations:
         # 設定變更時手動 rollout restart；這裡只記錄版本
-        platform/config-version: "1"
+        platform/config-version: "2"
     spec:
       serviceAccountName: prometheus
       nodeSelector: { platform/pool: cpu-web }

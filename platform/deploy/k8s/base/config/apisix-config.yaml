@@ -18,6 +18,13 @@ discovery:
     order:
       - last
       - A
+# 監控：prometheus 外掛的指標匯出埠 9091（預設只聽 127.0.0.1，其他 Pod 連不到）。
+# compose 不對主機開放；Kubernetes 只讓 monitoring 命名空間連入（k8s/base/networkpolicy.yaml 的 metrics-apisix）
+plugin_attr:
+  prometheus:
+    export_addr:
+      ip: 0.0.0.0
+      port: 9091
 # Kubernetes：apisix.yaml 內以 ${{VAR}} 引用的環境變數，nginx worker 要宣告才讀得到
 nginx_config:
   worker_processes: 2   # 預設依 CPU 數開 worker，每個約 30 MB；平台節點記憶體有限

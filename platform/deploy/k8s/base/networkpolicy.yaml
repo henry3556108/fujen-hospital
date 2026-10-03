@@ -141,3 +141,61 @@ spec:
   ingress:
     - from:
         - podSelector: {matchLabels: {platform/backend: "true"}}
+---
+# 監控（TC-C02-01）：Prometheus（monitoring 命名空間）抓取有 /metrics 的服務，各只開指標埠。
+# 抓取對象由 Pod 註記 prometheus.io/* 宣告；甲方 Prometheus 不在 monitoring 命名空間時改這裡的命名空間名稱。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-api
+spec:
+  podSelector:
+    matchLabels: {app: api}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports:
+        - {port: 8000, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-apisix
+spec:
+  podSelector:
+    matchLabels: {app: apisix}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports:
+        - {port: 9091, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-keycloak
+spec:
+  podSelector:
+    matchLabels: {app: keycloak}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports:
+        - {port: 9000, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: metrics-minio
+spec:
+  podSelector:
+    matchLabels: {app: minio}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
+      ports:
+        - {port: 9000, protocol: TCP}

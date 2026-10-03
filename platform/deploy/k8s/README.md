@@ -93,6 +93,25 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 - **記憶體上限**：Keycloak `-XX:MaxRAMPercentage=40`、HAPI `-Xmx640m`、MinIO 與 Mailpit `GOMEMLIMIT`、APISIX 2 個 worker、
   ClamAV `ConcurrentDatabaseReload no`（重載病毒碼時不同時保留兩份）。CPU 上限不超過 0.75 核（監控的 HighPodCpu 門檻是 0.8 核）。
 
+## 監控
+
+- **抓取宣告跟著 manifest**：有 `/metrics` 的服務在 Pod 範本加註記 `prometheus.io/scrape: "true"`、`prometheus.io/port`、`prometheus.io/path`：
+
+  | 服務 | 端點 |
+  |---|---|
+  | api | `:8000/metrics`（請求數與延遲依路由樣板、行程指標；Gateway 只轉 `/api/*`，不對外） |
+  | apisix | `:9091/apisix/prometheus/metrics`（prometheus 外掛匯出埠，聽 0.0.0.0） |
+  | keycloak | `:9000/metrics`（管理埠，`KC_METRICS_ENABLED=true`） |
+  | minio | `:9000/minio/v2/metrics/cluster`（`MINIO_PROMETHEUS_AUTH_TYPE=public`） |
+
+  其餘服務沒有可用的 `/metrics`，以 cAdvisor 的容器指標覆蓋，清單與原因在 `platform/compliance/policy/monitoring.yaml`
+  的 `container_metrics_only`。新增服務時兩者擇一，`platform/compliance/tests/test_monitoring_config.py` 會檢查。
+- **Prometheus 只需一個通用工作**：kind 的監控堆疊用 `platform/deploy/kind/monitoring/prometheus.yaml` 的 `ai-platform-pods`
+  （Pod 服務探索，限 `ai-platform`，`job` 取 Pod 的 `app` 標籤，與 Deployment／StatefulSet 同名）。甲方以自己的 Prometheus 監控時
+  複製這個工作；服務增減不必改 Prometheus 設定。
+- **網路政策**：`base/networkpolicy.yaml` 的 `metrics-*` 讓 `monitoring` 命名空間只連到各服務的指標埠。甲方 Prometheus 在別的命名空間時改那裡的名稱。
+- **驗證**：`cd platform/compliance && uv run python -m compliance monitoring`（TC-C02-01），最後一行 `PASS … 未覆蓋 0`。
+
 ## 正式環境（甲方）
 
 1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址

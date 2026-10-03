@@ -1,7 +1,7 @@
 """監控覆蓋（TC-DAILY-02）：已部署服務 vs Prometheus 抓取目標。
 
 服務清單從叢集探索（所有命名空間的 Deployment、StatefulSet、DaemonSet，扣除政策排除的系統命名空間）。
-每個服務要嘛有同名、狀態 up 的抓取工作，要嘛列在政策的「只以容器指標覆蓋」且確實有 cAdvisor 容器指標。
+每個服務要嘛有同名、狀態 up 的抓取工作（服務探索的目標還要同命名空間），要嘛列在政策的「只以容器指標覆蓋」且確實有 cAdvisor 容器指標。
 compose 堆疊的服務（開發機才有）另列：Prometheus 在叢集內，抓不到 compose 的容器，照實列為未覆蓋。
 """
 from __future__ import annotations
@@ -48,6 +48,7 @@ class Target:
     instance: str = ""
     node: str | None = None
     error: str = ""
+    namespace: str | None = None   # 服務探索的目標（平台 Pod）才有；靜態目標沒有
 
 
 @dataclass
@@ -71,12 +72,14 @@ class CoverageReport:
 def evaluate(workloads: list[Workload], targets: list[Target], nodes: list[str], container_pods: set[str],
              policy: Policy, compose_services: list[str] = ()) -> CoverageReport:
     report = CoverageReport()
-    jobs = {t.job for t in targets}
+    def has_target(w: Workload) -> bool:
+        return any(t.job == w.name and t.namespace in (None, w.namespace) for t in targets)
+
     report.down = sorted(f"{t.job} {t.instance}：{t.error or t.health}" for t in targets if t.health != "up")
     for w in sorted(workloads, key=lambda w: w.key):
         if w.namespace in policy.excluded_namespaces:
             continue
-        if w.name in jobs:
+        if has_target(w):
             report.covered_by_target.append(w.key)
         elif w.key in policy.container_only:
             missing = [p for p in w.pods if p not in container_pods]
@@ -114,7 +117,7 @@ def collect(context: str, prometheus: str, policy: Policy, compose_project: str 
     nodes = [n["metadata"]["name"] for n in _kubectl(context, "get", "nodes")["items"]]
     data = httpx.get(f"{prometheus}/api/v1/targets", params={"state": "active"}, timeout=15).json()["data"]
     targets = [Target(t["labels"]["job"], t["health"], t["labels"].get("instance", ""), t["labels"].get("node"),
-                      t.get("lastError", "")) for t in data["activeTargets"]]
+                      t.get("lastError", ""), t["labels"].get("namespace")) for t in data["activeTargets"]]
     result = httpx.get(f"{prometheus}/api/v1/query", params={"query": 'count by (pod) (container_memory_working_set_bytes{container!=""})'},
                        timeout=15).json()["data"]["result"]
     container_pods = {r["metric"].get("pod") for r in result}

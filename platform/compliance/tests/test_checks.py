@@ -78,6 +78,15 @@ def test_tc_daily_02_down_target_missing_container_metrics_and_node_gap_fail():
     assert r.node_gaps == ["節點 n3 沒有 kubelet 抓取目標", "節點 n3 沒有 cadvisor 抓取目標"]
 
 
+def test_tc_daily_02_discovered_targets_only_cover_their_own_namespace():
+    # 平台的抓取目標來自 Pod 探索，帶 namespace；同名服務在別的命名空間不算被覆蓋
+    ws = [mon.Workload("ai-platform", "api", ["a-1"]), mon.Workload("other", "api", ["o-1"])]
+    r = mon.evaluate(ws, targets(mon.Target("api", "up", "10.0.0.1:8000", namespace="ai-platform")), ["n1", "n2"],
+                     {"a-1", "o-1"}, POLICY)
+    assert r.covered_by_target == ["ai-platform/api"]
+    assert r.uncovered == ["other/api：沒有抓取目標，也不在「只以容器指標覆蓋」政策內"]
+
+
 def test_tc_daily_02_compose_services_are_reported_uncovered():
     r = mon.evaluate([], targets(), ["n1", "n2"], set(), POLICY, ["api", "postgres"])
     assert not r.ok and len(r.compose_uncovered) == 2

@@ -55,8 +55,10 @@ kind 不支援擴充既有叢集，所以 `add-node.sh` 用與 kind worker 相�
 
 ## 監控與告警
 
-- Prometheus 抓：自身、Alertmanager、Grafana、kube-state-metrics、Kueue controller、每個節點的 kubelet 與 cAdvisor。抓取工作名稱與 Deployment 同名，方便比對覆蓋率。
-  Mailpit、web-echo 沒有 `/metrics`，以 cAdvisor 的容器指標覆蓋。
+- Prometheus 抓：自身、Alertmanager、Grafana、kube-state-metrics、Kueue controller、每個節點的 kubelet 與 cAdvisor，
+  以及平台（`ai-platform`）有 `/metrics` 的服務：api、apisix、keycloak、minio（工作 `ai-platform-pods`，依 Pod 註記探索，見 `platform/deploy/k8s/README.md`「監控」）。
+  抓取工作名稱與 Deployment／StatefulSet 同名，方便比對覆蓋率。沒有 `/metrics` 的服務（Mailpit、web-echo、平台的 postgres、orthanc 等）
+  以 cAdvisor 的容器指標覆蓋，清單與原因在 `platform/compliance/policy/monitoring.yaml`。覆蓋檢查：`cd platform/compliance && uv run python -m compliance monitoring`。
 - 告警規則（`monitoring/prometheus.yaml`）：
 
   | 規則 | 條件 |

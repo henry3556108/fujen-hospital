@@ -21,6 +21,8 @@ spec:
   template:
     metadata:
       labels: {app: keycloak, platform/db-client: "true"}
+      # Prometheus 以註記探索抓取（platform/deploy/kind/monitoring/prometheus.yaml 的 ai-platform-pods；README「監控」）
+      annotations: {prometheus.io/scrape: "true", prometheus.io/port: "9000", prometheus.io/path: /metrics}
     spec:
       nodeSelector: {platform/pool: cpu-web}
       automountServiceAccountToken: false
@@ -47,6 +49,7 @@ spec:
             # 與 compose 相同：明確聽所有介面（26.6 起 start-dev 預設只聽 localhost）
             - {name: KC_HTTP_HOST, value: 0.0.0.0}
             - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: KC_METRICS_ENABLED, value: "true"}   # 管理埠 9000 的 /metrics（Prometheus 抓取）
             - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=40 -XX:InitialRAMPercentage=10 -XX:MaxMetaspaceSize=256m"}
             # realm 匯入的佔位值
             - name: KC_API_CLIENT_SECRET

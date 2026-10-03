@@ -1,18 +1,25 @@
 """TC-C02：系統監控（Prometheus、Grafana、Alertmanager → Mailpit），kind 叢集。"""
 import subprocess
 import time
+from pathlib import Path
 
 import httpx
 import pytest
+import yaml
 
 from kind_harness import (ALERTMANAGER, GRAFANA, GRAFANA_AUTH, MAILPIT, PROMETHEUS, build_platform, clear_jobs,
                           kube_or_skip, wait_for)
 
 pytestmark = pytest.mark.kind
 
-MONITORED_NAMESPACES = ["monitoring", "kueue-system", "platform-web"]
-# 沒有 /metrics 端點的服務：以 cAdvisor 的容器指標覆蓋（第二段檢查），不列為抓取目標
-NO_METRICS_ENDPOINT = {"mailpit", "web-echo"}
+# 平台本身（ai-platform）也在內：只看 monitoring 等 3 個命名空間時，平台的 18 個服務沒有監控也會通過
+MONITORED_NAMESPACES = ["monitoring", "kueue-system", "platform-web", "ai-platform"]
+# 覆蓋政策（與 compliance monitoring 相同）：container_metrics_only 的服務沒有 /metrics，以 cAdvisor 的容器指標覆蓋
+POLICY = Path(__file__).resolve().parents[1] / "compliance/policy/monitoring.yaml"
+
+
+def container_metrics_only() -> set[str]:
+    return set(yaml.safe_load(POLICY.read_text(encoding="utf-8"))["container_metrics_only"])
 
 
 @pytest.fixture
@@ -44,14 +51,24 @@ def prom_value(query: str) -> float:
 
 
 def test_tc_c02_01_prometheus_targets_cover_deployed_services(kube):
-    deployments = {d.metadata.name for ns in MONITORED_NAMESPACES
-                   for d in kube.apps.list_namespaced_deployment(ns).items}
+    services = {(ns, w.metadata.name) for ns in MONITORED_NAMESPACES
+                for w in [*kube.apps.list_namespaced_deployment(ns).items,
+                          *kube.apps.list_namespaced_stateful_set(ns).items]}
+    assert any(ns == "ai-platform" for ns, _ in services), "平台沒有部署在 ai-platform"
     targets = httpx.get(f"{PROMETHEUS}/api/v1/targets", params={"state": "active"}, timeout=10).json()["data"]
     active = targets["activeTargets"]
     down = [(t["labels"]["job"], t["labels"].get("instance"), t.get("lastError")) for t in active if t["health"] != "up"]
     assert down == []
     jobs = {t["labels"]["job"] for t in active}
-    assert (deployments - NO_METRICS_ENDPOINT) | {"kubelet", "cadvisor"} == jobs
+    only = container_metrics_only()
+    scraped = {name for ns, name in services if f"{ns}/{name}" not in only}
+    assert scraped | {"kubelet", "cadvisor"} == jobs, f"缺抓取目標：{sorted(scraped - jobs)}；多出：{sorted(jobs - scraped)}"
+    # 平台服務的目標來自 ai-platform 的 Pod（註記探索），每個執行中的 Pod 一個
+    for ns, name in sorted(services):
+        if ns == "ai-platform" and name in scraped:
+            pods = {t["labels"].get("pod") for t in active if t["labels"]["job"] == name}
+            assert all(t["labels"].get("namespace") == "ai-platform" for t in active if t["labels"]["job"] == name), name
+            assert pods and None not in pods, (name, pods)
     nodes = {n.metadata.name for n in kube.core.list_node().items}
     for job in ("kubelet", "cadvisor"):
         assert {t["labels"]["node"] for t in active if t["labels"]["job"] == job} == nodes
