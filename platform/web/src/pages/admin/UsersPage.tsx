@@ -177,6 +177,10 @@ export function UsersPage() {
 
   return (
     <div className="section">
+      <h2>Account（帳號）</h2>
+      <p className="text-muted">
+        平台的所有帳號與帳號類型（Admin／User）；可新增帳號、變更類型、重設密碼與刪除。帳號在各專案的角色請到「專案成員」設定。
+      </p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={users.error} />

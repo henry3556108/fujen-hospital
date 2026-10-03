@@ -110,3 +110,27 @@ export interface MemberRow {
   permissions: Permission[];
   unknown_permissions?: string[];
 }
+
+/** Admin Dashboard（GET /api/admin/dashboard） */
+export interface AdminDashboard {
+  generated_at: string;
+  accounts: { total: number; admin: number; user: number };
+  projects: number;
+  memberships: number;
+  labeling_groups: number;
+  labeling_group_members: number;
+  tabular_datasets: number;
+  imaging_studies: number;
+  gpu_groups: number;
+  jobs: { total: number; by_status: Record<string, number> };
+  per_project: {
+    id: number;
+    name: string;
+    gpu_group: string | null;
+    members: number;
+    labeling_groups: number;
+    tabular_datasets: number;
+    imaging_studies: number;
+    jobs: number;
+  }[];
+}

@@ -7,6 +7,9 @@ import { createLabelingHandlers } from './labeling';
 import { createInferenceHandlers } from './inference';
 import { llmHandlers, resetLlmMock } from './llm';
 import { trainingHandlers } from './training';
+import { mockStudyCounts } from './imaging';
+import { mockGpuGroupCount, mockJobs } from './scheduling';
+import { mockDatasetCounts } from './tabular';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
@@ -89,6 +92,43 @@ export const handlers = [
     const u = authUser(request);
     if (u instanceof Response) return u;
     return json(meFor(db, u.username) as unknown as JsonBodyType);
+  }),
+
+  http.get(`${API}/admin/dashboard`, ({ request }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const jobs = mockJobs();
+    const studies = mockStudyCounts();
+    const datasets = mockDatasetCounts();
+    const byStatus: Record<string, number> = { queued: 0, running: 0, succeeded: 0, failed: 0, cancelled: 0 };
+    for (const j of jobs) byStatus[j.status] = (byStatus[j.status] ?? 0) + 1;
+    const sum = (m: Map<number, number>) => [...m.values()].reduce((x, y) => x + y, 0);
+    return json({
+      generated_at: new Date().toISOString(),
+      accounts: {
+        total: db.users.length,
+        admin: db.users.filter((u) => u.account_type === 'admin').length,
+        user: db.users.filter((u) => u.account_type === 'user').length,
+      },
+      projects: db.projects.length,
+      memberships: db.memberships.length,
+      labeling_groups: db.labelGroups.length,
+      labeling_group_members: db.labelGroups.reduce((n, g) => n + g.member_ids.length, 0),
+      tabular_datasets: sum(datasets),
+      imaging_studies: sum(studies),
+      gpu_groups: mockGpuGroupCount(),
+      jobs: { total: jobs.length, by_status: byStatus },
+      per_project: db.projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        gpu_group: p.gpu_group,
+        members: db.memberships.filter((m) => m.project_id === p.id).length,
+        labeling_groups: db.labelGroups.filter((g) => g.project_id === p.id).length,
+        tabular_datasets: datasets.get(p.id) ?? 0,
+        imaging_studies: studies.get(p.id) ?? 0,
+        jobs: jobs.filter((j) => j.project_id === p.id).length,
+      })),
+    });
   }),
 
   // ---- 專案 ----

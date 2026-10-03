@@ -12,6 +12,7 @@ import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
 import { LabelGroupsPage } from './pages/admin/LabelGroupsPage';
+import { DashboardPage } from './pages/admin/DashboardPage';
 import { InferencePage } from './pages/inference/InferencePage';
 import { FhirRoutes } from './pages/fhir/FhirLayout';
 import { LabelingPage } from './pages/labeling/LabelingPage';
@@ -64,11 +65,14 @@ function AdminLayout() {
     <>
       <h1>帳號管理</h1>
       <nav aria-label="帳號管理分頁" className="tabs">
-        <NavLink to="/admin/projects" className="tabs__item">
-          專案
+        <NavLink to="/admin/dashboard" className="tabs__item">
+          Dashboard 總覽
         </NavLink>
         <NavLink to="/admin/users" className="tabs__item">
-          帳號
+          Account 帳號
+        </NavLink>
+        <NavLink to="/admin/projects" className="tabs__item">
+          專案
         </NavLink>
         <NavLink to="/admin/members" className="tabs__item">
           專案成員
@@ -130,7 +134,8 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
                 </EntryGuard>
               }
             >
-              <Route index element={<Navigate to="/admin/projects" replace />} />
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardPage />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />

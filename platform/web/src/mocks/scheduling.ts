@@ -366,3 +366,8 @@ export const schedulingHandlers = [
     return json(s.settings);
   }),
 ];
+
+/** Dashboard 模擬用：GPU 群組數。 */
+export function mockGpuGroupCount(): number {
+  return state().groups.length;
+}

@@ -529,3 +529,13 @@ export const imagingHandlers = [
     return json(finishJob(s, ctx.project.id, 'pacs', ctx.user.username, results), 201);
   }),
 ];
+
+/** Dashboard 模擬用：每個專案的影像研究數（以 Study Instance UID 去重）。 */
+export function mockStudyCounts(): Map<number, number> {
+  const seen = new Map<number, Set<string>>();
+  for (const i of state().instances) {
+    if (!seen.has(i.projectId)) seen.set(i.projectId, new Set());
+    seen.get(i.projectId)!.add(i.study);
+  }
+  return new Map([...seen].map(([pid, set]) => [pid, set.size]));
+}
