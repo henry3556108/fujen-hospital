@@ -11,7 +11,7 @@ test.describe('使用性第二輪', () => {
     for (const f of ['age', 'sex', 'bmi']) await overview.getByRole('checkbox', { name: f, exact: true }).check();
     await overview.getByRole('switch', { name: 'sex 當作類別' }).check();
     await overview.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText(/^已儲存：Target diagnosis/)).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis/)).toBeVisible();
 
     await page.getByRole('link', { name: '用這份資料建立訓練' }).click();
     const form = page.getByRole('form', { name: '新增訓練設定' });

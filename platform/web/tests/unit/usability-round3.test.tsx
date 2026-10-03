@@ -7,6 +7,10 @@ import { trainingMock, trainingMockOptions } from '../../src/mocks/training';
 import type { TrainingConfig, TrainingKind, TrainingRun } from '../../src/pages/training/api';
 import { verdict, warnings } from '../../src/pages/training/metrics';
 import { renderApp } from '../render';
+import { createApiClient } from '../../src/api/client';
+import { featureCountText } from '../../src/pages/tabular/columnOverview';
+import { savedSummary } from '../../src/pages/tabular/TargetFeatureTab';
+import type { CatalogueItem, TargetFeature } from '../../src/pages/tabular/types';
 
 trainingMockOptions.stepMs = 0;
 vi.setConfig({ testTimeout: 30_000 });
@@ -156,5 +160,31 @@ describe('3 顯示名稱用在所有地方', () => {
     expect(within(list).getByRole('row', { name: /心臟科確診預測（測試）（模型名稱：diagnosis-rf-run1）/ })).toHaveTextContent('pi01 分享給你');
     expect(screen.getAllByRole('heading', { name: /心臟科確診預測（測試）/ }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { name: /diagnosis-rf-run1/ })).toBeNull();
+  });
+});
+
+describe('4 數目與使用者的操作一致', () => {
+  it('counts the columns the user ticked, explains the One-Hot split and lists the missing-value choice', async () => {
+    const original = ['patient_id', 'age', 'sex', 'bmi', 'sbp', 'dbp', 'glucose', 'smoker', 'diagnosis'];
+    const steps = [{ id: 'onehot', columns: ['sex', 'smoker'], params: {} }];
+    const saved = ['age', 'sex_F', 'sex_M', 'bmi', 'sbp', 'dbp', 'glucose', 'smoker_current', 'smoker_former', 'smoker_never'];
+    expect(featureCountText(saved, original, steps)).toBe('7 個欄位（sex、smoker 自動拆成 5 欄）');
+    expect(featureCountText(['age', 'bmi'], original, [])).toBe('2 個欄位');
+    expect(savedSummary({ config: { target: 'diagnosis', features: saved, steps, missing: 'impute' } } as unknown as TargetFeature, original,
+      [{ id: 'onehot', name_zh: 'One-Hot 編碼', params: { properties: {} } } as unknown as CatalogueItem]))
+      .toBe('已儲存：要預測的結果 diagnosis；用來預測的資料 7 個欄位（sex、smoker 自動拆成 5 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex、smoker）');
+  });
+
+  it('the training form opened from the dataset says the same and names the steps in Chinese', async () => {
+    const api = createApiClient({ base: 'http://localhost', getToken: async () => 'test-token:pi01', onUnauthorized: () => {} });
+    await api.put('/api/projects/1/tabular/datasets/2/target-feature', {
+      target: 'diagnosis', features: ['age', 'sex_F', 'sex_M', 'glucose'], missing: 'impute',
+      steps: [{ id: 'onehot', columns: ['sex'], params: { drop_first: false } }],
+    });
+    await renderApp('/training?dataset=2', 'pi01');
+    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex）。/))
+      .toBeInTheDocument();
+    expect(screen.getByText(/前處理步驟 1 個（在「數據管理」的資料集設定）：One-Hot 編碼：sex/)).toBeInTheDocument();
+    expect(screen.queryByText(/：onehot/)).toBeNull();
   });
 });

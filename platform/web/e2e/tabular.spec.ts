@@ -132,7 +132,7 @@ test.describe('Target 與 Feature', () => {
       for (const box of await form.getByRole('checkbox').all()) await box.uncheck();
       for (const f of features) await form.getByRole('checkbox', { name: f, exact: true }).check();
       await form.getByRole('button', { name: '儲存設定' }).click();
-      await expect(page.getByText(`已儲存：Target ${target}，${features.length} 個 Feature，0 個前處理步驟`)).toBeVisible();
+      await expect(page.getByText(`已儲存：要預測的結果 ${target}；用來預測的資料 ${features.length} 個欄位；有缺值的病人：補上缺值後使用；沒有前處理步驟`)).toBeVisible();
 
       await page.reload();
       await expect(page.getByTestId('saved-target')).toHaveText(target);
@@ -157,7 +157,7 @@ test.describe('Target 與 Feature', () => {
     await form.getByRole('button', { name: '全部轉成 One-Hot' }).click();
     await form.getByRole('switch', { name: 'event 當作類別', exact: true }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText('已儲存：Target diagnosis，8 個 Feature，3 個前處理步驟')).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 4 個欄位（sex、smoker、event 自動拆成 7 欄）；/)).toBeVisible();
     await expect(page.getByTestId('saved-features')).toHaveText('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
     await page.reload();
     await expect(form.getByRole('checkbox', { name: 'sex', exact: true })).toBeChecked();

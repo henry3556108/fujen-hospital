@@ -114,7 +114,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     for (const f of ['age', 'sbp', 'sex']) await tf.getByRole('checkbox', { name: f, exact: true }).check();
     await tf.getByRole('button', { name: '全部轉成 One-Hot' }).click();
     await tf.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText('已儲存：Target diagnosis，4 個 Feature，1 個前處理步驟')).toBeVisible();
+    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex）$/)).toBeVisible();
   });
 
   test('段落 3：影像標註、自動標註、修改後儲存', async ({ page }) => {

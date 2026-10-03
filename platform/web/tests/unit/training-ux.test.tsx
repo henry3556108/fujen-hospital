@@ -62,7 +62,7 @@ describe('B1 從資料集建立訓練', () => {
     await first.user.click(link);
 
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
-    expect(screen.getByText(/已帶入資料集「lung-clinical」的 Target（diagnosis）、3 個 Feature/)).toBeInTheDocument();
+    expect(screen.getByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
     expect(screen.getByText(/預選「結構式分類」/)).toBeInTheDocument();
     expect(within(form).getByLabelText('訓練種類')).toHaveValue('tabular_classification');
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');

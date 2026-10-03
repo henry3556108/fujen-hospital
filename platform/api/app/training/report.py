@@ -358,6 +358,15 @@ def verdict(kind: str, metrics: dict, executor: str = "template") -> str:
     return ""
 
 
+STEP_NAMES = {"onehot": "One-Hot 編碼", "cast_type": "轉換資料型別"}
+MISSING_TEXT = {"impute": "補上缺值後使用（數字補中位數、類別補最常見的值）", "drop": "不使用"}
+
+
+def _step_text(step: dict) -> str:
+    columns = "、".join(step.get("columns") or []) or "所有適用欄位"
+    return f"{STEP_NAMES.get(step.get('id'), step.get('id', ''))}：{columns}"
+
+
 def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | None = None,
           title: str | None = None, model_name: str | None = None) -> str:
     """run 為 service.run_out() 的結果；title 是模型分享時取的顯示名稱（沒有分享過為 None），
@@ -372,7 +381,8 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("驗證方式", validation_text(config)),
         ("要預測的結果（Target）", tabular.get("target")),
         ("用來預測的資料（Feature）", "、".join(tabular.get("features") or [])),
-        ("前處理步驟", " → ".join(s.get("id", "") for s in tabular.get("steps") or []) or "無"),
+        ("前處理步驟", " → ".join(_step_text(s) for s in tabular.get("steps") or []) or "無"),
+        ("有缺值的病人", MISSING_TEXT.get(tabular.get("missing"), "不使用（舊設定）")),
         ("超參數", "、".join(f"{k} = {v}" for k, v in (config.get("hyperparameters") or {}).items()) or "預設值"),
         ("資料版本", f"#{run['dataset_version_id']}"),
         ("亂數種子", run["seed"]),
@@ -381,7 +391,8 @@ def build(*, run: dict, charts: dict | None, generated_by: str, now: datetime | 
         ("模型檔 SHA-256", model.get("sha256", "—")),
     ]
     if not tabular:
-        facts = [f for f in facts if f[0] not in ("要預測的結果（Target）", "用來預測的資料（Feature）", "前處理步驟")]
+        facts = [f for f in facts if f[0] not in ("要預測的結果（Target）", "用來預測的資料（Feature）", "前處理步驟",
+                                                  "有缺值的病人")]
     fact_rows = "".join(f"<tr><th scope=\"row\">{_e(k)}</th><td>{_e(v if v is not None else '—')}</td></tr>"
                         for k, v in facts)
     cv = metrics.get("cv")

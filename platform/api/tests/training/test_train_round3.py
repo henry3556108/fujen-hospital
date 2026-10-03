@@ -31,3 +31,14 @@ def test_report_opens_the_results_with_the_same_sentence():
     html = build(run=run, charts=None, generated_by="pi01")
     assert "整體表現：良好（AUC 0.84，5 折平均）" in html
     assert html.index("整體表現") < html.index("K 折交叉驗證</h2>")
+
+
+def test_report_names_steps_in_chinese_and_states_the_missing_value_choice():
+    run = {"id": 3, "name": "x", "kind": "tabular_classification", "executor": "template", "seed": 1,
+           "config": {"kind": "tabular_classification", "split": {"train": 0.6, "validation": 0.2, "test": 0.2},
+                      "tabular": {"target": "diagnosis", "features": ["sex_F", "sex_M"], "missing": "impute",
+                                  "steps": [{"id": "onehot", "columns": ["sex"], "params": {}}],
+                                  "algorithm": "random_forest"}},
+           "metrics": {}, "artifacts": {}, "dataset_version_id": 1, "created_by": "pi01"}
+    html = build(run=run, charts=None, generated_by="pi01")
+    assert "One-Hot 編碼：sex" in html and "補上缺值後使用" in html

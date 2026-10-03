@@ -1,5 +1,5 @@
 // 欄位總覽（Target 與 Feature 分頁、描述統計）共用的判斷：白話型態、提示、One-Hot 步驟與 Feature 展開。
-import type { ColumnInfo, DescribeColumn, SchemaColumn, Step } from './types';
+import type { ColumnInfo, DescribeColumn, MissingChoice, SchemaColumn, Step } from './types';
 
 export const HIGH_MISSING = 0.3;
 const FEW_CODES = 10;
@@ -142,4 +142,30 @@ export function collapseFeatures(saved: string[], original: string[], encoded: S
     }
   }
   return { columns: [...new Set(columns)], other };
+}
+
+// ---------- 給人看的數目（使用者勾了幾欄，而不是 One-Hot 之後的欄數） ----------
+
+/** 例如「7 個欄位（sex、smoker 自動拆成 5 欄）」：以使用者勾的原始欄位計數，One-Hot 拆出的欄位另外說明。 */
+export function featureCountText(features: string[], original: string[], steps: Step[]): string {
+  const encoded = encodedColumns(steps);
+  const back = collapseFeatures(features, original, encoded);
+  const columns = [...new Set([...back.columns, ...back.other])];
+  const split = [...new Set(back.columns.filter((c) => encoded.has(c) && !features.includes(c)))];
+  const derived = features.filter((f) => !original.includes(f) && split.some((c) => f.startsWith(`${c}_`)));
+  return `${columns.length} 個欄位` + (split.length ? `（${split.join('、')} 自動拆成 ${derived.length} 欄）` : '');
+}
+
+/** 缺值處理的一句話；沒有設定（舊設定）時為空字串。 */
+export function missingText(missing: MissingChoice | undefined): string {
+  if (missing === 'impute') return '有缺值的病人：補上缺值後使用';
+  if (missing === 'drop') return '有缺值的病人：不使用';
+  return '';
+}
+
+const STEP_NAMES: Record<string, string> = { onehot: 'One-Hot 編碼', cast_type: '轉換資料型別' };
+
+/** 沒有前處理方法清單時（例如建模管理）用的步驟名稱：常用的寫中文，其他保留代號。 */
+export function stepLabel(step: Step): string {
+  return `${STEP_NAMES[step.id] ?? step.id}：${step.columns.length ? step.columns.join('、') : '所有適用欄位'}`;
 }
