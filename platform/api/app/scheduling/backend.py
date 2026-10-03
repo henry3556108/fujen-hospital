@@ -5,6 +5,7 @@
 """
 import os
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from app.scheduling.states import JobStatus
@@ -48,6 +49,9 @@ class BackendJob:
     state: JobStatus          # 只會是 queued／running／succeeded／failed；被取消的工作查不到（None）
     node: str | None = None
     message: str = ""
+    # 叢集實際的開始（容器啟動）與結束時間；平台以此記錄，而不是輪詢到狀態的時間（TC-C01-05 比對佇列順序）
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +107,8 @@ class _FakeJob:
     slots: list[int] = field(default_factory=list)
     ends_at: float | None = None
     message: str = ""
+    started: float | None = None
+    finished: float | None = None
 
 
 @dataclass
@@ -117,6 +123,7 @@ class _FakeNode:
 class FakeJobBackend:
     def __init__(self, *, time_slice_replicas: int = 4):
         self.now = 0.0
+        self.epoch = datetime.now(timezone.utc)   # now＝0 對應的真實時刻（回報開始／結束時間用）
         self._jobs: dict[str, _FakeJob] = {}
         self._queue: list[str] = []      # 提交順序
         self._started: list[str] = []
@@ -158,7 +165,9 @@ class FakeJobBackend:
         job = self._jobs.get(name)
         if job is None:
             return None
-        return BackendJob(state=job.state, node=job.node, message=job.message)
+        at = lambda t: None if t is None else self.epoch + timedelta(seconds=t)  # noqa: E731
+        return BackendJob(state=job.state, node=job.node, message=job.message, started_at=at(job.started),
+                          finished_at=at(job.finished))
 
     def cancel(self, name: str) -> None:
         job = self._jobs.pop(name, None)
@@ -223,6 +232,7 @@ class FakeJobBackend:
                 timeout = job.spec.timeout_seconds
                 runtime = job.spec.duration_seconds if not timeout else min(job.spec.duration_seconds, timeout)
                 job.ends_at = self.now + runtime
+                job.started = self.now
                 self._started.append(name)
 
     def _finish(self, job: _FakeJob) -> None:
@@ -233,4 +243,5 @@ class FakeJobBackend:
             job.state, job.message = JobStatus.FAILED, "工作以非 0 結束"
         else:
             job.state = JobStatus.SUCCEEDED
+        job.finished = self.now
         job.slots = []

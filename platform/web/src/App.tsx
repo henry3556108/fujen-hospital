@@ -11,6 +11,9 @@ import { AccessDenied, HomePage, ModulePlaceholder, NotFoundPage } from './pages
 import { ProjectsPage } from './pages/admin/ProjectsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { MembersPage } from './pages/admin/MembersPage';
+import { LabelGroupsPage } from './pages/admin/LabelGroupsPage';
+import { DashboardPage } from './pages/admin/DashboardPage';
+import { AuditPage } from './pages/admin/AuditPage';
 import { InferencePage } from './pages/inference/InferencePage';
 import { FhirRoutes } from './pages/fhir/FhirLayout';
 import { LabelingPage } from './pages/labeling/LabelingPage';
@@ -63,14 +66,23 @@ function AdminLayout() {
     <>
       <h1>帳號管理</h1>
       <nav aria-label="帳號管理分頁" className="tabs">
+        <NavLink to="/admin/dashboard" className="tabs__item">
+          Dashboard 總覽
+        </NavLink>
+        <NavLink to="/admin/users" className="tabs__item">
+          Account 帳號
+        </NavLink>
         <NavLink to="/admin/projects" className="tabs__item">
           專案
         </NavLink>
-        <NavLink to="/admin/users" className="tabs__item">
-          帳號
-        </NavLink>
         <NavLink to="/admin/members" className="tabs__item">
           專案成員
+        </NavLink>
+        <NavLink to="/admin/labeling-groups" className="tabs__item">
+          標註群組
+        </NavLink>
+        <NavLink to="/admin/audit" className="tabs__item">
+          稽核紀錄
         </NavLink>
         <NavLink to="/admin/scheduling" className="tabs__item">
           共享排程設定
@@ -126,10 +138,13 @@ export function App({ auth, apiBase }: { auth: AuthAdapter; apiBase: string }) {
                 </EntryGuard>
               }
             >
-              <Route index element={<Navigate to="/admin/projects" replace />} />
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<DashboardPage />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="members" element={<MembersPage />} />
+              <Route path="labeling-groups" element={<LabelGroupsPage />} />
+              <Route path="audit" element={<AuditPage />} />
             </Route>
             {/* WP6：C-03 不是 8 個功能入口之一，由帳號管理（Admin）進入 */}
             <Route

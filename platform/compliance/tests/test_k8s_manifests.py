@@ -18,7 +18,7 @@ NEEDS_KUBECTL = pytest.mark.skipif(shutil.which("kubectl") is None, reason="需�
 # create-secrets.sh --dev 的值（與 compose 相同）：不可出現在任何 ConfigMap
 DEV_SECRETS = ["platform-dev", "kcadmin-dev", "api-secret-dev", "Admin01-dev!", "orthanc-api-dev", "orthanc-gw-dev",
                "Z2F0ZXdheTpvcnRoYW5jLWd3LWRldg==", "pacs-dev", "minio-dev-secret", "platform-api-dev-secret",
-               "inference-admin-dev", "wiki-svc-dev"]
+               "inference-admin-dev", "wiki-svc-dev", "platform-app-dev"]
 WORKLOADS = ("Deployment", "StatefulSet", "CronJob")
 
 
@@ -214,3 +214,68 @@ def test_upstream_images_match_compose():
                 compose.add(str(parse_image(svc["image"])))
     # compose 的 postgres:16-alpine 只用在沒有 LLM 疊加檔時與 fhir-db-init；叢集一律用 pgvector（含 LLM）
     assert k8s == compose - {"docker.io/library/postgres:16-alpine"}
+
+
+PLATFORM_DB = "@postgres:5432/platform"
+
+
+def _env(container: dict) -> dict:
+    return {e["name"]: e.get("value", e.get("valueFrom")) for e in container.get("env", [])}
+
+
+def test_tc_ss_07_platform_programs_use_the_app_database_account(rendered):
+    """TC-SS-07：連平台資料庫的程式（api、fhir-worker、bootstrap-admin、seed）一律用 platform_app；
+    擁有者 platform 只出現在 db-init（建表與授權）。"""
+    _, docs = rendered
+    seen = set()
+    for d in docs:
+        if d["kind"] not in WORKLOADS:
+            continue
+        spec = pod_spec(d)
+        for c in spec.get("initContainers", []) + spec["containers"]:
+            env = _env(c)
+            for name, value in env.items():
+                if not isinstance(value, str) or PLATFORM_DB not in value:
+                    continue
+                if (d["metadata"]["name"], name) == ("db-init", "DATABASE_OWNER_URL"):
+                    assert value.startswith("postgresql+psycopg://platform:$(POSTGRES_PASSWORD)@")
+                    assert env["APP_DB_USER"] == "platform_app"
+                    assert env["APP_DB_PASSWORD"] == {"secretKeyRef": {"name": "platform-secrets",
+                                                                      "key": "POSTGRES_APP_PASSWORD"}}
+                    seen.add("db-init")
+                    continue
+                assert name == "DATABASE_URL", (d["metadata"]["name"], name)
+                assert value.startswith("postgresql+psycopg://platform_app:$(POSTGRES_APP_PASSWORD)@"), d["metadata"]
+                assert "POSTGRES_PASSWORD" not in env, (d["metadata"]["name"], "不需要擁有者密碼")
+                seen.add(d["metadata"]["name"])
+    assert {"db-init", "api", "fhir-worker", "bootstrap-admin"} <= seen
+
+
+def test_db_init_creates_tables_before_the_api_needs_them(rendered):
+    _, docs = rendered
+    (job,) = [d for d in docs if d["kind"] == "CronJob" and d["metadata"]["name"] == "db-init"]
+    spec = pod_spec(job)
+    assert [c["name"] for c in spec["initContainers"]] == ["databases"]
+    (main,) = spec["containers"]
+    assert main["command"][-2:] == ["-m", "app.db_init"]
+    assert main["image"].split("@")[0].split(":")[0].endswith("api")
+    assert main["securityContext"]["runAsNonRoot"] is True
+
+
+def test_create_secrets_has_the_app_database_password():
+    text = (K8S / "create-secrets.sh").read_text(encoding="utf-8")
+    keys = subprocess.run(["bash", str(K8S / "create-secrets.sh"), "--print-keys"], capture_output=True,
+                          text=True, check=True).stdout.split()
+    assert "POSTGRES_APP_PASSWORD" in keys
+    assert "[POSTGRES_APP_PASSWORD]=platform-app-dev" in text
+
+
+def test_compose_platform_programs_use_the_app_database_account():
+    compose = yaml.safe_load((LOCAL / "compose.yaml").read_text(encoding="utf-8"))["services"]
+    fhir = yaml.safe_load((LOCAL / "compose.fhir.yaml").read_text(encoding="utf-8"))["services"]
+    for service in (compose["api"], fhir["fhir-worker"]):
+        assert service["environment"]["DATABASE_URL"].startswith("postgresql+psycopg://platform_app:")
+        assert service["depends_on"]["db-init"] == {"condition": "service_completed_successfully"}
+    init = compose["db-init"]
+    assert init["command"][-2:] == ["-m", "app.db_init"]
+    assert init["environment"]["DATABASE_OWNER_URL"].startswith("postgresql+psycopg://platform:")

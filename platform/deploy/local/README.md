@@ -84,6 +84,12 @@ docker compose -p ai-platform-wp2 down -v
 
 Keycloak 的 `KC_HOSTNAME` 固定為 `http://localhost:8080`，所以 token 的 issuer 不隨主機連接埠改變，API 驗證不受影響；只有 device-code 畫面顯示的網址仍是 8080。
 
+## 資料庫帳號
+
+`api` 與 `fhir-worker` 以 `platform_app` 連線（稽核表只有 INSERT 與 SELECT，TC-SS-07）；表由一次性服務 `db-init`
+以擁有者 `platform` 建立並授權，每次 `up` 都會重跑。既有環境 `docker compose up -d --build` 即完成升級，不必 `down -v`；
+細節見 `docs/delivery/部署說明.md`「資料庫帳號與升級」。
+
 ## 已知狀況
 
 - Keycloak 只在**第一次**啟動時匯入 `realm-ai-platform.json`，之後設定存在 PostgreSQL。改了 realm 檔（例如新增 client）要重新匯入：

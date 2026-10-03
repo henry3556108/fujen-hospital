@@ -70,12 +70,13 @@ services:
     command: ["/app/.venv/bin/python", "-m", "app.fhir.worker"]
     restart: on-failure
     environment:
-      DATABASE_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
+      DATABASE_URL: postgresql+psycopg://platform_app:platform-app-dev@postgres:5432/platform
       FHIR_URL: http://hapi:8080/fhir
       FHIR_TIMEOUT_SECONDS: "60"
       FHIR_WORKER_POLL_SECONDS: "5"
     depends_on:
       postgres: {condition: service_healthy}
+      db-init: {condition: service_completed_successfully}
       api: {condition: service_started}
 
   # 告警信收件匣（開發用）。網頁與 API 只綁 127.0.0.1

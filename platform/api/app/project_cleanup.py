@@ -26,7 +26,7 @@ from app.llm.models import (ChatMessage, ChatSession, GenerationSettings, KbChun
                              LlmCallRecord, ModelDownload, PromptTemplate, PublishedService, WikiPageLink, Workflow,
                              WorkflowNodeRecord, WorkflowRun)
 from app.llm.vectors import PgVectorStore
-from app.models import Base, Project, utcnow
+from app.models import Base, LabelGroup, LabelGroupMember, Project, utcnow
 from app.scheduling.backend import backend_from_env
 from app.scheduling.models import Job
 from app.scheduling.states import TERMINAL, JobStatus
@@ -118,6 +118,9 @@ def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
         delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id.in_(datasets)),
         delete(TabularColumnView).where(TabularColumnView.dataset_id.in_(datasets)),
         delete(TabularDataset).where(TabularDataset.project_id == project_id),
+        delete(LabelGroupMember).where(LabelGroupMember.group_id.in_(
+            select(LabelGroup.id).where(LabelGroup.project_id == project_id))),
+        delete(LabelGroup).where(LabelGroup.project_id == project_id),
         *_llm_deletes(session, project_id),
     ):
         session.execute(statement.execution_options(synchronize_session=False))

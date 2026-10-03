@@ -175,6 +175,7 @@ export function ProjectsPage() {
 
   return (
     <div className="section">
+      <h2>專案</h2>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />
       <ApiErrorAlert error={projects.error} />

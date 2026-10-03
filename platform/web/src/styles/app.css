@@ -620,6 +620,11 @@ tr:last-child td {
   margin-top: 1rem;
 }
 
+/* 本身是格線或橫排（以 gap 排列）的區塊：子元素不吃上面的間距，否則第 2 個起整排往下掉（TC-C01-01、TC-C01-04） */
+.section:is(.stat-grid, .gpu-grid, .entry-grid, .row-actions, .toolbar, .page-head) > * + * {
+  margin-top: 0;
+}
+
 /* ---------- Confirm dialog ---------- */
 .modal {
   position: fixed;

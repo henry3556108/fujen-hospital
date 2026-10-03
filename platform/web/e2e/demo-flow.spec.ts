@@ -47,12 +47,13 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByRole('table', { name: '專案列表' }).getByText(project)).toBeVisible();
 
     await page.getByRole('link', { name: '專案成員' }).click();
+    await page.getByLabel('專案', { exact: true }).selectOption({ label: project });
+    await expect(page.getByText('這個專案還沒有成員。')).toBeVisible();
     const members = page.getByRole('form', { name: '設定專案成員' });
-    await members.getByLabel('專案').selectOption({ label: project });
     await members.getByLabel('帳號').selectOption({ label: 'md01' });
     await members.getByLabel('角色').selectOption({ index: 0 });
-    await members.getByRole('button', { name: '儲存成員設定' }).click();
-    await expect(page.getByRole('table', { name: '本次設定的成員' })).toContainText('md01');
+    await members.getByRole('button', { name: '加入專案' }).click();
+    await expect(page.getByRole('table', { name: '目前的專案成員' })).toContainText('md01');
 
     await page.getByRole('button', { name: '登出' }).click();
     await expect(page.getByRole('heading', { name: '登入' })).toBeVisible();

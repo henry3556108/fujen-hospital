@@ -104,6 +104,10 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 4. `./deploy.sh production`：不跑種子，改跑 `bootstrap-admin` 把 realm 匯入的 `admin01` 登記為平台 Admin；admin01 第一次登入必須改密碼。
 5. 正式 realm 關閉所有 public client 的密碼授權（`directAccessGrantsEnabled`），匯入 CLI 用 device-code。
 
+資料庫帳號：平台程式（api、fhir-worker、bootstrap-admin、seed）以 `platform_app` 連線，稽核表只有 INSERT 與 SELECT（TC-SS-07）；
+`platform` 只給 db-init 建表與授權（`app/db_init.py`）。既有環境升級與細節見 `docs/delivery/部署說明.md`「資料庫帳號與升級」。
+`POSTGRES_APP_PASSWORD` 由 db-init 每次部署時設定，改 Secret 後重新部署即可。
+
 更換密碼：PostgreSQL 與 Keycloak 只在第一次初始化時採用 Secret 的值。先在服務內改（`ALTER USER`、Keycloak 管理台），
 再 `kubectl -n ai-platform edit secret platform-secrets`，最後 `kubectl -n ai-platform rollout restart deployment,statefulset`。
 

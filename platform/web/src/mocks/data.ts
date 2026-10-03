@@ -10,8 +10,33 @@ import {
   type User,
 } from '../api/types';
 
+export interface MockLabelGroup {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  member_ids: number[];
+}
+
+export interface MockAuditRow {
+  id: number;
+  at: string;
+  actor: string;
+  category: string;
+  action: string;
+  target: string;
+  result: string;
+  source_ip: string | null;
+  detail: Record<string, unknown>;
+}
+
 export interface MockDb {
+  audit: MockAuditRow[];
   projects: Project[];
+  labelGroups: MockLabelGroup[];
+  nextLabelGroupId: number;
   users: User[];
   memberships: Membership[];
   passwords: Record<number, string>;
@@ -53,8 +78,23 @@ export function seedDb(): MockDb {
       role: roleOf[u.username],
       permissions: [...DEFAULT_ROLE_PERMISSIONS[roleOf[u.username]]],
     }));
+  // 種子由命令列建立：來源記成 local:seed（與 platform/api/app/seed.py 相同）
+  const audit: MockAuditRow[] = [];
+  const seedAt = '2026-10-01T00:00:00.000Z';
+  const add = (category: string, action: string, target: string, detail: Record<string, unknown>) =>
+    audit.push({ id: audit.length + 1, at: seedAt, actor: 'admin01', category, action, target, result: 'success', source_ip: 'local:seed', detail });
+  add('project', 'seed.reset', 'baseline', {});
+  for (const p of projects) add('project', 'create', `project:${p.id}`, { name: p.name, gpu_group: p.gpu_group });
+  for (const u of users.slice(1)) add('account', 'create', `user:${u.id}`, { username: u.username, account_type: u.account_type });
+  for (const m of memberships) {
+    add('role', 'assign', `project:${m.project_id}/user:${m.user_id}`, { role: m.role });
+    add('permission', 'grant', `project:${m.project_id}/user:${m.user_id}`, { permissions: m.permissions });
+  }
   return {
+    audit,
     projects,
+    labelGroups: [],
+    nextLabelGroupId: 1,
     users,
     memberships,
     passwords: {},

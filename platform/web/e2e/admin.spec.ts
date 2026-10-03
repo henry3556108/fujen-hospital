@@ -1,0 +1,107 @@
+import { expect, expectNoHorizontalOverflow, loginAs, test } from './fixtures';
+
+// A-03 第 1 項：Admin 建立標註群組、檢視 Account 與 Dashboard 頁（TC-A03-10，模擬 API）
+
+test.describe('標註群組', () => {
+  test('TC-A03-10 admin01 建立、修改、刪除標註群組各 1 次', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin');
+    await page.getByRole('navigation', { name: '帳號管理分頁' }).getByRole('link', { name: '標註群組' }).click();
+    const form = page.getByRole('form', { name: '新增標註群組' });
+    await form.getByLabel('群組名稱（必填）').fill('肺結節標註組');
+    await form.getByRole('checkbox', { name: /md01/ }).check();
+    await form.getByRole('checkbox', { name: /ra01/ }).check();
+    await form.getByRole('button', { name: '新增群組' }).click();
+    await expect(page.getByText('已新增標註群組「肺結節標註組」')).toBeVisible();
+    const row = page.getByRole('table', { name: '標註群組列表' }).getByRole('row', { name: /肺結節標註組/ });
+    await expect(row).toContainText('md01、ra01');
+
+    await row.getByRole('button', { name: '編輯 肺結節標註組' }).click();
+    const edit = page.getByRole('form', { name: '編輯標註群組：肺結節標註組' });
+    await edit.getByLabel('群組名稱（必填）').fill('肺結節第二輪');
+    await edit.getByRole('button', { name: '儲存變更' }).click();
+    await expect(page.getByText('已更新標註群組「肺結節第二輪」')).toBeVisible();
+
+    await page.getByRole('button', { name: '刪除 肺結節第二輪' }).click();
+    await page.getByRole('dialog', { name: '刪除標註群組' }).getByRole('button', { name: '確認刪除' }).click();
+    await expect(page.getByText('已刪除標註群組「肺結節第二輪」')).toBeVisible();
+    await expect(page.getByText('這個專案還沒有標註群組。')).toBeVisible();
+  });
+});
+
+test.describe('Account 與 Dashboard', () => {
+  test('TC-A03-10 admin01 檢視 Account 與 Dashboard；建立標註群組後 Dashboard 的數字跟著變', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/');
+    await page.getByRole('navigation', { name: '功能選單' }).getByRole('link', { name: '帳號管理' }).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard（系統總覽）' })).toBeVisible();
+    const overview = page.getByRole('list', { name: '平台總覽' });
+    const value = (label: string) =>
+      overview.getByRole('listitem').filter({ has: page.locator('.stat-tile__label', { hasText: new RegExp(`^${label}$`) }) }).locator('.stat-tile__value');
+    await expect(value('帳號')).toHaveText('8');
+    await expect(value('專案')).toHaveText('3');
+    await expect(value('專案成員')).toHaveText('5');
+    await expect(value('標註群組')).toHaveText('0');
+
+    const tabs = page.getByRole('navigation', { name: '帳號管理分頁' });
+    await tabs.getByRole('link', { name: 'Account 帳號' }).click();
+    await expect(page.getByRole('heading', { name: 'Account（帳號）' })).toBeVisible();
+    await expect(page.getByRole('table', { name: '帳號列表' }).getByRole('row')).toHaveCount(9);
+
+    await tabs.getByRole('link', { name: '標註群組' }).click();
+    const form = page.getByRole('form', { name: '新增標註群組' });
+    await form.getByLabel('群組名稱（必填）').fill('Dashboard 驗證組');
+    await form.getByRole('checkbox', { name: /md01/ }).check();
+    await form.getByRole('button', { name: '新增群組' }).click();
+    await expect(page.getByText('已新增標註群組「Dashboard 驗證組」')).toBeVisible();
+
+    await tabs.getByRole('link', { name: 'Dashboard 總覽' }).click();
+    await expect(value('標註群組')).toHaveText('1');
+    const p1 = page.getByRole('table', { name: '各專案筆數' }).getByRole('row', { name: /P1-lung-ct/ });
+    await expect(p1.getByRole('cell').nth(2)).toHaveText('1');
+  });
+});
+
+test.describe('專案成員', () => {
+  test('選 ra01 帶入目前的 Research Assistant；改角色前要確認，取消就不改', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/members');
+    const table = page.getByRole('table', { name: '目前的專案成員' });
+    await expect(table.getByRole('row', { name: /ra01/ })).toContainText('Research Assistant');
+    const form = page.getByRole('form', { name: '設定專案成員' });
+    await form.getByLabel('帳號').selectOption({ label: 'ra01（已是成員）' });
+    await expect(form.getByLabel('角色')).toHaveValue('research_assistant');
+    await expect(form.getByRole('checkbox', { name: /^Training/ })).toBeChecked();
+    await form.getByLabel('角色').selectOption('viewer');
+    await form.getByRole('button', { name: '儲存變更' }).click();
+    const dialog = page.getByRole('dialog', { name: '變更角色' });
+    await expect(dialog).toContainText('從 Research Assistant 改為 Viewer');
+    await dialog.getByRole('button', { name: '取消' }).click();
+    await page.reload();
+    await expect(page.getByRole('table', { name: '目前的專案成員' }).getByRole('row', { name: /ra01/ })).toContainText('Research Assistant');
+  });
+});
+
+test.describe('稽核紀錄', () => {
+  test('A-03／D-01 抽查：唯讀列表顯示所有欄位，可依類別篩選與翻頁，不破版', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/members');
+    const form = page.getByRole('form', { name: '設定專案成員' });
+    await form.getByLabel('帳號').selectOption({ label: 'user01' });
+    await form.getByRole('button', { name: '加入專案' }).click();
+    await expect(page.getByText(/已將「user01」設定為/)).toBeVisible();
+
+    await page.getByRole('navigation', { name: '帳號管理分頁' }).getByRole('link', { name: '稽核紀錄' }).click();
+    const table = page.getByRole('table', { name: '稽核紀錄' });
+    await expect(table.getByRole('row').nth(1)).toContainText('grant');
+    await expect(table.getByRole('row').nth(1)).toContainText('127.0.0.1');
+    await expect(table.getByRole('row').nth(2)).toContainText('assign');
+    await expect(table.getByRole('button')).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+
+    await page.getByLabel('類別').selectOption('account');
+    await page.getByRole('button', { name: '查詢' }).click();
+    await expect(page.getByRole('status').filter({ hasText: '共 7 筆' })).toBeVisible();
+    await expect(table.getByRole('row').nth(1)).toContainText('本機指令：建立測試基線');
+  });
+});

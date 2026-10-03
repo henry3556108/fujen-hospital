@@ -136,7 +136,15 @@ describe('專案工作', () => {
     expect(row(table, '^4 ')).toHaveTextContent('排隊中');
 
     await user.click(within(table).getByRole('button', { name: '取消工作 3' }));
-    await user.click(within(screen.getByRole('dialog', { name: '取消工作' })).getByRole('button', { name: '確認取消工作' }));
+    // 對話框的按鈕與列上的「取消」不同名：一個是「不要取消」（關閉），一個說清楚要做什麼
+    let dialog = screen.getByRole('dialog', { name: '取消工作' });
+    expect(within(dialog).getAllByRole('button').map((b) => b.textContent)).toEqual(['不要取消', '確定取消工作']);
+    await user.click(within(dialog).getByRole('button', { name: '不要取消' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(row(table, '^3 ')).toHaveTextContent('排隊中');
+    await user.click(within(table).getByRole('button', { name: '取消工作 3' }));
+    dialog = screen.getByRole('dialog', { name: '取消工作' });
+    await user.click(within(dialog).getByRole('button', { name: '確定取消工作' }));
     expect(await screen.findByText('已取消工作 3')).toBeInTheDocument();
     await waitFor(() => expect(row(table, '^3 ')).toHaveTextContent('已取消'));
     advanceMockClock(31);

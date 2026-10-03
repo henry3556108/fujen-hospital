@@ -1,5 +1,8 @@
 import time
 
+import pytest
+
+import platform_exec as pe
 from conftest import DEV_PASSWORD
 
 
@@ -82,3 +85,62 @@ def test_members_list_matches_seed(api, auth):
     pid = _project_id(api, admin, "P1-lung-ct")
     members = api.get(f"/api/admin/projects/{pid}/members", headers=admin).json()
     assert sorted(m["username"] for m in members) == ["ca01", "md01", "pi01", "ra01", "vw01"]
+
+
+def _member_ids(api, admin, pid, *usernames):
+    members = api.get(f"/api/admin/projects/{pid}/members", headers=admin).json()
+    return [m["user_id"] for m in members if m["username"] in usernames]
+
+
+@pytest.mark.skipif(not pe.AVAILABLE, reason=pe.REASON)
+def test_tc_a03_10_labeling_group_and_dashboard_match_database(api, auth):
+    """TC-A03-10：admin01 建立標註群組（project 類稽核），Dashboard 的每個數字與資料庫一致。"""
+    admin = auth("admin01")
+    pid = _project_id(api, admin, "P1-lung-ct")
+    name = f"acc-group-{time.time_ns()}"
+    created = api.post(f"/api/admin/projects/{pid}/labeling-groups", headers=admin,
+                       json={"name": name, "member_ids": _member_ids(api, admin, pid, "md01", "ra01")})
+    assert created.status_code == 201, created.text
+    gid = created.json()["id"]
+    try:
+        assert sorted(m["username"] for m in created.json()["members"]) == ["md01", "ra01"]
+        audit = pe.sql("select category || ' ' || actor || ' ' || coalesce(source_ip, '') from audit_log "
+                       f"where action = 'labeling_group.create' and target = 'project:{pid}/labeling_group:{gid}'")
+        category, actor, source = audit.split(" ")
+        assert (category, actor) == ("project", "admin01") and source
+
+        board = api.get("/api/admin/dashboard", headers=admin).json()
+        count = lambda table, where="": int(pe.sql(f"select count(*) from {table} {where}"))
+        assert board["accounts"] == {"total": count("users"),
+                                     "admin": count("users", "where account_type = 'admin'"),
+                                     "user": count("users", "where account_type = 'user'")}
+        assert board["projects"] == count("projects")
+        assert board["memberships"] == count("memberships")
+        assert board["labeling_groups"] == count("label_groups")
+        assert board["labeling_group_members"] == count("label_group_members")
+        assert board["tabular_datasets"] == count("tabular_datasets")
+        assert board["imaging_studies"] == count("imaging_studies")
+        assert board["gpu_groups"] == count("gpu_groups")
+        by_status = dict(line.split("|") for line in
+                         pe.sql("select status, count(*) from jobs group by status").splitlines() if line)
+        assert {k: v for k, v in board["jobs"]["by_status"].items() if v} == {k: int(v) for k, v in by_status.items()}
+        assert board["jobs"]["total"] == count("jobs")
+        p1 = next(p for p in board["per_project"] if p["id"] == pid)
+        assert p1["members"] == count("memberships", f"where project_id = {pid}")
+        assert p1["labeling_groups"] == count("label_groups", f"where project_id = {pid}") >= 1
+    finally:
+        assert api.delete(f"/api/admin/projects/{pid}/labeling-groups/{gid}", headers=admin).status_code == 204
+
+
+def test_tc_a03_09_audit_view_shows_twenty_complete_rows(api, auth):
+    """TC-A03-09／D-01 抽查：經唯讀稽核 API 取最近 20 筆，必填欄位（誰、何時、類別、動作、對象、結果、來源）無缺漏，
+    帳號、角色、權限、專案 4 類都有。先跑 TC-A03-01～08。"""
+    admin = auth("admin01")
+    page = api.get("/api/admin/audit", headers=admin, params={"page_size": 20}).json()
+    assert len(page["items"]) == 20
+    for row in page["items"]:
+        for field in ("at", "actor", "category", "action", "target", "result", "source_ip"):
+            assert row[field], (field, row)
+    seen = {c: api.get("/api/admin/audit", headers=admin, params={"category": c, "page_size": 1}).json()["total"]
+            for c in ("account", "role", "permission", "project")}
+    assert all(seen.values()), seen

@@ -122,7 +122,7 @@ test.describe('專案工作', () => {
     await expect(table.getByRole('row', { name: /^3 / })).toContainText('排隊中');
     await expect(table.getByRole('row', { name: /^4 / })).toContainText('排隊中');
     await table.getByRole('button', { name: '取消工作 3' }).click();
-    await page.getByRole('dialog', { name: '取消工作' }).getByRole('button', { name: '確認取消工作' }).click();
+    await page.getByRole('dialog', { name: '取消工作' }).getByRole('button', { name: '確定取消工作' }).click();
     await expect(table.getByRole('row', { name: /^3 / })).toContainText('已取消');
     await expect(table.getByRole('row', { name: /^4 / })).toContainText('已完成', { timeout: 20_000 });
     await expect(table.getByRole('row', { name: /^1 / })).toContainText('已完成');
@@ -145,5 +145,39 @@ test.describe('監控儀表板', () => {
     await expect(links).toHaveCount(4);
     await expect(links.first()).toHaveAttribute('href', /^http:\/\/127\.0\.0\.1:33000$/);
     await expect(links.first()).toHaveAttribute('target', '_blank');
+  });
+});
+
+test.describe('磚與卡片對齊', () => {
+  // `.section > * + *` 曾讓格線裡第 2 個起的磚往下掉約 16px（TC-C01-01、TC-C01-04 的截圖）
+  async function tops(list: import('@playwright/test').Locator) {
+    await expect(list.getByRole('listitem').first()).toBeVisible();
+    const boxes = await list.locator(':scope > li').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    return boxes;
+  }
+
+  test('TC-C01-01 叢集節點的摘要磚同一列頂端對齊', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/scheduling/nodes');
+    const t = await tops(page.getByRole('list', { name: '叢集摘要' }));
+    expect(t.length).toBeGreaterThan(1);
+    expect(new Set(t).size, `頂端：${t.join(', ')}`).toBe(1);
+  });
+
+  test('TC-C01-04 GPU Dashboard 的卡片同一列頂端對齊', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/scheduling/gpu-dashboard');
+    const t = await tops(page.getByRole('list', { name: 'GPU 使用狀況' }));
+    expect(t.length).toBe(3);
+    expect(new Set(t).size, `頂端：${t.join(', ')}`).toBe(1);
+  });
+
+  test('Admin Dashboard 的總覽磚同一列頂端對齊', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/admin/dashboard');
+    const t = await tops(page.getByRole('list', { name: '平台總覽' }));
+    expect(t.length).toBe(8);
+    const firstRow = t.filter((y) => y === t[0]);
+    expect(firstRow.length, `頂端：${t.join(', ')}`).toBeGreaterThan(1);
   });
 });

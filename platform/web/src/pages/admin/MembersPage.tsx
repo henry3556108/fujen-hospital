@@ -7,6 +7,7 @@ import {
   ROLES,
   ROLE_LABELS,
   type Membership,
+  type MemberRow,
   type Permission,
   type Project,
   type Role,
@@ -30,10 +31,13 @@ const ordered = (ps: Iterable<Permission>) => {
 };
 
 const permText = (ps: Permission[]) => ordered(ps).map((p) => PERMISSION_LABELS[p]).join('、') || '（無）';
+const roleText = (r: Role) => ROLE_LABELS[r] ?? r;
+const sameSet = (a: Permission[], b: Permission[]) => ordered(a).join() === ordered(b).join();
 
-interface SessionRow extends Membership {
-  projectName: string;
-  username: string;
+interface PendingChange {
+  project: Project;
+  user: User;
+  current: MemberRow;
 }
 
 export function MembersPage() {
@@ -49,6 +53,16 @@ export function MembersPage() {
   const users = data.data?.users ?? [];
 
   const [projectId, setProjectId] = useState<number | null>(null);
+  const selectedProject = projects.find((p) => p.id === (projectId ?? projects[0]?.id)) ?? null;
+  const members = useResource(
+    () =>
+      selectedProject
+        ? api.get<MemberRow[]>(`/api/admin/projects/${selectedProject.id}/members`)
+        : Promise.resolve([] as MemberRow[]),
+    [selectedProject?.id],
+  );
+  const rows = members.data ?? [];
+
   const [userId, setUserId] = useState<number | null>(null);
   const [role, setRole] = useState<Role>('viewer');
   const [perms, setPerms] = useState<Permission[]>(DEFAULT_ROLE_PERMISSIONS.viewer);
@@ -56,11 +70,38 @@ export function MembersPage() {
   const [pageError, setPageError] = useState<unknown>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [rows, setRows] = useState<SessionRow[]>([]);
   const [removing, setRemoving] = useState<{ project: Project; user: User } | null>(null);
+  const [pending, setPending] = useState<PendingChange | null>(null);
 
-  const selectedProject = projects.find((p) => p.id === (projectId ?? projects[0]?.id)) ?? null;
-  const selectedUser = users.find((u) => u.id === (userId ?? users[0]?.id)) ?? null;
+  const selectedUser = users.find((u) => u.id === userId) ?? null;
+  const current = selectedUser ? (rows.find((r) => r.user_id === selectedUser.id) ?? null) : null;
+
+  function clearMessages() {
+    setNotice(null);
+    setFormError(null);
+    setPageError(null);
+  }
+
+  /** 選帳號時帶入目前的角色與權限；還不是成員才帶入 Viewer 預設。 */
+  function chooseUser(id: number | null, list: MemberRow[] = rows) {
+    setUserId(id);
+    const row = id === null ? null : list.find((r) => r.user_id === id);
+    if (row) {
+      setRole(row.role);
+      setPerms(ordered(row.permissions));
+    } else {
+      setRole('viewer');
+      setPerms([...DEFAULT_ROLE_PERMISSIONS.viewer]);
+    }
+  }
+
+  function chooseProject(id: number) {
+    clearMessages();
+    setProjectId(id);
+    setUserId(null);
+    setRole('viewer');
+    setPerms([...DEFAULT_ROLE_PERMISSIONS.viewer]);
+  }
 
   function changeRole(r: Role) {
     setRole(r);
@@ -71,39 +112,38 @@ export function MembersPage() {
     setPerms((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : ordered([...cur, p])));
   }
 
-  function clearMessages() {
-    setNotice(null);
-    setFormError(null);
-    setPageError(null);
-  }
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    if (!selectedProject || !selectedUser) return;
+  async function put(project: Project, user: User) {
     clearMessages();
     setBusy(true);
     try {
-      const m = await api.put<Membership>(`/api/admin/projects/${selectedProject.id}/members/${selectedUser.id}`, {
+      const m = await api.put<Membership>(`/api/admin/projects/${project.id}/members/${user.id}`, {
         role,
         permissions: ordered(perms),
       });
-      const row: SessionRow = { ...m, projectName: selectedProject.name, username: selectedUser.username };
-      setRows((cur) => [row, ...cur.filter((r) => !(r.project_id === m.project_id && r.user_id === m.user_id))]);
-      setNotice(`已將「${selectedUser.username}」設定為「${selectedProject.name}」的 ${ROLE_LABELS[m.role]}`);
+      setNotice(`已將「${user.username}」設定為「${project.name}」的 ${roleText(m.role)}（權限：${permText(m.permissions)}）`);
+      members.reload();
     } catch (err) {
       setFormError(err);
     } finally {
       setBusy(false);
+      setPending(null);
     }
   }
 
-  function edit(r: SessionRow) {
+  function save(e: FormEvent) {
+    e.preventDefault();
+    if (!selectedProject || !selectedUser) return;
+    if (current && current.role !== role) {
+      setPending({ project: selectedProject, user: selectedUser, current }); // 角色變更先確認
+      return;
+    }
+    void put(selectedProject, selectedUser);
+  }
+
+  function edit(r: MemberRow) {
     clearMessages();
-    setProjectId(r.project_id);
-    setUserId(r.user_id);
-    setRole(r.role);
-    setPerms(ordered(r.permissions));
-    document.getElementById('member-project')?.focus();
+    chooseUser(r.user_id);
+    document.getElementById('member-user')?.focus();
   }
 
   async function confirmRemove() {
@@ -113,8 +153,9 @@ export function MembersPage() {
     setBusy(true);
     try {
       await api.delete(`/api/admin/projects/${project.id}/members/${user.id}`);
-      setRows((cur) => cur.filter((r) => !(r.project_id === project.id && r.user_id === user.id)));
       setNotice(`已將「${user.username}」移出「${project.name}」`);
+      if (userId === user.id) chooseUser(user.id, []);
+      members.reload();
     } catch (err) {
       setPageError(err);
     } finally {
@@ -123,52 +164,136 @@ export function MembersPage() {
     }
   }
 
+  const unchanged = !!current && current.role === role && sameSet(current.permissions, perms);
+
   return (
     <div className="section">
-      <Alert tone="info" title="目前限制">
-        後端尚未提供列出專案成員的 API（需 WP1a 補上），本頁只列出本次操作過的成員；指定專案與帳號即可新增、調整或移除成員。
-      </Alert>
+      <h2>專案成員</h2>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={pageError} />
       <ApiErrorAlert error={data.error} />
 
+      <div className="field">
+        <label htmlFor="member-project">專案</label>
+        <select
+          id="member-project"
+          className="select"
+          value={selectedProject?.id ?? ''}
+          onChange={(e) => chooseProject(Number(e.target.value))}
+        >
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <ApiErrorAlert error={members.error} />
+      <div className="table-wrap">
+        <table aria-label="目前的專案成員">
+          <thead>
+            <tr>
+              <th scope="col">帳號</th>
+              <th scope="col">角色</th>
+              <th scope="col">權限</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.loading && !members.data && (
+              <tr>
+                <td colSpan={4} role="status">
+                  載入中…
+                </td>
+              </tr>
+            )}
+            {members.data && rows.length === 0 && (
+              <tr>
+                <td colSpan={4}>這個專案還沒有成員。</td>
+              </tr>
+            )}
+            {rows.map((r) => (
+              <tr key={r.user_id}>
+                <th scope="row">{r.username}</th>
+                <td>{roleText(r.role)}</td>
+                <td>
+                  {permText(r.permissions)}
+                  {r.unknown_permissions?.length ? (
+                    <span className="text-muted">（另有無法辨識的權限：{r.unknown_permissions.join('、')}，請重新設定）</span>
+                  ) : null}
+                </td>
+                <td>
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--small"
+                      aria-label={`編輯 ${r.username}`}
+                      onClick={() => edit(r)}
+                    >
+                      編輯
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--small"
+                      aria-label={`移除 ${r.username}`}
+                      onClick={() => {
+                        clearMessages();
+                        const user = users.find((u) => u.id === r.user_id);
+                        if (selectedProject && user) setRemoving({ project: selectedProject, user });
+                      }}
+                    >
+                      移除
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <form aria-label="設定專案成員" className="card section" onSubmit={save} noValidate>
-        <h2>設定專案成員</h2>
+        <h2>新增或調整成員</h2>
         <ApiErrorAlert error={formError} />
         <div className="form-grid">
-          <div className="field">
-            <label htmlFor="member-project">專案</label>
-            <select
-              id="member-project"
-              className="select"
-              value={selectedProject?.id ?? ''}
-              onChange={(e) => setProjectId(Number(e.target.value))}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
           <div className="field">
             <label htmlFor="member-user">帳號</label>
             <select
               id="member-user"
               className="select"
               value={selectedUser?.id ?? ''}
-              onChange={(e) => setUserId(Number(e.target.value))}
+              aria-describedby="member-user-hint"
+              onChange={(e) => {
+                clearMessages();
+                chooseUser(e.target.value ? Number(e.target.value) : null);
+              }}
             >
+              <option value="">請選擇帳號</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.username}
+                  {rows.some((r) => r.user_id === u.id) ? '（已是成員）' : ''}
                 </option>
               ))}
             </select>
+            <span id="member-user-hint" className="field__hint" role="status">
+              {!selectedUser
+                ? '選擇帳號後，會帶入他在這個專案目前的角色與權限。'
+                : current
+                  ? `「${selectedUser.username}」目前是 ${roleText(current.role)}，權限：${permText(current.permissions)}`
+                  : `「${selectedUser.username}」還不是這個專案的成員，儲存後加入。`}
+            </span>
           </div>
           <div className="field">
             <label htmlFor="member-role">角色</label>
-            <select id="member-role" className="select" value={role} onChange={(e) => changeRole(e.target.value as Role)}>
+            <select
+              id="member-role"
+              className="select"
+              value={role}
+              disabled={!selectedUser}
+              onChange={(e) => changeRole(e.target.value as Role)}
+            >
               {ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
@@ -177,7 +302,7 @@ export function MembersPage() {
             </select>
           </div>
         </div>
-        <fieldset aria-describedby="perm-hint">
+        <fieldset aria-describedby="perm-hint" disabled={!selectedUser}>
           <legend>權限</legend>
           <p id="perm-hint" className="field__hint">
             預設依角色帶入（需與甲方確認），可逐項調整；更換角色會重設為該角色預設。
@@ -195,71 +320,37 @@ export function MembersPage() {
           </div>
         </fieldset>
         <div className="row-actions">
-          <button type="submit" className="btn btn--primary" disabled={busy || !selectedProject || !selectedUser}>
-            儲存成員設定
-          </button>
           <button
-            type="button"
-            className="btn btn--secondary"
-            disabled={busy || !selectedProject || !selectedUser}
-            onClick={() => {
-              clearMessages();
-              if (selectedProject && selectedUser) setRemoving({ project: selectedProject, user: selectedUser });
-            }}
+            type="submit"
+            className="btn btn--primary"
+            disabled={busy || !selectedProject || !selectedUser || unchanged}
           >
-            從專案移除
+            {current ? '儲存變更' : '加入專案'}
           </button>
+          {current && (
+            <button type="button" className="btn btn--secondary" disabled={busy} onClick={() => chooseUser(current.user_id)}>
+              還原為目前設定
+            </button>
+          )}
         </div>
       </form>
 
-      {rows.length > 0 && (
-        <div className="table-wrap">
-          <table aria-label="本次設定的成員">
-            <thead>
-              <tr>
-                <th scope="col">帳號</th>
-                <th scope="col">專案</th>
-                <th scope="col">角色</th>
-                <th scope="col">權限</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={`${r.project_id}-${r.user_id}`}>
-                  <th scope="row">{r.username}</th>
-                  <td>{r.projectName}</td>
-                  <td>{ROLE_LABELS[r.role]}</td>
-                  <td>{permText(r.permissions)}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        type="button"
-                        className="btn btn--secondary btn--small"
-                        aria-label={`編輯 ${r.username}（${r.projectName}）`}
-                        onClick={() => edit(r)}
-                      >
-                        編輯
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--secondary btn--small"
-                        aria-label={`移除 ${r.username}（${r.projectName}）`}
-                        onClick={() => {
-                          const project = projects.find((p) => p.id === r.project_id);
-                          const user = users.find((u) => u.id === r.user_id);
-                          if (project && user) setRemoving({ project, user });
-                        }}
-                      >
-                        移除
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {pending && (
+        <ConfirmDialog
+          title="變更角色"
+          confirmLabel="確認變更"
+          busy={busy}
+          onConfirm={() => void put(pending.project, pending.user)}
+          onCancel={() => setPending(null)}
+        >
+          <p>
+            確定要把「<strong>{pending.user.username}</strong>」在專案「<strong>{pending.project.name}</strong>」的角色從{' '}
+            <strong>{roleText(pending.current.role)}</strong> 改為 <strong>{roleText(role)}</strong> 嗎？
+          </p>
+          <p>
+            權限：{permText(pending.current.permissions)} → {permText(perms)}。變更立即生效。
+          </p>
+        </ConfirmDialog>
       )}
 
       {removing && (
@@ -271,7 +362,7 @@ export function MembersPage() {
           onCancel={() => setRemoving(null)}
         >
           <p>
-            確定要將「<strong>{removing.user.username}</strong>」移出專案「<strong>{removing.project.name}</strong>」嗎？移除後立即失去該專案的存取權。
+            確定要將「<strong>{removing.user.username}</strong>」移出專案「<strong>{removing.project.name}</strong>」嗎？移除後立即失去該專案的存取權，也會移出這個專案的標註群組。
           </p>
         </ConfirmDialog>
       )}

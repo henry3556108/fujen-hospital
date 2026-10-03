@@ -3,12 +3,17 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import admin_service, project_cleanup
+from app import admin_dashboard, admin_service, project_cleanup
 from app.deps import client_ip, get_session, require_admin
 from app.models import Project, User
 from app.permissions import AccountType, Permission, Role, split_permissions
 
 router = APIRouter(prefix="/api/admin")
+
+
+@router.get("/dashboard")
+def dashboard(admin: User = Depends(require_admin), session: Session = Depends(get_session)) -> dict:
+    return admin_dashboard.summary(session)
 
 
 class ProjectIn(BaseModel):

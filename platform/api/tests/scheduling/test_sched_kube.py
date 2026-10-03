@@ -250,3 +250,47 @@ def test_workload_manifest_keeps_kueue_queue_labels_gpu_and_deadline():
     assert pod["containers"][0]["resources"]["limits"] == {"memory": "1024Mi", "nvidia.com/gpu": "1"}
     assert {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"} in pod["tolerations"]
     assert m["spec"]["activeDeadlineSeconds"] == 90 and m["spec"]["backoffLimit"] == 0
+
+
+def _container_pod(name, *, running_at=None, terminated=None, start_time=None):
+    from kubernetes.client import (V1ContainerState, V1ContainerStateRunning, V1ContainerStateTerminated,
+                                   V1ContainerStatus)
+    state = V1ContainerState(
+        running=V1ContainerStateRunning(started_at=running_at) if running_at else None,
+        terminated=V1ContainerStateTerminated(exit_code=0, started_at=terminated[0], finished_at=terminated[1])
+        if terminated else None)
+    p = pod(name, "w3", start_time)
+    p.status.container_statuses = [V1ContainerStatus(name="job", image="i", image_id="", ready=True, restart_count=0,
+                                                     state=state)]
+    return p
+
+
+def test_tc_c01_05_get_reports_container_start_and_job_completion_times():
+    """畫面上的開始／結束時間要是叢集的實際時間，不是平台輪詢到的時間（TC-C01-05 比對佇列順序）。"""
+    from datetime import datetime, timezone
+    t = lambda s: datetime(2026, 10, 3, 18, 40, s, tzinfo=timezone.utc)  # noqa: E731
+    batch = FakeBatch()
+    running = job(active=1, ready=1)
+    running.status.start_time = t(0)          # Job 物件建立（Kueue 放行前）不是開始時間
+    batch.jobs["j1"] = running
+    core = FakeCore(pods=[_container_pod("j1", running_at=t(4), start_time=t(1))])
+    got = make_backend(core=core, batch=batch).get("j1")
+    assert (got.state, got.started_at, got.finished_at) == (JobStatus.RUNNING, t(4), None)
+
+    done = job(conditions=[("Complete", None, None)])
+    done.status.completion_time = t(30)
+    batch.jobs["j2"] = done
+    core = FakeCore(pods=[_container_pod("j2", terminated=(t(5), t(29)), start_time=t(2))])
+    got = make_backend(core=core, batch=batch).get("j2")
+    assert (got.state, got.started_at, got.finished_at) == (JobStatus.SUCCEEDED, t(5), t(30))
+
+
+def test_failed_job_finish_time_comes_from_the_failed_condition():
+    from datetime import datetime, timezone
+    when = datetime(2026, 10, 3, 18, 45, tzinfo=timezone.utc)
+    failed = job(conditions=[("Failed", "DeadlineExceeded", "x")])
+    failed.status.conditions[0].last_transition_time = when
+    batch = FakeBatch()
+    batch.jobs["j3"] = failed
+    got = make_backend(core=FakeCore(pods=[]), batch=batch).get("j3")
+    assert (got.state, got.started_at, got.finished_at) == (JobStatus.FAILED, None, when)

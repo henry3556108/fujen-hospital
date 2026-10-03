@@ -872,3 +872,10 @@ export const tabularHandlers = [
     });
   }),
 ];
+
+/** Dashboard 模擬用：每個專案的結構式資料集數。 */
+export function mockDatasetCounts(): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const d of state().datasets) out.set(d.project_id, (out.get(d.project_id) ?? 0) + 1);
+  return out;
+}

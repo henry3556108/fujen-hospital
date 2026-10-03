@@ -162,11 +162,26 @@ def test_cancel_finished_job_is_409(client, backend, p1, ra):
     assert response.status_code == 409 and "已結束" in response.json()["detail"]
 
 
-def test_backend_regression_is_ignored(client, backend, p1, ra, monkeypatch):
+def test_backend_regression_is_ignored(client, backend, p1, ra, monkeypatch, caplog):
     job = submit(client, p1, ra)
     assert status(client, p1, ra, job) == "running"
     monkeypatch.setattr(backend, "get", lambda name: BackendJob(state=JobStatus.QUEUED))
-    assert status(client, p1, ra, job) == "running"
+    with caplog.at_level("INFO", logger="app.scheduling.service"):
+        got = client.get(jobs_url(p1, job["id"]), headers=ra).json()
+        listed = client.get(jobs_url(p1), headers=ra).json()
+    assert got["status"] == "running"
+    # 內部狀態判斷只寫 log，不顯示在使用者看到的「訊息」欄
+    assert got["message"] == "" and listed[0]["message"] == ""
+    assert "忽略後端回報的狀態 queued" in caplog.text and job["k8s_name"] in caplog.text
+
+
+def test_legacy_internal_message_is_not_shown(client, backend, p1, ra, session):
+    from app.scheduling.models import Job
+    job = submit(client, p1, ra)
+    row = session.get(Job, job["id"])
+    row.message = "忽略後端回報的狀態 queued（目前 running）"   # 舊版本寫進資料庫的內部訊息
+    session.commit()
+    assert client.get(jobs_url(p1), headers=ra).json()[0]["message"] == ""
 
 
 def test_job_vanished_from_cluster_is_failed(client, backend, p1, ra, monkeypatch):
@@ -196,3 +211,18 @@ def test_label_values_are_sanitised(client, backend, p1, member):
     submit(client, p1, headers)
     (row,) = backend.allocations()
     assert row.labels["platform/user"] == "Dr.Wang-hospital"
+
+
+def test_tc_c01_05_times_come_from_the_backend_not_from_polling(client, backend, p1, ra):
+    """開始與結束時間是後端（叢集）回報的時間：輪詢晚了也不會變。"""
+    from datetime import datetime
+    first = submit(client, p1, ra, duration_seconds=10)
+    second = submit(client, p1, ra, duration_seconds=10)
+    third = submit(client, p1, ra, duration_seconds=10)   # 獨占池 2 張卡：第 3 件排隊
+    backend.advance(25)                                   # 平台這段時間都沒輪詢
+    got = {j["id"]: j for j in client.get(jobs_url(p1), headers=ra).json()}
+    at = lambda j, key: datetime.fromisoformat(got[j["id"]][key])  # noqa: E731
+    assert (at(second, "started_at") - at(first, "started_at")).total_seconds() == 0
+    assert (at(first, "finished_at") - at(first, "started_at")).total_seconds() == 10
+    assert (at(third, "started_at") - at(first, "started_at")).total_seconds() == 10   # 第 1 件結束才輪到
+    assert (at(third, "finished_at") - at(third, "started_at")).total_seconds() == 10

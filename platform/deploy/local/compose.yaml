@@ -41,7 +41,8 @@ services:
       dockerfile: api/Dockerfile
     restart: on-failure
     environment:
-      DATABASE_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
+      # 平台帳號 platform_app（db-init 建立）：稽核表只有 INSERT 與 SELECT（TC-SS-07）。platform 只給 db-init 與備份還原
+      DATABASE_URL: postgresql+psycopg://platform_app:platform-app-dev@postgres:5432/platform
       OIDC_ISSUER: http://localhost:8080/realms/ai-platform
       OIDC_AUDIENCE: ai-platform
       OIDC_JWKS_URL: http://keycloak:8080/realms/ai-platform/protocol/openid-connect/certs
@@ -64,9 +65,25 @@ services:
       - objects:/data/objects
     depends_on:
       postgres: {condition: service_healthy}
+      db-init: {condition: service_completed_successfully}
       keycloak: {condition: service_started}
       orthanc: {condition: service_started}
       minio-init: {condition: service_completed_successfully}
+
+  # 一次性（每次 up 都重跑，可重複執行）：以資料表擁有者 platform 建表、建立平台帳號 platform_app 並授權
+  # （app/db_init.py）。擁有者密碼只出現在 postgres、這個服務與 Keycloak
+  db-init:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    command: ["/app/.venv/bin/python", "-m", "app.db_init"]
+    restart: "no"
+    environment:
+      DATABASE_OWNER_URL: postgresql+psycopg://platform:platform-dev@postgres:5432/platform
+      APP_DB_USER: platform_app
+      APP_DB_PASSWORD: platform-app-dev
+    depends_on:
+      postgres: {condition: service_healthy}
 
   apisix:
     image: apache/apisix:3.19.0-debian

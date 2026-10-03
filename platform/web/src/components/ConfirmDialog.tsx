@@ -4,13 +4,15 @@ interface Props {
   title: string;
   children: ReactNode;
   confirmLabel: string;
+  /** 關閉按鈕的文字；確認動作本身是「取消…」時改用例如「不要取消」，避免兩個按鈕都叫「取消」 */
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
 }
 
 /** 危險操作前的確認視窗：開啟時焦點移到「取消」，Esc 關閉，Tab 不會離開視窗，關閉後焦點回到觸發按鈕。 */
-export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCancel, busy }: Props) {
+export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = '取消', onConfirm, onCancel, busy }: Props) {
   const titleId = useId();
   const descId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -59,7 +61,7 @@ export function ConfirmDialog({ title, children, confirmLabel, onConfirm, onCanc
         <div id={descId}>{children}</div>
         <div className="modal__actions">
           <button ref={cancelRef} type="button" className="btn btn--secondary" onClick={onCancel}>
-            取消
+            {cancelLabel}
           </button>
           <button type="button" className="btn btn--danger" onClick={onConfirm} disabled={busy}>
             {confirmLabel}

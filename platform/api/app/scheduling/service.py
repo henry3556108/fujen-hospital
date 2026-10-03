@@ -1,3 +1,4 @@
+import logging
 import re
 import secrets
 
@@ -8,13 +9,15 @@ from app.audit import AuditCategory, record
 from app.models import Project, utcnow
 from collections.abc import Callable
 
-from app.scheduling.backend import JobBackend, JobSpec, Workload
+from app.scheduling.backend import BackendJob, JobBackend, JobSpec, Workload
 from app.scheduling.models import GpuGroup, Job, SharedSchedulingSettings
 from app.scheduling.states import TERMINAL, InvalidTransition, JobStatus, check_transition, path_to
 
 # 兩個 GPU 池（架構決策：獨占 2 張、共享 1 張時間片；不用 MIG）
 POOL_MODES = {"gpu-exclusive": "exclusive", "gpu-shared": "shared"}
 DEFAULT_GROUPS = [("gpu-exclusive", "gpu-exclusive", 2, "exclusive"), ("gpu-shared", "gpu-shared", 1, "shared")]
+
+log = logging.getLogger(__name__)
 
 
 class SchedulingError(Exception):
@@ -175,11 +178,20 @@ def label_value(value: str) -> str:
     return _LABEL_BAD.sub("-", value)[:63].strip("-_.")
 
 
+# 舊版本寫進資料庫的內部訊息（排程狀態判斷），不顯示給使用者
+_INTERNAL_MESSAGE_PREFIXES = ("忽略後端回報的狀態",)
+
+
+def user_message(message: str | None) -> str:
+    message = message or ""
+    return "" if message.startswith(_INTERNAL_MESSAGE_PREFIXES) else message
+
+
 def job_out(job: Job) -> dict:
     return {
         "id": job.id, "project_id": job.project_id, "user": job.user, "kind": job.kind,
         "gpu_group": job.gpu_group, "queue": job.queue, "status": job.status, "k8s_name": job.k8s_name,
-        "message": job.message, "created_at": job.created_at, "started_at": job.started_at,
+        "message": user_message(job.message), "created_at": job.created_at, "started_at": job.started_at,
         "finished_at": job.finished_at,
     }
 
@@ -237,14 +249,15 @@ def submit_job(session: Session, backend: JobBackend, *, project: Project, actor
     return job
 
 
-def _apply(job: Job, status: JobStatus) -> None:
+def _apply(job: Job, status: JobStatus, observed: BackendJob | None = None) -> None:
+    """observed：後端回報的實際開始／結束時間（叢集時間）；沒有才用現在（例如平台自己取消）。"""
     check_transition(JobStatus(job.status), status)
     job.status = status.value
     now = utcnow()
     if status == JobStatus.RUNNING and job.started_at is None:
-        job.started_at = now
+        job.started_at = (observed.started_at if observed else None) or now
     if status in TERMINAL:
-        job.finished_at = now
+        job.finished_at = (observed.finished_at if observed else None) or now
 
 
 def sync_job(backend: JobBackend, job: Job) -> None:
@@ -260,10 +273,11 @@ def sync_job(backend: JobBackend, job: Job) -> None:
     try:
         steps = path_to(current, target)
     except InvalidTransition:
-        job.message = f"忽略後端回報的狀態 {target.value}（目前 {current.value}）"
+        # 例如 Pod 重建時後端短暫回報 queued：屬內部判斷，只寫 log，不寫進使用者看得到的訊息
+        log.info("工作 %s（%s）忽略後端回報的狀態 %s（目前 %s）", job.id, job.k8s_name, target.value, current.value)
         return
     for step in steps:
-        _apply(job, step)
+        _apply(job, step, observed)
     if message:
         job.message = message
 
