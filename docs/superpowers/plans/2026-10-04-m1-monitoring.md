@@ -69,6 +69,17 @@ Alertmanager `route.routes` 依 `category` 標籤分 3 條（`job-failure`、`re
 `platform/api` 單元測試、`platform/libs/tabular`、`platform/compliance`、網頁 typecheck、Vitest（`--maxWorkers=4`）、
 Playwright 測試模式（`PW_PORT=6587 --workers=2`）、`platform/api` 下 `uv run pytest -m kind ../acceptance/test_tc_c02.py`。
 
-## 結果
+## 結果（2026-10-03）
 
-（完成後補）
+- Task 1：平台 manifest 宣告 api、apisix、keycloak、minio 的抓取；其餘 14 個平台服務列入 container_metrics_only；
+  靜態檢查 `test_monitoring_config.py`。叢集只套用了監控 manifest（Prometheus 有 `ai-platform-pods` 工作）；
+  `ai-platform` 依指示未重新部署，所以叢集上 `compliance monitoring` 為 `FAIL … 抓取目標 5、容器指標 16、未覆蓋 4`
+  （api、apisix、keycloak、minio，等 `deploy.sh kind` 部署這個分支後才有抓取目標），`test_tc_c02_01` 同樣失敗。
+  keycloak（`KC_METRICS_ENABLED`）、minio（`MINIO_PROMETHEUS_AUTH_TYPE=public`）以同版本映像在 docker 確認 /metrics 回 200。
+- Task 2：promtool 規則測試；叢集已套用，job-30、job-31 已刪除。
+- Task 3：amtool 路由測試；叢集已套用並 reload Alertmanager；`test_tc_c02_04` 在叢集通過（3 類各 1 封）。
+- Task 4：6 項都完成（Vitest／API 測試各一）。
+- 追加（協調者指示）：稽核來源 IP。kind 的 Gateway／Keycloak NodePort 改 `externalTrafficPolicy: Local`、`expose.sh` 以主機網路轉送；
+  APISIX `real_ip_*` 只信任 `GATEWAY_TRUSTED_PROXY`。叢集上 Service 已改、expose 已重啟，稽核列 `source_ip` 由 172.19.0.4 變為 172.19.0.1；
+  `test_k8s_deploy.py` 21 項通過。這項的 commit 被權限檢查擋下，變更留在工作目錄未提交。
+- 測試：api 1086 passed／6 skipped；tabular 373；compliance 87；typecheck；Vitest 454；Playwright 180；`test_tc_c02.py` 3 passed／1 failed（TC-C02-01，原因同上）。
