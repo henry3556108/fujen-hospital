@@ -8,7 +8,7 @@ import { ThemeToggle } from './ThemeToggle';
 
 function ProjectSwitcher() {
   const me = useMe();
-  const { project, selectProject } = useSession();
+  const { project, selectProject, refreshMe } = useSession();
   if (me.projects.length === 0) {
     return <span className="text-muted">尚未加入任何專案</span>;
   }
@@ -19,6 +19,7 @@ function ProjectSwitcher() {
         id="project-switcher"
         className="select"
         value={project?.id ?? ''}
+        onFocus={refreshMe}
         onChange={(e) => selectProject(Number(e.target.value))}
       >
         {me.projects.map((p) => (
