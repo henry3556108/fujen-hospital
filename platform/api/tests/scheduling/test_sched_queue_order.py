@@ -189,3 +189,15 @@ def test_admitted_job_is_listed_as_running_not_reorderable(client, backend, admi
     assert [(j["id"], j["admitted"]) for j in q["running"] if j["status"] == "queued"] == [(a["id"], True)]
     assert [j["id"] for j in q["waiting"]] == [b["id"]]
     assert reorder(client, admin, [b["id"], a["id"]]).status_code == 409
+
+
+def test_held_transitions():
+    from app.scheduling.states import InvalidTransition, check_transition
+
+    check_transition(JobStatus.QUEUED, JobStatus.HELD)
+    check_transition(JobStatus.HELD, JobStatus.QUEUED)
+    check_transition(JobStatus.HELD, JobStatus.CANCELLED)
+    for src, dst in [(JobStatus.RUNNING, JobStatus.HELD), (JobStatus.HELD, JobStatus.RUNNING),
+                     (JobStatus.HELD, JobStatus.FAILED), (JobStatus.SUCCEEDED, JobStatus.HELD)]:
+        with pytest.raises(InvalidTransition):
+            check_transition(src, dst)
