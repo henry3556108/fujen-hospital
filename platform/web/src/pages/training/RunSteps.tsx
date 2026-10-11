@@ -12,12 +12,13 @@ const ICONS: Record<StepState, string> = {
 
 export const STATUS_TEXT: Record<RunStatus, string> = {
   queued: '排隊中：等待運算資源', running: '訓練中', succeeded: '已完成', failed: '失敗', cancelled: '已取消',
+  held: '已暫存：移出佇列，按「恢復排隊」後重新排到最後',
 };
 
 export function stepsOf(status: RunStatus): { label: string; state: StepState }[] {
-  const at = { queued: 1, running: 2, succeeded: 3, failed: 3, cancelled: 3 }[status] ?? 1;
+  const at = { queued: 1, held: 1, running: 2, succeeded: 3, failed: 3, cancelled: 3 }[status] ?? 1;
   const last = status === 'failed' ? '失敗' : status === 'cancelled' ? '已取消' : '完成';
-  return ['已送出', '排隊中', '訓練中', last].map((label, i) => ({
+  return ['已送出', status === 'held' ? '已暫存' : '排隊中', '訓練中', last].map((label, i) => ({
     label,
     state: i < at ? 'done' : i > at ? 'todo' : status === 'failed' || status === 'cancelled' ? 'failed' : status === 'succeeded' ? 'done' : 'current',
   }));

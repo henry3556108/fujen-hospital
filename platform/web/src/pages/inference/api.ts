@@ -64,7 +64,7 @@ export interface ImageResult {
   note?: string;
 }
 
-export type InferenceStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type InferenceStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'held';
 
 export const STATUS_NAMES: Record<InferenceStatus, string> = {
   queued: '排隊中',
@@ -72,9 +72,11 @@ export const STATUS_NAMES: Record<InferenceStatus, string> = {
   succeeded: '成功',
   failed: '失敗',
   cancelled: '已取消',
+  held: '已暫存',
 };
 
-export const isFinished = (status: InferenceStatus) => status !== 'queued' && status !== 'running';
+// 已暫存（排程工作移出佇列，稍後恢復排隊）也還沒結束
+export const isFinished = (status: InferenceStatus) => status !== 'queued' && status !== 'running' && status !== 'held';
 
 export interface InferenceRecord {
   id: number;
