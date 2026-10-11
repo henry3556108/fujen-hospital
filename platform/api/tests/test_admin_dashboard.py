@@ -44,7 +44,7 @@ def test_dashboard_counts_match_the_database(client, add_user, session):
     assert got["imaging_studies"] == 3
     assert got["gpu_groups"] == 2
     assert got["jobs"] == {"total": 5, "by_status": {"queued": 1, "running": 2, "succeeded": 1, "failed": 1,
-                                                    "cancelled": 0}}
+                                                    "cancelled": 0, "held": 0}}
     assert got["generated_at"]
     per = {p["name"]: p for p in got["per_project"]}
     assert list(per) == ["P1", "P2", "P3"]

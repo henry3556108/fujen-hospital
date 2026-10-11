@@ -297,7 +297,8 @@ function Training({ api }: { api: TrainingApi }) {
         />
       ) : null}
 
-      <Runs key={runsNonce} api={api} selected={selectedRun} onSelect={setSelectedRun} settings={all} onRuns={onRuns} />
+      <Runs key={runsNonce} api={api} selected={selectedRun} onSelect={setSelectedRun} settings={all} onRuns={onRuns}
+        onSettingSaved={() => settings.reload()} />
 
       {deleting ? (
         <ConfirmDialog title="刪除訓練設定" confirmLabel="刪除" onConfirm={() => void remove()} onCancel={() => setDeleting(null)}>

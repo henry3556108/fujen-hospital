@@ -129,6 +129,28 @@ test.describe('專案工作', () => {
     await expect(table.getByRole('row', { name: /^2 / })).toContainText('已完成');
   });
 
+  test('後台調整佇列順序、暫存後恢復排隊', async ({ page }) => {
+    await loginAs(page, 'admin01');
+    await page.goto('/training/jobs');
+    const form = page.getByRole('form', { name: '送出工作' });
+    await form.getByLabel(/^執行秒數/).fill('600');
+    for (let i = 1; i <= 4; i++) {
+      await form.getByRole('button', { name: '送出工作' }).click();
+      await expect(page.getByText(`已送出工作 ${i}，進入佇列 gpu-exclusive`)).toBeVisible();
+    }
+    await page.goto('/admin/scheduling/queues');
+    const table = page.getByRole('table', { name: '佇列 gpu-exclusive' });
+    await expect(table.getByRole('row', { name: /^第 1 位 3 / })).toBeVisible();
+    await table.getByRole('button', { name: '下移工作 3' }).click();
+    await page.getByRole('button', { name: '套用 gpu-exclusive 的順序' }).click();
+    await expect(page.getByText('已套用 gpu-exclusive 的順序：4、3')).toBeVisible();
+    await expect(table.getByRole('row', { name: /^第 1 位 4 / })).toBeVisible();
+    await table.getByRole('button', { name: '暫存工作 4' }).click();
+    await expect(table.getByRole('row', { name: /^暫存（admin01/ })).toContainText('已暫存');
+    await table.getByRole('button', { name: '恢復排隊工作 4' }).click();
+    await expect(table.getByRole('row', { name: /^第 2 位 4 / })).toBeVisible();
+  });
+
   test('TC-A03-05 沒有 Training 權限的帳號直接輸入網址被擋', async ({ page }) => {
     await loginAs(page, 'vw01');
     await page.goto('/training/jobs');

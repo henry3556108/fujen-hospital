@@ -6,11 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
-from app.models import Project, utcnow
+from app.models import Project, User, utcnow
+from app.permissions import AccountType
 from collections.abc import Callable
 
-from app.scheduling.backend import BackendJob, JobBackend, JobSpec, Workload
-from app.scheduling.models import GpuGroup, Job, SharedSchedulingSettings
+from app.scheduling.backend import BackendJob, JobBackend, JobSpec, NotWaiting, PartialReorder, Workload
+from app.scheduling.models import GpuGroup, Job, JobHold, SharedSchedulingSettings
 from app.scheduling.states import TERMINAL, InvalidTransition, JobStatus, check_transition, path_to
 
 # 兩個 GPU 池（架構決策：獨占 2 張、共享 1 張時間片；不用 MIG）
@@ -38,6 +39,10 @@ class Invalid(SchedulingError):
 
 class Unavailable(SchedulingError):
     status_code = 503
+
+
+class Forbidden(SchedulingError):
+    status_code = 403
 
 
 def ensure_defaults(session: Session) -> SharedSchedulingSettings:
@@ -263,7 +268,7 @@ def _apply(job: Job, status: JobStatus, observed: BackendJob | None = None) -> N
 def sync_job(backend: JobBackend, job: Job) -> None:
     """以後端的實際狀態更新資料庫，只接受合法轉換。"""
     current = JobStatus(job.status)
-    if current in TERMINAL:
+    if current in TERMINAL or current == JobStatus.HELD:   # 暫存中的工作不在叢集裡，沒有東西可同步
         return
     observed = backend.get(job.k8s_name)
     if observed is None:
@@ -318,11 +323,241 @@ def cancel_job(session: Session, backend: JobBackend, *, project_id: int, job_id
 
 def mark_cancelled(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> None:
     """從排程系統刪除工作、狀態改為 cancelled、寫稽核，但不 commit：讓呼叫端把自己的狀態變更放進同一個交易。
-    呼叫前工作必須尚未結束（先 sync_job）。"""
-    try:
-        backend.cancel(job.k8s_name)
-    except Exception as exc:
-        raise Unavailable(f"無法取消排程系統中的工作：{exc}")
+    呼叫前工作必須尚未結束（先 sync_job）。暫存中的工作只要刪掉保存的定義。"""
+    if job.status == JobStatus.HELD.value:
+        hold = session.get(JobHold, job.id)
+        if hold is not None:
+            session.delete(hold)
+    else:
+        try:
+            backend.cancel(job.k8s_name)
+        except Exception as exc:
+            raise Unavailable(f"無法取消排程系統中的工作：{exc}")
     _apply(job, JobStatus.CANCELLED)
     record(session, actor=actor, category=_category(job.kind), action="job.cancel", target=f"job:{job.id}",
            source_ip=source_ip, detail={"project_id": job.project_id, "k8s_name": job.k8s_name})
+
+
+# ---------- 佇列順序與暫存 ----------
+
+def _new_name(job: Job) -> str:
+    return f"job-{job.id}-{secrets.token_hex(3)}"
+
+
+def get_any_job(session: Session, job_id: int) -> Job:
+    job = session.get(Job, job_id)
+    if job is None:
+        raise NotFound(f"找不到工作 {job_id}")
+    return job
+
+
+def check_owner(job: Job, user: User) -> None:
+    """暫存與恢復排隊只限送出工作的人或 Admin。"""
+    if job.user != user.username and user.account_type != AccountType.ADMIN:
+        raise Forbidden(f"只有送出工作 {job.id} 的使用者（{job.user}）或 Admin 可以暫存或恢復排隊")
+
+
+def mark_held(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> None:
+    """把排隊中的工作移出佇列：刪除叢集中的 Job、定義存進 job_holds、狀態改為 held、寫稽核。不 commit。"""
+    sync_job(backend, job)
+    status = JobStatus(job.status)
+    if status == JobStatus.RUNNING:
+        raise Conflict(f"工作 {job.id} 已在執行中，無法暫存（執行中的訓練無法中途保存進度，只能取消）")
+    if status == JobStatus.HELD:
+        raise Conflict(f"工作 {job.id} 已經暫存")
+    if status in TERMINAL:
+        raise Conflict(f"工作 {job.id} 已結束（{job.status}），無法暫存")
+    try:
+        manifest = backend.hold(job.k8s_name)
+    except NotWaiting:
+        raise Conflict(f"工作 {job.id} 已被排程放行、即將開始執行，無法暫存")
+    except Exception as exc:
+        raise Unavailable(f"無法從排程系統移出工作：{exc}")
+    session.add(JobHold(job_id=job.id, manifest=manifest, held_by=actor))
+    _apply(job, JobStatus.HELD)
+    job.message = f"由 {actor} 暫存，恢復排隊後重新排到佇列最後"
+    record(session, actor=actor, category=_category(job.kind), action="job.hold", target=f"job:{job.id}",
+           source_ip=source_ip, detail={"project_id": job.project_id, "queue": job.queue, "k8s_name": job.k8s_name})
+
+
+def mark_resumed(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> None:
+    """以保存的定義在叢集重建工作（新名稱、排到佇列最後），狀態改回 queued、寫稽核。不 commit。"""
+    if job.status != JobStatus.HELD.value:
+        raise Conflict(f"工作 {job.id} 不是暫存狀態（{job.status}），無法恢復排隊")
+    hold = session.get(JobHold, job.id)
+    if hold is None:
+        raise Conflict(f"找不到工作 {job.id} 暫存的定義，請取消後重新送出")
+    name = _new_name(job)
+    try:
+        backend.restore(hold.manifest, name)
+    except Exception as exc:
+        raise Unavailable(f"無法把工作送回排程系統：{exc}")
+    previous, job.k8s_name = job.k8s_name, name
+    session.delete(hold)
+    _apply(job, JobStatus.QUEUED)
+    job.message = ""
+    record(session, actor=actor, category=_category(job.kind), action="job.resume", target=f"job:{job.id}",
+           source_ip=source_ip, detail={"project_id": job.project_id, "queue": job.queue, "k8s_name": name,
+                                        "previous_k8s_name": previous, "held_by": hold.held_by})
+
+
+def hold_job(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> Job:
+    try:
+        mark_held(session, backend, job, actor=actor, source_ip=source_ip)
+    except SchedulingError:
+        session.commit()   # 保留 sync_job 的狀態更新
+        raise
+    session.commit()
+    return job
+
+
+def resume_job(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> Job:
+    mark_resumed(session, backend, job, actor=actor, source_ip=source_ip)
+    session.commit()
+    return job
+
+
+def queue_names(session: Session) -> list[str]:
+    """所有佇列：GPU 群組用到的池，加上 CPU 池。"""
+    pools = sorted({g.pool for g in session.scalars(select(GpuGroup))})
+    return pools + sorted(set(CPU_POOLS.values()) - set(pools))
+
+
+def _links(session: Session, ids: list[int]) -> dict[int, dict]:
+    """工作對應的訓練或批次推論（排程模組不依賴訓練模組，這裡才載入）。"""
+    from app.training.models import InferenceBatch, TrainingRun
+
+    out: dict[int, dict] = {}
+    if not ids:
+        return out
+    for run in session.scalars(select(TrainingRun).where(TrainingRun.job_id.in_(ids))):
+        out[run.job_id] = {"training_run": {"id": run.id, "name": run.name}}
+    for batch in session.scalars(select(InferenceBatch).where(InferenceBatch.job_id.in_(ids))):
+        out[batch.job_id] = {"inference_id": batch.record_id}
+    return out
+
+
+def _queue_row(job: Job, *, projects: dict[int, str], links: dict[int, dict], position: int | None,
+               admitted: bool = False, hold: JobHold | None = None) -> dict:
+    link = links.get(job.id, {})
+    return {"id": job.id, "project_id": job.project_id, "project_name": projects.get(job.project_id, ""),
+            "user": job.user, "kind": job.kind, "status": job.status, "queue": job.queue, "k8s_name": job.k8s_name,
+            "created_at": job.created_at, "started_at": job.started_at, "position": position,
+            "admitted": admitted, "training_run": link.get("training_run"), "inference_id": link.get("inference_id"),
+            "held_by": hold.held_by if hold else None, "held_at": hold.held_at if hold else None}
+
+
+def _waiting_order(backend: JobBackend, queue: str) -> list[str]:
+    try:
+        return backend.order(queue)
+    except Exception as exc:
+        raise Unavailable(f"無法讀取佇列 {queue}：{exc}")
+
+
+def queue_overview(session: Session, backend: JobBackend) -> list[dict]:
+    """每個佇列的進行中工作：執行中（含已放行、容器啟動中）在前，等待中依實際開始的先後，暫存的另列。"""
+    active = session.scalars(select(Job).where(Job.status.in_(
+        [JobStatus.QUEUED.value, JobStatus.RUNNING.value, JobStatus.HELD.value])).order_by(Job.id)).all()
+    try:
+        for job in active:
+            sync_job(backend, job)
+    except Exception as exc:
+        session.rollback()
+        raise Unavailable(f"無法讀取排程系統的工作狀態：{exc}")
+    session.commit()
+    projects = dict(session.execute(select(Project.id, Project.name)).all())
+    links = _links(session, [j.id for j in active])
+    holds = {h.job_id: h for h in session.scalars(select(JobHold))}
+    names = queue_names(session)
+    names += sorted({j.queue for j in active} - set(names))
+    out = []
+    for queue in names:
+        jobs = [j for j in active if j.queue == queue]
+        order = {name: i for i, name in enumerate(_waiting_order(backend, queue))}
+        waiting = sorted((j for j in jobs if j.status == JobStatus.QUEUED.value and j.k8s_name in order),
+                         key=lambda j: order[j.k8s_name])
+        started = [j for j in jobs if j.status == JobStatus.RUNNING.value
+                   or (j.status == JobStatus.QUEUED.value and j.k8s_name not in order)]
+        held = sorted((j for j in jobs if j.status == JobStatus.HELD.value),
+                      key=lambda j: (holds[j.id].held_at if j.id in holds else j.created_at, j.id))
+
+        def row(j: Job, **kw) -> dict:
+            return _queue_row(j, projects=projects, links=links, **kw)
+
+        out.append({
+            "queue": queue,
+            "running": [row(j, position=None, admitted=j.status == JobStatus.QUEUED.value) for j in started],
+            "waiting": [row(j, position=i + 1) for i, j in enumerate(waiting)],
+            "held": [row(j, position=None, hold=holds.get(j.id)) for j in held],
+        })
+    return out
+
+
+def reorder_queue(session: Session, backend: JobBackend, *, queue: str, job_ids: list[int], actor: str,
+                  source_ip: str | None) -> list[int]:
+    """調整佇列中等待工作的先後。job_ids 必須剛好是目前等待中的全部工作。
+    已在正確位置的開頭幾件不動，其餘依新順序重建（排到佇列最後）。回傳套用後的順序。"""
+    if queue not in queue_names(session):
+        raise NotFound(f"找不到佇列 {queue}")
+    if len(set(job_ids)) != len(job_ids):
+        raise Invalid("工作清單有重複的編號")
+    jobs = session.scalars(select(Job).where(Job.queue == queue, Job.status == JobStatus.QUEUED.value)).all()
+    try:
+        for job in jobs:
+            sync_job(backend, job)
+    except Exception as exc:
+        session.rollback()
+        raise Unavailable(f"無法讀取排程系統的工作狀態：{exc}")
+    by_name = {j.k8s_name: j for j in jobs if j.status == JobStatus.QUEUED.value}
+    current = [by_name[n].id for n in _waiting_order(backend, queue) if n in by_name]
+    if set(job_ids) != set(current):
+        session.commit()
+        listed = "、".join(map(str, current)) or "（沒有）"
+        raise Conflict(f"佇列 {queue} 目前等待中的工作是 {listed}，與送出的清單不同（可能有工作已開始或剛送出）；"
+                       "請重新整理後再調整")
+    keep = 0
+    while keep < len(current) and current[keep] == job_ids[keep]:
+        keep += 1
+    by_id = {j.id: j for j in by_name.values()}
+    moving = [by_id[i] for i in job_ids[keep:]]
+    moves = [(j.k8s_name, _new_name(j)) for j in moving]
+    by_old = {j.k8s_name: j for j in moving}
+
+    def rename(moved: dict[str, str]) -> list[int]:
+        for old, new in moved.items():
+            by_old[old].k8s_name = new
+        return [by_old[old].id for old in moved]
+
+    detail = {"queue": queue, "before": current, "after": job_ids}
+    try:
+        if moves:
+            backend.reorder(moves)
+    except NotWaiting as exc:
+        moved = rename(exc.moved)
+        blocked = by_old.get(exc.name)
+        record(session, actor=actor, category=AuditCategory.PROJECT, action="queue.reorder", target=f"queue:{queue}",
+               result="conflict", source_ip=source_ip, detail=detail | {"moved": moved})
+        session.commit()
+        who = f"工作 {blocked.id} " if blocked else "有工作"
+        done = f"已移到佇列最後的工作：{'、'.join(map(str, moved))}" if moved else "順序沒有變更"
+        raise Conflict(f"{who}在調整途中被排程放行、開始執行，無法完成調整（{done}）；請重新整理後再調整")
+    except PartialReorder as exc:
+        moved = rename(exc.moved)
+        for old, manifest in exc.unplaced.items():
+            job = by_old[old]
+            session.add(JobHold(job_id=job.id, manifest=manifest, held_by=actor))
+            _apply(job, JobStatus.HELD)
+            job.message = "調整順序時無法送回排程系統，已改為暫存；請恢復排隊"
+        record(session, actor=actor, category=AuditCategory.PROJECT, action="queue.reorder", target=f"queue:{queue}",
+               result="failure", source_ip=source_ip,
+               detail=detail | {"moved": moved, "held": [by_old[o].id for o in exc.unplaced]})
+        session.commit()
+        raise Unavailable(f"調整順序途中無法送出工作到排程系統：{exc}；未送出的工作已改為暫存，可在佇列頁恢復排隊")
+    except Exception as exc:
+        session.rollback()
+        raise Unavailable(f"無法調整排程系統的佇列：{exc}")
+    rename(dict(moves))
+    record(session, actor=actor, category=AuditCategory.PROJECT, action="queue.reorder", target=f"queue:{queue}",
+           source_ip=source_ip, detail=detail | {"moved": [j.id for j in moving]})
+    session.commit()
+    return list(job_ids)

@@ -10,6 +10,7 @@ const JOB_STATUS_LABELS: Record<string, string> = {
   succeeded: '已完成',
   failed: '失敗',
   cancelled: '已取消',
+  held: '已暫存',
 };
 
 function Tile({ label, value, note }: { label: string; value: number; note?: string }) {

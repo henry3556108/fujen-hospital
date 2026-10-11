@@ -114,7 +114,8 @@ def _same_name(session: Session, project_id: int, name: str, *, exclude: int | N
         raise Conflict(f"訓練設定「{name}」已存在")
 
 
-def create_setting(ctx: ProjectContext, *, name: Any, config: Any, source_ip: str | None) -> TrainingSetting:
+def create_setting(ctx: ProjectContext, *, name: Any, config: Any, source_ip: str | None,
+                   detail: dict[str, Any] | None = None) -> TrainingSetting:
     name, normal = _check_name(name), cfg.normalise(config)
     _same_name(ctx.session, ctx.project.id, name)
     row = TrainingSetting(project_id=ctx.project.id, name=name, kind=normal["kind"], config=normal,
@@ -123,7 +124,7 @@ def create_setting(ctx: ProjectContext, *, name: Any, config: Any, source_ip: st
     ctx.session.flush()
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training_setting.create",
            target=f"training_setting:{row.id}", source_ip=source_ip,
-           detail={"project_id": ctx.project.id, "name": name, "kind": row.kind})
+           detail={"project_id": ctx.project.id, "name": name, "kind": row.kind, **(detail or {})})
     ctx.session.commit()
     return row
 
@@ -497,6 +498,59 @@ def cancel_run(ctx: ProjectContext, state, backend: JobBackend, run_id: int, *, 
     return run_out(run)
 
 
+def _scheduling_error(exc: scheduling.SchedulingError) -> TrainingError:
+    error = {503: Unavailable, 403: Forbidden, 404: NotFound}.get(exc.status_code, Conflict)
+    return error(str(exc))
+
+
+def _queue_action(ctx: ProjectContext, state, backend: JobBackend, run_id: int, action, *,
+                  source_ip: str | None) -> dict:
+    run = get_run(ctx.session, ctx.project.id, run_id)
+    sync_run(ctx.session, state, backend, run)
+    job = ctx.session.get(Job, run.job_id) if run.job_id else None
+    if run.status in {s.value for s in TERMINAL} or job is None:
+        ctx.session.commit()
+        raise Conflict(f"訓練 {run_id} 已結束（{run.status}）")
+    try:
+        scheduling.check_owner(job, ctx.user)
+        action(ctx.session, backend, job, actor=ctx.user.username, source_ip=source_ip)
+    except scheduling.SchedulingError as exc:
+        ctx.session.rollback()
+        raise _scheduling_error(exc) from exc
+    run.status = job.status
+    ctx.session.commit()
+    return run_out(run)
+
+
+def hold_run(ctx: ProjectContext, state, backend: JobBackend, run_id: int, *, source_ip: str | None) -> dict:
+    """暫存排隊中的訓練：移出佇列、保留完整的工作定義（資料版本、設定、工作憑證都不變），稍後恢復排隊。
+    已開始訓練的不能暫存（不支援中途保存進度）。"""
+    run = get_run(ctx.session, ctx.project.id, run_id)
+    sync_run(ctx.session, state, backend, run)
+    if run.status == JobStatus.RUNNING.value:
+        ctx.session.commit()
+        raise Conflict(f"訓練 {run_id} 已開始訓練，無法暫存（訓練中無法中途保存進度，只能取消）")
+    return _queue_action(ctx, state, backend, run_id, scheduling.mark_held, source_ip=source_ip)
+
+
+def resume_run(ctx: ProjectContext, state, backend: JobBackend, run_id: int, *, source_ip: str | None) -> dict:
+    """恢復排隊：以暫存的定義重新送出，排到佇列最後。"""
+    return _queue_action(ctx, state, backend, run_id, scheduling.mark_resumed, source_ip=source_ip)
+
+
+def save_run_as_setting(ctx: ProjectContext, run_id: int, *, name: Any, source_ip: str | None) -> TrainingSetting:
+    """把訓練用的設定另存成新的訓練設定：Job 設定去掉執行方式，加回資料版本記下的資料來源。
+    資料來源指向目前的資料（不是當時凍結的版本），之後送出會重新凍結。"""
+    run = get_run(ctx.session, ctx.project.id, run_id)
+    version = ctx.session.get(DatasetVersion, run.dataset_version_id)
+    config = {k: v for k, v in run.config.items() if k != "executor"}
+    try:
+        normal = cfg.normalise({**config, "source": version.source})
+    except cfg.ConfigError as exc:
+        raise Invalid(f"訓練 {run_id} 的設定無法另存：{exc}") from exc
+    return create_setting(ctx, name=name, config=normal, source_ip=source_ip, detail={"from_run_id": run.id})
+
+
 def run_log(store: ObjectStore, run: TrainingRun) -> str:
     data = _artifact(store, run, "train.log")
     return data.decode("utf-8", "replace") if data is not None else ""
@@ -512,7 +566,7 @@ def run_report(ctx: ProjectContext, state, backend: JobBackend, run: TrainingRun
                source_ip: str | None) -> bytes:
     """可列印的 HTML 報表。只有完成的訓練才有；下載寫 training 稽核。"""
     sync_run(ctx.session, state, backend, run)
-    if run.status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value):
+    if run.status in (JobStatus.QUEUED.value, JobStatus.RUNNING.value, JobStatus.HELD.value):
         ctx.session.commit()
         raise Conflict(f"訓練 {run.id} 尚未完成，完成後才能下載報表")
     if run.status != JobStatus.SUCCEEDED.value:
@@ -872,8 +926,9 @@ def get_record(session: Session, project_id: int, record_id: int) -> InferenceRe
 
 
 def result_bytes(store: ObjectStore, row: InferenceRecord) -> bytes:
-    if row.status in ("queued", "running"):
-        raise Conflict(f"推論 {row.id} 尚未完成（{'排隊中' if row.status == 'queued' else '執行中'}），請稍後再下載")
+    if row.status in ("queued", "running", "held"):
+        label = {"queued": "排隊中", "running": "執行中", "held": "已暫存"}[row.status]
+        raise Conflict(f"推論 {row.id} 尚未完成（{label}），請稍後再下載")
     if not row.result_key:
         raise NotFound(f"推論紀錄 {row.id} 沒有結果（{row.message or row.status}）")
     try:

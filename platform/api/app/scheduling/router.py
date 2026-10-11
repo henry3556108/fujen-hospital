@@ -82,6 +82,68 @@ def cancel_job(job_id: int, request: Request,
     return service.job_out(job)
 
 
+@router.post("/api/projects/{project_id}/jobs/{job_id}/hold")
+def hold_job(job_id: int, request: Request,
+             ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+             backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.get_job(ctx.session, ctx.project.id, job_id)
+        service.check_owner(job, ctx.user)
+        service.hold_job(ctx.session, backend, job, actor=ctx.user.username, source_ip=client_ip(request))
+    return service.job_out(job)
+
+
+@router.post("/api/projects/{project_id}/jobs/{job_id}/resume")
+def resume_job(job_id: int, request: Request,
+               ctx: ProjectContext = Depends(require_project_permission(Permission.TRAINING)),
+               backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.get_job(ctx.session, ctx.project.id, job_id)
+        service.check_owner(job, ctx.user)
+        service.resume_job(ctx.session, backend, job, actor=ctx.user.username, source_ip=client_ip(request))
+    return service.job_out(job)
+
+
+# ---------- 佇列順序（Admin） ----------
+
+class QueueOrderIn(BaseModel):
+    job_ids: list[int]
+
+
+@router.get("/api/admin/queues")
+def list_queues(admin: User = Depends(require_admin), session: Session = Depends(sched_session),
+                backend: JobBackend = Depends(get_backend)) -> list[dict]:
+    with _errors():
+        return service.queue_overview(session, backend)
+
+
+@router.put("/api/admin/queues/{queue}/order")
+def put_queue_order(queue: str, body: QueueOrderIn, request: Request, admin: User = Depends(require_admin),
+                    session: Session = Depends(sched_session), backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        order = service.reorder_queue(session, backend, queue=queue, job_ids=body.job_ids, actor=admin.username,
+                                      source_ip=client_ip(request))
+    return {"queue": queue, "job_ids": order}
+
+
+@router.post("/api/admin/jobs/{job_id}/hold")
+def admin_hold_job(job_id: int, request: Request, admin: User = Depends(require_admin),
+                   session: Session = Depends(sched_session), backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.hold_job(session, backend, service.get_any_job(session, job_id), actor=admin.username,
+                               source_ip=client_ip(request))
+    return service.job_out(job)
+
+
+@router.post("/api/admin/jobs/{job_id}/resume")
+def admin_resume_job(job_id: int, request: Request, admin: User = Depends(require_admin),
+                     session: Session = Depends(sched_session), backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        job = service.resume_job(session, backend, service.get_any_job(session, job_id), actor=admin.username,
+                                 source_ip=client_ip(request))
+    return service.job_out(job)
+
+
 # ---------- GPU 群組（Admin） ----------
 
 class GroupIn(BaseModel):
