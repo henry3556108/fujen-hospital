@@ -41,6 +41,12 @@
 - **假 GPU**：`fake-gpus.sh` 以 node status patch 宣告 `nvidia.com/gpu`，並替 GPU 節點加上 `nvidia.com/gpu=present:NoSchedule` taint（只有 GPU 工作會排上去）。
   共享池的份數等同 NVIDIA time-slicing 的 `replicas`；平台的「共享排程設定」改份數時會同步改節點宣告與 Kueue 配額。
 - **Kueue v0.19.6**（`kueue/queues.yaml`）：每個池一個 ResourceFlavor、ClusterQueue（`StrictFIFO`）、`platform-jobs` 內同名 LocalQueue。
+- **調整順序與暫存**（平台「排程與叢集 → 佇列順序」，API `GET /api/admin/queues`、`PUT /api/admin/queues/{queue}/order`）：
+  沒有優先權，Kueue 依 Workload 建立時間放行，所以平台把要往後移的等待中 Job（仍是 `suspend`）刪掉、以新名稱
+  `job-{id}-{亂數}` 照原定義重建，相鄰間隔 1.05 秒（建立時間是秒級）。刪除帶 `resourceVersion` 前置條件，
+  Job 已被放行就刪不掉，途中有工作開始時回 409 並說明哪些已移到最後。平台標籤不變，Dashboard 與訓練同步照常。
+  暫存（`POST …/jobs/{id}/hold`）把排隊中的 Job 定義存進資料表 `job_holds` 並刪除 Job；恢復排隊照原定義重建，排到最後。
+  已開始執行的工作不能暫存（不支援中途保存進度）。驗收：`uv run pytest -m kind ../acceptance/test_queue_order_kind.py`（在 `platform/api`）。
 - **工作**：只有平台 API 會送工作。每個 Job 帶 `kueue.x-k8s.io/queue-name`、`platform/project-id`、`platform/job-id`、`platform/training-id`（訓練類）、`platform/user`；
   GPU Dashboard 與 Grafana 只讀這些標籤（Mac 上沒有 DCGM）。假工作用 `busybox:1.36`：配置一點記憶體、睡指定秒數、依需要以 1 結束。
 

@@ -44,7 +44,7 @@ if [ $DOCKER -eq 1 ]; then
 fi
 
 if [ $KIND -eq 1 ]; then
-  run "kind 叢集"         api            "${PYTEST[@]}" -m kind ../acceptance/test_tc_a02_gpu.py ../acceptance/test_tc_c01.py ../acceptance/test_tc_c02.py
+  run "kind 叢集"         api            "${PYTEST[@]}" -m kind ../acceptance/test_tc_a02_gpu.py ../acceptance/test_tc_c01.py ../acceptance/test_tc_c02.py ../acceptance/test_queue_order_kind.py
 fi
 
 if [ $COMPLIANCE -eq 1 ]; then
