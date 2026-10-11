@@ -27,7 +27,8 @@ UPLOADS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.js
            "charts.json")
 # 子程序可以看到的環境變數：只有執行 Python 所需的
 PASS_THROUGH = ("PATH", "LANG", "LC_ALL", "TRAIN_THREADS", "TF_CPP_MIN_LOG_LEVEL", "CUDA_VISIBLE_DEVICES",
-                "LD_LIBRARY_PATH", "NVIDIA_VISIBLE_DEVICES")
+                "LD_LIBRARY_PATH", "NVIDIA_VISIBLE_DEVICES", "KERAS_BACKEND", "TF_FORCE_GPU_ALLOW_GROWTH",
+                "CUBLAS_WORKSPACE_CONFIG")
 
 
 class JobIO:

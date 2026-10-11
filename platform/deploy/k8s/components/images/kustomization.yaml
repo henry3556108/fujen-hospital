@@ -54,9 +54,12 @@ images:
     newName: platform-web
     newTag: dev
 # 平台 API 送到叢集的 Job 用的映像（環境變數，不是 Pod 的 image 欄位，所以放在 ConfigMap）。
-# 這兩個映像要載入工作節點（cpu-data、GPU 池），不是平台節點。
+# 這些映像要載入工作節點（cpu-data、GPU 池），不是平台節點；GPU 映像（約 35 GB）只載入 GPU 池。
+#   TRAINING_GPU_IMAGE  影像訓練與影像批次推論（NGC TensorFlow＋PyTorch，platform/training/Dockerfile.gpu）
+#   TRAINING_IMAGE      結構式訓練、結構式批次推論、假訓練（與推論服務同一個映像）
 configMapGenerator:
   - name: platform-images
     literals:
       - TRAINING_IMAGE=platform-trainer:dev
+      - TRAINING_GPU_IMAGE=platform-trainer-gpu:dev
       - JOB_IMAGE=busybox:1.36

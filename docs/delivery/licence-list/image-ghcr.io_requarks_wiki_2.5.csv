@@ -205,7 +205,7 @@ name,version,type,licences
 @my-scope/package-a,0.0.0,npm,MIT
 @my-scope/package-b,0.0.0,npm,MIT
 @noble/hashes,1.8.0,npm,MIT
-@nodable/entities,3.0.0,npm,MIT
+@nodable/entities,3.1.0,npm,MIT
 @nodelib/fs.scandir,2.1.5,npm,MIT
 @nodelib/fs.stat,2.0.5,npm,MIT
 @nodelib/fs.walk,1.2.8,npm,MIT
@@ -284,8 +284,8 @@ name,version,type,licences
 @types/mime,1.3.5,npm,MIT
 @types/node,10.17.60,npm,MIT
 @types/node,12.20.55,npm,MIT
-@types/node,25.9.8,npm,MIT
-@types/node,26.6.2,npm,MIT
+@types/node,25.9.9,npm,MIT
+@types/node,26.6.4,npm,MIT
 @types/qs,6.15.1,npm,MIT
 @types/range-parser,1.2.7,npm,MIT
 @types/readable-stream,2.3.15,npm,MIT
@@ -412,7 +412,7 @@ balanced-match,4.0.4,npm,MIT
 base,0.11.2,npm,MIT
 base64-js,1.5.1,npm,MIT
 base64url,3.0.1,npm,MIT
-baseline-browser-mapping,2.11.25,npm,Apache-2.0
+baseline-browser-mapping,2.11.27,npm,Apache-2.0
 bash,5.3.9-r1,apk,GPL-3.0-or-later
 baz,UNKNOWN,npm,
 bcrypt-pbkdf,1.0.2,npm,BSD-3-Clause
@@ -439,7 +439,7 @@ braces,3.0.3,npm,MIT
 brotli-libs,1.2.0-r1,apk,MIT
 browser-process-hrtime,1.0.0,npm,BSD-2-Clause
 browser_field,UNKNOWN,npm,
-browserslist,4.29.0,npm,MIT
+browserslist,4.29.3,npm,MIT
 bser,2.1.1,npm,Apache-2.0
 bson,1.1.6,npm,Apache-2.0
 bson,UNKNOWN,npm,"Apache License, Version 2.0"
@@ -466,7 +466,7 @@ call-bind-apply-helpers,1.0.2,npm,MIT
 call-bound,1.0.4,npm,MIT
 camel-case,4.1.2,npm,MIT
 camelcase,5.3.1,npm,MIT
-caniuse-lite,1.0.30001810,npm,CC-BY-4.0
+caniuse-lite,1.0.30001814,npm,CC-BY-4.0
 caseless,0.12.0,npm,Apache-2.0
 chalk,4.1.0,npm,MIT
 chalk,4.1.2,npm,MIT
@@ -609,7 +609,7 @@ dunder-proto,1.0.1,npm,MIT
 ecc-jsbn,0.1.2,npm,MIT
 ecdsa-sig-formatter,1.0.11,npm,Apache-2.0
 ee-first,1.1.1,npm,MIT
-electron-to-chromium,1.5.433,npm,ISC
+electron-to-chromium,1.5.444,npm,ISC
 emoji-regex,10.2.1,npm,MIT
 emoji-regex,8.0.0,npm,MIT
 enabled,2.0.0,npm,MIT
@@ -666,7 +666,7 @@ fast-json-stable-stringify,2.1.0,npm,MIT
 fast-levenshtein,2.0.6,npm,MIT
 fast-safe-stringify,2.1.1,npm,MIT
 fast-xml-builder,1.3.1,npm,MIT
-fast-xml-parser,5.11.1,npm,MIT
+fast-xml-parser,5.11.2,npm,MIT
 fastest-levenshtein,1.0.16,npm,MIT
 fastq,1.20.3,npm,ISC
 fb-watchman,2.0.2,npm,Apache-2.0
@@ -688,7 +688,7 @@ fined,1.2.0,npm,MIT
 flagged-respawn,1.0.1,npm,MIT
 flatbuffers,25.9.23,npm,Apache-2.0
 fn.name,1.1.0,npm,MIT
-follow-redirects,1.16.0,npm,MIT
+follow-redirects,1.16.1,npm,MIT
 for-each,0.3.5,npm,MIT
 for-in,1.0.2,npm,MIT
 for-own,1.0.0,npm,MIT
@@ -833,7 +833,7 @@ into-stream,5.1.1,npm,MIT
 invalid_main,UNKNOWN,npm,
 invariant,2.2.4,npm,MIT
 ip-address,10.2.0,npm,MIT
-ip-address,10.7.2,npm,MIT
+ip-address,10.7.3,npm,MIT
 ip-address,5.9.4,npm,MIT
 ip-regex,2.1.0,npm,MIT
 ipaddr.js,1.9.1,npm,MIT
@@ -958,14 +958,14 @@ libbz2,1.0.8-r6,apk,bzip2-1.0.6
 libcrypto3,3.5.8-r0,apk,Apache-2.0
 libcurl,8.22.0-r0,apk,curl
 libedit,20260508.3.1-r1,apk,BSD-3-Clause
-libexpat,2.8.4-r0,apk,MIT
+libexpat,2.8.5-r0,apk,MIT
 libffi,3.5.2-r1,apk,MIT
 libgcc,15.2.0-r5,apk,GPL-2.0-or-later AND LGPL-2.1-or-later
 libgcrypt,1.12.2-r0,apk,LGPL-2.1-or-later AND GPL-2.0-or-later
 libgpg-error,1.61-r0,apk,GPL-2.0-or-later AND LGPL-2.1-or-later
 libidn2,2.3.8-r0,apk,GPL-2.0-or-later OR LGPL-3.0-or-later
 libksba,1.7.0-r0,apk,LGPL-3.0-only AND GPL-2.0-only AND GPL-3.0-only
-libldap,2.6.14-r0,apk,OLDAP-2.8
+libldap,2.6.15-r0,apk,OLDAP-2.8
 libncursesw,6.6_p20260516-r0,apk,X11
 libnpmaccess,10.0.3,npm,ISC
 libnpmdiff,8.1.12,npm,ISC
@@ -1105,7 +1105,7 @@ negotiator,0.6.4,npm,MIT
 negotiator,1.0.0,npm,MIT
 nestedtest,1.0.0,npm,ISC
 nettle,3.10.2-r0,apk,GPL-2.0-or-later OR LGPL-3.0-or-later
-nghttp2-libs,1.69.0-r0,apk,MIT
+nghttp2-libs,1.70.0-r0,apk,MIT
 no-case,3.0.4,npm,MIT
 node,24.21.0,binary,
 node-2fa,1.1.2,npm,Apache-2.0
@@ -1120,7 +1120,7 @@ node-gyp,12.4.0,npm,MIT
 node-gyp,8.4.1,npm,MIT
 node-int64,0.4.0,npm,MIT
 node-jose,2.2.0,npm,Apache-2.0
-node-releases,2.0.56,npm,MIT
+node-releases,2.0.57,npm,MIT
 node-uuid,1.4.1,npm,sha256:b4b1cc4c14b5e2b7e9963f26eaf47e7f496f8f3a1d3ee226984c5e2e8e4928d8
 nodemailer,6.9.1,npm,MIT
 nopt,1.0.10,npm,MIT
@@ -1235,22 +1235,22 @@ path-to-regexp,0.1.13,npm,MIT
 path-to-regexp,0.1.7,npm,MIT
 path-type,4.0.0,npm,MIT
 pause,0.0.1,npm,
-pcre2,10.48-r0,apk,BSD-3-Clause
+pcre2,10.49-r0,apk,BSD-3-Clause
 peek-readable,4.1.0,npm,MIT
 pem-jwk,2.0.0,npm,MPL-2.0
 performance-now,2.1.0,npm,MIT
 pg,8.16.3,npm,MIT
-pg,8.23.0,npm,MIT
-pg-cloudflare,1.4.0,npm,MIT
-pg-connection-string,2.14.0,npm,MIT
+pg,8.23.1,npm,MIT
+pg-cloudflare,1.4.1,npm,MIT
+pg-connection-string,2.14.1,npm,MIT
 pg-connection-string,2.3.0,npm,MIT
 pg-connection-string,2.4.0,npm,MIT
-pg-cursor,2.22.0,npm,MIT
+pg-cursor,2.22.1,npm,MIT
 pg-format,1.0.4,npm,MIT
 pg-hstore,2.3.4,npm,MIT
 pg-int8,1.0.1,npm,ISC
 pg-pool,3.14.0,npm,MIT
-pg-protocol,1.16.0,npm,MIT
+pg-protocol,1.16.1,npm,MIT
 pg-pubsub,0.8.1,npm,MIT
 pg-query-stream,4.10.3,npm,MIT
 pg-tsquery,8.4.2,npm,ISC
@@ -1546,7 +1546,7 @@ underscore,1.13.8,npm,MIT
 underscore,1.6.0,npm,MIT
 underscore,1.8.3,npm,MIT
 undici,6.27.0,npm,MIT
-undici,6.28.1,npm,MIT
+undici,6.29.0,npm,MIT
 undici-types,7.24.6,npm,MIT
 undici-types,8.9.0,npm,MIT
 union-value,1.0.1,npm,MIT
@@ -1609,7 +1609,7 @@ which-collection,1.0.2,npm,MIT
 which-module,2.0.1,npm,ISC
 which-typed-array,1.1.24,npm,MIT
 wide-align,1.1.5,npm,ISC
-wiki,2.5.315,npm,AGPL-3.0-only
+wiki,2.5.316,npm,AGPL-3.0-only
 winston,3.8.2,npm,MIT
 winston-transport,4.9.0,npm,MIT
 with,7.0.2,npm,MIT

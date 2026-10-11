@@ -58,7 +58,8 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
     imagekit.save_h5(model, out_dir)
     return runtime.finish(out_dir, config=config, manifest=manifest, model_file="model.h5", model_format="h5",
                           metrics=metrics, splits=splits, libraries=imagekit.LIBRARIES,
-                          card={"label_names": labels, "input": {"resize": list(size), "normalise": "minmax"},
+                          card={**imagekit.device_info(), "label_names": labels,
+                                "input": {"resize": list(size), "normalise": "minmax"},
                                 "augmentation": augmentation, "hyperparameters": hp})
 
 

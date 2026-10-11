@@ -23,8 +23,11 @@ MAX_SOURCE_BYTES = 5 * 1024 * 1024
 MAX_SOURCE_FILES = 200
 SOURCE_SUFFIXES = {".py", ".json", ".txt", ".md", ".cfg", ".toml", ".yaml", ".yml"}
 HELPERS = {True: ("runtime.py", "imagekit.py"), False: ("runtime.py", "tabularkit.py")}
+# 影像：平台在 GPU 上以 NVIDIA NGC TensorFlow 25.02（TF 2.17、CUDA 12.8）＋ Keras 3.15.1 訓練，CPU 推論服務是 TF 2.21；
+# 這個範圍內都能執行。Blackwell 等新 GPU 官方 TensorFlow 不支援，改用 NGC 容器或 KERAS_BACKEND=torch（README）。
 REQUIREMENTS = {
-    True: ["numpy", "scipy", "pydicom", "nibabel", "SimpleITK", "pillow", "h5py", "tensorflow-cpu>=2.21,<2.22"],
+    True: ["numpy", "scipy", "pydicom", "nibabel", "SimpleITK", "pillow", "h5py", "keras==3.15.1",
+           "tensorflow>=2.17,<2.22"],
     False: ["numpy", "pandas", "scikit-learn", "statsmodels", "lifelines"],
 }
 
@@ -73,7 +76,24 @@ python train.py --config config.json --data <資料夾> --out out
 `<資料夾>` 的格式：`manifest.json` 加上 `blobs/<sha256>`。產出：`out/{model}`、`out/metrics.json`、
 `out/splits.json`、`out/model_card.json`。
 
-同一份資料、設定、亂數種子會得到相同的模型與指標。
+同一份資料、設定、亂數種子在同一台機器（同一張 GPU 或 CPU）上會得到相同的模型與指標。
+{_GPU_NOTE if kind in IMAGE_KINDS else ""}"""
+
+
+_GPU_NOTE = """
+## GPU
+
+有 GPU 就會自動使用。平台的 GPU 是 NVIDIA RTX PRO 6000 Blackwell，官方 TensorFlow 不支援這一代 GPU，
+平台用 NVIDIA 的 TensorFlow 容器 `nvcr.io/nvidia/tensorflow:25.02-tf2-py3`（TF 2.17、CUDA 12.8）。
+分類與偵測也可以改用 PyTorch 執行同一份程式，輸出一樣是 `model.h5`（分割目前不行：Keras 3.15.1 的 PyTorch 後端
+訓練這個模型會出錯）：
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu128
+KERAS_BACKEND=torch python train.py --config config.json --data <資料夾> --out out
+```
+
+模型卡 `model_card.json` 的 `keras_backend`、`device`、`libraries` 記錄平台訓練時實際的後端、GPU 與套件版本。
 """
 
 

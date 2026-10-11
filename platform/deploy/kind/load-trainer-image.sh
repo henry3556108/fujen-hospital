@@ -3,14 +3,21 @@
 #   ./load-trainer-image.sh            先 docker build 再載入
 #   SKIP_BUILD=1 ./load-trainer-image.sh
 #   NODES=ai-platform-worker2,ai-platform-worker3 ./load-trainer-image.sh   只載入 cpu-data 與獨占池（映像約 6 GB，磁碟吃緊時用）
+#   WITH_GPU_IMAGE=1 ./load-trainer-image.sh   另外建置並載入 GPU 訓練映像 platform-trainer-gpu（約 35 GB，只放 GPU 節點）
 set -euo pipefail
 cd "$(dirname "$0")"
 IMAGE="${TRAINING_IMAGE:-platform-trainer:dev}"
+GPU_IMAGE="${TRAINING_GPU_IMAGE:-platform-trainer-gpu:dev}"
 [ -n "${SKIP_BUILD:-}" ] || docker build -f ../../training/Dockerfile -t "$IMAGE" ../..
 NODES="${NODES:-ai-platform-worker2,ai-platform-worker3,ai-platform-worker4}"
+GPU_NODES="${GPU_NODES:-ai-platform-worker3,ai-platform-worker4}"
 kind load docker-image "$IMAGE" --name ai-platform --nodes "$NODES"
+if [ -n "${WITH_GPU_IMAGE:-}" ]; then
+  [ -n "${SKIP_BUILD:-}" ] || docker build -f ../../training/Dockerfile.gpu -t "$GPU_IMAGE" ../..
+  kind load docker-image "$GPU_IMAGE" --name ai-platform --nodes "$GPU_NODES"
+fi
 # kind load 會留下 import-<日期>@sha256:… 參照，舊版訓練映像因此不會被回收；載入後刪掉（正式名稱 platform-trainer:dev 仍在）
 for n in ${NODES//,/ }; do
   docker exec "$n" sh -c 'ctr -n k8s.io images ls -q | grep "^import-" | while read r; do ctr -n k8s.io images rm "$r" >/dev/null 2>&1; done' || true
 done
-echo "已載入 $IMAGE 到 $NODES"
+echo "已載入 $IMAGE 到 $NODES${WITH_GPU_IMAGE:+；$GPU_IMAGE 到 $GPU_NODES}"

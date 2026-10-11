@@ -1,0 +1,5 @@
+# NGC TensorFlow 25.02 內建、不可被其他套件升級的版本（TF 2.17 以 numpy 1.x 編譯）
+tensorflow==2.17.0+nv25.2
+numpy==1.26.4
+ml-dtypes==0.3.2
+protobuf==4.25.3

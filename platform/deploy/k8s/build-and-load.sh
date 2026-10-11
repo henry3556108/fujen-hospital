@@ -3,15 +3,18 @@
 #   ./build-and-load.sh                    建置＋拉取＋載入
 #   SKIP_BUILD=1 ./build-and-load.sh       不重建平台映像（用本機已有的）
 #   SKIP_PULL=1  ./build-and-load.sh       不拉上游映像（離線；本機要已有）
+#   SKIP_GPU_IMAGE=1 ./build-and-load.sh   不建置、不載入 GPU 訓練映像（約 35 GB）；影像訓練 Job 會因節點上沒有映像而失敗
 # 映像清單只來自 components/images/kustomization.yaml（images.py）。
 #   平台節點（cpu-web）：所有上游映像、platform-api、platform-fakes、platform-trainer（推論服務）
 #   工作節點（cpu-data、GPU 池）：Job 映像 platform-trainer、busybox（../kind/load-trainer-image.sh 也會載入 trainer）
+#   GPU 節點（GPU 兩個池）：GPU 訓練映像 platform-trainer-gpu（影像訓練、影像批次推論）
 set -euo pipefail
 cd "$(dirname "$0")"
 PLATFORM_DIR="$(cd ../.. && pwd)"
 CLUSTER="${KIND_CLUSTER:-ai-platform}"
 PLATFORM_NODES="${PLATFORM_NODES:-ai-platform-worker}"
 JOB_NODES="${JOB_NODES:-ai-platform-worker2,ai-platform-worker3,ai-platform-worker4}"
+GPU_NODES="${GPU_NODES:-ai-platform-worker3,ai-platform-worker4}"
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 ref_for() { python3 images.py built | grep "^$1:" ; }
@@ -24,6 +27,12 @@ if [ -z "${SKIP_BUILD:-}" ]; then
   docker build -q -t "$(ref_for platform-web)" "$PLATFORM_DIR/web" >/dev/null
   log "建置 $(ref_for platform-trainer)（約 6 GB）"
   docker build -q -f "$PLATFORM_DIR/training/Dockerfile" -t "$(ref_for platform-trainer)" "$PLATFORM_DIR" >/dev/null
+  if [ -z "${SKIP_GPU_IMAGE:-}" ]; then
+    for ref in $(python3 images.py gpu-jobs); do
+      log "建置 $ref（GPU 訓練映像，約 35 GB；第一次要下載 NGC TensorFlow 與 PyTorch）"
+      docker build -q -f "$PLATFORM_DIR/training/Dockerfile.gpu" -t "$ref" "$PLATFORM_DIR" >/dev/null
+    done
+  fi
 fi
 
 # 不用 kind load：Docker 以 containerd 存映像時，kind load 的 --all-platforms 匯入會因缺少其他平台的內容而失敗。
@@ -85,4 +94,12 @@ for ref in $(python3 images.py jobs | sort -u); do
   log "載入 $ref → $JOB_NODES"
   load "$ref" "$JOB_NODES"
 done
+if [ -z "${SKIP_GPU_IMAGE:-}" ]; then
+  for ref in $(python3 images.py gpu-jobs); do
+    log "載入 $ref → $GPU_NODES"
+    load "$ref" "$GPU_NODES"
+  done
+else
+  log "略過 GPU 訓練映像（SKIP_GPU_IMAGE）：影像訓練與影像批次推論 Job 需要它"
+fi
 log "完成"

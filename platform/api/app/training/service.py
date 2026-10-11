@@ -186,8 +186,17 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def job_image(state, *, gpu: bool) -> str:
+    """Job 映像。Keras 影像工作（訓練、批次推論）用 GPU 映像 TRAINING_GPU_IMAGE（NGC TensorFlow＋PyTorch），
+    沒設定就用 TRAINING_IMAGE；結構式與假訓練一律用 TRAINING_IMAGE，scikit-learn 版本才會與推論服務一致。"""
+    cpu = getattr(state, "training_image", None) or os.environ.get("TRAINING_IMAGE", "platform-trainer:dev")
+    if not gpu:
+        return cpu
+    return getattr(state, "training_gpu_image", None) or os.environ.get("TRAINING_GPU_IMAGE") or cpu
+
+
 def _workload(state, run: TrainingRun, token: str) -> Workload:
-    image = getattr(state, "training_image", None) or os.environ.get("TRAINING_IMAGE", "platform-trainer:dev")
+    image = job_image(state, gpu=run.executor != "fake" and run.kind in cfg.IMAGE_KINDS)
     base = (getattr(state, "job_io_url", None) or os.environ.get("JOB_IO_BASE_URL", "http://api:8000")).rstrip("/")
     size = "fake" if run.executor == "fake" else ("image" if run.kind in cfg.IMAGE_KINDS else "tabular")
     # 容器只拿到這三個值加上執行緒數；token 只對這一次訓練的資料包與產出有效，不是平台憑證

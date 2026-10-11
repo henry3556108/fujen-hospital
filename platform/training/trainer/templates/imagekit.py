@@ -20,7 +20,8 @@ import runtime
 
 AUGMENTATION_KEYS = ("rotation_range", "width_shift_range", "height_shift_range", "shear_range", "zoom_range",
                      "horizontal_flip", "vertical_flip")
-LIBRARIES = ["tensorflow-cpu", "tensorflow", "keras", "numpy", "h5py"]
+LIBRARIES = ["tensorflow-cpu", "tensorflow", "torch", "keras", "numpy", "h5py"]
+BACKENDS = ("tensorflow", "torch")
 
 
 # --------------------------------------------------------------------------- 讀檔
@@ -233,23 +234,60 @@ def stack(samples: list[dict]) -> np.ndarray:
 
 # --------------------------------------------------------------------------- Keras
 
-def keras_setup(seed: int):
-    """固定亂數、單執行緒、啟用決定性運算：同資料、設定、種子在 CPU 上得到逐位元相同的權重。"""
-    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-    os.environ.setdefault("CUDA_VISIBLE_DEVICES", os.environ.get("CUDA_VISIBLE_DEVICES", ""))
-    import tensorflow as tf
+def keras_backend() -> str:
+    """Keras 後端由環境變數 KERAS_BACKEND 決定：tensorflow（預設）或 torch（備案）。兩者輸出一樣是 H5。"""
+    backend = os.environ.get("KERAS_BACKEND") or "tensorflow"
+    if backend not in BACKENDS:
+        raise ValueError(f"KERAS_BACKEND 必須是：{'、'.join(BACKENDS)}")
+    os.environ["KERAS_BACKEND"] = backend       # 必須在 import keras 之前設定
+    return backend
 
+
+def keras_setup(seed: int):
+    """固定亂數、執行緒數、啟用決定性運算：同資料、設定、種子在同一台機器（同一張 GPU 或 CPU）上
+    得到逐位元相同的權重。看得到 GPU 就用 GPU（CPU 映像以 CUDA_VISIBLE_DEVICES="" 關掉）。"""
+    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+    backend = keras_backend()
     threads = int(os.environ.get("TRAIN_THREADS", "1"))
-    try:
-        tf.config.threading.set_intra_op_parallelism_threads(threads)
-        tf.config.threading.set_inter_op_parallelism_threads(threads)
-    except RuntimeError:
-        pass  # 同一個程序第二次呼叫（推論服務載入第二個模型）：TensorFlow 已初始化，沿用第一次的設定
+    if backend == "tensorflow":
+        import tensorflow as tf
+
+        try:
+            tf.config.threading.set_intra_op_parallelism_threads(threads)
+            tf.config.threading.set_inter_op_parallelism_threads(threads)
+        except RuntimeError:
+            pass  # 同一個程序第二次呼叫（推論服務載入第二個模型）：TensorFlow 已初始化，沿用第一次的設定
+    else:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")    # cuBLAS 決定性運算的必要設定
+        import torch
+
+        torch.set_num_threads(threads)
+        torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.benchmark = False
     import keras
 
     keras.utils.set_random_seed(seed)
-    tf.config.experimental.enable_op_determinism()
+    if backend == "tensorflow":
+        tf.config.experimental.enable_op_determinism()
     return keras
+
+
+def device_info() -> dict[str, Any]:
+    """記在模型卡：實際使用的 Keras 後端與運算裝置（GPU 型號或 CPU）。在 keras_setup 之後呼叫。"""
+    backend = keras_backend()
+    device = "CPU"
+    if backend == "tensorflow":
+        import tensorflow as tf
+
+        gpus = tf.config.list_physical_devices("GPU")
+        if gpus:
+            device = tf.config.experimental.get_device_details(gpus[0]).get("device_name") or "GPU"
+    else:
+        import torch
+
+        if torch.cuda.is_available():
+            device = torch.cuda.get_device_name(0)
+    return {"keras_backend": backend, "device": device}
 
 
 def hyper(config: dict, **defaults) -> dict[str, Any]:

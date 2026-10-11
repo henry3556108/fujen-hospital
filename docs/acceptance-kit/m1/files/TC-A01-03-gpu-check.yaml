@@ -1,5 +1,5 @@
 # TC-A01-03：在叢集內檢查 GPU、CUDA、cuDNN、PyTorch、TensorFlow。
-# 用法：把 IMAGE 換成 GPU 版訓練映像後
+# 用法：把 IMAGE 換成 GPU 版訓練映像（platform-trainer-gpu，不是 CPU 版的 platform-trainer）後
 #   sed "s#IMAGE#<GPU 版訓練映像>#; s#RUN#1#" TC-A01-03-gpu-check.yaml | kubectl apply -f -
 #   kubectl -n platform-jobs wait --for=condition=complete job/tc-a01-03-gpu-check-1 --timeout=300s
 #   kubectl -n platform-jobs logs job/tc-a01-03-gpu-check-1

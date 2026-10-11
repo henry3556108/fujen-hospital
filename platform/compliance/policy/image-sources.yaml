@@ -36,6 +36,8 @@ approved:
     reason: MLflow 專案官方映像（B-05 訓練紀錄）
   - pattern: ghcr.io/requarks/wiki
     reason: Wiki.js 作者（Requarks）官方映像（B-08 知識庫）
+  - pattern: nvcr.io/nvidia/tensorflow
+    reason: NVIDIA NGC 官方 TensorFlow 容器，GPU 訓練映像的基底（platform/training/Dockerfile.gpu）。官方 TensorFlow 不支援 Blackwell（sm_120），NGC 25.02 原生支援；受 NVIDIA Deep Learning Container License 規範
   - pattern: docker.io/nginxinc/nginx-unprivileged
     reason: NGINX 官方（NGINX Inc.／F5）維護的非 root 版 nginx，網頁前端映像的基底（platform/web/Dockerfile）
 

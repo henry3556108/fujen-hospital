@@ -12,4 +12,5 @@ packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
 pluggy,1.6.0,python,MIT License
 pygments,2.21.0,python,BSD-2-Clause
 pytest,9.1.1,python,MIT
+pyyaml,6.0.3,python,MIT License
 typing-extensions,4.16.0,python,PSF-2.0

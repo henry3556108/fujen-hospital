@@ -75,6 +75,12 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳；批次完成後 jobs 表要等有人列出工作才更新狀態；工作頁顯示原始代碼 inference、inference-cpu
 - [ ] 甲方環境部署（見第四節）
 - [ ] AutoML：暫不導入，之後再評估；評估結果與建議做法（Optuna 搜尋現有 scikit-learn 範本）見 `docs/superpowers/plans/2026-10-03-automl-evaluation.md`
+- [ ] GPU 實際運算：依等級分群與張數上限、GPU 訓練映像、vLLM，見 `docs/superpowers/plans/2026-10-05-gpu-enablement.md`
+  - [x] 軌 B 的 B1–B6：GPU 訓練映像 `platform-trainer-gpu`（`platform/training/Dockerfile.gpu`）、Keras 後端可切換、GPU 上的重現性、平台的影像工作改用 GPU 映像、部署腳本與合規清單、A-01 驗收劇本（2026-10-11）
+  - [ ] B7：在 K8s 上以真 GPU 跑訓練 Job 並計時（甲方主機，或本機 kind 接真 GPU）
+  - [ ] 結構式訓練改走 CPU 池（計畫 B4 的一部分）：會改變 M1 已驗證的排程行為與 TC-B05-01 的排隊測試，驗收後再做；目前結構式訓練仍排在 GPU 群組，但用 CPU 映像
+  - [ ] GPU 映像的記憶體上限：影像訓練 Job 的記憶體上限是 2 GB（`MEMORY_MB`）。2026-10-11 在開發機真 GPU 上實測，合成資料的影像分類（100 張、32×32）訓練程序峰值 1749 MB，已達上限的 85%，真實資料會更多。甲方安裝時要調高影像 Job 的記憶體（建議 8 GB 以上），並同時調高 GPU 池 Kueue 的記憶體配額（目前 2Gi）；kind 的排隊測試依賴目前的數字，所以先不改
+- [ ] Windows 開發機（WSL2）的 NVIDIA 驅動從 572.83 升級到 R580 以上：目前只支援到 CUDA 12.8，PyTorch 2.14 與 vLLM 0.31 的預設版本需要 CUDA 13。升級前開發與正式映像一律用 CUDA 12.8（2026-10-05 決定暫不升級）。升級後重測 TensorFlow 2.22 正式版（2.22.0rc0 已認得 sm_120，但在 572.83 + CUDA 12.9 下配置記憶體失敗）；可用的話 GPU 訓練映像從 NGC TF 25.02（TF 2.17，已停止更新）改回官方 TF
 
 ## 2. 需要甲方確認
 
@@ -83,6 +89,7 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] M1 驗收時，M2 模組的佔位頁面是否算「入口點擊成功」（TC-A02-01）
 - [ ] C-03 的「租戶」對應 A-03 的「專案」（目前採用）還是「單位」
 - [ ] 影像訓練一律用 Keras 輸出 H5
+- [ ] GPU 訓練映像以 NVIDIA NGC TensorFlow 25.02（TF 2.17，NVIDIA 已停止更新）為基底：受 NVIDIA Deep Learning Container License 規範；官方 TensorFlow 不支援 Blackwell，所以版本比 CPU 映像（TF 2.21）舊；GPU 上的逐位元重現只保證同一張卡、同一映像
 - [ ] MONAI Label 是否算「Clara 等級或同等」（B-03）
 - [ ] M1、M2 測試資料基線由甲方提供，還是可用乙方準備的公開或合成資料
 - [ ] 影像：匯入需 Labeling 權限；只有 Admin 能設定 Accession 清單，空清單代表不限制；清單外的影像可匯入但看不到；重複影像以 SOP Instance UID 在專案內判斷；DICOMweb 唯讀

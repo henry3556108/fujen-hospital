@@ -1,0 +1,17 @@
+# platform-trainer-gpu 加裝的套件（TensorFlow、numpy 用 NGC 內建版本；PyTorch 另外從 cu128 安裝）
+# 與 pyproject.toml 的相依套件相同，但版本要相容 numpy 1.x
+keras==3.15.1
+h5py
+scipy
+pandas
+scikit-learn
+statsmodels
+lifelines
+pydicom
+nibabel
+simpleitk
+pillow
+httpx
+fastapi
+uvicorn[standard]
+python-multipart

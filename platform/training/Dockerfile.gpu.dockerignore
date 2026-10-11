@@ -1,0 +1,10 @@
+# 用於 build context = platform/ 的 training/Dockerfile.gpu：只送入 trainer 程式、GPU 套件清單與 tabular 函式庫
+*
+!training/constraints-gpu.txt
+!training/requirements-gpu.txt
+!training/trainer
+!libs/tabular
+libs/tabular/.venv
+libs/tabular/tests
+**/__pycache__
+**/.pytest_cache

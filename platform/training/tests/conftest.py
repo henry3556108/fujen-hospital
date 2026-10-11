@@ -1,6 +1,7 @@
 """測試資料一律來自 platform/tools/synth；以內容定址的方式擺成平台凍結資料的格式。"""
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,8 @@ SPLIT = {"train": 0.6, "validation": 0.2, "test": 0.2}
 
 @pytest.fixture(scope="session")
 def synth(tmp_path_factory) -> Path:
+    if os.environ.get("SYNTH_DIR"):     # 預先產生的資料（GPU 映像內沒有 uv，見 scripts/test-gpu-image.sh）
+        return Path(os.environ["SYNTH_DIR"])
     out = tmp_path_factory.mktemp("synth")
     subprocess.run(["uv", "run", "-q", "python", "-m", "synth", "all", "--out", str(out)],
                    cwd=PLATFORM / "tools" / "synth", check=True, capture_output=True)

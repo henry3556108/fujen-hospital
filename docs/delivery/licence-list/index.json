@@ -5,7 +5,8 @@
     "file": "image-cgr.dev_chainguard_minio_latest_sha256_71674988a1c7ddd5724928633199152b11e4ddefd6c6ce2d60772ff4a8f22ca9.csv",
     "components": 287,
     "used_by": [
-      "compose:deploy/local/compose.yaml#minio"
+      "compose:deploy/local/compose.yaml#minio",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -20,7 +21,8 @@
     "file": "image-docker.io_apache_apisix_3.19.0-debian.csv",
     "components": 180,
     "used_by": [
-      "compose:deploy/local/compose.yaml#apisix"
+      "compose:deploy/local/compose.yaml#apisix",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -36,6 +38,7 @@
     "components": 71,
     "used_by": [
       "compose:deploy/local/compose.fhir.yaml#mailpit",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml",
       "manifest:deploy/kind/monitoring/mailpit.yaml"
     ],
     "pinned": true,
@@ -51,7 +54,8 @@
     "file": "image-docker.io_clamav_clamav_1.5.4.csv",
     "components": 41,
     "used_by": [
-      "compose:deploy/local/compose.compliance.yaml#clamav"
+      "compose:deploy/local/compose.compliance.yaml#clamav",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -81,7 +85,8 @@
     "file": "image-docker.io_hapiproject_hapi_v8.12.0-1.csv",
     "components": 417,
     "used_by": [
-      "compose:deploy/local/compose.fhir.yaml#hapi"
+      "compose:deploy/local/compose.fhir.yaml#hapi",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -97,7 +102,8 @@
     "components": 128,
     "used_by": [
       "compose:deploy/local/compose.yaml#orthanc",
-      "compose:deploy/local/compose.yaml#orthanc-pacs"
+      "compose:deploy/local/compose.yaml#orthanc-pacs",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -140,21 +146,35 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/library/node:22.23.3-alpine",
+    "file": "image-docker.io_library_node_22.23.3-alpine.csv",
+    "components": 206,
+    "used_by": [
+      "dockerfile:web/Dockerfile"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "node@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/library/platform-trainer:dev",
     "file": "image-docker.io_library_platform-trainer_dev.csv",
-    "components": 212,
+    "components": 187,
     "used_by": [
-      "code:api/app/training/batch.py:TRAINING_IMAGE",
       "code:api/app/training/service.py:TRAINING_IMAGE",
       "compose:deploy/local/compose.training.yaml#api:TRAINING_IMAGE",
       "compose:deploy/local/compose.training.yaml#inference"
     ],
     "pinned": true,
     "repo_digests": [
-      "platform-trainer@sha256:e9b465c5defb039e5708de43f7940e3e15316e32b55da9f00d7dc6755b2d621e"
+      "platform-trainer@sha256:22fc8d283bcc567701b518a996ee71e6953c36250b8b328fd375b1fd28784025"
     ],
     "architecture": "amd64",
-    "os": "Debian GNU/Linux 12.13"
+    "os": "Debian GNU/Linux 13.7"
   },
   {
     "kind": "image",
@@ -182,7 +202,7 @@
     ],
     "pinned": true,
     "repo_digests": [
-      "python@sha256:0687a6bc9716edc2a6ee0fbfb0f87e7ee358b262b67c9215de91bc9b2d38ba71"
+      "python@sha256:1b668429b3511ab407d8e00648891631b0b1a4d7e15e3ca70f38ab5b91ad4ab4"
     ],
     "architecture": "amd64",
     "os": "Alpine Linux 3.24.2"
@@ -198,10 +218,25 @@
     ],
     "pinned": true,
     "repo_digests": [
-      "python@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f"
+      "python@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/nginxinc/nginx-unprivileged:1.31.6-alpine",
+    "file": "image-docker.io_nginxinc_nginx-unprivileged_1.31.6-alpine.csv",
+    "components": 70,
+    "used_by": [
+      "dockerfile:web/Dockerfile"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "nginxinc/nginx-unprivileged@sha256:b9241c6e7b8e9a862f129d8d4199ab64b10390949a78bdd5603379b32c844083"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
   },
   {
     "kind": "image",
@@ -209,7 +244,8 @@
     "file": "image-docker.io_ohif_app_v3.13.10.csv",
     "components": 68,
     "used_by": [
-      "compose:deploy/local/compose.labeling.yaml#ohif"
+      "compose:deploy/local/compose.labeling.yaml#ohif",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -224,7 +260,8 @@
     "file": "image-docker.io_pgvector_pgvector_0.8.7-pg16-trixie.csv",
     "components": 146,
     "used_by": [
-      "compose:deploy/local/compose.llm.yaml#postgres"
+      "compose:deploy/local/compose.llm.yaml#postgres",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -239,7 +276,8 @@
     "file": "image-ghcr.io_mlflow_mlflow_v3.16.1.csv",
     "components": 204,
     "used_by": [
-      "compose:deploy/local/compose.training.yaml#mlflow"
+      "compose:deploy/local/compose.training.yaml#mlflow",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -254,14 +292,30 @@
     "file": "image-ghcr.io_requarks_wiki_2.5.csv",
     "components": 1656,
     "used_by": [
-      "compose:deploy/local/compose.llm.yaml#wiki"
+      "compose:deploy/local/compose.llm.yaml#wiki",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
-      "ghcr.io/requarks/wiki@sha256:af71a17dc27ccc4c768591b1c504631ed820d9d13d4e8c325be4232c0035638c"
+      "ghcr.io/requarks/wiki@sha256:fffff288a52f76e5b8c19a4fbcd0f3e538e96edea642c4f2d813d54d59a876de"
     ],
     "architecture": "amd64",
     "os": "Alpine Linux 3.24.2"
+  },
+  {
+    "kind": "image",
+    "name": "nvcr.io/nvidia/tensorflow:25.02-tf2-py3",
+    "file": "image-nvcr.io_nvidia_tensorflow_25.02-tf2-py3.csv",
+    "components": 716,
+    "used_by": [
+      "dockerfile:training/Dockerfile.gpu"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "nvcr.io/nvidia/tensorflow@sha256:c83b37d26f19ab00d8a13cf974edd079c3d099918ec3110c304a989d6e2f75d5"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 24.04"
   },
   {
     "kind": "image",
@@ -269,7 +323,8 @@
     "file": "image-quay.io_keycloak_keycloak_26.8.0.csv",
     "components": 554,
     "used_by": [
-      "compose:deploy/local/compose.yaml#keycloak"
+      "compose:deploy/local/compose.yaml#keycloak",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
     ],
     "pinned": true,
     "repo_digests": [
@@ -342,10 +397,11 @@
     "kind": "build",
     "name": "自建映像 api",
     "file": "build-api.csv",
-    "components": 192,
+    "components": 193,
     "used_by": [
       "compose:deploy/local/compose.fhir.yaml#fhir-worker",
       "compose:deploy/local/compose.yaml#api",
+      "compose:deploy/local/compose.yaml#db-init",
       "compose:deploy/local/compose.yaml#minio-init"
     ],
     "base_images": [
@@ -387,17 +443,46 @@
     "os": "Debian GNU/Linux 13.7"
   },
   {
+    "kind": "build",
+    "name": "自建映像 training-dockerfile-gpu",
+    "file": "build-training-dockerfile-gpu.csv",
+    "components": 768,
+    "used_by": [
+      "dockerfile:training/Dockerfile.gpu"
+    ],
+    "base_images": [
+      "nvcr.io/nvidia/tensorflow:25.02-tf2-py3"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 24.04"
+  },
+  {
+    "kind": "build",
+    "name": "自建映像 web",
+    "file": "build-web.csv",
+    "components": 70,
+    "used_by": [
+      "compose:deploy/local/compose.web.yaml#web"
+    ],
+    "base_images": [
+      "docker.io/library/node:22.23.3-alpine",
+      "docker.io/nginxinc/nginx-unprivileged:1.31.6-alpine"
+    ],
+    "architecture": "amd64",
+    "os": "Alpine Linux 3.24.2"
+  },
+  {
     "kind": "python",
     "name": "Python 套件 acceptance",
     "file": "python-acceptance.csv",
-    "components": 14,
+    "components": 15,
     "lock": "acceptance/uv.lock"
   },
   {
     "kind": "python",
     "name": "Python 套件 api",
     "file": "python-api.csv",
-    "components": 112,
+    "components": 113,
     "lock": "api/uv.lock"
   },
   {

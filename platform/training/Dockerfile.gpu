@@ -1,0 +1,30 @@
+# platform-trainer-gpu：GPU 池的訓練 Job 與影像批次推論用的映像（TensorFlow 與 PyTorch 都能用 GPU）。
+# Build context 是 platform/（需要 libs/tabular）：
+#   docker build -f training/Dockerfile.gpu -t platform-trainer-gpu:dev platform/
+#
+# 為什麼不用官方 TensorFlow：官方 pip 版只編到 sm_89／compute_90，RTX PRO 6000 Blackwell（sm_120）用不到 GPU。
+# NVIDIA NGC 的 TensorFlow 25.02（TF 2.17、CUDA 12.8）原生編了 sm_120，是 NGC TensorFlow 的最後一版；
+# CUDA 12.8 也在目前驅動（572.83）支援的範圍內。PyTorch 用官方 cu128 版。
+# 映像受 NVIDIA Deep Learning Container License 規範（見 platform/compliance）。
+#
+# TF 2.17 以 numpy 1.x 編譯，所以這個映像的套件版本與 CPU 映像（platform-trainer，numpy 2.x）不同，
+# 版本鎖在 requirements-gpu.txt；TensorFlow、numpy 等 NGC 內建的套件以 constraints-gpu.txt 固定不被升級。
+FROM nvcr.io/nvidia/tensorflow:25.02-tf2-py3
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore PIP_DEFAULT_TIMEOUT=60 PIP_RETRIES=10
+COPY training/constraints-gpu.txt /tmp/req/
+RUN pip install -q -c /tmp/req/constraints-gpu.txt torch==2.8.0 --index-url https://download.pytorch.org/whl/cu128
+COPY training/requirements-gpu.txt /tmp/req/
+RUN pip install -q -c /tmp/req/constraints-gpu.txt -r /tmp/req/requirements-gpu.txt
+COPY libs/tabular /tmp/src/tabular
+RUN pip install -q --no-deps /tmp/src/tabular && rm -rf /tmp/src /tmp/req /root/.cache \
+ && useradd --uid 10001 --no-create-home app && mkdir -p /work /app && chown app /work
+WORKDIR /app
+COPY training/trainer ./trainer
+# TF_FORCE_GPU_ALLOW_GROWTH：共享池同一張卡切成多份時間片，TensorFlow 預設會一次佔走整張卡的記憶體，必須按需配置
+# CUBLAS_WORKSPACE_CONFIG：PyTorch 決定性運算的必要設定
+ENV TF_CPP_MIN_LOG_LEVEL=2 TF_FORCE_GPU_ALLOW_GROWTH=true CUBLAS_WORKSPACE_CONFIG=:4096:8 \
+    KERAS_BACKEND=tensorflow PYTHONPATH=/app
+USER app
+WORKDIR /work
+ENTRYPOINT []
+CMD ["python", "-m", "trainer.runner"]

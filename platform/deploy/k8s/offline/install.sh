@@ -12,6 +12,7 @@ K8S="$(cd "$HERE/.." && pwd)"
 NS=ai-platform
 PLATFORM_NODES="${PLATFORM_NODES:-ai-platform-worker}"
 JOB_NODES="${JOB_NODES:-ai-platform-worker2,ai-platform-worker3,ai-platform-worker4}"
+GPU_NODES="${GPU_NODES:-ai-platform-worker3,ai-platform-worker4}"
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 log "比對雜湊"
@@ -24,11 +25,13 @@ full_name() {
   else echo "docker.io/$ref"; fi
 }
 jobs_images=$(python3 "$K8S/images.py" jobs)
+gpu_images=$(python3 "$K8S/images.py" gpu-jobs)
 while read -r ref; do
   [ -n "$ref" ] || continue
   file="$BUNDLE/images/$(echo "$ref" | tr '/:@' '___').tar"
   nodes=$PLATFORM_NODES
   echo "$jobs_images" | grep -qx "$ref" && nodes="$PLATFORM_NODES,$JOB_NODES"
+  echo "$gpu_images" | grep -qx "$ref" && nodes="$GPU_NODES"      # GPU 訓練映像約 35 GB，只放 GPU 節點
   log "匯入 $ref → $nodes"
   for n in ${nodes//,/ }; do
     docker exec -i "$n" ctr -n k8s.io images import --digests --snapshotter=overlayfs - < "$file" >/dev/null

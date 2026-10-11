@@ -22,7 +22,7 @@ mkdir -p "$OUT/images"
 OUT="$(cd "$OUT" && pwd)"
 
 : > "$OUT/images.txt"
-for ref in $(python3 "$K8S/images.py" all; python3 "$K8S/images.py" jobs); do
+for ref in $(python3 "$K8S/images.py" all; python3 "$K8S/images.py" jobs; python3 "$K8S/images.py" gpu-jobs); do
   grep -qx "$ref" "$OUT/images.txt" && continue
   docker image inspect "$ref" >/dev/null 2>&1 || { log "拉取 $ref"; docker pull -q "$ref" >/dev/null; }
   save_ref=$ref

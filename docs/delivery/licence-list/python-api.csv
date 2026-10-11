@@ -65,6 +65,7 @@ pandas,2.3.3,python,BSD License
 patsy,1.0.3,python,BSD License
 pillow,12.3.0,python,MIT-CMU
 pluggy,1.6.0,python,MIT License
+prometheus-client,0.26.0,python,Apache-2.0 AND BSD-2-Clause
 propcache,0.5.4,python,Apache-2.0
 psycopg,3.3.6,python,LGPL-3.0-only
 psycopg-binary,3.3.6,python,LGPL-3.0-only

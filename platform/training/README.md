@@ -10,7 +10,9 @@
 | `trainer/batch.py` | 批次推論 Job 的進入點（`python -m trainer.batch`） |
 | `trainer/serve.py`、`trainer/predict.py` | 推論服務 |
 | `scripts/load_exported_models.py` | TC-B05-06：在平台外載入匯出的模型並預測 |
-| `Dockerfile` | `platform-trainer` 映像，Job 與推論服務共用 |
+| `Dockerfile` | `platform-trainer` 映像（CPU）：推論服務、結構式訓練、結構式批次推論、假訓練 |
+| `Dockerfile.gpu` | `platform-trainer-gpu` 映像（GPU）：影像訓練、影像批次推論。套件版本鎖在 `requirements-gpu.txt`、`constraints-gpu.txt` |
+| `scripts/test-gpu-image.sh` | 在 GPU 映像內跑 GPU 檢查（TC-A01-03）與影像範本測試（兩種 Keras 後端） |
 
 ## 範本
 
@@ -30,11 +32,24 @@ python train.py --config config.json --data dataset --out out
 
 `dataset/` 是平台凍結的資料：`manifest.json` 加上 `blobs/<sha256>`。
 
-- **重現**：同一份資料、設定、亂數種子，CPU 上的模型檔與指標逐位元相同。Keras 以單執行緒加 `enable_op_determinism` 達成。
+- **重現**：同一份資料、設定、亂數種子，在同一台機器（同一張 GPU 或 CPU）上模型檔與指標逐位元相同。Keras 以單執行緒加 `enable_op_determinism`（TensorFlow）或 `use_deterministic_algorithms`（PyTorch）達成。不同型號的 GPU 或 GPU 與 CPU 之間不保證逐位元相同。
+- **Keras 後端**：環境變數 `KERAS_BACKEND` 選 `tensorflow`（預設）或 `torch`（備案），輸出一樣是 `model.h5`。模型卡的 `keras_backend`、`device` 記錄實際的後端與運算裝置（GPU 型號或 CPU）。目前 torch 後端訓練不了分割範本（Keras 3.15.1 torch 後端的反向傳播錯誤「grad_input must be contiguous」，CPU 也一樣），分類與偵測可以。
 - **切分**：影像以研究或病例為單位，同一研究不會同時出現在訓練與測試。結構式以列為單位。
 - **資料增強**：旋轉、長寬位移、Shear、Zoom、水平翻轉、垂直翻轉。影像、遮罩、方框套用同一個變換，只增強訓練資料。
 - **結構式前處理**：在訓練資料上擬合，再套用到驗證、測試與推論資料，見 `libs/tabular` 的 `tabular.fitted`。
 - **平台外使用**：`model.pkl` 只含 scikit-learn 原生物件；`model.h5` 只用 Keras 內建層與損失。載入方式寫在各範本開頭的說明。
+
+## 兩個映像
+
+| 映像 | 基底 | 內容 | 用在 |
+|---|---|---|---|
+| `platform-trainer` | `python:3.12-slim-trixie` | `uv.lock` 鎖定的套件，TensorFlow CPU 2.21、numpy 2.x；`CUDA_VISIBLE_DEVICES=""` | 推論服務、結構式訓練與批次推論、假訓練 |
+| `platform-trainer-gpu` | `nvcr.io/nvidia/tensorflow:25.02-tf2-py3` | TensorFlow 2.17（NVIDIA 版，CUDA 12.8，原生支援 Blackwell sm_120）、PyTorch 2.8.0 cu128、Keras 3.15.1、numpy 1.26 | 影像訓練、影像批次推論（GPU 池） |
+
+- **為什麼 GPU 映像不用官方 TensorFlow**：官方 pip 版只編到 sm_89／compute_90，RTX PRO 6000 Blackwell 用不到 GPU；NGC 25.02 是原生支援的最後一版 NGC TensorFlow 容器。實測紀錄見 `docs/superpowers/plans/2026-10-05-gpu-enablement.md`。
+- **版本**：TF 2.17 以 numpy 1.x 編譯，所以 GPU 映像的科學計算套件版本與 CPU 映像不同（`requirements-gpu.txt`）。兩個映像的 Keras 都是 3.15.1，GPU 映像訓練的 `model.h5` 由 CPU 映像的推論服務讀取。結構式訓練留在 CPU 映像，scikit-learn 版本才會與推論服務一致。
+- **共享 GPU**：`TF_FORCE_GPU_ALLOW_GROWTH=true`，TensorFlow 按需配置顯示記憶體，同一張卡的多份時間片才不會被第一件工作佔滿。時間片之間沒有記憶體隔離。
+- **平台 API 的設定**：`TRAINING_GPU_IMAGE`（影像工作）、`TRAINING_IMAGE`（其餘）；沒設 `TRAINING_GPU_IMAGE` 時全部用 `TRAINING_IMAGE`。Kubernetes 的值在 `deploy/k8s/components/images/kustomization.yaml`。
 
 ## Job 容器
 
@@ -62,7 +77,9 @@ uv run pytest -m "not keras" # 不需要 TensorFlow 的部分
 
 ```bash
 docker build -f training/Dockerfile -t platform-trainer:dev platform/
-platform/deploy/kind/load-trainer-image.sh      # 載入 kind 的 GPU 節點（映像約 6 GB）
+docker build -f training/Dockerfile.gpu -t platform-trainer-gpu:dev platform/    # 約 35 GB
+platform/training/scripts/test-gpu-image.sh     # GPU 映像內的 GPU 檢查與影像範本測試（需要 NVIDIA Container Toolkit）
+platform/deploy/kind/load-trainer-image.sh      # 載入 kind 的 GPU 節點（映像約 6 GB）；WITH_GPU_IMAGE=1 另載入 GPU 映像
 cd platform/deploy/local && docker compose -f compose.yaml -f compose.kind.yaml -f compose.training.yaml up -d
 ```
 

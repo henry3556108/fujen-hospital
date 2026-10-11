@@ -32,7 +32,7 @@ from app.training.inference import InferenceError
 from app.training.models import DatasetVersion, InferenceBatch, InferenceRecord, TrainedModel, TrainingRun
 from app.training.service import (SUBSETS, Conflict, Invalid, NotFound, TrainingError, Unauthorized, Unavailable,
                                   _artifact, _read_csv, _splits, _store_result, _tabular_result, _write_csv,
-                                  positive_label)
+                                  job_image, positive_label)
 
 DONE = {s.value for s in TERMINAL}
 MEMORY_MB = {"image": 2048, "tabular": 1024}
@@ -87,7 +87,7 @@ def _plan(session: Session, store: ObjectStore, model: TrainedModel, subset: Any
 
 
 def _workload(state, row: InferenceRecord, model: TrainedModel, token: str) -> Workload:
-    image = getattr(state, "training_image", None) or os.environ.get("TRAINING_IMAGE", "platform-trainer:dev")
+    image = job_image(state, gpu=_image(model))
     base = (getattr(state, "job_io_url", None) or os.environ.get("JOB_IO_BASE_URL", "http://api:8000")).rstrip("/")
     # 容器只拿到這三個值加上執行緒數；token 只對這一筆推論有效，不是平台憑證
     env = {"INFERENCE_ID": str(row.id), "JOB_IO_URL": f"{base}/api/job-io/inference/{row.id}",

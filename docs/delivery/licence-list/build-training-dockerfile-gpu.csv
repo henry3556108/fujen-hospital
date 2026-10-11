@@ -1,0 +1,769 @@
+name,version,type,licences
+@jupyter-notebook/lab-extension,7.3.2,npm,BSD-3-Clause
+@jupyterlab/application-top,4.3.5,npm,BSD-3-Clause
+@jupyterlab/galata-extension,5.3.4,npm,BSD-3-Clause
+@jupyterlab/mock-consumer,4.3.5,npm,
+@jupyterlab/mock-extension,4.3.5,npm,
+@jupyterlab/mock-incompat,0.1.0,npm,
+@jupyterlab/mock-mime-extension,0.3.0,npm,
+@jupyterlab/mock-package,0.1.0,npm,
+@jupyterlab/mock-provider,4.3.5,npm,
+@jupyterlab/mock-token,4.3.5,npm,
+Simple Launcher,1.1.0.14,binary,
+absl-py,1.0.0,python,Apache 2.0
+adduser,3.137ubuntu1,deb,GPL-2.0-only; GPL-2.0-or-later
+aiohappyeyeballs,2.4.4,python,PSF-2.0
+aiohttp,3.11.11,python,Apache-2.0
+aiosignal,1.3.2,python,Apache 2.0
+annotated-doc,0.0.5,python,MIT
+annotated-types,0.8.0,python,MIT
+anyio,4.8.0,python,MIT
+apt,2.7.14build2,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+apt-utils,2.7.14build2,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+argon2-cffi,23.1.0,python,MIT
+argon2-cffi-bindings,21.2.0,python,MIT
+arrow,1.3.0,python,Apache-2.0
+asciitree,0.3.3,python,MIT
+asttokens,3.0.0,python,Apache 2.0
+astunparse,1.6.3,python,BSD
+async-lru,2.0.4,python,MIT License
+atex,0.0.6,python,Apache 2.0
+attrs,24.3.0,python,MIT
+autograd,1.9.1,python,MIT
+autograd-gamma,0.5.0,python,MIT License
+babel,2.17.0,python,BSD-3-Clause
+base-files,13ubuntu10.1,deb,sha256:fd7e4aae7e7b05f217bcf2d02322825c360e66c52c4c2f1b28d784d6297a1c23
+base-passwd,3.6.3build1,deb,GPL-2.0-only; public-domain
+bash,5.2.21-2ubuntu4,deb,BSD-4-Clause-UC; GFDL-1.3-only; GFDL-NIV-1.3; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; Latex2e; MIT-like; permissive
+beautifulsoup4,4.13.3,python,MIT License
+binutils,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+binutils-common,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+binutils-x86-64-linux-gnu,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+black,25.1.0,python,MIT
+bleach,6.2.0,python,Apache Software License
+bsdutils,1:2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+build-essential,12.10ubuntu1,deb,GPL-2.0-or-later
+bzip2,1.0.8-5.1build0.1,deb,BSD-variant; GPL-2.0-only
+ca-certificates,20240203,deb,GPL-2.0-only; GPL-2.0-or-later; MPL-2.0
+cachetools,5.5.1,python,MIT
+certifi,2024.12.14,python,MPL-2.0
+cffi,1.17.1,python,MIT
+charset-normalizer,3.4.1,python,MIT
+clang,16.0.1.1,python,Apache-2.0 with LLVM exception
+cli,UNKNOWN,binary,
+cli-32,UNKNOWN,binary,
+cli-64,UNKNOWN,binary,
+cli-arm64,UNKNOWN,binary,
+click,8.1.8,python,BSD-3-Clause
+cloudpickle,3.1.1,python,BSD-3-Clause
+cmake,3.28.3-1build7,deb,Apache-2.0; BSD-0-Clause; BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; Expat; FSFAP; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; Zlib
+cmake-data,3.28.3-1build7,deb,Apache-2.0; BSD-0-Clause; BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; Expat; FSFAP; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; Zlib
+comm,0.2.2,python,BSD-3-Clause
+command-line-arguments,UNKNOWN,go-module,
+contourpy,1.3.3,python,BSD-3-Clause
+coreutils,9.4-3ubuntu6,deb,BSD-4-Clause-UC; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3; GPL-3.0-only; GPL-3.0-or-later; ISC
+cpp,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+cpp-13,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+cpp-13-x86-64-linux-gnu,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+cpp-x86-64-linux-gnu,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+cuda-cccl-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-compat-12-8,570.86.10-0ubuntu1,deb,
+cuda-crt-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-cudart-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-cudart-dev-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-cuobjdump-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-cupti-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-cupti-dev-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-driver-dev-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-gdb-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvcc-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvdisasm-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvml-dev-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvprof-12-8,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvprune-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvrtc-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvrtc-dev-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvtx-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-nvvm-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-profiler-api-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-python,12.6.0,python,sha256:8266625b44921ee6b3fc8376979a1d9ed8d87b39e9ce9738b960640661cdfe2f
+cuda-sanitizer-12-8,12.8.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-toolkit-12-8-config-common,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-toolkit-12-config-common,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cuda-toolkit-config-common,12.8.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+cudf,24.12.0,python,Apache 2.0
+cudf-polars,24.12.0,python,Apache 2.0
+cugraph,24.12.0,python,Apache 2.0
+cugraph-dgl,24.12.0,python,Apache 2.0
+cugraph-pyg,24.12.0,python,Apache 2.0
+cugraph-service-client,24.12.0,python,Apache 2.0
+cugraph-service-server,24.12.0,python,Apache 2.0
+cuml,24.12.0,python,Apache 2.0
+cupy-cuda12x,13.3.0,python,MIT License
+curl,8.5.0-2ubuntu10.6,deb,BSD-3-Clause; BSD-4-Clause-UC; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; ISC; OLDAP-2.8; X11; curl
+cuvs,24.12.0,python,Apache 2.0
+cycler,0.12.1,python,BSD-3-Clause
+dash,0.5.12-6ubuntu5,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later; public-domain
+dask,2024.11.2,python,BSD-3-Clause
+dask-cuda,24.12.0,python,Apache 2.0
+dask-cudf,24.12.0,python,Apache 2.0
+dask-expr,1.1.19,python,BSD
+debconf,1.5.86ubuntu1,deb,BSD-2-Clause
+debianutils,5.17build1,deb,GPL-2.0-only; GPL-2.0-or-later; SMAIL-GPL; public-domain
+debugpy,1.8.12,python,MIT
+decorator,5.1.1,python,new BSD License
+defusedxml,0.7.1,python,PSFL
+diffutils,1:3.10-1build1,deb,FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
+dirmngr,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+distributed,2024.11.2,python,BSD-3-Clause
+distributed-ucxx,0.41.0,python,BSD-3-Clause
+dm-tree,0.1.8,python,Apache 2.0
+dpkg,1.22.6ubuntu6.1,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain-s-s-d
+dpkg-dev,1.22.6ubuntu6.1,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain-s-s-d
+e2fsprogs,1.47.0-2.4~exp1ubuntu4.1,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
+executing,2.2.0,python,MIT
+fastapi,0.143.0,python,MIT
+fasteners,0.19,python,Apache-2.0
+fastjsonschema,2.21.1,python,BSD
+fastrlock,0.8.3,python,MIT style
+ffmpeg,61.7.100,binary,
+file,1:5.45-3build1,deb,BSD-2-Clause; BSD-2-Clause-alike; BSD-2-Clause-regents; MIT-Old-Style-with-legal-disclaimer-2; public-domain
+filelock,3.32.3,python,MIT
+findutils,4.9.0-5build1,deb,BSD-3-Clause; FSFAP; FSFULLR; GFDL-1.3-only; GFDL-NIV-1.3+; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11; public-domain
+flatbuffers,2.0.0,npm,SEE LICENSE IN LICENSE.txt
+flatbuffers,24.3.25,python,Apache 2.0
+flatbuffers-js-grpc,1.0.0,npm,
+fontconfig,2.15.0-1.1ubuntu2,deb,HPND-sell-variant
+fontconfig-config,2.15.0-1.1ubuntu2,deb,HPND-sell-variant
+fonts-dejavu-core,2.37-8,deb,Bitstream-Vera; GPL-2.0-only; GPL-2.0-or-later
+fonts-dejavu-mono,2.37-8,deb,Bitstream-Vera; GPL-2.0-only; GPL-2.0-or-later
+fonts-liberation,1:2.1.5-3,deb,GPL-2.0-only; GPL-2.0-or-later; SIL-OFL-1.1
+fonts-liberation-sans-narrow,1:1.07.6-4,deb,GPL-2.0-only
+fonts-liberation2,1:2.1.5-3,deb,GPL-2.0-only; GPL-2.0-or-later; SIL-OFL-1.1
+fonttools,4.66.1,python,MIT
+formulaic,1.2.2,python,MIT
+fqdn,1.5.1,python,MPL 2.0
+frozenlist,1.5.0,python,Apache 2
+fsspec,2024.12.0,python,BSD-3-Clause
+g++,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+g++,unknown,deb,
+g++-13,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+g++-13-x86-64-linux-gnu,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+g++-x86-64-linux-gnu,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+gast,0.4.0,python,BSD 3-Clause
+gcc,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+gcc-13,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+gcc-13-base,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+gcc-13-x86-64-linux-gnu,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+gcc-14-base,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+gcc-x86-64-linux-gnu,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+gfortran,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+gfortran-13,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+gfortran-13-x86-64-linux-gnu,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+gfortran-x86-64-linux-gnu,4:13.2.0-7ubuntu1,deb,BSD-4-Clause; GPL-2.0-or-later
+git,1:2.43.0-1ubuntu7.2,deb,Apache-2.0; Artistic; BSD-3-Clause; Boost; EDL-1.0; Expat; GPL; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; ISC; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; Zlib; dlmalloc; mingw-runtime
+git-man,1:2.43.0-1ubuntu7.2,deb,Apache-2.0; Artistic; BSD-3-Clause; Boost; EDL-1.0; Expat; GPL; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; ISC; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; Zlib; dlmalloc; mingw-runtime
+gnupg,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gnupg-utils,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+google-pasta,0.2.0,python,Apache 2.0
+gpg,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gpg-agent,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gpgconf,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gpgsm,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gpgv,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+gradle-wrapper,2.10,java-archive,
+gradle-wrapper,4.0,java-archive,
+gradle-wrapper,UNKNOWN,java-archive,
+graphviz,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+grep,3.11-4build1,deb,GPL-3.0-only; GPL-3.0-or-later
+grpcio,1.62.1,python,Apache License 2.0
+gui,UNKNOWN,binary,
+gui-32,UNKNOWN,binary,
+gui-64,UNKNOWN,binary,
+gui-arm64,UNKNOWN,binary,
+gzip,1.12-1ubuntu3,deb,FSF-manpages; GFDL-1.3+-no-invariant; GFDL-3; GPL-3.0-only; GPL-3.0-or-later
+h11,0.14.0,python,MIT
+h5py,3.10.0,python,BSD-3-Clause
+hdf5-helpers,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+horovod,0.28.1+nv25.2,python,Apache 2.0
+hostname,3.23+nmu2ubuntu2,deb,GPL-2.0-only
+html5lib,1.1,python,MIT License
+httpcore,1.0.7,python,BSD-3-Clause
+httptools,0.9.0,python,MIT
+httpx,0.28.1,python,BSD-3-Clause
+ibverbs-providers,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+ibverbs-utils,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+icu-devtools,74.2-1ubuntu3.1,deb,GPL-3.0-only; MIT
+idna,3.10,python,BSD-3-Clause
+init-system-helpers,1.66ubuntu1,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+interface-meta,2.0.1,python,MIT
+ipykernel,6.29.5,python,BSD-3-Clause
+ipython,8.32.0,python,BSD-3-Clause
+isoduration,20.11.0,python,UNKNOWN
+isort,6.0.0,python,MIT
+jax,0.4.6,python,Apache-2.0
+jedi,0.19.2,python,MIT
+jinja2,3.1.5,python,BSD-3-Clause
+joblib,1.4.2,python,BSD 3-Clause
+jq,1.7.1-3build1,deb,CC-BY-3.0; Expat; GPL-2.0-only; GPL-2.0-or-later; MIT
+json5,0.10.0,python,Apache-2.0
+jsonpointer,3.0.0,python,Modified BSD License
+jsonschema,4.23.0,python,MIT
+jsonschema-specifications,2024.10.1,python,
+jupyter-client,8.6.3,python,BSD-3-Clause
+jupyter-core,5.7.2,python,BSD-3-Clause
+jupyter-events,0.12.0,python,BSD-3-Clause
+jupyter-lsp,2.2.5,python,BSD-3-Clause
+jupyter-server,2.15.0,python,BSD-3-Clause
+jupyter-server-terminals,0.5.3,python,sha256:2f1df1e6b58c0673787203ad4c5cedfe326927ac7e82574c5d9ea74f6f9805f4
+jupyterlab,4.3.5,python,BSD-3-Clause
+jupyterlab-code-formatter,3.0.2,python,MIT
+jupyterlab-jupytext,1.4.3,npm,MIT
+jupyterlab-pygments,0.3.0,python,BSD-3-Clause
+jupyterlab-server,2.27.3,python,BSD-3-Clause
+jupyterlab-tensorboard-pro,4.0.0,python,MIT
+jupyterlab_code_formatter,3.0.2,npm,BSD-3-Clause
+jupyterlab_pygments,0.3.0,npm,BSD-3-Clause
+jupyterlab_tensorboard_pro,4.0.0,npm,MIT
+jupytext,1.16.7,python,MIT
+keras,3.15.1,python,Apache License 2.0
+keyboxd,2.4.4-2ubuntu17,deb,BSD-3-Clause; CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; RFC-Reference; TinySCHEME; permissive
+kiwisolver,1.5.1,python,sha256:4e89b2eeb82ea10ec61119c814f2ca0bbccdc22b72d0eb4f5542ef08f6a73ed2
+kvikio,24.12.0,python,Apache 2.0
+less,590-2ubuntu2.1,deb,GPL-3.0-only; GPL-3.0-or-later; Less; Spencer-86; X11; public-domain
+libacl1,2.3.2-1build1.1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
+libaec-dev,1.1.2-1build1,deb,BSD-2-Clause
+libaec0,1.1.2-1build1,deb,BSD-2-Clause
+libann0,1.1.2+doc-9build1,deb,GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libaom3,3.8.2-2ubuntu0.1,deb,BSD-2-Clause; BSD-3-Clause; Expat; ISC; public-domain-md5
+libapt-pkg6.0t64,2.7.14build2,deb,BSD-3-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+libarchive13t64,3.7.2-2ubuntu0.3,deb,Apache-2.0; BSD-1-clause-UCB; BSD-124-clause-UCB; BSD-2-Clause; BSD-3-clause-UCB; BSD-4-clause-UCB; CC0-1.0; Expat; OpenSSL+SSLeay; PD
+libasan8,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libassuan0,2.5.6-1build1,deb,GAP; GAP~FSF; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+libatlas-base-dev,3.10.3-13ubuntu1,deb,BSD-3-Clause; BSD-3-clause-ATLAS; GPL-2-modified; GPL-2.0-only; public-domain
+libatlas3-base,3.10.3-13ubuntu1,deb,BSD-3-Clause; BSD-3-clause-ATLAS; GPL-2-modified; GPL-2.0-only; public-domain
+libatomic1,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libattr1,1:2.5.2-1build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-or-later; LGPL-2.1-only
+libaudit-common,1:3.1.2-2.1build1.1,deb,GPL-1.0-only; GPL-2.0-only; LGPL-2.1-only
+libaudit1,1:3.1.2-2.1build1.1,deb,GPL-1.0-only; GPL-2.0-only; LGPL-2.1-only
+libbinutils,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+libblas-dev,3.12.0-3build1.1,deb,BSD-3-Clause; BSD-3-clause-intel
+libblas3,3.12.0-3build1.1,deb,BSD-3-Clause; BSD-3-clause-intel
+libblkid1,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+libboost-atomic1.83-dev,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-atomic1.83.0,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-filesystem-dev,1.83.0.1ubuntu2,deb,MIT
+libboost-filesystem1.83-dev,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-filesystem1.83.0,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-regex-dev,1.83.0.1ubuntu2,deb,MIT
+libboost-regex1.83-dev,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-regex1.83.0,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-system-dev,1.83.0.1ubuntu2,deb,MIT
+libboost-system1.83-dev,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost-system1.83.0,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libboost1.83-dev,1.83.0-2.1ubuntu3.1,deb,Apache-2.0; BSD2; BSD3_DEShaw; BSD3_Google; BSL-1.0; Caramel; CrystalClear; HP; Jam; Kempf; MIT; NIST; OldBoost1; OldBoost2; OldBoost3; Python; SGI; Spencer; Zlib
+libbrotli1,1.1.0-2build2,deb,MIT
+libbsd0,0.12.1-1build1.1,deb,BSD-2-Clause; BSD-2-clause-author; BSD-2-clause-verbatim; BSD-3-Clause; BSD-3-clause-John-Birrell; BSD-3-clause-Regents; BSD-3-clause-author; BSD-5-clause-Peter-Wemm; Beerware; Expat; ISC; ISC-Original; public-domain
+libbz2-1.0,1.0.8-5.1build0.1,deb,BSD-variant; GPL-2.0-only
+libc-bin,2.39-0ubuntu8.4,deb,sha256:d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265
+libc-dev-bin,2.39-0ubuntu8.4,deb,sha256:d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265
+libc6,2.39-0ubuntu8.4,deb,sha256:d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265
+libc6-dev,2.39-0ubuntu8.4,deb,sha256:d3c95b56fa33e28b57860580f0baf4e4f4de2a268a2b80f1d031a5191bade265
+libcairo2,1.18.0-3build1,deb,sha256:408fb9e704e875cd42d432e7c9b3b378f568e3c89db2b5c5ef3d11c025319574
+libcap-ng0,0.8.4-2build2,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libcap2,1:2.66-5ubuntu2,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libcares2,1.27.0-1.0ubuntu1,deb,sha256:a7bb031e8e32d65f76e35ba7a8801a5eae1369b5fd2eded44abe67ef13359a6d
+libcbor0.10,0.10.2-1.2ubuntu2,deb,Expat
+libcc1-0,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libcdt5,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+libcgraph6,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+libclang,16.0.0,python,Apache License 2.0
+libcom-err2,1.47.0-2.4~exp1ubuntu4.1,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
+libcrypt-dev,1:4.4.36-4build1,deb,sha256:5a5e7ca0e9f3f9679977e3a3e9ede45ad92885a3297ea78e766979f9866c5a16
+libcrypt1,1:4.4.36-4build1,deb,sha256:5a5e7ca0e9f3f9679977e3a3e9ede45ad92885a3297ea78e766979f9866c5a16
+libctf-nobfd0,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+libctf0,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+libcublas-12-8,12.8.3.14-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcublas-dev-12-8,12.8.3.14-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcudf,24.12.0,python,Apache 2.0
+libcudnn9-cuda-12,9.7.1.26-1,deb,sha256:295a1b7118d3417f5d6a943e5f87b59e2a0631fb277129c3b15dee6248adc7cf
+libcudnn9-dev-cuda-12,9.7.1.26-1,deb,sha256:295a1b7118d3417f5d6a943e5f87b59e2a0631fb277129c3b15dee6248adc7cf
+libcufft-12-8,11.3.3.41-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcufft-dev-12-8,11.3.3.41-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcufile-12-8,1.13.0.11-1,deb,sha256:914cd25373688c84376dcb553e2054c22a9d57f2a7603ec93c46151dc1b4db9f
+libcufile-dev-12-8,1.13.0.11-1,deb,sha256:914cd25373688c84376dcb553e2054c22a9d57f2a7603ec93c46151dc1b4db9f
+libcurand-12-8,10.3.9.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcurand-dev-12-8,10.3.9.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcurl3t64-gnutls,8.5.0-2ubuntu10.6,deb,BSD-3-Clause; BSD-4-Clause-UC; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; ISC; OLDAP-2.8; X11; curl
+libcurl4-openssl-dev,8.5.0-2ubuntu10.6,deb,BSD-3-Clause; BSD-4-Clause-UC; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; ISC; OLDAP-2.8; X11; curl
+libcurl4t64,8.5.0-2ubuntu10.6,deb,BSD-3-Clause; BSD-4-Clause-UC; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; ISC; OLDAP-2.8; X11; curl
+libcusolver-12-8,11.7.2.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcusolver-dev-12-8,11.7.2.55-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcusparse-12-8,12.5.7.53-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcusparse-dev-12-8,12.5.7.53-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libcusparselt-dev,0.6.3.2-1,deb,sha256:e8d158885a681b95ec7a6fc06dd8d4a52989f374cb1380c8a4c8fb27fd3d5d5e
+libcusparselt0,0.6.3.2-1,deb,sha256:e8d158885a681b95ec7a6fc06dd8d4a52989f374cb1380c8a4c8fb27fd3d5d5e
+libcutensor-dev,2.1.0.9-1,deb,sha256:ee654c9a6b33ebd322d323001082f570c6062a6b1687862730a093b1f236bb5b
+libcutensor2,2.1.0.9-1,deb,sha256:ee654c9a6b33ebd322d323001082f570c6062a6b1687862730a093b1f236bb5b
+libdatrie1,0.2.13-3build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libdb5.3t64,5.3.28+dfsg2-7,deb,Artistic; BSD-3-Clause; BSD-3-clause-fjord; GPL; GPL-3.0-only; MIT-old; MS-PL; Sleepycat; TCL-like; X11; Zlib
+libde265-0,1.0.15-1build3,deb,BSD-4-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; other-1; public-domain-1
+libdebconfclient0,0.271ubuntu3,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+libdeflate0,1.19-1build1.1,deb,Expat
+libdpkg-perl,1.22.6ubuntu6.1,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain-s-s-d
+libedit2,3.1-20230828-1build1,deb,BSD-3-Clause
+liberror-perl,0.17029-2,deb,Artistic; GPL-1.0-only; GPL-1.0-or-later; MIT/X11
+libexpat1,2.6.1-2ubuntu0.2,deb,MIT
+libexpat1-dev,2.6.1-2ubuntu0.2,deb,MIT
+libext2fs2t64,1.47.0-2.4~exp1ubuntu4.1,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
+libfabric-aws-bin,1.22.0amzn1.0,deb,BSD-2-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+libfabric-aws-dev,1.22.0amzn1.0,deb,BSD-2-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+libfabric1-aws,1.22.0amzn1.0,deb,BSD-2-Clause; Expat; GPL-2.0-only; GPL-2.0-or-later
+libffi8,3.4.6-1build1,deb,Expat; GPL; GPL-2.0-or-later; GPL-3.0-or-later; MPL-1.1; X11; public-domain
+libfido2-1,1.14.0-1build3,deb,BSD-2-Clause; ISC; public-domain
+libfontconfig1,2.15.0-1.1ubuntu2,deb,HPND-sell-variant
+libfreetype6,2.13.2+dfsg-1build3,deb,BSD-3-Clause; BSL-1.0; Expat; FSFAP; FTL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; MIT-Modern-Variant; MIT-SMC; OpenGroup-MIT; Public-Domain; Zlib
+libfribidi0,1.0.13-3build1,deb,LGPL-2.1-only; LGPL-2.1-or-later
+libgcc-13-dev,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+libgcc-s1,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libgcrypt20,1.10.3-2build1,deb,sha256:40162167dff80843a4b24aa8d0a4ffc50be5338d004ebe38f86ae3397ba9de3e
+libgd3,2.3.3-9ubuntu5,deb,sha256:53c9aa3ebfa5ab3aa28a5467aca74c10446b2e7ed21d68bdc8cc372f32d551ee
+libgdbm-compat4t64,1.23-5.1build1,deb,GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later
+libgdbm6t64,1.23-5.1build1,deb,GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later
+libgdrapi,2.4.1,deb,MIT
+libgfortran-13-dev,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+libgfortran5,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libglib2.0-0t64,2.80.0-6ubuntu3.2,deb,AFL-2.0; Apache-2.0; CC-BY-SA-3.0; CC0-1.0; Expat; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; Iconv-PD; Janik-permissive; Kuchling-PD; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MPL-1.1; Mingw-PD; Plumb-PD; Unicode-DFS-2016; bzip2-1.0.6; cmph; old-glib-tests
+libgmp10,2:6.3.0+dfsg-2ubuntu6,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+libgnutls30t64,3.8.3-1.1ubuntu3.2,deb,sha256:51da5214308b87d6a0a2fbcaea1f7dbd15510be733e5921d9548ff6b88d84dd8
+libgomp1,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libgpg-error0,1.47-3build2,deb,BSD-3-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; g10-permissive
+libgpm2,1.20.7-11,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later
+libgprofng0,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+libgraphite2-3,1.3.14-2build1,deb,Artistic; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; MPL-1.1; custom-sil-open-font-license; public-domain
+libgssapi-krb5-2,1.20.1-6ubuntu2.4,deb,sha256:936728f4181718f42951b881c1e8f1386bf6b2723c4fbc533c374d6f42c71816
+libgts-0.7-5t64,0.7.6+darcs121130-5.2build1,deb,LGPL-2.0-only; LGPL-2.0-or-later
+libgts-bin,0.7.6+darcs121130-5.2build1,deb,LGPL-2.0-only; LGPL-2.0-or-later
+libgvc6,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+libgvpr2,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+libharfbuzz0b,8.3.0-2build2,deb,Apache-2.0; CC0-1.0; Expat; FSFAP; FSFUL; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; MIT; Monotype; OFL-1.1; UFL-1.0; Unicode
+libhdf5-103-1t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-cpp-103-1t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-dev,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-fortran-102t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-hl-100t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-hl-cpp-100t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libhdf5-hl-fortran-100t64,1.10.10+repack-3.1ubuntu4,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libheif-plugin-aomdec,1.17.6-1ubuntu4.1,deb,BOOST-1.0; BSD-3-Clause; BSD-4-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT
+libheif-plugin-aomenc,1.17.6-1ubuntu4.1,deb,BOOST-1.0; BSD-3-Clause; BSD-4-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT
+libheif-plugin-libde265,1.17.6-1ubuntu4.1,deb,BOOST-1.0; BSD-3-Clause; BSD-4-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT
+libheif1,1.17.6-1ubuntu4.1,deb,BOOST-1.0; BSD-3-Clause; BSD-4-Clause; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT
+libhogweed6t64,3.9.1-2.2build1.1,deb,Expat; GAP; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-3.0-or-later; public-domain
+libhwasan0,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libhwloc15,2.10.0-1build1,deb,sha256:ef9d59c01a1296041369997b7c684867fe58473d02ae575aca6454c9db2297fc
+libibumad-dev,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+libibumad3,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+libibverbs-dev,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+libibverbs1,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+libice6,2:1.0.10-1build3,deb,sha256:fc16500a74acc2d0a7bb2fa1005956a52551abdce2afe0642a9a8dc2b6af53c6
+libicu-dev,74.2-1ubuntu3.1,deb,GPL-3.0-only; MIT
+libicu74,74.2-1ubuntu3.1,deb,GPL-3.0-only; MIT
+libidn2-0,2.3.7-2build1,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; Unicode
+libisl23,0.26-3build1.1,deb,BSD-2-Clause-Views; LGPL-2.0-or-later; LGPL-2.1-or-later; MIT
+libitm1,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libjansson4,2.14-2build2,deb,Expat
+libjbig0,2.1-6.1ubuntu2,deb,GPL-2.0-only; GPL-2.0-or-later
+libjpeg-dev,8c-2ubuntu11,deb,sha256:2120036d2302821582cf29a90de0cc390f96bdb4545d2c7f700d023030f46200
+libjpeg-turbo8,2.1.5-2ubuntu2,deb,BSD-3-Clause; BSD-BY-LC-NE; Expat; NTP; Zlib
+libjpeg-turbo8-dev,2.1.5-2ubuntu2,deb,BSD-3-Clause; BSD-BY-LC-NE; Expat; NTP; Zlib
+libjpeg8,8c-2ubuntu11,deb,sha256:2120036d2302821582cf29a90de0cc390f96bdb4545d2c7f700d023030f46200
+libjpeg8-dev,8c-2ubuntu11,deb,sha256:2120036d2302821582cf29a90de0cc390f96bdb4545d2c7f700d023030f46200
+libjq1,1.7.1-3build1,deb,CC-BY-3.0; Expat; GPL-2.0-only; GPL-2.0-or-later; MIT
+libjs-jquery,3.6.1+dfsg+~3.5.14-1,deb,Expat
+libjs-sphinxdoc,7.2.6-6,deb,BSD-2-Clause; BSD-3-Clause
+libjs-underscore,1.13.4~dfsg+~1.11.4-3,deb,BSD-3-Clause; Expat; GPL-3.0-only; GPL-3.0-or-later
+libjsoncpp25,1.9.5-6build1,deb,Expat_or_PublicDomain_or_DualExpatPD; GPL-3.0-only; GPL-3.0-or-later
+libk5crypto3,1.20.1-6ubuntu2.4,deb,sha256:936728f4181718f42951b881c1e8f1386bf6b2723c4fbc533c374d6f42c71816
+libkeyutils1,1.6.3-3build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later
+libkrb5-3,1.20.1-6ubuntu2.4,deb,sha256:936728f4181718f42951b881c1e8f1386bf6b2723c4fbc533c374d6f42c71816
+libkrb5support0,1.20.1-6ubuntu2.4,deb,sha256:936728f4181718f42951b881c1e8f1386bf6b2723c4fbc533c374d6f42c71816
+libksba8,1.6.6-1build1,deb,sha256:14daf4e5fc2862caf01db3321ac4a6405bde6d8d8013760dff760bee32bb9b1a
+libkvikio,24.12.0,python,Apache 2.0
+liblab-gamut1,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+liblapack-dev,3.12.0-3build1.1,deb,BSD-3-Clause; BSD-3-clause-intel
+liblapack3,3.12.0-3build1.1,deb,BSD-3-Clause; BSD-3-clause-intel
+libldap2,2.6.7+dfsg-1~exp1ubuntu8.1,deb,BSD-3-Clause; BSD-3-clause-California; BSD-3-clause-variant; BSD-4-clause-California; Beerware; Expat; Expat-ISC; Expat-UNM; F5; FSF-unlimited; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; JCG; MIT-XC; NeoSoft-permissive; OpenLDAP-2.8; UMich; public-domain
+liblerc4,4.0.0+ds-4ubuntu2,deb,Apache-2.0
+libllvm18,1:18.1.3-1ubuntu1,deb,APACHE-2-LLVM-EXCEPTIONS; Apache-2.0; BSD-3-Clause; MIT; Python; solar-public-domain
+liblsan0,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libltdl7,2.4.7-7build1,deb,GFDL-1.3-only; GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later
+liblz4-1,1.9.4-1build1.1,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+liblz4-dev,1.9.4-1build1.1,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+liblzma5,5.6.1+really5.4.5-1build0.1,deb,Autoconf; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later; PD; PD-debian; config-h; noderivs; permissive-fsf; permissive-nowarranty; probably-PD
+libmagic-mgc,1:5.45-3build1,deb,BSD-2-Clause; BSD-2-Clause-alike; BSD-2-Clause-regents; MIT-Old-Style-with-legal-disclaimer-2; public-domain
+libmagic1t64,1:5.45-3build1,deb,BSD-2-Clause; BSD-2-Clause-alike; BSD-2-Clause-regents; MIT-Old-Style-with-legal-disclaimer-2; public-domain
+libmd0,1.1.0-2build1,deb,BSD-2-Clause; BSD-3-Clause; BSD-3-clause-Aaron-D-Gifford; Beerware; ISC; public-domain-md4; public-domain-md5; public-domain-sha1
+libmount1,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+libmpc3,1.3.1-1build1.1,deb,sha256:80763e4cca3963670637b98abff467ee09b83d1737d683ad5ccfb1e919bea94b
+libmpfr6,4.2.1-1build1.1,deb,sha256:c434a44e656a89e72b5cee13bba6719011e0899bfc626ab9c08205010ab2dbbe
+libnccl-dev,2.25.1-1+cuda12.8,deb,BSD-3-Clause
+libnccl2,2.25.1-1+cuda12.8,deb,BSD-3-Clause
+libncurses6,6.4+20240113-1ubuntu2,deb,BSD-3-Clause; MIT/X11; X11
+libncursesw6,6.4+20240113-1ubuntu2,deb,BSD-3-Clause; MIT/X11; X11
+libnettle8t64,3.9.1-2.2build1.1,deb,Expat; GAP; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-3.0-or-later; public-domain
+libnghttp2-14,1.59.0-1ubuntu0.2,deb,BSD-2-Clause; Expat; GPL-3.0-only; GPL-3.0-or-later; MIT; all-permissive
+libnl-3-200,3.7.0-0.3build1.1,deb,sha256:9a3730df4bb18c8be5fdce05b9223f9b152b6bf40f7e45319529830ecd413eb2
+libnl-3-dev,3.7.0-0.3build1.1,deb,sha256:9a3730df4bb18c8be5fdce05b9223f9b152b6bf40f7e45319529830ecd413eb2
+libnl-route-3-200,3.7.0-0.3build1.1,deb,sha256:9a3730df4bb18c8be5fdce05b9223f9b152b6bf40f7e45319529830ecd413eb2
+libnl-route-3-dev,3.7.0-0.3build1.1,deb,sha256:9a3730df4bb18c8be5fdce05b9223f9b152b6bf40f7e45319529830ecd413eb2
+libnpp-12-8,12.3.3.65-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnpp-dev-12-8,12.3.3.65-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnpth0t64,1.6-3.1build1,deb,LGPL-2.1-only; LGPL-2.1-or-later
+libnuma-dev,2.0.18-1build1,deb,sha256:179c34f5e56cd0b6b73dd7970a97357ee784e2236e8293826656c7ebb3bface7
+libnuma1,2.0.18-1build1,deb,sha256:179c34f5e56cd0b6b73dd7970a97357ee784e2236e8293826656c7ebb3bface7
+libnvinfer-bin,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-dispatch-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-dispatch10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-headers-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-headers-plugin-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-lean-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-lean10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-plugin-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-plugin10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-vc-plugin-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer-vc-plugin10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvinfer10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvjitlink-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnvjitlink-dev-12-8,12.8.61-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnvjpeg-12-8,12.3.5.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnvjpeg-dev-12-8,12.3.5.57-1,deb,sha256:e2c71babfd18a8e69542dd7e9ca018f9caa438094001a58e6bc4d8c999bf0d07
+libnvonnxparsers-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libnvonnxparsers10,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+libonig5,6.9.9-1build1,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+libp11-kit0,0.25.3-4ubuntu2.1,deb,Apache-2.0; BSD-3-Clause; FSFAP; FSFULLR; GPL-2.0-or-later; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; X11; customFSFUL; customFSFULLRWD
+libpam-modules,1.5.3-5ubuntu5.1,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam-modules-bin,1.5.3-5ubuntu5.1,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam-runtime,1.5.3-5ubuntu5.1,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpam0g,1.5.3-5ubuntu5.1,deb,BSD-3-Clause; BSD-tcp_wrappers; Beerware; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; public-domain
+libpango-1.0-0,1.52.1+ds-1build1,deb,Apache-2.0; Bitstream-Vera; Chromium-BSD-style; Example; ICU; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OFL-1.1; TCL; Unicode
+libpangocairo-1.0-0,1.52.1+ds-1build1,deb,Apache-2.0; Bitstream-Vera; Chromium-BSD-style; Example; ICU; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OFL-1.1; TCL; Unicode
+libpangoft2-1.0-0,1.52.1+ds-1build1,deb,Apache-2.0; Bitstream-Vera; Chromium-BSD-style; Example; ICU; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OFL-1.1; TCL; Unicode
+libpathplan4,2.42.2-9ubuntu0.1,deb,EPL-1.0; MIT; X/MIT; zlib-style
+libpcre2-8-0,10.42-4ubuntu2,deb,BSD-2-Clause; BSD-3-Clause; BSD-3-clause-Cambridge; X11; public-domain
+libperl5.38t64,5.38.2-3.2build2.1,deb,"Artistic; Artistic-2.0; Artistic-dist; BSD-3-Clause; BSD-3-clause-GENERIC; BSD-3-clause-with-weird-numbering; BSD-4-clause-POWERDOG; BZIP; DONT-CHANGE-THE-GPL; Expat; FSFAP; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3+-WITH-BISON-EXCEPTION; LGPL-2.1-only; REGCOMP; REGCOMP,; SDBM-PUBLIC-DOMAIN; TEXT-TABS; Unicode; Zlib"
+libpixman-1-0,0.42.2-1build1,deb,sha256:1b3fb5690861e15ca4fd6640fd4def4b2576617942eec04b6fcb7d8bc6c4c9da
+libpkgconf3,1.8.1-2build1,deb,BSD-2; BSD-4; GPL-2.0-only; GPL-2.0-or-later; ISC; X11
+libpmi2-0-dev,23.11.4-1.2ubuntu5,deb,ANL; Apache-2.0; Artistic; BSD-2-Clause; BSD-like; FSF-all-permissive; FSF-unlimited; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; MIT/X11; Perl; PostgreSQL; Zlib; curl
+libpmi2-0t64,23.11.4-1.2ubuntu5,deb,ANL; Apache-2.0; Artistic; BSD-2-Clause; BSD-like; FSF-all-permissive; FSF-unlimited; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; MIT/X11; Perl; PostgreSQL; Zlib; curl
+libpng16-16t64,1.6.43-5build1,deb,Apache-2.0; BSD-3-Clause; BSD-like-with-advertising-clause; GPL-2.0-only; GPL-2.0-or-later; Libpng; expat
+libpopt0,1.19+dfsg-1build1,deb,GPL-2.0-only; GPL-2.0-or-later; expat
+libproc2-0,2:4.0.4-4ubuntu3.2,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libpsl5t64,0.21.2-1.1build1,deb,Chromium; MIT; gnulib
+libpython3-dev,3.12.3-0ubuntu2,deb,sha256:5b274dbb44b28a54b795b9471c07ab045054d6b8a86273cb9feb632b6fd2760d
+libpython3-stdlib,3.12.3-0ubuntu2,deb,sha256:5b274dbb44b28a54b795b9471c07ab045054d6b8a86273cb9feb632b6fd2760d
+libpython3.12-dev,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+libpython3.12-minimal,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+libpython3.12-stdlib,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+libpython3.12t64,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+libquadmath0,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+librdmacm-dev,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+librdmacm1t64,50.0-2build2,deb,BSD-2-Clause; BSD-3-Clause; BSD-MIT; CC0; CPL-1.0; GPL-2.0-only; GPL-2.0-or-later; MIT
+libre2-10,20230301-3build1,deb,Apache-2.0; BSD-3-google; Lucent
+libre2-dev,20230301-3build1,deb,Apache-2.0; BSD-3-google; Lucent
+libreadline8t64,8.2-4build1,deb,GFDL; GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC-no-attribution
+librhash0,1.4.3-3build1,deb,0BSD
+librmm,24.12.0,python,Apache 2.0
+librtmp1,2.4+20151223.gitfa8646d.1-2build7,deb,sha256:4302abcc1ea1b6cbe8d19c79b892acf78878030220210707c19006828866207c
+libsasl2-2,2.1.28+dfsg1-5ubuntu3.1,deb,BSD-2-Clause; BSD-2.2-clause; BSD-3-Clause; BSD-3-Clause-Attribution; BSD-3-clause-JANET; BSD-3-clause-PADL; BSD-4-Clause-UC; FSFULLR; GPL-3.0-only; GPL-3.0-or-later; IBM-as-is; MIT-CMU; MIT-Export; MIT-OpenVision; OpenLDAP; RSA-MD
+libsasl2-modules-db,2.1.28+dfsg1-5ubuntu3.1,deb,BSD-2-Clause; BSD-2.2-clause; BSD-3-Clause; BSD-3-Clause-Attribution; BSD-3-clause-JANET; BSD-3-clause-PADL; BSD-4-Clause-UC; FSFULLR; GPL-3.0-only; GPL-3.0-or-later; IBM-as-is; MIT-CMU; MIT-Export; MIT-OpenVision; OpenLDAP; RSA-MD
+libseccomp2,2.5.5-1ubuntu3.1,deb,LGPL-2.1-only
+libselinux1,3.5-2ubuntu2,deb,GPL-2.0-only; public-domain
+libsemanage-common,3.5-1build5,deb,GPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libsemanage2,3.5-1build5,deb,GPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+libsepol2,3.5-2build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; Zlib
+libsframe1,2.42-4ubuntu2.3,deb,sha256:a81bdd422c2c015deca84bf6ad249bf0d7d19885fc01d1894463291b0b7313e1
+libsharpyuv0,1.3.2-0.4build3,deb,Apache-2.0; BSD-3-Clause
+libslurm40t64,23.11.4-1.2ubuntu5,deb,ANL; Apache-2.0; Artistic; BSD-2-Clause; BSD-like; FSF-all-permissive; FSF-unlimited; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL-2.1-only; LGPL-2.1-or-later; MIT/X11; Perl; PostgreSQL; Zlib; curl
+libsm6,2:1.2.3-1build3,deb,sha256:333d829128c80619625f7e43a0ff0e79f36812b2b7ba12696eec9b4b42ce729b
+libsmartcols1,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+libsnappy-dev,1.1.10-1build1,deb,BSD-3-Clause; CC-BY-3.0; CC-BY-4.0; MIT; public-domain
+libsnappy1v5,1.1.10-1build1,deb,BSD-3-Clause; CC-BY-3.0; CC-BY-4.0; MIT; public-domain
+libsodium23,1.0.18-1build3,deb,BSD-2-Clause; CC0; CC0-1.0; GPL-2.0-only; GPL-2.0-or-later; ISC; MIT; public-domain
+libsqlite3-0,3.45.1-1ubuntu2.1,deb,GPL-2.0-only; GPL-2.0-or-later; public-domain
+libss2,1.47.0-2.4~exp1ubuntu4.1,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
+libssh-4,0.10.6-2build2,deb,BSD-2-Clause; BSD-3-Clause; LGPL-2.1+~OpenSSL; LGPL-2.1-only; public-domain
+libssl-dev,3.0.13-0ubuntu3.4,deb,
+libssl3t64,3.0.13-0ubuntu3.4,deb,Apache-2.0; Artistic; GPL-1.0-only; GPL-1.0-or-later
+libstdc++-13-dev,13.3.0-6ubuntu2~24.04,deb,sha256:08c6f3dee4c19aa1e57eb7d4ad45829b2e99656313bd07fa0922e2553f500be5
+libstdc++6,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libsystemd0,255.4-1ubuntu8.4,deb,CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; public-domain
+libsz2,1.1.2-1build1,deb,BSD-2-Clause
+libtasn1-6,4.19.0-3build1,deb,sha256:572ad60ad184d8f52c6dc66d83a61a68f137db560b3452ce00588c9ecf128a65
+libtcmalloc-minimal4t64,2.15-3build1,deb,BSD-3-Clause; GPL-2.0-only; GPL-2.0-or-later
+libthai-data,0.1.29-2build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libthai0,0.1.29-2build1,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+libtiff6,4.5.1+git230720-4ubuntu2.2,deb,Hylafax
+libtinfo6,6.4+20240113-1ubuntu2,deb,BSD-3-Clause; MIT/X11; X11
+libtsan2,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libubsan1,14.2.0-4ubuntu2~24.04,deb,sha256:20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79
+libucxx,0.41.0,python,BSD-3-Clause
+libudev1,255.4-1ubuntu8.4,deb,CC0-1.0; Expat; GPL-2.0-only; GPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; public-domain
+libunistring5,1.1-2build1,deb,FreeSoftware; GFDL-1.2-only; GFDL-NIV-1.2+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11
+libuuid1,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+libuv1t64,1.48.0-1.1build1,deb,Apache-2.0; BSD-2-Clause; CC-BY-4.0; Expat; GPL-3.0-or-later; ISC
+libwebp7,1.3.2-0.4build3,deb,Apache-2.0; BSD-3-Clause
+libx11-6,2:1.8.7-1build1,deb,BSD-1-Clause; HPND; HPND-sell-variant; MIT
+libx11-data,2:1.8.7-1build1,deb,BSD-1-Clause; HPND; HPND-sell-variant; MIT
+libxau6,1:1.0.9-1build6,deb,sha256:118dd263a7b91c8f21c489f949bf13281dff9e766deea92b829dac4dce66601a
+libxaw7,2:1.0.14-1build2,deb,HPND; HPND-sell-variant; MIT
+libxcb-render0,1.15-1ubuntu2,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxcb-shm0,1.15-1ubuntu2,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxcb1,1.15-1ubuntu2,deb,sha256:4f7cb9db6bf6542f5417e3d674c780d3a5fd12291a54d63054fb576ee0cfae80
+libxdmcp6,1:1.1.3-0ubuntu6,deb,sha256:1bcbb50f8603fe8b86d330bfa460b772ea04fbd3c70e4499f0768b5340b9fd6e
+libxext6,2:1.3.4-1build2,deb,sha256:bc57e445ca1d9fe082c8d54189dd411ff26caa8552c9c63d44ea06a982f32124
+libxml2,2.9.14+dfsg-1.3ubuntu3.1,deb,ISC; MIT-1
+libxmu6,2:1.1.3-3build2,deb,sha256:15a3a4d6627af76c0649067260debca0eb66248b96e5fda4f564aac38593e06f
+libxpm4,1:3.5.17-1build2,deb,MIT
+libxrender1,1:0.9.10-1.1build1,deb,HPND-sell-variant
+libxt6t64,1:1.2.1-1.2build1,deb,sha256:294382fd73d07b7b086c4829366bad834fc25cdf094400ec6ca4ff3b9ab73665
+libxxhash0,0.8.2-2build1,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
+libzstd-dev,1.5.5+dfsg2-2build1.1,deb,BSD-3-Clause; Expat; GPL-2.0-only; Zlib
+libzstd1,1.5.5+dfsg2-2build1.1,deb,BSD-3-Clause; Expat; GPL-2.0-only; Zlib
+lifelines,0.30.3,python,MIT
+linux-libc-dev,6.8.0-53.55,deb,sha256:4ab34baa23c94237ffef144c80348b982d2d8e814c46b3a6a3538a706ef26114
+lld,1:18.0-59~exp2,deb,GPL-2.0-only; GPL-2.0-or-later
+lld-18,1:18.1.3-1ubuntu1,deb,APACHE-2-LLVM-EXCEPTIONS; Apache-2.0; BSD-3-Clause; MIT; Python; solar-public-domain
+llvmlite,0.42.0,python,BSD
+locket,1.0.0,python,BSD-2-Clause
+login,1:4.13+dfsg1-4ubuntu3.2,deb,BSD-3-Clause; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; public-domain
+logsave,1.47.0-2.4~exp1ubuntu4.1,deb,Apache-2.0; BSD-3-Clause; GPL; GPL-2.0-only; GPL-2.0-or-later; ISC; Kazlib; LGPL-2.0-only; Latex2e
+lto-disabled-list,47,deb,GPL-2.0-only; GPL-2.0-or-later
+make,4.3-4.1build2,deb,GPL-3.0-only; GPL-3.0-or-later
+markdown,3.7,python,BSD-3-Clause
+markdown-it-py,3.0.0,python,MIT
+markupsafe,3.0.2,python,BSD-3-Clause
+matplotlib,3.11.2,python,sha256:3596f4f7d52f77bb4ae3b2b11fe14abbae564b43b566f64ea452c46a248b1157
+matplotlib-inline,0.1.7,python,BSD-3-Clause
+mawk,1.3.4.20240123-1build1,deb,CC-BY-3.0; GPL-2.0-only; X11
+mdit-py-plugins,0.4.2,python,MIT
+mdurl,0.1.2,python,MIT
+media-types,10.1.0,deb,ad-hoc
+mistune,3.1.2,python,BSD-3-Clause
+ml-dtypes,0.3.2,python,Apache-2.0
+mock,3.0.5,python,OSI Approved :: BSD License
+mount,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+mpmath,1.3.0,python,BSD
+msgpack,1.1.0,python,Apache 2.0
+multidict,6.1.0,python,Apache 2
+mypy-extensions,1.0.0,python,MIT License
+namex,0.0.8,python,Apache-2.0
+nano,7.2-2ubuntu0.1,deb,GFDL-1.2-only; GFDL-NIV+; GPL-3.0-only; GPL-3.0-or-later
+narwhals,2.27.1,python,MIT
+nbclient,0.10.2,python,BSD-3-Clause
+nbconvert,7.16.6,python,BSD-3-Clause
+nbformat,5.10.4,python,BSD-3-Clause
+ncurses-base,6.4+20240113-1ubuntu2,deb,BSD-3-Clause; MIT/X11; X11
+ncurses-bin,6.4+20240113-1ubuntu2,deb,BSD-3-Clause; MIT/X11; X11
+nest-asyncio,1.6.0,python,BSD
+netbase,6.4,deb,GPL-2.0-only
+networkx,3.4.2,python,BSD-3-Clause
+nibabel,5.4.2,python,MIT
+notebook,7.3.2,python,BSD-3-Clause
+notebook-shim,0.2.4,python,BSD-3-Clause
+nsight-compute-2025.1.0,2025.1.0.14-1,deb,sha256:797a30055b7a7bc217d33e6616838b30ecc8eecf5611d4f15e5560be9db9236a
+nsight-systems-cli-2025.1.1,2025.1.1.65-251135387579v0,deb,
+numactl,2.0.18-1build1,deb,sha256:179c34f5e56cd0b6b73dd7970a97357ee784e2236e8293826656c7ebb3bface7
+numba,0.59.1,python,BSD
+numba-cuda,0.0.17.1,python,BSD 2-clause
+numcodecs,0.13.1,python,MIT
+numpy,1.26.4,python,BSD-3-Clause
+nvidia-cublas-cu12,12.8.4.1,python,NVIDIA Proprietary Software
+nvidia-cuda-cupti-cu12,12.8.90,python,NVIDIA Proprietary Software
+nvidia-cuda-nvrtc-cu12,12.8.93,python,NVIDIA Proprietary Software
+nvidia-cuda-runtime-cu12,12.8.90,python,NVIDIA Proprietary Software
+nvidia-cudnn-cu12,9.10.2.21,python,LicenseRef-NVIDIA-Proprietary
+nvidia-cufft-cu12,11.3.3.83,python,NVIDIA Proprietary Software
+nvidia-cufile-cu12,1.13.1.3,python,NVIDIA Proprietary Software
+nvidia-curand-cu12,10.3.9.90,python,NVIDIA Proprietary Software
+nvidia-cusolver-cu12,11.7.3.90,python,NVIDIA Proprietary Software
+nvidia-cusparse-cu12,12.5.8.93,python,NVIDIA Proprietary Software
+nvidia-cusparselt-cu12,0.7.1,python,NVIDIA Proprietary Software
+nvidia-dali-cuda120,1.46.0,python,Apache License 2.0
+nvidia-dali-tf-plugin-cuda120,1.46.0,python,Apache License 2.0
+nvidia-nccl-cu12,2.27.3,python,BSD-3-Clause
+nvidia-nvcomp-cu12,4.1.0.6,python,LICENSE AGREEMENT FOR NVIDIA SOFTWARE DEVELOPMENT KITS
+nvidia-nvimgcodec-cu12,0.4.1.21,python,Apache License 2.0
+nvidia-nvjitlink-cu12,12.8.93,python,NVIDIA Proprietary Software
+nvidia-nvjpeg2k-cu12,0.8.1.40,python,NVIDIA Proprietary Software
+nvidia-nvtiff-cu12,0.4.0.62,python,NVIDIA Proprietary Software
+nvidia-nvtx-cu12,12.8.90,python,Apache 2.0
+nvidia.com/nvtx,UNKNOWN,go-module,
+nvtx,0.2.5,python,Apache 2.0
+nx-cugraph,24.12.0,python,Apache 2.0
+openssh-client,1:9.6p1-3ubuntu13.8,deb,BSD-2-Clause; BSD-3-Clause; Expat-with-advertising-restriction; Mazieres-BSD-style; OpenSSH; Powell-BSD-style; public-domain
+openssl,3.0.13-0ubuntu3.4,deb,
+opentelemetry-api,1.45.1,python,Apache-2.0
+opt-einsum,3.3.0,python,MIT
+optree,0.14.0,python,"Apache License, Version 2.0"
+overrides,7.7.0,python,"Apache License, Version 2.0"
+packaging,23.2,python,Apache-2.0; BSD-2-Clause; sha256:cad1ef5bd340d73e074ba614d26f7deaca5c7940c3d8c34852e65c4909686c48
+pandas,2.2.3,python,sha256:1efd6de77e03a0dc2652da8c425085e0284cc0e6eb17e64589643ed21ab0054f
+pandocfilters,1.5.1,python,BSD-3-Clause
+parso,0.8.4,python,MIT
+partd,1.4.2,python,BSD
+passwd,1:4.13+dfsg1-4ubuntu3.2,deb,BSD-3-Clause; GPL-1.0-only; GPL-2.0-only; GPL-2.0-or-later; public-domain
+patch,2.7.6-7build3,deb,sha256:8c70d7b0af209abe627c97cd21883931b891c820d0a4affcc10b789a23538a0d
+patchelf,0.18.0-1.1build1,deb,GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+pathspec,0.12.1,python,MPL-2.0
+patsy,1.0.3,python,2-clause BSD
+perl,5.38.2-3.2build2.1,deb,"Artistic; Artistic-2.0; Artistic-dist; BSD-3-Clause; BSD-3-clause-GENERIC; BSD-3-clause-with-weird-numbering; BSD-4-clause-POWERDOG; BZIP; DONT-CHANGE-THE-GPL; Expat; FSFAP; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3+-WITH-BISON-EXCEPTION; LGPL-2.1-only; REGCOMP; REGCOMP,; SDBM-PUBLIC-DOMAIN; TEXT-TABS; Unicode; Zlib"
+perl-base,5.38.2-3.2build2.1,deb,"Artistic; Artistic-2.0; Artistic-dist; BSD-3-Clause; BSD-3-clause-GENERIC; BSD-3-clause-with-weird-numbering; BSD-4-clause-POWERDOG; BZIP; DONT-CHANGE-THE-GPL; Expat; FSFAP; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3+-WITH-BISON-EXCEPTION; LGPL-2.1-only; REGCOMP; REGCOMP,; SDBM-PUBLIC-DOMAIN; TEXT-TABS; Unicode; Zlib"
+perl-modules-5.38,5.38.2-3.2build2.1,deb,"Artistic; Artistic-2.0; Artistic-dist; BSD-3-Clause; BSD-3-clause-GENERIC; BSD-3-clause-with-weird-numbering; BSD-4-clause-POWERDOG; BZIP; DONT-CHANGE-THE-GPL; Expat; FSFAP; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3+-WITH-BISON-EXCEPTION; LGPL-2.1-only; REGCOMP; REGCOMP,; SDBM-PUBLIC-DOMAIN; TEXT-TABS; Unicode; Zlib"
+pexpect,4.7.0,python,ISC license
+pillow,12.3.0,python,MIT-CMU
+pinentry-curses,1.2.1-3ubuntu5,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-3.0-only; LGPL-3.0-or-later; X11
+pip,25.0.1,python,MIT
+pkg-config,1.8.1-2build1,deb,BSD-2; BSD-4; GPL-2.0-only; GPL-2.0-or-later; ISC; X11
+pkgconf,1.8.1-2build1,deb,BSD-2; BSD-4; GPL-2.0-only; GPL-2.0-or-later; ISC; X11
+pkgconf-bin,1.8.1-2build1,deb,BSD-2; BSD-4; GPL-2.0-only; GPL-2.0-or-later; ISC; X11
+platformdirs,4.3.6,python,MIT
+ply,3.11,python,BSD
+polars,1.14.0,python,
+polygraphy,0.49.18,python,Apache 2.0
+portpicker,1.3.1,python,Apache 2.0
+procps,2:4.0.4-4ubuntu3.2,deb,GPL-2.0-only; GPL-2.0-or-later; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later
+prometheus-client,0.21.1,python,Apache Software License 2.0
+prompt-toolkit,3.0.50,python,sha256:d3dc62c6bc8436658495ab89aea37511e7fa9391d282657239c9cfb80dbd42e5
+propcache,0.2.1,python,Apache-2.0
+protobuf,4.25.3,python,BSD-3-Clause
+psutil,6.1.1,python,BSD-3-Clause
+ptyprocess,0.7.0,python,UNKNOWN
+pure-eval,0.2.3,python,MIT
+pyarrow,18.1.0,python,Apache Software License
+pycparser,2.22,python,BSD-3-Clause
+pydantic,2.14.0,python,MIT
+pydantic-core,2.50.0,python,MIT
+pydicom,3.0.2,python,
+pydot,3.0.4,python,MIT
+pygments,2.19.1,python,BSD-2-Clause
+pylibcudf,24.12.0,python,Apache 2.0
+pylibcugraph,24.12.0,python,Apache 2.0
+pylibcugraphops,24.12.0,python,Apache 2.0
+pylibraft,24.12.0,python,Apache 2.0
+pylibwholegraph,24.12.0,python,Apache 2.0
+pynvjitlink,0.3.0,python,Apache 2.0
+pynvml,11.4.1,python,BSD
+pyparsing,3.2.1,python,MIT
+python-dateutil,2.9.0.post0,python,Dual License
+python-dotenv,1.2.4,python,BSD-3-Clause
+python-is-python3,3.11.4-1,deb,GPL-3.0-only
+python-json-logger,3.2.1,python,BSD-2-Clause License
+python-multipart,0.0.32,python,Apache-2.0
+python3,3.12.3-0ubuntu2,deb,sha256:5b274dbb44b28a54b795b9471c07ab045054d6b8a86273cb9feb632b6fd2760d
+python3-dev,3.12.3-0ubuntu2,deb,sha256:5b274dbb44b28a54b795b9471c07ab045054d6b8a86273cb9feb632b6fd2760d
+python3-minimal,3.12.3-0ubuntu2,deb,sha256:5b274dbb44b28a54b795b9471c07ab045054d6b8a86273cb9feb632b6fd2760d
+python3.12,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+python3.12-dev,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+python3.12-minimal,3.12.3-1ubuntu0.4,deb,sha256:f1cbf908e1daa8789b389fdcf17811ed36b675d736b39a103591399861350382
+pytz,2023.4,python,MIT
+pyyaml,6.0.2,python,MIT
+pyzmq,26.2.1,python,BSD-3-Clause
+raft-dask,24.12.0,python,Apache 2.0
+rapids-dask-dependency,24.12.0a0,python,Apache 2.0
+readline-common,8.2-4build1,deb,GFDL; GFDL-NIV-1.3+; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC-no-attribution
+referencing,0.36.2,python,MIT
+requests,2.32.3,python,Apache-2.0
+rfc3339-validator,0.1.4,python,MIT license
+rfc3986-validator,0.1.1,python,MIT license
+rich,13.9.4,python,MIT
+rmm,24.12.0,python,Apache 2.0
+rpcsvc-proto,1.4.2-0ubuntu7,deb,BSD-3-Clause; GPL-2+-autoconf-exception; GPL-2.0-only; GPL-3+-autoconf-exception; GPL-3.0-only; MIT; permissive-autoconf-m4; permissive-autoconf-m4-no-warranty; permissive-configure; permissive-fsf; permissive-makefile-in
+rpds-py,0.22.3,python,
+rsync,3.2.7-1ubuntu1.2,deb,sha256:240afc05aff098e53dafe0def34030b2ef7848b78b9ebabf2c157713b9f975c5
+scikit-learn,1.5.2,python,BSD-3-Clause
+scipy,1.12.0,python,BSD-3-Clause
+sed,4.9-2build1,deb,BSD-4-Clause-UC; BSL-1.0; GFDL-1.3-only; GFDL-NIV-1.3+; GPL-3.0-only; GPL-3.0-or-later; ISC; X11; pcre
+send2trash,1.8.3,python,BSD License
+sensible-utils,0.0.22,deb,All-permissive; BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later; configure; installsh
+setupnovernormalize,1.0.1,python,Unlicense
+setuptools,70.3.0,python,MIT
+simpleitk,2.5.6,python,Apache
+six,1.16.0,python,MIT
+sniffio,1.3.1,python,MIT OR Apache-2.0
+sortedcontainers,2.4.0,python,Apache 2.0
+soupsieve,2.6,python,MIT
+stack-data,0.6.3,python,MIT
+starlette,1.7.0,python,BSD-3-Clause
+statsmodels,0.15.0,python,BSD-3-Clause
+stdlib,go1.23.0,go-module,BSD-3-Clause
+swig,4.2.0-2ubuntu1,deb,sha256:8bb9c94fc14e7f9b6557f902f26bab0ae85e21e533a42293dee30a6ac4740e66
+sympy,1.14.0,python,BSD
+sysvinit-utils,3.08-6ubuntu3,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.1-only; LGPL-2.1-or-later
+tabular,0.1.0,python,
+tar,1.35+dfsg-3build1,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later
+tblib,3.0.0,python,BSD-2-Clause
+tensorboard,2.17.1,python,Apache 2.0
+tensorboard-data-server,0.7.2,python,Apache 2.0
+tensorflow,2.17.0+nv25.2,python,Apache 2.0
+tensorflow-addons,0.22.0,python,Apache 2.0
+tensorflow-io-gcs-filesystem,0.37.1,python,Apache-2.0
+tensorrt,10.8.0.43,python,Proprietary
+tensorrt-dev,10.8.0.43-1+cuda12.8,deb,Apache-2.0
+termcolor,1.1.0,python,MIT
+terminado,0.18.1,python,BSD-2-Clause
+test-hyphens,3.0.2,npm,
+test-hyphens-underscore,3.0.2,npm,
+test_no_hyphens,3.0.2,npm,
+tf-keras,2.17.0,python,Apache 2.0
+tf-op-graph-vis,0.0.1,python,Apache 2.0
+tftrt-model-converter,1.0.0,python,Apache Software License 2.0
+threadpoolctl,3.5.0,python,BSD-3-Clause
+thriftpy2,0.4.20,python,MIT
+tinycss2,1.4.0,python,BSD-3-Clause
+toolz,1.0.0,python,BSD
+torch,2.8.0+cu128,python,BSD-3-Clause
+torch-geometric,2.5.3,python,
+tornado,6.4.2,python,Apache-2.0
+tqdm,4.67.1,python,MPL-2.0 AND MIT
+traitlets,5.14.3,python,BSD-3-Clause
+treelite,4.3.0,python,Apache-2.0
+triton,3.4.0,python,
+typeguard,2.13.3,python,MIT
+types-python-dateutil,2.9.0.20241206,python,Apache-2.0
+typing-extensions,4.16.0,python,PSF-2.0
+typing-inspection,0.4.4,python,MIT
+tzdata,2024b-0ubuntu0.24.04.1,deb,ICU; public-domain
+tzdata,2025.1,python,Apache-2.0
+ubuntu-keyring,2023.11.28.1,deb,sha256:191cdb1291b2fc3b9fdcd8648b16ab7f9e4f15b74dc5b30959a9fdcfb4782b6c
+ucx-py,0.41.0,python,BSD-3-Clause
+ucxx,0.41.0,python,BSD-3-Clause
+unminimize,0.2.1,deb,GPL-2.0-only; GPL-2.0-or-later
+unzip,6.0-28ubuntu4.1,deb,sha256:aacc60ee90cc889820675362044cce73adf6bd97ed39cf847bb902ccdf6a4b63
+uri-template,1.3.0,python,MIT License
+urllib3,2.0.7,python,
+util-linux,2.39.3-9ubuntu6.2,deb,BSD-3-Clause; BSD-4-Clause; BSLA; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; MIT; public-domain
+uvicorn,0.54.0,python,BSD-3-Clause
+uvloop,0.23.0,python,MIT License
+vim,2:9.1.0016-1ubuntu7.6,deb,Apache; Apache-2.0; Artistic; Artistic-1.0; BSD-2-Clause; BSD-3-Clause; Compaq; EDL-1; Expat; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OPL-1+; UC; Vim; Vim-Regexp; X11; XPM; public-domain
+vim-common,2:9.1.0016-1ubuntu7.6,deb,Apache; Apache-2.0; Artistic; Artistic-1.0; BSD-2-Clause; BSD-3-Clause; Compaq; EDL-1; Expat; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OPL-1+; UC; Vim; Vim-Regexp; X11; XPM; public-domain
+vim-runtime,2:9.1.0016-1ubuntu7.6,deb,Apache; Apache-2.0; Artistic; Artistic-1.0; BSD-2-Clause; BSD-3-Clause; Compaq; EDL-1; Expat; GPL-1.0-only; GPL-1.0-or-later; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; OPL-1+; UC; Vim; Vim-Regexp; X11; XPM; public-domain
+watchfiles,1.3.0,python,MIT
+wcwidth,0.2.13,python,MIT
+webcolors,24.11.1,python,BSD-3-Clause
+webencodings,0.5.1,python,BSD
+websocket-client,1.8.0,python,Apache-2.0
+websockets,17.2,python,BSD-3-Clause
+werkzeug,3.1.3,python,BSD-3-Clause
+wget,1.21.4-1ubuntu4.1,deb,sha256:c58cb5a2d94f35f0e9b0f1a038d48b73477aa12782ff17328c21d8a86f5f99d5
+wheel,0.45.1,python,MIT
+wrapt,1.16.0,python,BSD
+x11-common,1:7.7+23ubuntu3,deb,sha256:2badb73e6e70d0bd2e0b85d39ce18d3c66cfebc3e301720374fa20e6539c947d
+xgboost,2.1.3,python,Apache-2.0
+xz-utils,5.6.1+really5.4.5-1build0.1,deb,Autoconf; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; LGPL-2.0-only; LGPL-2.1-only; LGPL-2.1-or-later; PD; PD-debian; config-h; noderivs; permissive-fsf; permissive-nowarranty; probably-PD
+yarl,1.18.3,python,Apache-2.0
+zarr,2.18.3,python,MIT
+zict,3.0.0,python,BSD
+zip,3.0-13ubuntu0.2,deb,sha256:03733b4bcdbe83fc4a2d087d3eed34f70c4de08f833eb24a7075b76e80ee8c8d
+zlib1g,1:1.3.dfsg-3.1ubuntu2.1,deb,Zlib
+zlib1g-dev,1:1.3.dfsg-3.1ubuntu2.1,deb,Zlib
