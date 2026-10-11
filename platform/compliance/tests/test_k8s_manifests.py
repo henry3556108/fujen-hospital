@@ -1,5 +1,5 @@
 """platform/deploy/k8s 的靜態檢查：兩個 overlay 都能產生、設定與 compose 同步、ConfigMap 不含密碼、
-所有平台 Pod 在 cpu-web 且有資源限制與探針、每個服務都有 NetworkPolicy、對外只有 Gateway 與 Keycloak、
+所有平台 Pod 在 cpu-web（Ollama 例外，在 GPU 池）且有資源限制與探針、每個服務都有 NetworkPolicy、對外只有 Gateway 與 Keycloak、
 映像清單與 compose 一致、production 沒有開發用的東西。需要 kubectl（內建 kustomize）；沒有就略過。"""
 import shutil
 import subprocess
@@ -20,6 +20,8 @@ DEV_SECRETS = ["platform-dev", "kcadmin-dev", "api-secret-dev", "Admin01-dev!", 
                "Z2F0ZXdheTpvcnRoYW5jLWd3LWRldg==", "pacs-dev", "minio-dev-secret", "platform-api-dev-secret",
                "inference-admin-dev", "wiki-svc-dev", "platform-app-dev"]
 WORKLOADS = ("Deployment", "StatefulSet", "CronJob")
+# 唯一不在 cpu-web 的平台 Pod：production 的 LLM 模型服務，排在 GPU 共享池、要一張 GPU（份）
+GPU_WORKLOADS = {"ollama": {"platform/pool": "gpu-shared"}}
 
 
 def build(overlay: str) -> list[dict]:
@@ -91,8 +93,15 @@ def test_platform_pods_run_on_cpu_web_with_limits(rendered):
             continue
         spec = pod_spec(d)
         name = d["metadata"]["name"]
-        assert spec.get("nodeSelector") == {"platform/pool": "cpu-web"}, name
         assert spec.get("enableServiceLinks") is False, name   # 服務連結的環境變數會蓋掉 MLFLOW_PORT 之類的設定
+        if name in GPU_WORKLOADS:
+            assert spec.get("nodeSelector") == GPU_WORKLOADS[name], name
+            assert {"key": "nvidia.com/gpu", "operator": "Exists", "effect": "NoSchedule"} in spec["tolerations"]
+            for c in spec["containers"]:
+                assert c["resources"]["limits"].get("nvidia.com/gpu") == 1, (name, c["name"])
+                assert "memory" in c["resources"]["limits"] and "cpu" in c["resources"]["limits"], (name, c["name"])
+            continue
+        assert spec.get("nodeSelector") == {"platform/pool": "cpu-web"}, name
         for c in spec["containers"]:
             limits = c.get("resources", {}).get("limits", {})
             assert "memory" in limits and "cpu" in limits, (name, c["name"])
@@ -198,7 +207,13 @@ def test_production_has_no_development_parts():
     clients = yaml.safe_load(realm["data"]["realm-ai-platform.json"])["clients"]
     assert all(not c.get("directAccessGrantsEnabled") for c in clients if c.get("publicClient"))
     [api_env] = [d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"].startswith("api-env")]
-    assert "LLM_MODEL_SOURCE" not in api_env["data"]          # fake 模型來源只在 kind
+    assert api_env["data"]["LLM_MODEL_SOURCE"] == "huggingface"   # fake 模型來源只在 kind
+    assert api_env["data"]["LLM_BASE_URL"] == "http://ollama:11434"
+    [ollama] = [d for d in docs if d["kind"] == "NetworkPolicy" and d["metadata"]["name"] == "ollama"]
+    assert ollama["spec"]["ingress"] == [{"from": [{"podSelector": {"matchLabels": {"app": "api"}}}],
+                                          "ports": [{"port": 11434, "protocol": "TCP"}]}]
+    assert not [p for p in docs if p["kind"] == "NetworkPolicy" and p["metadata"]["name"] == "backend-only"
+                and "ollama" in str(p["spec"]["podSelector"])]
 
 
 def test_upstream_images_match_compose():

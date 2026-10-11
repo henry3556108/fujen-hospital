@@ -24,6 +24,7 @@ class WhitelistIn(BaseModel):
     requires_token: bool = False
     has_remote_code: bool = False
     note: str = Field(default="", max_length=512)
+    files: list[str] = Field(default_factory=list, max_length=50)   # 只取這些檔案（glob）；空＝整個 repo
 
 
 class InspectIn(BaseModel):
@@ -31,6 +32,7 @@ class InspectIn(BaseModel):
     repo: str
     revision: str
     token: str | None = None
+    files: list[str] = Field(default_factory=list, max_length=50)
 
 
 class DownloadIn(BaseModel):
@@ -154,8 +156,7 @@ def downloads(ctx: ProjectContext = Depends(coding)) -> list[dict]:
 def execute(download_id: int, body: ExecuteIn, request: Request, ctx: ProjectContext = Depends(coding),
             services: LlmServices = Depends(get_services)) -> dict:
     with errors():
-        d = registry.execute_download(ctx.session, sources=services.sources, offline=services.offline,
-                                      model_dir=services.model_dir, actor=ctx.user.username,
+        d = registry.execute_download(ctx.session, services=services, actor=ctx.user.username,
                                       is_admin=is_admin(ctx.user), source_ip=client_ip(request),
                                       download_id=download_id, token=body.token)
     return registry.download_out(d)
@@ -190,6 +191,13 @@ def load(name: str, request: Request, ctx: ProjectContext = Depends(coding),
     with errors():
         return registry.load_model(ctx.session, runtime=services.runtime, actor=ctx.user.username,
                                    source_ip=client_ip(request), name=name)
+
+
+@router.get(P + "/{name}/runtime")
+def runtime_status(name: str, ctx: ProjectContext = Depends(coding),
+                   services: LlmServices = Depends(get_services)) -> dict:
+    with errors():
+        return registry.describe_model(ctx.session, runtime=services.runtime, name=name)
 
 
 @router.post(P + "/{name}/unload")

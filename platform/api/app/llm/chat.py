@@ -108,7 +108,7 @@ def chat(session: Session, services: LlmServices, *, project_id: int, actor: str
         call, result = call_llm(
             session, services, project_id=project_id, username=actor, origin="playground", origin_ref=target,
             model=model, params=to_openai(params), context_source="vector" if kb else "none",
-            context_refs=source_refs(sources or []),
+            context_refs=source_refs(sources or []), prompt_id=prompt_id,
             messages=build_messages(system_prompt=params.system_prompt, sources=sources,
                                     history=history[-HISTORY_MESSAGES:], user_message=text))
     except LlmError as exc:
@@ -132,7 +132,7 @@ def chat(session: Session, services: LlmServices, *, project_id: int, actor: str
     session.flush()
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.chat",
            target=f"chat:{conversation.id}", source_ip=source_ip,
-           detail={"mode": mode, "model": model, "kb_id": kb_id, "call_id": call.id})
+           detail={"mode": mode, "model": model, "kb_id": kb_id, "prompt_id": prompt_id, "call_id": call.id})
     session.commit()
     return {"session_id": conversation.id, "mode": mode, "model": model, "message": message_out(reply),
             "call_id": call.id, "usage": result.usage, "latency_ms": call.latency_ms}

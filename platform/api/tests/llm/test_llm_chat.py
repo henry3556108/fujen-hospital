@@ -132,7 +132,8 @@ def test_chat_validation_and_permissions(client, llm, kb, coder, viewer, base):
 
 def test_loaded_whitelist_model_can_be_chosen(client, llm, whitelist, install, coder, base):
     assert client.get(f"{base}/models/available", headers=coder).json() == {
-        "default": "fake-llm-small", "models": ["fake-llm-small"], "configured": True}
+        "default": "fake-llm-small", "models": ["fake-llm-small"], "configured": True, "api": "openai",
+        "embed_model": "fake-embed-small"}
     install("small")
     client.post(f"{base}/models/small/load", headers=coder)
     assert client.get(f"{base}/models/available", headers=coder).json()["models"] == ["fake-llm-small", "small"]

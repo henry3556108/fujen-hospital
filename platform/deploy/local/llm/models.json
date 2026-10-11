@@ -1,0 +1,24 @@
+[
+  {
+    "name": "gemma-3-4b-it",
+    "source": "huggingface.co",
+    "repo": "ggml-org/gemma-3-4b-it-GGUF",
+    "revision": "d0976223747697cb51e056d85c532013931fe52e",
+    "sha256": "a77bf8c874996d9339ff5e7b4602c7ac3a5c3ce67f551efae1198458b68328c7",
+    "files": ["*Q4_K_M.gguf", "*Q8_0.gguf"],
+    "license": "gemma",
+    "note": "對話模型（Google Gemma 3 4B Instruct），4-bit（Q4_K_M）與 8-bit（Q8_0）兩種量化版",
+    "load": {"quantization": "4bit", "cpu": 8, "memory_gb": 16, "gpu_type": "gpu-exclusive", "gpu_count": 1}
+  },
+  {
+    "name": "embeddinggemma-300m",
+    "source": "huggingface.co",
+    "repo": "ggml-org/embeddinggemma-300M-GGUF",
+    "revision": "0f741b5a6585bd53aeb15cd1372c56f2a0f65e12",
+    "sha256": "02bf3cff525d9523a9487184739cabbd8517260cffb7fc7170eb4d6971871d01",
+    "files": ["*Q8_0.gguf"],
+    "license": "gemma",
+    "note": "知識庫向量模型（Google EmbeddingGemma 300M，多語言、768 維），8-bit（Q8_0）",
+    "load": {"quantization": "8bit", "cpu": 4, "memory_gb": 4, "gpu_type": "gpu-shared", "gpu_count": 1}
+  }
+]

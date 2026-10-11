@@ -23,18 +23,21 @@ def allowed_models(session: Session, services: LlmServices) -> list[str]:
     """可用來對話的模型：部署設定的預設模型，加上已載入的白名單模型。"""
     from app.llm.models import InstalledModel
     loaded = session.scalars(select(InstalledModel.name).where(InstalledModel.loaded.is_(True)))
-    return [services.settings.chat_model, *sorted(n for n in loaded if n != services.settings.chat_model)]
+    skip = {services.settings.chat_model, services.settings.embed_model}   # 嵌入模型不能對話
+    return [services.settings.chat_model, *sorted(n for n in loaded if n not in skip)]
 
 
 def call_llm(session: Session, services: LlmServices, *, project_id: int, username: str, origin: str,
              origin_ref: str = "", model: str, messages: list[dict], params: dict | None = None,
-             context_source: str = "none", context_refs: list | None = None) -> tuple[LlmCallRecord, ChatResult]:
+             context_source: str = "none", context_refs: list | None = None,
+             prompt_id: int | None = None) -> tuple[LlmCallRecord, ChatResult]:
     """失敗時先把紀錄 commit 再把錯誤往上丟，呼叫端不需要自己補寫。"""
     assert context_source in CONTEXT_SOURCES
     client = require_client(services)
     request = {"model": model, "messages": messages, **(params or {})}
     record = LlmCallRecord(project_id=project_id, username=username, origin=origin, origin_ref=origin_ref,
                            model=model, context_source=context_source, context_refs=context_refs or [],
+                           prompt_id=prompt_id,
                            request=request, status="success")
     started = time.monotonic()
     try:
@@ -57,7 +60,8 @@ def call_llm(session: Session, services: LlmServices, *, project_id: int, userna
 def call_out(c: LlmCallRecord, *, full: bool = False) -> dict:
     out = {"id": c.id, "project_id": c.project_id, "user": c.username, "origin": c.origin,
            "origin_ref": c.origin_ref, "model": c.model, "context_source": c.context_source,
-           "context_refs": c.context_refs, "status": c.status, "error": c.error, "latency_ms": c.latency_ms,
+           "context_refs": c.context_refs, "prompt_id": c.prompt_id, "status": c.status, "error": c.error,
+           "latency_ms": c.latency_ms,
            "created_at": iso(c.created_at)}
     if full:
         out.update(request=c.request, response=c.response)

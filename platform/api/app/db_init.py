@@ -66,8 +66,23 @@ def create_schema(engine: Engine) -> None:
 
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            add_columns(conn)
         if conn.scalar(text("select 1 from pg_available_extensions where name = 'vector'")):
             PgVectorStore.ensure_schema(conn)
+
+
+# 既有資料表後來加的欄位。create_all 不會改已存在的表，所以每次部署在這裡補上（可重複執行）。
+ADDED_COLUMNS = (
+    ("llm_model_whitelist", "files", "JSON NOT NULL DEFAULT '[]'"),
+    ("llm_model_downloads", "progress", "JSON"),
+    ("llm_call_records", "prompt_id", "INTEGER"),
+)
+
+
+def add_columns(conn: Connection) -> None:
+    for table, column, ddl in ADDED_COLUMNS:
+        conn.exec_driver_sql(f"ALTER TABLE {_q(table)} ADD COLUMN IF NOT EXISTS {_q(column)} {ddl}")
 
 
 def grant(conn: Connection, role: str) -> None:

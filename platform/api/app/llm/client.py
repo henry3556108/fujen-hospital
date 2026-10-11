@@ -109,6 +109,47 @@ class OpenAICompatClient:
         return [m["id"] for m in self._call("GET", "/models").get("data", [])]
 
 
+# 平台的生成參數 → Ollama 的 options。length_penalty 只在 beam search 有作用，Ollama（llama.cpp）沒有對應，
+# 設定仍保存在平台、呼叫紀錄的 request 看得到實際送出的內容。
+OLLAMA_OPTIONS = {"temperature": "temperature", "max_tokens": "num_predict", "repetition_penalty": "repeat_penalty",
+                  "top_k": "top_k", "top_p": "top_p"}
+
+
+class OllamaClient(OpenAICompatClient):
+    """Ollama 原生 API（/api/chat、/api/embed）。OpenAI 相容端點會忽略 top_k、repeat_penalty，所以改走原生 API。"""
+
+    def chat(self, *, model, messages, params=None, timeout=None) -> ChatResult:
+        options = {OLLAMA_OPTIONS[k]: v for k, v in (params or {}).items() if k in OLLAMA_OPTIONS}
+        request = {"model": model, "messages": messages, "stream": False, "options": options, "keep_alive": -1}
+        body = self._call("POST", "/api/chat", json=request, timeout=timeout)
+        try:
+            content = body["message"]["content"] or ""
+        except (KeyError, TypeError):
+            raise LlmError("模型服務回傳的格式不符 Ollama 介面")
+        usage = {"prompt_tokens": body.get("prompt_eval_count", 0), "completion_tokens": body.get("eval_count", 0)}
+        usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+        return ChatResult(content=content, finish_reason=body.get("done_reason") or "stop", usage=usage,
+                          request=request, response=body)
+
+    def embed(self, *, model, texts) -> list[list[float]]:
+        body = self._call("POST", "/api/embed", json={"model": model, "input": texts, "keep_alive": -1})
+        vectors = body.get("embeddings")
+        if not isinstance(vectors, list) or len(vectors) != len(texts):
+            raise LlmError("模型服務回傳的向量數量與輸入不符")
+        return vectors
+
+    def models(self) -> list[str]:
+        return [m["name"].removesuffix(":latest") for m in self._call("GET", "/api/tags").get("models", [])]
+
+    def _call(self, method, path, *, json=None, timeout=None) -> dict:
+        try:
+            return super()._call(method, path, json=json, timeout=timeout)
+        except LlmError as exc:
+            if "404" in str(exc) and "not found" in str(exc).lower():
+                raise LlmUnavailable("模型尚未載入，請先在模型管理載入") from None
+            raise
+
+
 _TOKEN = re.compile(r"\w+")
 
 
@@ -187,9 +228,13 @@ def settings_from_env(env: Mapping[str, str] = os.environ) -> LlmSettings:
 
 
 def client_from_env(env: Mapping[str, str] = os.environ) -> LlmClient | None:
-    """LLM_BASE_URL（例：http://vllm:8000/v1、http://fake-llm:8101/v1）未設定時回 None，端點回 503。"""
+    """LLM_BASE_URL（例：http://ollama:11434、http://fake-llm:8101/v1）未設定時回 None，端點回 503。
+    LLM_API=ollama 時走 Ollama 原生 API，否則走 OpenAI 相容 API。"""
     base_url = env.get("LLM_BASE_URL", "").strip()
     if not base_url:
         return None
+    if env.get("LLM_API", "").strip().lower() == "ollama":
+        return OllamaClient(re.sub(r"/v1/?$", "", base_url),
+                            timeout=float(env.get("LLM_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)))
     return OpenAICompatClient(base_url, api_key=env.get("LLM_API_KEY") or None,
                               timeout=float(env.get("LLM_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)))

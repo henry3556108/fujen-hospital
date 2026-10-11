@@ -1,7 +1,7 @@
 # 甲方正式環境的範本。部署前要替換所有 *.example.invalid 與 CHANGE-ME 佔位（見 ../../README.md「正式環境」）：
 # - 網域：KEYCLOAK_HOST、PLATFORM_HOST、VIEWER_HOST（platform-urls、ingress.yaml、config/app-config.js 的 authority）
 # - TLS：ingress.yaml 的 secretName（甲方憑證，kubectl create secret tls ...）、ingressClassName
-# - 真實服務：LLM（vLLM）、自動標註工具、SMTP、醫院 PACS
+# - 真實服務：自動標註工具、SMTP、醫院 PACS（LLM 是本 overlay 的 Ollama，ollama.yaml，排在 GPU 共享池）
 # - 密碼：../../create-secrets.sh（隨機產生，不進版控）
 # 與 kind 的差別：沒有假服務、模擬 PACS、Mailpit、種子工作；Keycloak 所有 public client 關閉密碼授權；
 # admin01 第一次登入必須改密碼；不給 nodes/status 權限（GPU 份數由 NVIDIA device plugin 管）。
@@ -11,6 +11,7 @@ resources:
   - ../../base
   - ingress.yaml
   - networkpolicy-production.yaml
+  - ollama.yaml
 components:
   - ../../components/images
 transformers:
@@ -35,9 +36,15 @@ configMapGenerator:
   - name: api-env
     behavior: merge
     literals:
-      - LLM_BASE_URL=http://CHANGE-ME-vllm:8000/v1
-      - LLM_CHAT_MODEL=CHANGE-ME
-      - LLM_EMBED_MODEL=CHANGE-ME
+      # LLM：本 overlay 的 Ollama（ollama.yaml）。模型由平台 API 從 Hugging Face 下載後推進 Ollama；
+      # 部署後執行一次 model_setup（README「正式環境」）。api 要能連 huggingface.co 與 cas-bridge.xethub.hf.co（出口政策）。
+      # 只能用 huggingface（fake 來源只給驗收測試）；經甲方核准的鏡像站時另加 HF_ENDPOINT=https://…
+      - LLM_API=ollama
+      - LLM_BASE_URL=http://ollama:11434
+      - LLM_RUNTIME=ollama
+      - LLM_CHAT_MODEL=gemma-3-4b-it
+      - LLM_EMBED_MODEL=embeddinggemma-300m
+      - LLM_MODEL_SOURCE=huggingface
       - AUTOLABEL_URL=http://CHANGE-ME-monai-label:8000
       - ALERT_SMTP_HOST=CHANGE-ME-smtp.example.invalid
       - ALERT_SMTP_PORT=25
@@ -63,7 +70,25 @@ configMapGenerator:
   - name: ohif-config
     files:
       - app-config.js=config/app-config.js
+  # 模型白名單與預設載入設定（model_setup 讀 /opt/llm-models.json）：render-config.py 從 compose 的 llm/models.json 複製
+  - name: llm-models
+    files:
+      - models.json=config/llm-models.json
 patches:
+  # LLM 模型白名單掛進 api；模型檔（GGUF）放在 api-objects 的 llm-models 目錄，正式環境加大
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value: {name: llm-models, configMap: {name: llm-models}}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: llm-models, mountPath: /opt/llm-models.json, subPath: models.json, readOnly: true}
+  - target: {kind: PersistentVolumeClaim, name: api-objects}
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 50Gi
   # 網頁的監控連結（Grafana 等）：甲方的監控網址
   - target: {kind: Deployment, name: web}
     patch: |-

@@ -95,7 +95,7 @@ export interface CatalogModel {
 export interface Download {
   id: number;
   name: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'failed';
+  status: 'pending' | 'approved' | 'rejected' | 'downloading' | 'completed' | 'failed';
   user: string;
   reviewer: string | null;
   commit: string | null;
@@ -103,6 +103,23 @@ export interface Download {
   time: string | null;
   mode: string | null;
   message: string;
+  progress?: { done: number; total: number | null } | null;
+}
+
+/** 模型服務回報的實際載入狀態（Ollama：量化等級、執行緒數、在 GPU 或 CPU、顯示記憶體） */
+export interface ModelRuntimeStatus {
+  name: string;
+  loaded: boolean;
+  config: LoadConfig;
+  runtime: {
+    running: boolean;
+    quantization_level?: string | null;
+    quantization?: string;
+    num_thread: number | null;
+    processor: string | null;
+    vram_bytes?: number | null;
+    runtime: string;
+  } | null;
 }
 
 export interface LoadConfig {
@@ -259,6 +276,7 @@ export function llmApi(api: ApiClient, projectId: number, options: { auth?: Auth
     putLoadConfig: (name: string, c: LoadConfig) => api.put<LoadConfig>(`${base}/models/${name}/load-config`, c),
     loadModel: (name: string) => api.post<{ loaded: boolean; trust_remote_code: boolean }>(`${base}/models/${name}/load`),
     unloadModel: (name: string) => api.post(`${base}/models/${name}/unload`),
+    modelRuntime: (name: string) => api.get<ModelRuntimeStatus>(`${base}/models/${name}/runtime`),
     adminDownloads: () => api.get<Download[]>('/api/admin/llm/downloads'),
     review: (id: number, approve: boolean) => api.post<Download>(`/api/admin/llm/downloads/${id}/${approve ? 'approve' : 'reject'}`, {}),
     approveRemoteCode: (name: string) => api.post(`/api/admin/llm/models/${name}/remote-code-approval`),

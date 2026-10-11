@@ -1,22 +1,28 @@
 """模型白名單、下載申請／審核／執行／刪除、遠端程式碼核准、載入設定（B-07、D-01）。"""
 import hashlib
 import shutil
+import threading
+import time
+from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
-from app.llm.errors import Conflict, Forbidden, Invalid, NotFound, Unavailable
+from app.llm.errors import Conflict, Forbidden, Invalid, LlmServiceError, NotFound, Unavailable
 from app.llm.models import InstalledModel, ModelDownload, ModelLoadConfig, ModelWhitelist, RemoteCodeApproval
-from app.llm.runtime import LoadRequest, ModelRuntime
-from app.llm.sources import (ModelArtifact, ModelSource, OfflinePreloadSource, SourceAuthError, SourceNotFound,
-                             SourceUnreachable)
+from app.llm.runtime import LoadRequest, ModelRuntime, RuntimeLoadError, digests_path, write_digests
+from app.llm.sources import (ModelSource, SourceAuthError, SourceError, SourceIntegrityError, SourceListing,
+                             SourceNotFound, SourceUnreachable)
 from app.models import utcnow
 from app.llm.util import iso
 
 QUANTIZATIONS = ("none", "4bit", "8bit")
 GPU_TYPES = ("gpu-exclusive", "gpu-shared", "cpu")
+HEARTBEAT_SECONDS = 5.0                 # 背景下載多久寫一次進度
+STALE_AFTER = timedelta(minutes=2)      # 進度超過這麼久沒更新＝下載程序已中斷（例：API 重啟）
+_ACTIVE: set[int] = set()               # 這個程序內正在下載的申請編號
 
 
 def token_fingerprint(token: str) -> str:
@@ -27,7 +33,8 @@ def whitelist_out(w: ModelWhitelist, installed: InstalledModel | None = None,
                   approval: RemoteCodeApproval | None = None) -> dict:
     return {"name": w.name, "source": w.source, "repo": w.repo, "revision": w.revision, "sha256": w.sha256,
             "license": w.license, "requires_token": w.requires_token, "has_remote_code": w.has_remote_code,
-            "note": w.note, "reviewed_by": w.reviewed_by, "created_at": iso(w.created_at),
+            "files": list(w.files or []), "note": w.note, "reviewed_by": w.reviewed_by,
+            "created_at": iso(w.created_at),
             "installed": installed is not None, "loaded": bool(installed and installed.loaded),
             "remote_code_approved": bool(approval and approval.commit == w.revision)}
 
@@ -36,7 +43,8 @@ def download_out(d: ModelDownload) -> dict:
     return {"id": d.id, "project_id": d.project_id, "name": d.name, "source": d.source, "repo": d.repo,
             "status": d.status, "user": d.requested_by, "requested_at": iso(d.requested_at),
             "reviewer": d.reviewer, "reviewed_at": iso(d.reviewed_at), "commit": d.commit, "hash": d.sha256,
-            "mode": d.mode, "token_usage": d.token_usage, "time": iso(d.downloaded_at), "message": d.message}
+            "mode": d.mode, "token_usage": d.token_usage, "time": iso(d.downloaded_at), "message": d.message,
+            "progress": d.progress}
 
 
 def load_config_out(c: ModelLoadConfig) -> dict:
@@ -56,15 +64,16 @@ def list_catalog(session: Session) -> list[dict]:
 
 def add_whitelist(session: Session, *, actor: str, source_ip: str | None, name: str, source: str, repo: str,
                   revision: str, sha256: str, license: str = "", requires_token: bool = False,
-                  has_remote_code: bool = False, note: str = "") -> ModelWhitelist:
+                  has_remote_code: bool = False, note: str = "", files: list[str] | None = None) -> ModelWhitelist:
     if session.scalar(select(ModelWhitelist).where(ModelWhitelist.name == name)):
         raise Conflict(f"白名單已有模型 {name}")
     entry = ModelWhitelist(name=name, source=source, repo=repo, revision=revision, sha256=sha256.lower(),
                            license=license, requires_token=requires_token, has_remote_code=has_remote_code,
-                           note=note, reviewed_by=actor)
+                           note=note, files=list(files or []), reviewed_by=actor)
     session.add(entry)
     record(session, actor=actor, category=AuditCategory.PROJECT, action="llm.whitelist.add", target=f"model:{name}",
-           source_ip=source_ip, detail={"source": source, "repo": repo, "revision": revision, "sha256": sha256})
+           source_ip=source_ip, detail={"source": source, "repo": repo, "revision": revision, "sha256": sha256,
+                                        "files": list(files or [])})
     session.commit()
     return entry
 
@@ -81,14 +90,29 @@ def remove_whitelist(session: Session, *, actor: str, source_ip: str | None, nam
     session.commit()
 
 
+def _source_errors(exc: SourceError) -> LlmServiceError:
+    if isinstance(exc, SourceAuthError):
+        return Forbidden(str(exc), code="token_rejected")
+    if isinstance(exc, SourceNotFound):
+        return NotFound(str(exc))
+    if isinstance(exc, SourceIntegrityError):
+        return Conflict(str(exc))
+    return Unavailable(str(exc) or "無法連到模型來源")
+
+
 def inspect_source(sources: dict[str, ModelSource], *, source: str, repo: str, revision: str,
-                   token: str | None) -> dict:
-    """審核時查看來源上的內容（commit、hash、是否夾帶程式碼），供管理者填白名單。"""
-    artifact = _fetch_online(sources, source, repo, revision, token)
-    if artifact is None:
-        raise Unavailable("無法連到模型來源")
-    return {"source": source, "repo": repo, "commit": artifact.commit, "sha256": artifact.sha256,
-            "has_remote_code": artifact.has_remote_code, "files": sorted(artifact.files)}
+                   token: str | None, files: list[str] | None = None) -> dict:
+    """審核時查看來源上的內容（commit、hash、是否夾帶程式碼、檔案大小），供管理者填白名單。只讀中繼資料，不下載大檔。"""
+    client = sources.get(source)
+    if client is None:
+        raise Unavailable(f"平台沒有設定模型來源 {source}")
+    try:
+        listing = client.inspect(repo, revision, token, files or [])
+    except SourceError as exc:
+        raise _source_errors(exc)
+    return {"source": source, "repo": repo, "commit": listing.commit, "sha256": listing.sha256,
+            "has_remote_code": listing.has_remote_code, "gated": listing.gated, "files": sorted(listing.digests),
+            "sizes": dict(listing.sizes), "total_bytes": listing.total_bytes}
 
 
 def _whitelisted(session: Session, name: str) -> ModelWhitelist:
@@ -121,7 +145,7 @@ def request_download(session: Session, *, actor: str, source_ip: str | None, pro
     if session.scalar(select(InstalledModel).where(InstalledModel.name == entry.name)):
         raise Conflict(f"模型 {entry.name} 已在平台上")
     open_request = session.scalar(select(ModelDownload).where(
-        ModelDownload.name == entry.name, ModelDownload.status.in_(("pending", "approved"))))
+        ModelDownload.name == entry.name, ModelDownload.status.in_(("pending", "approved", "downloading"))))
     if open_request:
         raise Conflict(f"模型 {entry.name} 已有進行中的下載申請（編號 {open_request.id}）")
     download = ModelDownload(project_id=project_id, name=entry.name, source=entry.source, repo=entry.repo,
@@ -157,29 +181,155 @@ def review_download(session: Session, *, actor: str, source_ip: str | None, down
     return download
 
 
-def _fetch_online(sources: dict[str, ModelSource], source: str, repo: str, revision: str,
-                  token: str | None) -> ModelArtifact | None:
-    """回傳 None 代表連不上（或沒有設定這個來源），呼叫端改走離線預載。"""
-    client = sources.get(source)
-    if client is None:
-        return None
-    try:
-        return client.fetch(repo, revision, token)
-    except SourceUnreachable:
-        return None
-    except SourceAuthError as exc:
-        raise Forbidden(str(exc), code="token_rejected")
-    except SourceNotFound as exc:
-        raise NotFound(str(exc))
+def _stale(download: ModelDownload) -> bool:
+    if download.status != "downloading" or download.id in _ACTIVE:
+        return False
+    updated = (download.progress or {}).get("updated_at")
+    if not updated:
+        return True
+    from datetime import datetime
+    return utcnow() - datetime.fromisoformat(updated) > STALE_AFTER
 
 
-def execute_download(session: Session, *, sources: dict[str, ModelSource], offline: OfflinePreloadSource | None,
-                     model_dir: Path, actor: str, is_admin: bool, source_ip: str | None, download_id: int,
-                     token: str | None) -> ModelDownload:
+class _Transfer:
+    """下載的慢的部分（網路、寫檔、核對 hash），不碰資料庫；收尾（安裝、寫紀錄）由 finish 做。
+    請求執行緒等不到完成時改成 detach：由背景執行緒自己開連線收尾，並定期寫進度。"""
+
+    def __init__(self, *, services, entry: ModelWhitelist, download_id: int, token: str | None):
+        self.services, self.download_id, self.token = services, download_id, token
+        self.name, self.source, self.repo = entry.name, entry.source, entry.repo
+        self.revision, self.sha256, self.files = entry.revision, entry.sha256, list(entry.files or [])
+        self.staging = Path(services.model_dir) / ".staging" / str(download_id)
+        self.listing: SourceListing | None = None
+        self.mode = "online"
+        self.error: Exception | None = None
+        self.progress = {"done": 0, "total": None}
+        self._lock = threading.Lock()
+        self._done = False
+        self._detached = False
+        self._last_beat = time.monotonic()
+
+    # ---- 背景執行緒
+    def run(self) -> None:
+        _ACTIVE.add(self.download_id)
+        try:
+            self._transfer()
+        except Exception as exc:  # noqa: BLE001  所有錯誤都要回報給申請人
+            self.error = exc
+            shutil.rmtree(self.staging, ignore_errors=True)
+        with self._lock:
+            self._done = True
+            detached = self._detached
+        if detached:
+            self._finish_detached()
+        _ACTIVE.discard(self.download_id)
+
+    def _on_progress(self, done: int, total: int) -> None:
+        self.progress = {"done": done, "total": total}
+        if self._detached and time.monotonic() - self._last_beat >= HEARTBEAT_SECONDS:
+            self._last_beat = time.monotonic()
+            with self.services.session_factory() as session:
+                download = session.get(ModelDownload, self.download_id)
+                download.progress = {**self.progress, "updated_at": utcnow().isoformat()}
+                session.commit()
+
+    def _transfer(self) -> None:
+        shutil.rmtree(self.staging, ignore_errors=True)
+        self.staging.mkdir(parents=True)
+        client = self.services.sources.get(self.source)
+        listing = None
+        if client is not None:
+            try:
+                listing = client.download(self.repo, self.revision, self.token, self.staging, self.files,
+                                          progress=self._on_progress)
+            except SourceUnreachable:
+                listing = None
+            except SourceError as exc:
+                raise _source_errors(exc)
+        if listing is None:
+            # 無對外網路：改用離線預載目錄，Token 不會送出
+            self.mode = "offline"
+            offline = self.services.offline
+            located = offline.locate(self.name, self.files) if offline else None
+            if located is None:
+                raise Unavailable(f"無法連到模型來源，離線預載目錄也沒有 {self.name}")
+            listing, folder = located
+            self._verify(listing)
+            offline.copy(listing, folder, self.staging)
+        self._verify(listing)
+        self.listing = listing
+
+    def _verify(self, listing: SourceListing) -> None:
+        if listing.commit != self.revision or listing.repo != self.repo:
+            raise Conflict(f"取得的版本 {listing.repo}@{listing.commit} 與白名單登記的不同")
+        if listing.sha256 != self.sha256:
+            raise Conflict("模型內容的 hash 與白名單登記的不同，已拒絕")
+
+    def _finish_detached(self) -> None:
+        with self.services.session_factory() as session:
+            try:
+                self.finish(session)
+            except LlmServiceError:
+                pass        # 失敗已寫進下載紀錄與稽核
+
+    # ---- 請求執行緒
+    def wait(self, thread: threading.Thread, timeout: float | None) -> bool:
+        """回傳 True＝已完成，由呼叫端收尾；False＝改由背景收尾。"""
+        thread.join(timeout)
+        with self._lock:
+            if self._done:
+                return True
+            self._detached = True
+            return False
+
+    def finish(self, session: Session) -> ModelDownload:
+        download = _download(session, self.download_id)
+        usage = dict(download.token_usage or {})
+        if self.mode == "offline" and usage.get("used"):
+            usage.update(result="not_sent_offline")
+        if self.error is not None:
+            if isinstance(self.error, Forbidden):
+                usage.update(result="rejected")
+            _fail(session, download, self._actor or download.requested_by, self._source_ip, usage, str(self.error))
+            if isinstance(self.error, LlmServiceError):
+                raise self.error
+            raise Unavailable(f"下載失敗：{self.error}")
+        listing = self.listing
+        target = Path(self.services.model_dir) / self.name
+        if target.exists():
+            shutil.rmtree(target)
+        self.staging.replace(target)
+        write_digests(target, listing.digests)
+        entry = _whitelisted(session, self.name)
+        download.status, download.mode = "completed", self.mode
+        download.commit, download.sha256 = listing.commit, listing.sha256
+        download.token_usage, download.downloaded_at, download.message = usage, utcnow(), ""
+        download.progress = {"done": listing.total_bytes, "total": listing.total_bytes,
+                             "updated_at": utcnow().isoformat()}
+        session.add(InstalledModel(name=self.name, download_id=download.id, commit=listing.commit,
+                                   sha256=listing.sha256, location=str(target),
+                                   has_remote_code=listing.has_remote_code or entry.has_remote_code,
+                                   installed_by=download.requested_by))
+        record(session, actor=self._actor, category=AuditCategory.INFERENCE, action="llm.model.download",
+               target=f"model:{self.name}", source_ip=self._source_ip,
+               detail={"download_id": download.id, "commit": listing.commit, "sha256": listing.sha256,
+                       "mode": self.mode, "reviewer": download.reviewer, "files": sorted(listing.digests),
+                       "bytes": listing.total_bytes, "token_fingerprint": usage.get("fingerprint")})
+        session.commit()
+        return download
+
+    _actor = ""
+    _source_ip: str | None = None
+
+
+def execute_download(session: Session, *, services, actor: str, is_admin: bool, source_ip: str | None,
+                     download_id: int, token: str | None) -> ModelDownload:
     download = _download(session, download_id)
     if download.requested_by != actor and not is_admin:
         raise Forbidden("只有申請人或管理者可以執行這筆下載")
-    if download.status != "approved":
+    if download.status == "downloading" and not _stale(download):
+        raise Conflict(f"下載申請 {download_id} 正在下載中")
+    if download.status not in ("approved", "downloading"):
         raise Conflict(f"下載申請 {download_id} 目前是 {download.status}，需先經管理者核准")
     entry = _whitelisted(session, download.name)
     if entry.requires_token and not token:
@@ -189,60 +339,29 @@ def execute_download(session: Session, *, sources: dict[str, ModelSource], offli
              "used_at": None, "result": "not_required"}
     if token:
         usage.update(used=True, fingerprint=token_fingerprint(token), used_at=utcnow().isoformat(), result="accepted")
-
-    try:
-        artifact = _fetch_online(sources, entry.source, entry.repo, entry.revision, token)
-        mode = "online"
-        if artifact is None:
-            # 無對外網路：改用離線預載目錄，Token 不會送出
-            artifact = offline.fetch(entry.name) if offline else None
-            mode = "offline"
-            if token:
-                usage.update(result="not_sent_offline")
-            if artifact is None:
-                raise Unavailable(f"無法連到模型來源，離線預載目錄也沒有 {entry.name}")
-        if artifact.commit != entry.revision or artifact.repo != entry.repo:
-            raise Conflict(f"取得的版本 {artifact.repo}@{artifact.commit} 與白名單登記的不同")
-        if artifact.sha256 != entry.sha256:
-            raise Conflict("模型內容的 hash 與白名單登記的不同，已拒絕")
-    except Forbidden as exc:
-        usage.update(result="rejected")
-        _fail(session, download, actor, source_ip, usage, str(exc))
-        raise
-    except (Conflict, Unavailable, NotFound) as exc:
-        _fail(session, download, actor, source_ip, usage, str(exc))
-        raise
-
-    target = model_dir / entry.name
-    if target.exists():
-        shutil.rmtree(target)
-    for filename, data in artifact.files.items():
-        path = target / filename
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
-
-    download.status, download.mode = "completed", mode
-    download.commit, download.sha256 = artifact.commit, artifact.sha256
-    download.token_usage, download.downloaded_at, download.message = usage, utcnow(), ""
-    session.add(InstalledModel(name=entry.name, download_id=download.id, commit=artifact.commit,
-                               sha256=artifact.sha256, location=str(target),
-                               has_remote_code=artifact.has_remote_code or entry.has_remote_code,
-                               installed_by=actor))
-    record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.download",
-           target=f"model:{entry.name}", source_ip=source_ip,
-           detail={"download_id": download.id, "commit": artifact.commit, "sha256": artifact.sha256, "mode": mode,
-                   "reviewer": download.reviewer, "token_fingerprint": usage["fingerprint"]})
+    download.status, download.token_usage, download.message = "downloading", usage, ""
+    download.progress = {"done": 0, "total": None, "updated_at": utcnow().isoformat()}
     session.commit()
+
+    transfer = _Transfer(services=services, entry=entry, download_id=download.id, token=token)
+    transfer._actor, transfer._source_ip = actor, source_ip
+    thread = threading.Thread(target=transfer.run, name=f"llm-download-{download.id}", daemon=True)
+    thread.start()
+    wait = services.download_wait if services.session_factory is not None else None
+    if transfer.wait(thread, wait):
+        return transfer.finish(session)
+    session.refresh(download)
     return download
 
 
 def _fail(session: Session, download: ModelDownload, actor: str, source_ip: str | None, usage: dict,
           message: str) -> None:
-    """下載失敗：申請維持 approved 可再試一次，另外留下稽核。"""
+    """下載失敗：申請回到 approved 可再試一次，另外留下稽核。"""
+    download.status = "approved"
     download.token_usage, download.message = usage, message[:512]
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.download",
            target=f"model:{download.name}", result="failed", source_ip=source_ip,
-           detail={"download_id": download.id, "reason": message[:200], "token_fingerprint": usage["fingerprint"]})
+           detail={"download_id": download.id, "reason": message[:200], "token_fingerprint": usage.get("fingerprint")})
     session.commit()
 
 
@@ -250,7 +369,13 @@ def list_downloads(session: Session, *, project_id: int | None = None) -> list[M
     query = select(ModelDownload).order_by(ModelDownload.id)
     if project_id is not None:
         query = query.where(ModelDownload.project_id == project_id)
-    return list(session.scalars(query))
+    downloads = list(session.scalars(query))
+    stale = [d for d in downloads if _stale(d)]
+    for download in stale:
+        download.status, download.message = "approved", "下載中斷（服務重新啟動），請重新執行下載"
+    if stale:
+        session.commit()
+    return downloads
 
 
 def _installed(session: Session, name: str) -> InstalledModel:
@@ -265,8 +390,9 @@ def delete_model(session: Session, *, runtime: ModelRuntime, actor: str, is_admi
     model = _installed(session, name)
     if model.installed_by != actor and not is_admin:
         raise Forbidden("只有下載這個模型的人或管理者可以刪除")
-    runtime.unload(name)
+    _runtime(lambda: runtime.unload(name))
     shutil.rmtree(model.location, ignore_errors=True)
+    digests_path(Path(model.location)).unlink(missing_ok=True)
     session.delete(model)
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.delete",
            target=f"model:{name}", source_ip=source_ip, detail={"commit": model.commit, "sha256": model.sha256})
@@ -332,6 +458,13 @@ def put_load_config(session: Session, *, actor: str, source_ip: str | None, name
     return config
 
 
+def _runtime(action):
+    try:
+        return action()
+    except RuntimeLoadError as exc:
+        raise (Invalid(str(exc)) if exc.invalid else Unavailable(str(exc)))
+
+
 def load_model(session: Session, *, runtime: ModelRuntime, actor: str, source_ip: str | None, name: str) -> dict:
     model = _installed(session, name)
     entry = _whitelisted(session, name)
@@ -347,20 +480,39 @@ def load_model(session: Session, *, runtime: ModelRuntime, actor: str, source_ip
             raise Forbidden(f"模型 {name} 夾帶程式碼，需管理者核准後才能載入", code="remote_code_not_approved")
         trust = True
     config = get_load_config(session, name, actor=actor)
-    runtime.load(LoadRequest(name=name, location=model.location, quantization=config.quantization, cpu=config.cpu,
-                             memory_gb=config.memory_gb, gpu_type=config.gpu_type, gpu_count=config.gpu_count,
-                             trust_remote_code=trust))
+    request = LoadRequest(name=name, location=model.location, quantization=config.quantization, cpu=config.cpu,
+                          memory_gb=config.memory_gb, gpu_type=config.gpu_type, gpu_count=config.gpu_count,
+                          trust_remote_code=trust)
+    try:
+        _runtime(lambda: runtime.load(request))
+    except LlmServiceError as exc:
+        record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.load",
+               target=f"model:{name}", result="failed", source_ip=source_ip,
+               detail={"reason": str(exc)[:200], "quantization": config.quantization})
+        session.commit()
+        raise
     model.loaded = True
+    actual = _runtime(lambda: runtime.describe(name))
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.load", target=f"model:{name}",
            source_ip=source_ip, detail={"commit": model.commit, "quantization": config.quantization,
-                                        "trust_remote_code": trust, "revision": entry.revision})
+                                        "trust_remote_code": trust, "revision": entry.revision,
+                                        "runtime": actual})
     session.commit()
-    return {"name": name, "loaded": True, "trust_remote_code": trust, "config": load_config_out(config)}
+    return {"name": name, "loaded": True, "trust_remote_code": trust, "config": load_config_out(config),
+            "runtime": actual}
+
+
+def describe_model(session: Session, *, runtime: ModelRuntime, name: str) -> dict:
+    """平台記錄的載入設定與模型服務實際狀態並列，供核對「配置值與設定一致」。"""
+    model = _installed(session, name)
+    config = get_load_config(session, name)
+    return {"name": name, "loaded": model.loaded, "config": load_config_out(config),
+            "runtime": _runtime(lambda: runtime.describe(name)) if model.loaded else None}
 
 
 def unload_model(session: Session, *, runtime: ModelRuntime, actor: str, source_ip: str | None, name: str) -> dict:
     model = _installed(session, name)
-    runtime.unload(name)
+    _runtime(lambda: runtime.unload(name))
     model.loaded = False
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.unload",
            target=f"model:{name}", source_ip=source_ip)

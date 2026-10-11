@@ -89,7 +89,8 @@ def test_platform_api_minio_keycloak_and_gateway_are_scraped(rendered):
 def test_policy_names_only_services_that_exist():
     if shutil.which("kubectl") is None:
         pytest.skip("需要 kubectl")
-    deployed = {f"{NAMESPACE}/{d['metadata']['name']}" for d in services(build("kind"))}
+    # kind 與 production 都算（ollama 只在 production）
+    deployed = {f"{NAMESPACE}/{d['metadata']['name']}" for o in ("kind", "production") for d in services(build(o))}
     for path in [*MONITORING.glob("*.yaml"), *(PLATFORM / "deploy/kind/workloads").glob("*.yaml")]:
         for d in yaml.safe_load_all(path.read_text(encoding="utf-8")):
             if d and d["kind"] in ("Deployment", "StatefulSet", "DaemonSet"):

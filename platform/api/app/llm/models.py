@@ -22,6 +22,7 @@ class ModelWhitelist(Base):
     requires_token: Mapped[bool] = mapped_column(Boolean, default=False)
     has_remote_code: Mapped[bool] = mapped_column(Boolean, default=False)
     note: Mapped[str] = mapped_column(String(512), default="")
+    files: Mapped[list] = mapped_column(JSON, default=list)   # 只取這些檔案（glob）；空清單＝整個 repo
     reviewed_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -34,7 +35,7 @@ class ModelDownload(Base):
     name: Mapped[str] = mapped_column(String(128), index=True)
     source: Mapped[str] = mapped_column(String(128))
     repo: Mapped[str] = mapped_column(String(256))
-    status: Mapped[str] = mapped_column(String(16), index=True)   # pending/approved/rejected/completed/failed
+    status: Mapped[str] = mapped_column(String(16), index=True)   # pending/approved/downloading/rejected/completed
     requested_by: Mapped[str] = mapped_column(String(64))
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reviewer: Mapped[str | None] = mapped_column(String(64), default=None)
@@ -45,6 +46,7 @@ class ModelDownload(Base):
     token_usage: Mapped[dict | None] = mapped_column(JSON, default=None)
     downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     message: Mapped[str] = mapped_column(String(512), default="")
+    progress: Mapped[dict | None] = mapped_column(JSON, default=None)   # done、total（位元組）、updated_at
 
 
 class InstalledModel(Base):
@@ -190,6 +192,7 @@ class LlmCallRecord(Base):
     model: Mapped[str] = mapped_column(String(128))
     context_source: Mapped[str] = mapped_column(String(16), default="none")
     context_refs: Mapped[list] = mapped_column(JSON, default=list)
+    prompt_id: Mapped[int | None] = mapped_column(Integer, default=None)   # 套用的 Prompt Template
     request: Mapped[dict] = mapped_column(JSON)
     response: Mapped[dict | None] = mapped_column(JSON, default=None)
     status: Mapped[str] = mapped_column(String(16))               # success | timeout | unavailable | error

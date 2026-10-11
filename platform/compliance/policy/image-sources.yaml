@@ -36,6 +36,8 @@ approved:
     reason: MLflow 專案官方映像（B-05 訓練紀錄）
   - pattern: ghcr.io/requarks/wiki
     reason: Wiki.js 作者（Requarks）官方映像（B-08 知識庫）
+  - pattern: docker.io/ollama/ollama
+    reason: Ollama 專案官方映像（MIT 授權），正式環境的 LLM 模型服務（B-07 對話與知識庫向量）；模型權重由平台 API 自 Hugging Face 白名單下載
   - pattern: nvcr.io/nvidia/tensorflow
     reason: NVIDIA NGC 官方 TensorFlow 容器，GPU 訓練映像的基底（platform/training/Dockerfile.gpu）。官方 TensorFlow 不支援 Blackwell（sm_120），NGC 25.02 原生支援；受 NVIDIA Deep Learning Container License 規範
   - pattern: docker.io/nginxinc/nginx-unprivileged
