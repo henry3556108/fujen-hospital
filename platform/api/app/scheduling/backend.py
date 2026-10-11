@@ -4,7 +4,7 @@
 - KubernetesJobBackend（kube.py）：建立 Kueue 管理的 Kubernetes Job。
 """
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
@@ -52,6 +52,27 @@ class BackendJob:
     # 叢集實際的開始（容器啟動）與結束時間；平台以此記錄，而不是輪詢到狀態的時間（TC-C01-05 比對佇列順序）
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    # 還在佇列裡等待（尚未被排程放行）；放行後到容器起來之前 state 仍是 queued，但這裡是 False
+    waiting: bool = False
+
+
+class NotWaiting(Exception):
+    """工作已被排程放行（或已不在佇列），不能再調整順序或暫存。
+    moved：發現之前已經移動（重建為新名稱）的工作 {舊名稱: 新名稱}。"""
+
+    def __init__(self, name: str, moved: dict[str, str] | None = None):
+        super().__init__(name)
+        self.name = name
+        self.moved = dict(moved or {})
+
+
+class PartialReorder(Exception):
+    """調整順序時已刪除舊工作、但重建失敗。moved：已重建 {舊名稱: 新名稱}；
+    unplaced：沒能重建的工作 {舊名稱: manifest}，由呼叫端改為暫存，之後可恢復排隊。"""
+
+    def __init__(self, cause: Exception, moved: dict[str, str], unplaced: dict[str, dict]):
+        super().__init__(str(cause))
+        self.moved, self.unplaced = moved, unplaced
 
 
 @dataclass(frozen=True)
@@ -80,6 +101,11 @@ class JobBackend(Protocol):
     def nodes(self) -> list[NodeInfo]: ...
     def allocations(self) -> list[Allocation]: ...
     def configure_shared(self, replicas: int) -> None: ...
+    # --- 佇列順序與暫存 ---
+    def order(self, queue: str) -> list[str]: ...
+    def reorder(self, moves: list[tuple[str, str]]) -> None: ...
+    def hold(self, name: str) -> dict: ...
+    def restore(self, manifest: dict, name: str) -> None: ...
 
 
 def backend_from_env() -> JobBackend | None:
@@ -167,7 +193,7 @@ class FakeJobBackend:
             return None
         at = lambda t: None if t is None else self.epoch + timedelta(seconds=t)  # noqa: E731
         return BackendJob(state=job.state, node=job.node, message=job.message, started_at=at(job.started),
-                          finished_at=at(job.finished))
+                          finished_at=at(job.finished), waiting=name in self._queue)
 
     def cancel(self, name: str) -> None:
         job = self._jobs.pop(name, None)
@@ -196,6 +222,34 @@ class FakeJobBackend:
             if node.pool == "gpu-shared":
                 node.capacity = node.physical * replicas
         self._schedule()
+
+    def order(self, queue: str) -> list[str]:
+        return [n for n in self._queue if self._jobs[n].spec.queue == queue]
+
+    def reorder(self, moves: list[tuple[str, str]]) -> None:
+        # 與 Kubernetes 後端相同的語意：移動＝以新名稱重建，排到佇列最後；先確認全部都還在等待
+        for old, _ in moves:
+            if old not in self._queue:
+                raise NotWaiting(old)
+        for old, new in moves:
+            job = self._jobs.pop(old)
+            self._queue.remove(old)
+            job.spec = replace(job.spec, name=new)
+            self._jobs[new] = job
+            self._queue.append(new)
+        self._schedule()
+
+    def hold(self, name: str) -> dict:
+        if name not in self._queue:
+            raise NotWaiting(name)
+        job = self._jobs.pop(name)
+        self._queue.remove(name)
+        return asdict(job.spec)
+
+    def restore(self, manifest: dict, name: str) -> None:
+        data = dict(manifest, name=name, command=tuple(manifest["command"]) if manifest.get("command") else None,
+                    env=tuple(tuple(e) for e in manifest.get("env") or ()))
+        self.submit(JobSpec(**data))
 
     # --- 內部 ---
     def _node(self, name: str) -> _FakeNode:

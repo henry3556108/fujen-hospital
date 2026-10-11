@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base, utcnow
@@ -32,6 +32,16 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class JobHold(Base):
+    """暫存中的工作：叢集裡的 Job 已刪除，完整定義（manifest）存在這裡，恢復排隊時照原樣重建。
+    另開資料表而不在 jobs 加欄位，因為平台以 create_all 建表、沒有遷移工具，既有資料庫加欄位不會生效。"""
+    __tablename__ = "job_holds"
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    manifest: Mapped[dict] = mapped_column(JSON)
+    held_by: Mapped[str] = mapped_column(String(64))
+    held_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class SharedSchedulingSettings(Base):
