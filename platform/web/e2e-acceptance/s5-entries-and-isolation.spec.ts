@@ -1,0 +1,129 @@
+import { expect, test, type Browser, type Page } from '@playwright/test';
+import { DENIED, P1, clickMenu, expectNotDenied, login, menuLabels, note, shot, useProject } from './helpers';
+
+// 情境 5：首頁功能入口與專案隔離（TC-A02-01～04 的網頁部分）。全部唯讀，不改任何資料。
+
+const ENTRIES: { name: string; path: string; expectText: RegExp }[] = [
+  { name: '帳號管理', path: '/admin/dashboard', expectText: /Dashboard/ },
+  { name: '數據管理', path: '/data', expectText: /結構式資料（CSV 表格）/ },
+  { name: '影像標註', path: '/labeling', expectText: /研究清單/ },
+  { name: '自動影像分類標註', path: '/auto-labeling', expectText: /送出自動標註/ },
+  { name: '建模管理', path: '/training', expectText: /訓練設定/ },
+  { name: 'AI 模型部署', path: '/deployment', expectText: /模型/ },
+  { name: '推論服務管理', path: '/inference', expectText: /用模型預測病人/ },
+  { name: 'LLM No-code 開發', path: '/llm/playground', expectText: /Playground/ },
+];
+
+test('5-1 admin01 從 8 個入口都能進入（TC-A02-01）', async ({ page }) => {
+  const tc = 'TC-A02-01';
+  await login(page, 'admin01');
+  await useProject(page);
+  await expect(page.getByText(`目前專案：${P1}。以下為你可使用的功能。`)).toBeVisible();
+  expect(await menuLabels(page)).toEqual(ENTRIES.map((e) => e.name));
+  await shot(page, tc, '01-首頁八個入口');
+  let ok = 0;
+  for (const [i, e] of ENTRIES.entries()) {
+    await clickMenu(page, e.name);
+    await expect(page).toHaveURL(new RegExp(`${e.path}$`));
+    await expect(page.getByText(e.expectText).first()).toBeVisible();
+    await expectNotDenied(page);
+    await shot(page, tc, `${String(i + 2).padStart(2, '0')}-${e.name}`);
+    ok++;
+  }
+  note(tc, `8 個入口進入成功 ${ok}/8`);
+});
+
+const BY_ROLE: Record<string, string[]> = {
+  vw01: ['數據管理', 'AI 模型部署', '推論服務管理'],
+  md01: ['數據管理', '影像標註', '自動影像分類標註', 'AI 模型部署', '推論服務管理'],
+  ca01: ['數據管理', '建模管理', 'AI 模型部署', '推論服務管理', 'LLM No-code 開發'],
+};
+
+for (const [user, expected] of Object.entries(BY_ROLE)) {
+  test(`5-2 ${user} 左側選單符合角色權限（TC-A02-02）`, async ({ page }) => {
+    const tc = 'TC-A02-02';
+    await login(page, user);
+    await useProject(page);
+    const labels = await menuLabels(page);
+    await shot(page, tc, user);
+    note(tc, `${user} 左側選單：${labels.join('、')}`);
+    expect(labels).toEqual(expected);
+  });
+}
+
+type Step = { label: string; run: (p: Page) => Promise<void> };
+const openDataset = async (p: Page) => {
+  await p.getByRole('link', { name: 'cohort_02.csv', exact: true }).first().click();
+  await expect(p.getByText('資料集：cohort_02.csv')).toBeVisible();
+};
+const tab = (name: string) => async (p: Page) => {
+  await p.getByRole('link', { name, exact: true }).or(p.getByRole('tab', { name, exact: true })).first().click();
+};
+const PLAN: Record<string, Step[]> = {
+  pi01: [
+    { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
+    { label: '結構式資料', run: tab('結構式資料（CSV 表格）') },
+    { label: '開啟資料集-描述統計', run: openDataset },
+    { label: '預覽', run: tab('預覽') },
+    { label: '專案工作', run: async (p) => { await clickMenu(p, '建模管理'); await p.getByRole('link', { name: '專案工作' }).first().click(); await expect(p.getByText('工作列表').first()).toBeVisible(); } },
+  ],
+  md01: [
+    { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
+    { label: '影像標註', run: (p) => clickMenu(p, '影像標註') },
+    { label: '自動影像分類標註', run: (p) => clickMenu(p, '自動影像分類標註') },
+    { label: 'AI模型部署', run: (p) => clickMenu(p, 'AI 模型部署') },
+    { label: '推論服務管理', run: async (p) => { await clickMenu(p, '推論服務管理'); await expect(p.getByText('用模型預測病人').first()).toBeVisible(); } },
+  ],
+  ra01: [
+    { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
+    { label: '開啟資料集', run: async (p) => { await tab('結構式資料（CSV 表格）')(p); await openDataset(p); } },
+    { label: '相關與散佈圖', run: tab('相關與散佈圖') },
+    { label: '建模管理', run: (p) => clickMenu(p, '建模管理') },
+    { label: '專案工作', run: async (p) => { await p.getByRole('link', { name: '專案工作' }).first().click(); await expect(p.getByText('工作列表').first()).toBeVisible(); } },
+  ],
+};
+
+async function runUser(browser: Browser, user: string) {
+  const tc = 'TC-A02-03';
+  const ctx = await browser.newContext(); // 每個帳號一個獨立的瀏覽器環境，等同各自的無痕視窗
+  const page = await ctx.newPage();
+  try {
+    await login(page, user);
+    await useProject(page);
+    let ok = 0;
+    for (const [i, s] of PLAN[user].entries()) {
+      await s.run(page);
+      await expectNotDenied(page);
+      await shot(page, tc, `${user}-${i + 1}-${s.label}`);
+      ok++;
+    }
+    return ok;
+  } finally {
+    await ctx.close();
+  }
+}
+
+test('5-3 pi01、md01、ra01 同時操作各 5 個動作（TC-A02-03）', async ({ browser }) => {
+  const results = await Promise.all(Object.keys(PLAN).map((u) => runUser(browser, u)));
+  note('TC-A02-03', `3 帳號同時操作，成功 ${results.reduce((a, b) => a + b, 0)}/15`);
+  expect(results).toEqual([5, 5, 5]);
+});
+
+const USER01_URLS = ['/data', '/data/imaging', '/data/tabular', '/data/tabular/1/preview', '/data/tabular/1/describe',
+  '/labeling', '/training/jobs', '/deployment', '/inference', '/llm/playground'];
+
+test('5-4 user01（未加入專案）直接輸入 10 個網址都被擋（TC-A02-04）', async ({ page }) => {
+  const tc = 'TC-A02-04';
+  await login(page, 'user01');
+  await expect(page.getByText('你尚未加入任何專案，請聯絡管理者將你加入專案。').first()).toBeVisible();
+  await shot(page, tc, '00-首頁');
+  let denied = 0;
+  for (const [i, url] of USER01_URLS.entries()) {
+    await page.goto(url);
+    await expect(page.getByText(DENIED).first()).toBeVisible();
+    await expect(page.getByText('cohort_02.csv')).toHaveCount(0);
+    await shot(page, tc, `${String(i + 1).padStart(2, '0')}-${url.replaceAll('/', '_')}`);
+    denied++;
+  }
+  note(tc, `user01 直接輸入網址 10 次，被擋 ${denied}/10，看到 P1 資料 0 次`);
+});
