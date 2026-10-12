@@ -76,7 +76,11 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [x] 後台調整佇列順序、暫存排隊中的工作稍後再恢復排隊、訓練另存為訓練設定（2026-10-12，分支 `feat/queue-order`；Admin「排程與叢集 → 佇列順序」，專案工作頁與訓練紀錄有「暫存」「恢復排隊」；新資料表 `job_holds`、工作狀態 `held`；kind 驗收 `acceptance/test_queue_order_kind.py`）。已開始執行的訓練不能暫存（不做中途 checkpoint）；GPU 等級分群不在這次範圍
 - [x] LLM 真模型（2026-10-12）：平台依白名單的 commit 與 hash 從 Hugging Face 下載 GGUF，Ollama 在 GPU 上以 4-bit／8-bit 載入；預設 Gemma 3 4B（對話）與 EmbeddingGemma 300M（知識庫向量，多語言）。疊加 `compose.ollama.yaml` 後執行 `app.llm.model_setup`，見 `platform/deploy/local/llm/README.md`；正式環境 Ollama 在 GPU 共享池。經 Gateway 驗收 B07／B08／D01 對真模型 19 過、1 略過（需要授權的模型要 `HF_TOKEN`）
   - [ ] `length_penalty` 只在 beam search 有作用，Ollama（llama.cpp）沒有對應，真模型下只儲存不生效（其他 5 個參數與 System Prompt 都實際送到模型）
-  - [ ] 授權清單與映像漏洞報告要以 `compliance licences generate`、`vulns` 重新產生，納入 `ollama/ollama`
+  - [x] 授權清單與映像漏洞報告重新產生，納入 `ollama/ollama` 與 MONAI 的映像（2026-10-12）：授權清單 47 個對象、10221 列；映像內 Python 套件 14 個映像、1506 個；
+    漏洞（只報告）36 個映像，CRITICAL 194、HIGH 3994，新增的大宗是 CUDA 基底的 GPU 映像（訓練 GPU 映像 CRITICAL 34、MONAI Label 28）
+- [x] B-03 真實自動標註（2026-10-12）：MONAI Label 0.8.5 在 GPU 上，經轉接服務維持規格 1.0；疊加 `compose.monai.yaml`（`platform/autolabel/README.md`）。
+  經平台 API 推論 2.3–4.8 秒、與 MSD 標準答案 Dice 0.981；B-03 驗收真實與假服務各 3 過。正式環境在 GPU 共享池，`GPU_SHARED_RESERVED=2` 把 Ollama 與 MONAI 占的份數從 Kueue 配額扣掉；
+  k8s 正式 overlay 只經合規測試檢查，未在真叢集部署。是否算「Clara 等級」見第 2 節
 - [ ] 甲方環境部署（見第四節）
 - [ ] AutoML：暫不導入，之後再評估；評估結果與建議做法（Optuna 搜尋現有 scikit-learn 範本）見 `docs/superpowers/plans/2026-10-03-automl-evaluation.md`
 - [ ] GPU 實際運算：依等級分群與張數上限、GPU 訓練映像（LLM 已改用 Ollama，不用 vLLM），見 `docs/superpowers/plans/2026-10-05-gpu-enablement.md`

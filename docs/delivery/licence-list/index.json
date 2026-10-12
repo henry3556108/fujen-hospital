@@ -161,6 +161,36 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/library/platform-autolabel:dev",
+    "file": "image-docker.io_library_platform-autolabel_dev.csv",
+    "components": 109,
+    "used_by": [
+      "compose:deploy/local/compose.monai.yaml#autolabel"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "platform-autolabel@sha256:73f5315921fa2a185fbaffb2a3c7b8ea4bae7ba06e14adf85042d3f076f36f2d"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/library/platform-monailabel:dev",
+    "file": "image-docker.io_library_platform-monailabel_dev.csv",
+    "components": 341,
+    "used_by": [
+      "compose:deploy/local/compose.monai.yaml#monai-label"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "platform-monailabel@sha256:bb5d8c8e7e8359966b4040fa07a17b1dabb0c4810186d058de3683cc74225bcc"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 22.04"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/library/platform-trainer:dev",
     "file": "image-docker.io_library_platform-trainer_dev.csv",
     "components": 187,
@@ -171,7 +201,7 @@
     ],
     "pinned": true,
     "repo_digests": [
-      "platform-trainer@sha256:22fc8d283bcc567701b518a996ee71e6953c36250b8b328fd375b1fd28784025"
+      "platform-trainer@sha256:86169aa06d7932fa1a56eacf88b06a3c0db168968bff2a33ba008ac4fdf305f1"
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 13.7"
@@ -214,6 +244,7 @@
     "components": 90,
     "used_by": [
       "dockerfile:api/Dockerfile",
+      "dockerfile:autolabel/adapter/Dockerfile",
       "dockerfile:training/Dockerfile"
     ],
     "pinned": true,
@@ -256,6 +287,22 @@
   },
   {
     "kind": "image",
+    "name": "docker.io/ollama/ollama:0.40.3",
+    "file": "image-docker.io_ollama_ollama_0.40.3.csv",
+    "components": 176,
+    "used_by": [
+      "compose:deploy/local/compose.ollama.yaml#ollama",
+      "kustomize:deploy/k8s/components/images/kustomization.yaml"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "ollama/ollama@sha256:adca95a12c2b386a8f9a995e7fa0600e187e3323b5e5522f5a6c3b1ec73eff99"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 24.04"
+  },
+  {
+    "kind": "image",
     "name": "docker.io/pgvector/pgvector:0.8.7-pg16-trixie",
     "file": "image-docker.io_pgvector_pgvector_0.8.7-pg16-trixie.csv",
     "components": 146,
@@ -269,6 +316,21 @@
     ],
     "architecture": "amd64",
     "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "image",
+    "name": "docker.io/pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime",
+    "file": "image-docker.io_pytorch_pytorch_2.8.0-cuda12.8-cudnn9-runtime.csv",
+    "components": 262,
+    "used_by": [
+      "dockerfile:autolabel/Dockerfile.monailabel"
+    ],
+    "pinned": true,
+    "repo_digests": [
+      "pytorch/pytorch@sha256:417bd75df6365104c283ea4c1651fb3530d9eb5a4c2fafa51943cff2a94e6385"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 22.04"
   },
   {
     "kind": "image",
@@ -413,6 +475,35 @@
   },
   {
     "kind": "build",
+    "name": "自建映像 autolabel-adapter",
+    "file": "build-autolabel-adapter.csv",
+    "components": 109,
+    "used_by": [
+      "compose:deploy/local/compose.monai.yaml#autolabel"
+    ],
+    "base_images": [
+      "docker.io/library/python:3.12-slim-trixie",
+      "docker.io/library/python:3.12-slim-trixie"
+    ],
+    "architecture": "amd64",
+    "os": "Debian GNU/Linux 13.7"
+  },
+  {
+    "kind": "build",
+    "name": "自建映像 autolabel-dockerfile-monailabel",
+    "file": "build-autolabel-dockerfile-monailabel.csv",
+    "components": 341,
+    "used_by": [
+      "compose:deploy/local/compose.monai.yaml#monai-label"
+    ],
+    "base_images": [
+      "docker.io/pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime"
+    ],
+    "architecture": "amd64",
+    "os": "Ubuntu 22.04"
+  },
+  {
+    "kind": "build",
     "name": "自建映像 fakes",
     "file": "build-fakes.csv",
     "components": 52,
@@ -484,6 +575,13 @@
     "file": "python-api.csv",
     "components": 113,
     "lock": "api/uv.lock"
+  },
+  {
+    "kind": "python",
+    "name": "Python 套件 autolabel/adapter",
+    "file": "python-autolabel_adapter.csv",
+    "components": 27,
+    "lock": "autolabel/adapter/uv.lock"
   },
   {
     "kind": "python",

@@ -1,0 +1,28 @@
+name,version,type,licences
+annotated-doc,0.0.5,python,MIT
+annotated-types,0.8.0,python,MIT
+anyio,4.15.1,python,MIT
+autolabel-adapter,1.0.0,python,（本平台未安裝，授權未讀取）
+certifi,2026.7.22,python,Mozilla Public License 2.0 (MPL 2.0)
+click,8.5.0,python,BSD-3-Clause
+colorama,0.4.6,python,（本平台未安裝，授權未讀取）
+fastapi,0.143.0,python,MIT
+h11,0.16.0,python,MIT License
+httpcore,1.0.9,python,BSD-3-Clause
+httpx,0.28.1,python,BSD License
+idna,3.20,python,BSD-3-Clause
+iniconfig,2.3.1,python,MIT
+nibabel,5.4.2,python,MIT
+numpy,2.5.4,python,BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0
+opentelemetry-api,1.45.1,python,Apache-2.0
+packaging,26.3,python,Apache-2.0 OR BSD-2-Clause
+pluggy,1.6.0,python,MIT License
+pydantic,2.14.0,python,MIT
+pydantic-core,2.50.0,python,MIT
+pydicom,3.0.2,python,MIT License
+pygments,2.21.0,python,BSD-2-Clause
+pytest,9.1.1,python,MIT
+starlette,1.7.0,python,BSD-3-Clause
+typing-extensions,4.16.0,python,PSF-2.0
+typing-inspection,0.4.4,python,MIT
+uvicorn,0.54.0,python,BSD-3-Clause

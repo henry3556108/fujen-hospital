@@ -86,7 +86,7 @@ libgmp10,2:6.3.0+dfsg-3,deb,GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.
 libhogweed6t64,3.10.1-1,deb,Expat; GAP; GPL; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-or-later; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-3.0-or-later; public-domain
 liblastlog2-2,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
 liblz4-1,1.10.0-4,deb,BSD-2-Clause; GPL-2.0-only; GPL-2.0-or-later
-liblzma5,5.8.1-1+deb13u1,deb,0BSD; FSFUL; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later-WITH-Autoconf-exception-macro; LGPL-2.1-only; LGPL-2.1-or-later; PD; PD-debian; noderivs; permissive-nowarranty
+liblzma5,5.8.1-1+deb13u2,deb,0BSD; FSFUL; FSFULLR; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later-WITH-Autoconf-exception-macro; LGPL-2.1-only; LGPL-2.1-or-later; PD; PD-debian; noderivs; permissive-nowarranty
 libmd0,1.1.0-2+b1,deb,BSD-2-Clause; BSD-3-Clause; BSD-3-clause-Aaron-D-Gifford; Beerware; ISC; public-domain-md4; public-domain-md5; public-domain-sha1
 libmount1,2.41.5-0+deb13u1,deb,BSD-2-Clause; BSD-3-Clause; BSD-4-Clause; BSLA; Expat; GPL-2.0-only; GPL-2.0-or-later; GPL-3.0-only; GPL-3.0-or-later; ISC; LGPL; LGPL-2.0-only; LGPL-2.0-or-later; LGPL-2.1-only; LGPL-2.1-or-later; LGPL-3.0-only; LGPL-3.0-or-later; public-domain
 libncursesw6,6.5+20250216-2,deb,BSD-3-Clause; MIT/X11; X11
