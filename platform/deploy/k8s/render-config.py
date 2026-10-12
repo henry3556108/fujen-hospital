@@ -94,8 +94,9 @@ def apisix_routes() -> str:
 
 def orthanc_platform() -> str:
     data = json.loads((LOCAL / "orthanc/platform/orthanc.json").read_text(encoding="utf-8"))
-    assert set(data["RegisteredUsers"]) == {"platform-api", "gateway"}
-    data["RegisteredUsers"] = {"platform-api": "${ORTHANC_API_PASSWORD}", "gateway": "${ORTHANC_GATEWAY_PASSWORD}"}
+    assert set(data["RegisteredUsers"]) == {"platform-api", "gateway", "autolabel"}
+    data["RegisteredUsers"] = {"platform-api": "${ORTHANC_API_PASSWORD}", "gateway": "${ORTHANC_GATEWAY_PASSWORD}",
+                               "autolabel": "${ORTHANC_AUTOLABEL_PASSWORD}"}
     assert data["DicomModalities"]["pacs"] == ["PACS", "orthanc-pacs", 4242]
     data["DicomModalities"]["pacs"] = ["${PACS_AET}", "${PACS_HOST}", "${PACS_PORT}"]
     text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
@@ -132,6 +133,7 @@ def outputs() -> dict[Path, str | Path]:
         HERE / "base/config/apisix.yaml": apisix_routes(),
         HERE / "base/config/realm-ai-platform.json": realm(production=False),
         HERE / "base/config/orthanc.json": orthanc_platform(),
+        HERE / "base/config/autolabel-readonly.lua": LOCAL / "orthanc/platform/autolabel-readonly.lua",
         HERE / "base/config/clamd.conf": clamd_conf(),
         HERE / "overlays/kind/config/orthanc-pacs.json": orthanc_pacs(),
         HERE / "overlays/kind/config/app-config.js": ohif("http://localhost:38180/realms/ai-platform"),

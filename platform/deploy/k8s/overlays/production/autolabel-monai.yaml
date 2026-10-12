@@ -1,0 +1,162 @@
+# B-03 自動標註工具：MONAI Label（GPU 共享池）＋轉接服務（平台節點）。kind 仍用 fake-autolabel（overlays/kind/fakes.yaml）。
+#   平台 API ──AUTOLABEL_URL──▶ monai-autolabel:8102（規格 1.0）──▶ monai-label:8000（MONAI Label 0.8.5，radiology app）
+#                                     └──DICOMweb（Orthanc 唯讀帳號 autolabel）──▶ orthanc:8042
+# 映像：platform-autolabel（platform/autolabel/adapter）、platform-monailabel（platform/autolabel/Dockerfile.monailabel，
+# 預訓練權重已在映像內，不需連網）。名稱不用 autolabel，避免與開發用的假服務混淆（compliance 測試檢查 production 沒有假服務）。
+apiVersion: v1
+kind: Service
+metadata:
+  name: monai-autolabel
+spec:
+  selector: {app: monai-autolabel}
+  ports:
+    - {name: http, port: 8102, targetPort: 8102}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monai-autolabel
+spec:
+  replicas: 1          # 標籤體積快取在記憶體內；多份時同一序列可能各推論一次（結果相同）
+  selector:
+    matchLabels: {app: monai-autolabel}
+  template:
+    metadata:
+      labels: {app: monai-autolabel}
+    spec:
+      nodeSelector: {platform/pool: cpu-web}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001}
+      containers:
+        - name: adapter
+          image: ai-platform/autolabel
+          env:
+            - {name: MONAI_LABEL_URL, value: "http://monai-label:8000"}
+            - {name: DICOMWEB_URL, value: "http://orthanc:8042/dicom-web"}
+            - {name: DICOMWEB_USERNAME, value: autolabel}
+            - name: DICOMWEB_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_AUTOLABEL_PASSWORD}}
+            # 平台等 25 秒（AUTOLABEL_TIMEOUT_SECONDS）；超過 22 秒先回 503，推論在背景完成，下一次送出直接用快取
+            - {name: INFER_WAIT_SECONDS, value: "22"}
+            - {name: AUTOLABEL_MODELS, value: "segmentation_spleen,segmentation"}
+          ports:
+            - {name: http, containerPort: 8102}
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8102}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: 8102}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 750m, memory: 2Gi}      # 一個 512×512×500 的序列約 0.5 GB（像素＋NIfTI＋標籤），快取 8 個標籤體積
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monai-label
+spec:
+  selector: {app: monai-label}
+  ports:
+    - {name: http, port: 8000, targetPort: 8000}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monai-label
+spec:
+  replicas: 1
+  strategy: {type: Recreate}      # 只有一份 GPU 時間片；滾動更新會讓新舊兩個 Pod 同時要 GPU
+  selector:
+    matchLabels: {app: monai-label}
+  template:
+    metadata:
+      labels: {app: monai-label}
+    spec:
+      # GPU 共享池（time-slicing）：常駐佔用 1 份，不經 Kueue（與 Ollama 相同），共享池的 Kueue 配額要少算這一份
+      # （README「正式環境」）。沒有 GPU 時同一個映像改用 CPU，但腹部 CT 推論要數十秒，超過平台的 25 秒等候。
+      nodeSelector: {platform/pool: gpu-shared}
+      tolerations:
+        - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001}
+      containers:
+        - name: monai-label
+          image: ai-platform/monailabel
+          env:
+            - {name: MONAI_LABEL_MODELS, value: "segmentation_spleen,segmentation"}
+          ports:
+            - {name: http, containerPort: 8000}
+          startupProbe:                     # 載入 app 與模型約 30–60 秒
+            httpGet: {path: /info/, port: 8000}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /info/, port: 8000}
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: 8000}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: "1", memory: 4Gi, nvidia.com/gpu: 1}
+            limits: {cpu: "4", memory: 12Gi, nvidia.com/gpu: 1}
+          volumeMounts:
+            - {name: studies, mountPath: /data/studies}
+            - {name: shm, mountPath: /dev/shm}
+      volumes:
+        - name: studies          # MONAI Label 的本機資料夾（平台不用它的資料庫；上傳推論的暫存）
+          emptyDir: {sizeLimit: 5Gi}
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: 1Gi}
+---
+# 平台後端 → 轉接服務；轉接服務 → MONAI Label、Orthanc（DICOMweb，唯讀帳號）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monai-autolabel
+spec:
+  podSelector:
+    matchLabels: {app: monai-autolabel}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {platform/backend: "true"}}
+      ports:
+        - {port: 8102, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: monai-label
+spec:
+  podSelector:
+    matchLabels: {app: monai-label}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: monai-autolabel}}
+      ports:
+        - {port: 8000, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orthanc-from-monai-autolabel
+spec:
+  podSelector:
+    matchLabels: {app: orthanc}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: monai-autolabel}}
+      ports:
+        - {port: 8042, protocol: TCP}

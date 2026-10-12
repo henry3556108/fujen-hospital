@@ -1,0 +1,46 @@
+# 疊加檔（B-03 真實自動標註工具）：以 MONAI Label 取代 fake-autolabel。疊在 compose.labeling.yaml 之後：
+#   docker compose -f compose.yaml -f compose.labeling.yaml -f compose.monai.yaml up -d --no-build（映像先用 platform/autolabel/build.sh 建）
+# 服務名稱仍是 autolabel（轉接服務），所以 api 的 AUTOLABEL_URL=http://autolabel:8102、驗收測試的停止服務都不用改。
+#   autolabel    轉接服務（platform/autolabel/adapter）：規格 1.0 ↔ MONAI Label；以 Orthanc 唯讀帳號 autolabel 取像
+#   monai-label  MONAI Label 0.8.5（radiology app，segmentation_spleen、segmentation；權重在映像內，不需連網）
+# monai-label 要 NVIDIA GPU（Docker 要裝 NVIDIA Container Toolkit）。沒有 GPU 的機器刪掉 deploy 一段即改用 CPU，
+# 但腹部 CT 一個序列的推論要數十秒，超過平台的 25 秒等候（轉接服務先回 503，算完後再送一次就會成功）。
+# 兩個服務都不對主機開連接埠。說明見 platform/autolabel/README.md。
+services:
+  autolabel:
+    image: platform-autolabel:dev
+    build:                      # 與 compose.labeling.yaml 合併：只換 context（FAKE_SERVICE 留著也不影響轉接服務）
+      context: ../../autolabel/adapter
+    environment:
+      PORT: "8102"
+      MONAI_LABEL_URL: http://monai-label:8000
+      DICOMWEB_URL: http://orthanc:8042/dicom-web
+      DICOMWEB_USERNAME: autolabel
+      DICOMWEB_PASSWORD: orthanc-autolabel-dev     # orthanc/platform/orthanc.json；只能 GET /dicom-web/（autolabel-readonly.lua）
+      INFER_WAIT_SECONDS: "22"
+    depends_on:
+      monai-label: {condition: service_healthy}
+      orthanc: {condition: service_started}
+
+  monai-label:
+    image: platform-monailabel:dev
+    build:
+      context: ../../autolabel
+      dockerfile: Dockerfile.monailabel
+    shm_size: 1g
+    volumes:
+      - monai-studies:/data/studies
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/info/', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 30
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: 1, capabilities: [gpu]}
+
+volumes:
+  monai-studies: {}

@@ -117,7 +117,7 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 
 1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址
    （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。甲方環境可上網，節點直接向來源 registry 拉取亦可（照 `components/images` 的版本與 digest）；離線安裝包只在不能上網的環境使用。
-2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（自動標註、SMTP）、`pacs`、
+2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（SMTP）、`pacs`、
    `ingress.yaml`（ingressClassName、TLS Secret）、`networkpolicy-production.yaml`（PACS 位址）、`config/app-config.js`（Keycloak 網域）。
    `deploy.sh production` 發現還有 `CHANGE-ME` 或 `example.invalid` 就停止。
 3. `./create-secrets.sh`（隨機產生，不進版控；`--print-keys` 列出所有鍵）；`kubectl -n ai-platform create secret tls ai-platform-tls --cert=… --key=…`。
@@ -135,6 +135,13 @@ LLM（`overlays/production/ollama.yaml`，與 `platform/deploy/local/compose.oll
 - **出口**：api 要能以 HTTPS 連 `huggingface.co` 與 `cas-bridge.xethub.hf.co`（Hugging Face 把大檔轉址到這裡）；Ollama 不需要對外。
   經甲方核准的鏡像站時在 `api-env` 加 `HF_ENDPOINT`。不能上網時改用離線預載目錄（`/opt/llm-preload`，每個模型一個資料夾＋`manifest.json`，
   另掛 PVC 並設 `LLM_PRELOAD_DIR`；格式見 `platform/deploy/local/llm/README.md`）。
+
+自動標註（B-03，`overlays/production/autolabel-monai.yaml`，說明見 `platform/autolabel/README.md`）：
+- `monai-label`：MONAI Label 0.8.5（radiology app，預訓練 `segmentation_spleen`、`segmentation`，權重在映像內，不需連網），
+  GPU 共享池 1 份、不經 Kueue：與 Ollama 合計，共享池的 Kueue 配額要少算兩份。
+- `monai-autolabel`：轉接服務（cpu-web），平台 `AUTOLABEL_URL=http://monai-autolabel:8102`；以 Orthanc 唯讀帳號 `autolabel`
+  （Secret 鍵 `ORTHANC_AUTOLABEL_PASSWORD`，Orthanc 端以 `autolabel-readonly.lua` 限制只能 GET `/dicom-web/`）取像。
+- 映像 `platform-autolabel`、`platform-monailabel` 以 `platform/autolabel/build.sh` 建置（`images.py autolabel`）；kind 不部署，仍用 fake-autolabel。
 
 資料庫帳號：平台程式（api、fhir-worker、bootstrap-admin、seed）以 `platform_app` 連線，稽核表只有 INSERT 與 SELECT（TC-SS-07）；
 `platform` 只給 db-init 建表與授權（`app/db_init.py`）。既有環境升級與細節見 `docs/delivery/部署說明.md`「資料庫帳號與升級」。

@@ -7,8 +7,10 @@
   "AuthenticationEnabled": true,
   "RegisteredUsers": {
     "platform-api": "orthanc-api-dev",
-    "gateway": "orthanc-gw-dev"
+    "gateway": "orthanc-gw-dev",
+    "autolabel": "orthanc-autolabel-dev"
   },
+  "LuaScripts": ["/etc/orthanc/autolabel-readonly.lua"],
   "OrthancExplorerEnabled": false,
   "WebDavEnabled": false,
   "DicomServerEnabled": true,

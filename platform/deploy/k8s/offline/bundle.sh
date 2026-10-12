@@ -4,6 +4,7 @@
 #   SKIP_PACKAGES=1 ./bundle.sh <輸出目錄>       不收 Python／Node 套件快取（只要部署、不在內網重建映像時）
 # 內容：
 #   images/*.tar        所有映像（上游、平台建置、Job 用），docker save --platform linux/amd64；images.txt 是清單
+#                       （含正式環境的自動標註映像 platform-autolabel、platform-monailabel：先以 platform/autolabel/build.sh 建置）
 #   clamav-db.tar       ClamAV 病毒碼（main、daily、bytecode）；叢集內的 clamav 在跑就從它取，否則以 freshclam 下載
 #   source.tar          這個 commit 的原始碼（git archive）：manifest、腳本、Dockerfile
 #   packages/uv-cache   重建平台映像用的 Python 套件（uv 快取；api、training〔含 keras〕、fakes、libs/tabular、acceptance、compliance）

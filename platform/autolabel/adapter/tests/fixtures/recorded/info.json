@@ -1,0 +1,74 @@
+{
+  "name": "MONAI Label（MONAILabel - Radiology (0.8.5)）",
+  "description": "MONAI Label 分割模型；以整個序列做 3D 推論，回傳指定影像（切面）的 2D 遮罩",
+  "version": "1.0.0+monailabel-0.8.5",
+  "labels": [
+    "spleen",
+    "kidney_right",
+    "kidney_left",
+    "gallbladder",
+    "liver",
+    "stomach",
+    "aorta",
+    "inferior_vena_cava",
+    "portal_vein_and_splenic_vein",
+    "pancreas",
+    "adrenal_gland_right",
+    "adrenal_gland_left",
+    "lung_upper_lobe_left",
+    "lung_lower_lobe_left",
+    "lung_upper_lobe_right",
+    "lung_middle_lobe_right",
+    "lung_lower_lobe_right",
+    "esophagus",
+    "trachea",
+    "heart_myocardium",
+    "heart_atrium_left",
+    "heart_ventricle_left",
+    "heart_atrium_right",
+    "heart_ventricle_right",
+    "pulmonary_artery"
+  ],
+  "models": {
+    "segmentation": {
+      "type": "segmentation",
+      "labels": [
+        "spleen",
+        "kidney_right",
+        "kidney_left",
+        "gallbladder",
+        "liver",
+        "stomach",
+        "aorta",
+        "inferior_vena_cava",
+        "portal_vein_and_splenic_vein",
+        "pancreas",
+        "adrenal_gland_right",
+        "adrenal_gland_left",
+        "lung_upper_lobe_left",
+        "lung_lower_lobe_left",
+        "lung_upper_lobe_right",
+        "lung_middle_lobe_right",
+        "lung_lower_lobe_right",
+        "esophagus",
+        "trachea",
+        "heart_myocardium",
+        "heart_atrium_left",
+        "heart_ventricle_left",
+        "heart_atrium_right",
+        "heart_ventricle_right",
+        "pulmonary_artery"
+      ],
+      "dimension": 2,
+      "description": "A pre-trained model for volumetric (3D) Segmentation from CT image"
+    },
+    "segmentation_spleen": {
+      "type": "segmentation",
+      "labels": [
+        "spleen"
+      ],
+      "dimension": 2,
+      "description": "A pre-trained model for volumetric (3D) segmentation of the spleen from CT image"
+    }
+  }
+}

@@ -45,6 +45,7 @@ configMapGenerator:
   - name: orthanc-config
     files:
       - orthanc.json=config/orthanc.json
+      - autolabel-readonly.lua=config/autolabel-readonly.lua
   - name: clamav-config
     files:
       - clamd.conf=config/clamd.conf

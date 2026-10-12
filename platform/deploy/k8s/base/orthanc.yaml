@@ -34,6 +34,9 @@ spec:
               valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_API_PASSWORD}}
             - name: ORTHANC_GATEWAY_PASSWORD
               valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_GATEWAY_PASSWORD}}
+            # 自動標註轉接服務的唯讀帳號（只能 GET /dicom-web/，見 autolabel-readonly.lua）
+            - name: ORTHANC_AUTOLABEL_PASSWORD
+              valueFrom: {secretKeyRef: {name: platform-secrets, key: ORTHANC_AUTOLABEL_PASSWORD}}
             # 醫院 PACS（C-FIND／C-MOVE 的對象）；kind 是模擬 PACS，甲方填實際的 AE Title、主機、連接埠
             - name: PACS_AET
               valueFrom: {configMapKeyRef: {name: pacs, key: PACS_AET}}

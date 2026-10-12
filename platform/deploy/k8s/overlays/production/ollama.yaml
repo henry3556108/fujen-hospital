@@ -1,6 +1,6 @@
 # LLM 模型服務（Ollama，與 compose.ollama.yaml 相同）。只有平台 API 連得到（networkpolicy-production.yaml）。
 # 模型不由 Ollama 下載：平台 API 從 Hugging Face 下載 GGUF（核對 commit 與 hash）後以 HTTP 推進來（app.llm.model_setup）。
-# 唯一不在 cpu-web 的平台 Pod：排在 GPU 共享池（time-slicing 的一份），不經 Kueue，所以共享池的 Kueue 配額要少算一份
+# 與 MONAI Label（autolabel-monai.yaml）是僅有的兩個不在 cpu-web 的平台 Pod：排在 GPU 共享池（time-slicing 的一份），不經 Kueue，所以共享池的 Kueue 配額要少算一份
 # （README「正式環境」）。要獨占一張卡時把 platform/pool 改成 gpu-exclusive，獨占池配額同樣少一張。
 # /root/.ollama 是 Ollama 的模型庫，用 PVC，所以一個副本、Recreate。
 apiVersion: v1

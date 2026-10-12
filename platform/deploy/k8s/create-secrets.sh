@@ -10,7 +10,7 @@
 set -euo pipefail
 NAMESPACE="${NAMESPACE:-ai-platform}"
 KEYS=(POSTGRES_PASSWORD POSTGRES_APP_PASSWORD KC_BOOTSTRAP_ADMIN_PASSWORD KC_API_CLIENT_SECRET KC_ADMIN01_PASSWORD
-      ORTHANC_API_PASSWORD ORTHANC_GATEWAY_PASSWORD ORTHANC_GATEWAY_AUTH PACS_ADMIN_PASSWORD
+      ORTHANC_API_PASSWORD ORTHANC_GATEWAY_PASSWORD ORTHANC_GATEWAY_AUTH ORTHANC_AUTOLABEL_PASSWORD PACS_ADMIN_PASSWORD
       MINIO_ROOT_USER MINIO_ROOT_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY INFERENCE_ADMIN_TOKEN WIKI_ADMIN_PASSWORD)
 MODE="${1:-random}"
 if [ "$MODE" = "--print-keys" ]; then printf '%s\n' "${KEYS[@]}"; exit 0; fi
@@ -26,7 +26,7 @@ if [ "$MODE" = "--dev" ]; then
   # 與 platform/deploy/local/compose*.yaml、realm-ai-platform.json 相同的本機測試值。不可用於甲方環境。
   V=([POSTGRES_PASSWORD]=platform-dev [POSTGRES_APP_PASSWORD]=platform-app-dev [KC_BOOTSTRAP_ADMIN_PASSWORD]=kcadmin-dev [KC_API_CLIENT_SECRET]=api-secret-dev
      [KC_ADMIN01_PASSWORD]='Admin01-dev!' [ORTHANC_API_PASSWORD]=orthanc-api-dev [ORTHANC_GATEWAY_PASSWORD]=orthanc-gw-dev
-     [PACS_ADMIN_PASSWORD]=pacs-dev [MINIO_ROOT_USER]=minio-dev [MINIO_ROOT_PASSWORD]=minio-dev-secret
+     [ORTHANC_AUTOLABEL_PASSWORD]=orthanc-autolabel-dev [PACS_ADMIN_PASSWORD]=pacs-dev [MINIO_ROOT_USER]=minio-dev [MINIO_ROOT_PASSWORD]=minio-dev-secret
      [S3_ACCESS_KEY]=platform-api [S3_SECRET_KEY]=platform-api-dev-secret [INFERENCE_ADMIN_TOKEN]=inference-admin-dev
      [WIKI_ADMIN_PASSWORD]=wiki-svc-dev)
 elif [ "$MODE" = "random" ]; then

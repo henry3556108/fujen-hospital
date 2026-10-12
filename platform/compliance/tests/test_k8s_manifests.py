@@ -18,10 +18,10 @@ NEEDS_KUBECTL = pytest.mark.skipif(shutil.which("kubectl") is None, reason="需�
 # create-secrets.sh --dev 的值（與 compose 相同）：不可出現在任何 ConfigMap
 DEV_SECRETS = ["platform-dev", "kcadmin-dev", "api-secret-dev", "Admin01-dev!", "orthanc-api-dev", "orthanc-gw-dev",
                "Z2F0ZXdheTpvcnRoYW5jLWd3LWRldg==", "pacs-dev", "minio-dev-secret", "platform-api-dev-secret",
-               "inference-admin-dev", "wiki-svc-dev", "platform-app-dev"]
+               "inference-admin-dev", "wiki-svc-dev", "platform-app-dev", "orthanc-autolabel-dev"]
 WORKLOADS = ("Deployment", "StatefulSet", "CronJob")
 # 唯一不在 cpu-web 的平台 Pod：production 的 LLM 模型服務，排在 GPU 共享池、要一張 GPU（份）
-GPU_WORKLOADS = {"ollama": {"platform/pool": "gpu-shared"}}
+GPU_WORKLOADS = {"ollama": {"platform/pool": "gpu-shared"}, "monai-label": {"platform/pool": "gpu-shared"}}
 
 
 def build(overlay: str) -> list[dict]:

@@ -9,8 +9,12 @@
   "AuthenticationEnabled": true,
   "RegisteredUsers": {
     "platform-api": "${ORTHANC_API_PASSWORD}",
-    "gateway": "${ORTHANC_GATEWAY_PASSWORD}"
+    "gateway": "${ORTHANC_GATEWAY_PASSWORD}",
+    "autolabel": "${ORTHANC_AUTOLABEL_PASSWORD}"
   },
+  "LuaScripts": [
+    "/etc/orthanc/autolabel-readonly.lua"
+  ],
   "OrthancExplorerEnabled": false,
   "WebDavEnabled": false,
   "DicomServerEnabled": true,

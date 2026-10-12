@@ -1,0 +1,5 @@
+# 基底映像（pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime）內建、不可被其他套件換掉的版本。
+# MONAI 1.4.0 只支援 numpy 1.x，所以 numpy 降到 1.26.4（PyTorch 2.8 的官方 wheel 支援 numpy 1.x 與 2.x）。
+torch==2.8.0+cu128
+torchvision==0.23.0+cu128
+numpy==1.26.4

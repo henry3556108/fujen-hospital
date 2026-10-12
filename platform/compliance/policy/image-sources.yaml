@@ -40,6 +40,8 @@ approved:
     reason: Ollama 專案官方映像（MIT 授權），正式環境的 LLM 模型服務（B-07 對話與知識庫向量）；模型權重由平台 API 自 Hugging Face 白名單下載
   - pattern: nvcr.io/nvidia/tensorflow
     reason: NVIDIA NGC 官方 TensorFlow 容器，GPU 訓練映像的基底（platform/training/Dockerfile.gpu）。官方 TensorFlow 不支援 Blackwell（sm_120），NGC 25.02 原生支援；受 NVIDIA Deep Learning Container License 規範
+  - pattern: docker.io/pytorch/pytorch
+    reason: PyTorch 官方（PyTorch Foundation）映像，MONAI Label 映像的基底（platform/autolabel/Dockerfile.monailabel）。2.8.0 cu128 含 Blackwell（sm_120）；MONAI Label 官方映像的 PyTorch 不支援 sm_120
   - pattern: docker.io/nginxinc/nginx-unprivileged
     reason: NGINX 官方（NGINX Inc.／F5）維護的非 root 版 nginx，網頁前端映像的基底（platform/web/Dockerfile）
 
