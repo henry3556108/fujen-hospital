@@ -273,7 +273,9 @@ export function llmApi(api: ApiClient, projectId: number, options: { auth?: Auth
     executeDownload: (id: number, token: string) => api.post<Download>(`${base}/models/downloads/${id}/execute`, { token: token || null }),
     deleteModel: (name: string) => api.delete(`${base}/models/${name}`),
     getLoadConfig: (name: string) => api.get<LoadConfig>(`${base}/models/${name}/load-config`),
-    putLoadConfig: (name: string, c: LoadConfig) => api.put<LoadConfig>(`${base}/models/${name}/load-config`, c),
+    // 只送設定欄位：GET 的回應另有 name、updated_by 等，API 不接受多餘欄位（422）
+    putLoadConfig: (name: string, { quantization, cpu, memory_gb, gpu_type, gpu_count }: LoadConfig) =>
+      api.put<LoadConfig>(`${base}/models/${name}/load-config`, { quantization, cpu, memory_gb, gpu_type, gpu_count }),
     loadModel: (name: string) => api.post<{ loaded: boolean; trust_remote_code: boolean }>(`${base}/models/${name}/load`),
     unloadModel: (name: string) => api.post(`${base}/models/${name}/unload`),
     modelRuntime: (name: string) => api.get<ModelRuntimeStatus>(`${base}/models/${name}/runtime`),

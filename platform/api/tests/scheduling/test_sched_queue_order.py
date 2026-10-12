@@ -3,6 +3,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import AuditLog
+from app.scheduling import service
 from app.scheduling.models import Job, JobHold
 from app.scheduling.states import JobStatus
 
@@ -94,6 +95,29 @@ def test_reorder_keeps_jobs_already_in_place(client, backend, session, admin, p1
     assert after[c].startswith(f"job-{c}-")
     log = session.scalars(select(AuditLog).where(AuditLog.action == "queue.reorder")).one()
     assert log.detail["moved"] == [c, b]
+
+
+def test_sync_with_name_read_before_reorder_does_not_mark_job_gone(client, backend, session, admin, p1, ra):
+    """另一個請求（例如工作頁每 2 秒更新）在調整前讀到舊名稱：叢集找不到舊名稱時要重讀資料庫，不能判為消失。"""
+    _, queued = fill_and_queue(client, p1, ra)
+    a, b, c = (j["id"] for j in queued)
+    stale = session.get(Job, c)
+    old_name = stale.k8s_name
+    assert reorder(client, admin, [c, a, b]).status_code == 200
+    assert stale.k8s_name == old_name and backend.get(old_name) is None   # 這個 session 仍是舊名稱
+    service.sync_job(backend, stale)
+    assert stale.status == JobStatus.QUEUED.value and stale.k8s_name != old_name
+    session.commit()
+    assert [j["id"] for j in queue(client, admin)["waiting"]] == [c, a, b]
+
+
+def test_sync_still_marks_a_really_missing_job_failed(client, backend, session, p1, ra):
+    _, queued = fill_and_queue(client, p1, ra, waiting=1)
+    job = session.get(Job, queued[0]["id"])
+    backend.cancel(job.k8s_name)                        # 假後端取消即移除：等同叢集中被手動刪除
+    assert backend.get(job.k8s_name) is None
+    service.sync_job(backend, job)
+    assert job.status == JobStatus.FAILED.value and "消失" in job.message
 
 
 def test_reorder_rejects_list_that_does_not_match_waiting_jobs(client, backend, admin, p1, ra):

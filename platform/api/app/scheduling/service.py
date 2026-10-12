@@ -2,8 +2,8 @@ import logging
 import re
 import secrets
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session, object_session
 
 from app.audit import AuditCategory, record
 from app.models import Project, User, utcnow
@@ -19,6 +19,17 @@ POOL_MODES = {"gpu-exclusive": "exclusive", "gpu-shared": "shared"}
 DEFAULT_GROUPS = [("gpu-exclusive", "gpu-exclusive", 2, "exclusive"), ("gpu-shared", "gpu-shared", 1, "shared")]
 
 log = logging.getLogger(__name__)
+
+# 調整佇列與暫存會先刪除叢集中的 Job、之後才改資料庫（調整佇列要數秒）。這段期間其他請求同步狀態時
+# 找不到 Job，不能當成工作消失。PostgreSQL 以 advisory lock 串起兩者（多個 API 副本也有效）；
+# SQLite（單元測試）只有一條連線，不需要
+CLUSTER_CHANGE_LOCK = 7_310_001
+
+
+def lock_cluster_changes(session: Session) -> None:
+    """取得到交易結束為止的鎖；同一交易內可重複取得。"""
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": CLUSTER_CHANGE_LOCK})
 
 
 class SchedulingError(Exception):
@@ -271,6 +282,17 @@ def sync_job(backend: JobBackend, job: Job) -> None:
     if current in TERMINAL or current == JobStatus.HELD:   # 暫存中的工作不在叢集裡，沒有東西可同步
         return
     observed = backend.get(job.k8s_name)
+    if observed is None and (session := object_session(job)) is not None:
+        # 可能正在調整佇列或暫存：等它完成，重讀這筆（名稱或狀態可能已改）再判斷
+        name = job.k8s_name
+        session.flush()
+        lock_cluster_changes(session)
+        session.refresh(job)
+        current = JobStatus(job.status)
+        if current in TERMINAL or current == JobStatus.HELD:
+            return
+        if job.k8s_name != name:
+            observed = backend.get(job.k8s_name)
     if observed is None:
         target, message = JobStatus.FAILED, "工作在叢集中消失（可能被手動刪除）"
     else:
@@ -371,6 +393,7 @@ def check_owner(job: Job, user: User) -> None:
 
 def mark_held(session: Session, backend: JobBackend, job: Job, *, actor: str, source_ip: str | None) -> None:
     """把排隊中的工作移出佇列：刪除叢集中的 Job、定義存進 job_holds、狀態改為 held、寫稽核。不 commit。"""
+    lock_cluster_changes(session)
     sync_job(backend, job)
     status = JobStatus(job.status)
     if status == JobStatus.RUNNING:
@@ -513,6 +536,7 @@ def reorder_queue(session: Session, backend: JobBackend, *, queue: str, job_ids:
         raise NotFound(f"找不到佇列 {queue}")
     if len(set(job_ids)) != len(job_ids):
         raise Invalid("工作清單有重複的編號")
+    lock_cluster_changes(session)
     jobs = session.scalars(select(Job).where(Job.queue == queue, Job.status == JobStatus.QUEUED.value)).all()
     try:
         for job in jobs:

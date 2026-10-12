@@ -131,6 +131,7 @@ export function ModelsPage() {
   }
   const ready = (downloads.data ?? []).filter((d) => d.status === 'approved');
   const running = (downloads.data ?? []).filter((d) => d.status === 'downloading');
+  const waiting = (downloads.data ?? []).filter((d) => d.status === 'pending');
   // 大檔在背景下載：有下載中的項目就每 3 秒更新進度
   useEffect(() => {
     if (running.length === 0) return;
@@ -155,14 +156,15 @@ export function ModelsPage() {
               {(catalog.data ?? []).map((m) => {
                 const approved = ready.find((d) => d.name === m.name);
                 const active = running.find((d) => d.name === m.name);
+                const requested = waiting.find((d) => d.name === m.name);
                 return (
                   <tr key={m.name}>
                     <th scope="row">{m.name}</th>
                     <td>{m.repo}@{m.revision.slice(0, 8)}</td>
                     <td>{m.license || '—'}{m.has_remote_code ? '（夾帶程式碼）' : ''}</td>
-                    <td>{m.loaded ? '已載入' : m.installed ? '已下載' : active ? downloadStatus(active) : approved ? '已核准，待下載' : '未下載'}</td>
+                    <td>{m.loaded ? '已載入' : m.installed ? '已下載' : active ? downloadStatus(active) : approved ? '已核准，待下載' : requested ? '已申請，待核准' : '未下載'}</td>
                     <td className="row-actions">
-                      {!m.installed && !approved && !active && <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.requestDownload(m.name))}>申請下載</button>}
+                      {!m.installed && !approved && !active && !requested && <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.requestDownload(m.name))}>申請下載</button>}
                       {approved && <button type="button" className="btn btn--small btn--primary" onClick={() => void act(() => llm!.executeDownload(approved.id, token))}>下載</button>}
                       {m.installed && <button type="button" className="btn btn--small btn--danger" onClick={() => void act(() => llm!.deleteModel(m.name))}>刪除</button>}
                       {me.account_type === 'admin' && m.has_remote_code && !m.remote_code_approved && (
