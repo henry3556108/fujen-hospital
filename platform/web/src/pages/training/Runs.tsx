@@ -1,9 +1,8 @@
-// 訓練紀錄：清單可依編號或主要分數排序、預設只看自己的；點「展開」在清單內看細節。
+// 訓練紀錄：伺服器分頁（每頁 20 筆、由新到舊），頁內可依編號或主要分數排序、預設只看自己的；點「展開」在清單內看細節。
 // 細節：圖示步驟條（進行中自動更新）、失敗原因（技術細節收合、前往修正）、結果與圖表、模型匯出、分享給同事使用（AI 模型部署）。
 import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
-import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
@@ -17,6 +16,8 @@ import { ResultView } from './ResultView';
 import { RunSteps, STATUS_TEXT } from './RunSteps';
 
 export const POLL_MS = 1500;
+/** 訓練紀錄每頁筆數 */
+export const RUN_PAGE = 20;
 
 const TONE: Record<RunStatus, BadgeTone> = { queued: 'info', running: 'warning', succeeded: 'success', failed: 'error', cancelled: 'neutral', held: 'neutral' };
 const LABELS: Record<RunStatus, string> = { ...JOB_STATUS_LABELS, running: '訓練中' };
@@ -53,23 +54,31 @@ export function Runs({ api, selected, onSelect, settings, onRuns, onSettingSaved
   /** 「另存為訓練設定」成功後通知（重新載入設定清單） */
   onSettingSaved?: (setting: TrainingSetting, run: TrainingRun) => void;
 }) {
-  const { me } = useSession();
-  const runs = useResource(() => api.runs(), [api]);
-  const { reload } = runs;
-  useEffect(() => {
-    if (runs.data) onRuns?.(runs.data);
-  }, [runs.data, onRuns]);
   const [mineOnly, setMineOnly] = useState(true);
+  const [page, setPage] = useState(1);
+  const offset = (page - 1) * RUN_PAGE;
+  // 分頁在伺服器：依編號由新到舊，每頁 RUN_PAGE 筆；「只看我送出的」也由伺服器篩選
+  const runs = useResource(() => api.runPage({ limit: RUN_PAGE, offset, mine: mineOnly }), [api, offset, mineOnly]);
+  const { reload } = runs;
+  const items = runs.data?.items;
+  useEffect(() => {
+    if (items) onRuns?.(items);
+  }, [items, onRuns]);
   const [sort, setSort] = useState<Sort>({ by: 'id', desc: true });
-  const hasActive = (runs.data ?? []).some((r) => active(r.status));
+  const hasActive = (items ?? []).some((r) => active(r.status));
   useEffect(() => {
     if (!hasActive) return;
     const timer = window.setInterval(reload, POLL_MS);
     return () => window.clearInterval(timer);
   }, [hasActive, reload]);
 
-  const all = runs.data ?? [];
-  const shown = all.filter((r) => !mineOnly || r.created_by === me?.username || r.id === selected);
+  const total = runs.data?.total ?? 0;
+  const lastPage = Math.max(1, Math.ceil(total / RUN_PAGE));
+  useEffect(() => {
+    // 這一頁的訓練都不見了（例如被刪掉）：改看最後一頁
+    if (runs.data && runs.data.items.length === 0 && total > 0 && page > lastPage) setPage(lastPage);
+  }, [runs.data, total, page, lastPage]);
+  const shown = items ?? [];
   const value = (r: TrainingRun) => (sort.by === 'id' ? r.id : primaryScore(r)?.value ?? -Infinity);
   const list = [...shown].sort((a, b) => (sort.desc ? value(b) - value(a) : value(a) - value(b)) || b.id - a.id);
   const toggleSort = (by: Sort['by']) => setSort((s) => ({ by, desc: s.by === by ? !s.desc : true }));
@@ -81,7 +90,7 @@ export function Runs({ api, selected, onSelect, settings, onRuns, onSettingSaved
         <h2 id="runs-title">訓練紀錄</h2>
         <div className="row-actions">
           <label className="checkbox">
-            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+            <input type="checkbox" checked={mineOnly} onChange={(e) => { setMineOnly(e.target.checked); setPage(1); }} />
             只看我送出的
           </label>
           <button type="button" className="btn btn--secondary btn--small" onClick={reload}>
@@ -91,10 +100,28 @@ export function Runs({ api, selected, onSelect, settings, onRuns, onSettingSaved
       </div>
       <ApiErrorAlert error={runs.error} />
       {hasActive ? <p className="text-muted">有訓練在排隊或訓練中，狀態每 {POLL_MS / 1000} 秒自動更新。</p> : null}
-      {runs.data && shown.length === 0 ? (
+      {runs.data && total === 0 ? (
         <p className="text-muted">
-          {all.length ? `沒有你送出的訓練（全部共 ${all.length} 筆，取消勾選「只看我送出的」可查看）。` : '還沒有訓練。在上方的訓練設定按「送出訓練」。'}
+          {mineOnly ? '沒有你送出的訓練（取消勾選「只看我送出的」可查看其他人送出的）。' : '還沒有訓練。在上方的訓練設定按「送出訓練」。'}
         </p>
+      ) : null}
+      {total > 0 ? (
+        <p className="text-muted" data-testid="runs-range">
+          共 {total} 筆{mineOnly ? '（只列你送出的）' : ''}，這一頁是第 {offset + 1}–{offset + shown.length} 筆（每頁 {RUN_PAGE} 筆，由新到舊；依分數排序只排這一頁）。
+        </p>
+      ) : null}
+      {total > RUN_PAGE ? (
+        <nav className="row-actions" aria-label="訓練紀錄分頁">
+          <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            上一頁
+          </button>
+          <span>
+            第 {page} / {lastPage} 頁
+          </span>
+          <button type="button" className="btn btn--secondary btn--small" disabled={page >= lastPage} onClick={() => setPage(page + 1)}>
+            下一頁
+          </button>
+        </nav>
       ) : null}
       {list.length > 0 ? (
         <div className="table-wrap">

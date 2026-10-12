@@ -72,7 +72,10 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [x] `cgr.dev/chainguard/minio:latest` 改成以 digest 釘版本（2026-09-30）
 - [x] 刪除專案時停止該專案已部署的線上推論服務（2026-10-12，分支 `feat/gaps-backend`）：部署列與專案同一個交易刪除，端點立即停用；
   commit 後從推論服務卸下專案的每個模型（待清理清單種類 `inference_model`，失敗重試，數量記在 `project.data_cleanup` 的 `models_unloaded`，不逐筆寫 `deployment.delete`）
-- [ ] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁
+- [x] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁（2026-10-12，分支 `feat/gaps-web`）：
+  新增 `GET /api/projects/{pid}/user-lookup?q=`（本專案 training 或 coding 權限，帳號開頭比對、最多 20 筆、只回帳號與是否為成員），分享模型與發布 LLM 服務的帳號欄位輸入開頭即可點選；
+  部署回傳 `model_name`、`model_kind`；部署頁「試呼叫」以目前登入帳號經 Gateway 呼叫 `/api/inference/{name}/predict`（不在分享對象中會 403，與程式呼叫相同）；
+  `GET /training/runs?limit=&offset=&mine=` 伺服器分頁（不帶 limit 維持原本的完整陣列），訓練紀錄每頁 20 筆、由新到舊，依分數排序只排目前這一頁。驗收 `test_tc_b05_b06.py::test_web_gaps_model_name_user_lookup_try_call_and_run_paging`
 - [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳
   - [x] 批次完成後 jobs 表要等有人列出工作才更新狀態（2026-10-12，分支 `feat/gaps-backend`）：Job 容器回報結果時，工作列與推論紀錄同時定案
   - [x] 工作頁顯示原始代碼 inference、inference-cpu（2026-10-12 確認：分支 `feat/queue-order` 已改顯示「批次推論（GPU）」「批次推論（CPU）」，補上單元測試）

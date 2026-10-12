@@ -54,18 +54,20 @@ class ProjectContext:
     session: Session
 
 
-def require_project_permission(permission: Permission) -> Callable[..., ProjectContext]:
-    """專案範圍 API 的共用檢查：路徑需含 {project_id}。
+def require_project_permission(permission: Permission, *others: Permission) -> Callable[..., ProjectContext]:
+    """專案範圍 API 的共用檢查：路徑需含 {project_id}。給多個權限時，有其中任一個即可。
     非 Admin 查不存在的專案一律回 403（不透露專案是否存在）；Admin 回 404。"""
+    wanted = (permission, *others)
+    names = "或".join(p.value for p in wanted)
 
     def dependency(project_id: int, user: User = Depends(current_user),
                    session: Session = Depends(get_session)) -> ProjectContext:
         project = session.get(Project, project_id)
         if user.account_type == AccountType.ADMIN and project is None:
             raise HTTPException(404, f"找不到專案 {project_id}")
-        if project is None or permission not in effective_permissions(session, user, project_id):
+        if project is None or not set(wanted) & effective_permissions(session, user, project_id):
             raise HTTPException(403, {"code": "forbidden", "permission": permission.value,
-                                      "message": f"你沒有 {permission.value} 權限"})
+                                      "message": f"你沒有 {names} 權限"})
         return ProjectContext(user=user, project=project, session=session)
 
     return dependency

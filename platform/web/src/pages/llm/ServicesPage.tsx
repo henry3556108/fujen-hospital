@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
+import { useUserLookup } from '../../api/userLookup';
+import { UserPicker } from '../../components/UserPicker';
 import { useLlm } from './useLlm';
 
 export function ServicesPage() {
   const { llm } = useLlm();
+  const lookup = useUserLookup();
   const services = useResource(() => llm!.services(), [llm]);
   const kbs = useResource(() => llm!.knowledgeBases(), [llm]);
   const [form, setForm] = useState({ slug: '', name: '', kb: '', grants: '' });
@@ -67,7 +70,7 @@ export function ServicesPage() {
           </div>
           <div className="field">
             <label htmlFor="svc-grants">授權帳號（以逗號分隔）</label>
-            <input id="svc-grants" className="input" value={form.grants} onChange={(e) => setForm({ ...form, grants: e.target.value })} />
+            <UserPicker id="svc-grants" value={form.grants} lookup={lookup} onChange={(grants) => setForm({ ...form, grants })} />
           </div>
         </div>
         <button type="submit" className="btn btn--primary">發布</button>

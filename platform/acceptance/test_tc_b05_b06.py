@@ -362,6 +362,36 @@ def test_tc_b06_06_online_deployment_authorised_ten_unauthorised_ten(trained, en
     assert c.delete(f"/api/projects/{pid}/deployments/{deployment['id']}", headers=headers("pi01")).status_code == 204
 
 
+def test_web_gaps_model_name_user_lookup_try_call_and_run_paging(trained, env):
+    """網頁缺口（2026-10-12）：部署回傳模型名稱；非 Admin 依帳號開頭查帳號（training 或 coding）；
+    網頁的試呼叫走同一個端點（分享對象中的帳號成功）；訓練紀錄分頁由新到舊。"""
+    c, pid, pi = env["c"], env["pid"], headers("pi01")
+    mid = model_id(trained, "tabular_classification")
+    model = ok(c.get(f"/api/projects/{pid}/models/{mid}", headers=pi))
+    deployment = ok(c.post(f"/api/projects/{pid}/deployments", headers=pi,
+                           json={"model_id": mid, "name": f"web-{time.time_ns() % 10**9}",
+                                 "allowed_users": ["md01", "pi01"]}), 201)
+    try:
+        assert (deployment["model_name"], deployment["model_kind"]) == (model["name"], "tabular_classification")
+        listed = ok(c.get(f"/api/projects/{pid}/deployments", headers=pi))
+        assert next(d for d in listed if d["id"] == deployment["id"])["model_name"] == model["name"]
+        out = ok(c.post(deployment["endpoint"], headers=pi,
+                        json={"rows": [{"age": 50, "bmi": 24.1, "glucose": 101, "sbp": 128}]}))
+        assert len(out["predictions"]) == 1 and out["deployment"] == deployment["name"]
+    finally:
+        assert c.delete(f"/api/projects/{pid}/deployments/{deployment['id']}", headers=pi).status_code == 204
+
+    found = ok(c.get(f"/api/projects/{pid}/user-lookup", headers=headers("ra01"), params={"q": "md"}))
+    assert {"username": "md01", "member": True} in found
+    assert all(set(row) == {"username", "member"} for row in found), "只回帳號名稱與是否為成員"
+    assert c.get(f"/api/projects/{pid}/user-lookup", headers=headers("md01"), params={"q": "md"}).status_code == 403
+
+    page = ok(c.get(f"/api/projects/{pid}/training/runs", headers=pi, params={"limit": 2}))
+    assert page["total"] >= 5 and len(page["items"]) == 2 and page["items"][0]["id"] > page["items"][1]["id"]
+    second = ok(c.get(f"/api/projects/{pid}/training/runs", headers=pi, params={"limit": 2, "offset": 2}))
+    assert second["items"][0]["id"] < page["items"][1]["id"]
+
+
 def test_inference_service_and_mlflow_are_not_reachable_from_the_host():
     import httpx
 

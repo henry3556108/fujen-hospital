@@ -12,7 +12,7 @@ import secrets
 from datetime import timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
@@ -478,6 +478,21 @@ def list_runs(session: Session, state, backend: JobBackend, project_id: int) -> 
         sync_run(session, state, backend, run)
     session.commit()
     return [run_out(r, model=_model_of(session, r)) for r in runs]
+
+
+def page_runs(session: Session, state, backend: JobBackend, project_id: int, *, limit: int, offset: int = 0,
+              created_by: str | None = None) -> tuple[int, list[dict]]:
+    """訓練紀錄分頁：依編號由新到舊；created_by 只列這位使用者送出的。只同步這一頁的狀態。"""
+    where = [TrainingRun.project_id == project_id]
+    if created_by is not None:
+        where.append(TrainingRun.created_by == created_by)
+    total = session.scalar(select(func.count()).select_from(TrainingRun).where(*where)) or 0
+    runs = session.scalars(select(TrainingRun).where(*where).order_by(TrainingRun.id.desc())
+                           .limit(limit).offset(offset)).all()
+    for run in runs:
+        sync_run(session, state, backend, run)
+    session.commit()
+    return total, [run_out(r, model=_model_of(session, r)) for r in runs]
 
 
 def cancel_run(ctx: ProjectContext, state, backend: JobBackend, run_id: int, *, source_ip: str | None) -> dict:
@@ -977,6 +992,10 @@ def deployment_out(row: Deployment, session: Session | None = None) -> dict[str,
            "allowed_users": row.allowed_users, "endpoint": f"/api/inference/{row.name}/predict",
            "created_by": row.created_by, "created_at": _iso(row.created_at)}
     if session is not None:
+        model = session.get(TrainedModel, row.model_id)
+        # 模型名稱與種類：清單顯示用，網頁的試呼叫依種類決定送 JSON rows 或上傳影像
+        out["model_name"] = model.name if model else None
+        out["model_kind"] = model.kind if model else None
         out["title"] = _title(session, row)
         out["cannot_use_in_platform"] = without_platform_access(session, row.project_id, list(row.allowed_users))
     return out

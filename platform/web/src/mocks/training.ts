@@ -19,7 +19,7 @@ import type {
   ValidationMethod,
 } from '../pages/training/api';
 import { models as projectModels } from './inference';
-import { API, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject } from './support';
+import { API, authUser, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject } from './support';
 import { mockDb } from './handlers';
 
 const P = `${API}/projects/:pid`;
@@ -522,7 +522,30 @@ function deploymentOut(row: Deployment): Deployment {
   const db = mockDb();
   const able = new Set(db.memberships.filter((m) => m.project_id === row.project_id && m.permissions.includes('prediction'))
     .map((m) => db.users.find((u) => u.id === m.user_id)?.username));
-  return { ...row, cannot_use_in_platform: row.allowed_users.filter((u) => !able.has(u)) };
+  const model = projectModels(row.project_id).find((m) => m.id === row.model_id);
+  return { ...row, model_name: model?.name ?? null, model_kind: model?.kind ?? null,
+    cannot_use_in_platform: row.allowed_users.filter((u) => !able.has(u)) };
+}
+
+/** 線上推論（照 service.online_predict）：結構式依輸入算出可重現的預測，影像每個檔案一個結果。 */
+function onlineAnswer(row: Deployment, model: Model, rows: Record<string, unknown>[] | null, files: File[]) {
+  const seq = state().deployments.indexOf(row) + 1;
+  const base = { inference_id: 9000 + seq, deployment: row.name, model_id: model.id };
+  if (model.kind.startsWith('image_')) {
+    const labels = model.card.label_names ?? ['A', 'B'];
+    return { ...base, blocked: [], results: files.map((f, i) => {
+      const p = r4(0.6 + ((f.name.length + i) % 4) / 10);
+      return { name: f.name, label: labels[0], scores: Object.fromEntries(labels.map((l, j) => [l, j === 0 ? p : r4(1 - p)])) };
+    }) };
+  }
+  const score = (r: Record<string, unknown>) => Object.values(r).reduce<number>((s, v) => s + (Number(v) || 0), 0);
+  const classification = model.kind === 'tabular_classification';
+  return {
+    ...base,
+    predictions: rows!.map((r) => (classification ? (score(r) % 2 >= 1 ? '1' : '0') : String(r4(score(r) / 2)))),
+    notes: rows!.map(() => null),
+    ...(classification ? { probabilities: rows!.map(() => 0.8), positive_label: '1', positive_probabilities: rows!.map((r) => (score(r) % 2 >= 1 ? 0.8 : 0.2)) } : {}),
+  };
 }
 
 /** 模型的顯示名稱（照 service.model_titles）：優先用分享給這位使用者的最新一次，否則用最新一次分享。 */
@@ -642,9 +665,22 @@ export const trainingHandlers = [
   http.get(`${P}/training/runs`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
     if (ctx instanceof Response) return ctx;
-    const runs = state().runs.filter((r) => r.project_id === ctx.project.id);
-    runs.forEach(advance);
-    return json(runs.map(runOut));
+    const query = new URL(request.url).searchParams;
+    const mine = query.get('mine') === 'true';
+    const runs = state().runs.filter((r) => r.project_id === ctx.project.id && (!mine || r.created_by === ctx.user.username));
+    if (!query.has('limit')) {
+      runs.forEach(advance);
+      return json(runs.map(runOut));
+    }
+    // 分頁（照 router.list_runs）：由新到舊，只推進這一頁的狀態
+    const limit = Number(query.get('limit'));
+    const offset = Number(query.get('offset') ?? 0);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(offset) || offset < 0) {
+      return detail(422, 'limit 必須是 1–200、offset 不可小於 0');
+    }
+    const items = [...runs].sort((a, b) => b.id - a.id).slice(offset, offset + limit);
+    items.forEach(advance);
+    return json({ items: items.map(runOut), total: runs.length, offset, limit });
   }),
   http.get(`${P}/training/runs/:rid`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
@@ -816,5 +852,44 @@ export const trainingHandlers = [
     if (!row) return detail(404, `找不到部署 ${String(params.did)}`);
     s.deployments = s.deployments.filter((d) => d !== row);
     return noContent();
+  }),
+
+  // 線上推論（照 router.online_predict）：只有分享對象可以呼叫；部署不存在與未授權都回 403
+  http.post(`${API}/inference/:name/predict`, async ({ request, params }) => {
+    const user = authUser(request);
+    if (user instanceof Response) return user;
+    const row = state().deployments.find((d) => d.name === params.name);
+    if (!row || !row.allowed_users.includes(user.username)) return detail(403, '你沒有呼叫這個推論服務的授權');
+    const model = projectModels(row.project_id).find((m) => m.id === row.model_id)!;
+    if ((request.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
+      const files = (await request.formData()).getAll('files').filter((f): f is File => typeof f !== 'string');
+      if (!files.length || !model.kind.startsWith('image_')) return detail(422, '請上傳至少一個影像檔');
+      return json(onlineAnswer(row, model, null, files));
+    }
+    const rows = (await jsonBody(request)).rows;
+    if (!Array.isArray(rows) || !rows.length || !rows.every((r) => r && typeof r === 'object' && !Array.isArray(r))) {
+      return detail(422, 'rows 必須是非空的物件清單，每個物件是一筆資料（欄位名稱 → 值）');
+    }
+    if (model.kind.startsWith('image_')) return detail(422, '請上傳至少一個影像檔');
+    return json(onlineAnswer(row, model, rows as Record<string, unknown>[], []));
+  }),
+
+  // 授權對象的帳號查詢（照 routers/user_lookup.py）：training 或 coding 權限；帳號開頭比對、成員在前
+  http.get(`${P}/user-lookup`, ({ request, params }) => {
+    let ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response && ctx.status === 403) ctx = requireProject(request, params.pid, 'coding');
+    if (ctx instanceof Response) {
+      return ctx.status === 403 ? json({ detail: { code: 'forbidden', permission: 'training', message: '你沒有 training或coding 權限' } }, 403) : ctx;
+    }
+    const query = new URL(request.url).searchParams;
+    const q = (query.get('q') ?? '').trim().toLowerCase();
+    const limit = Number(query.get('limit') ?? 10);
+    if (!q || q.length > 64 || !(limit >= 1 && limit <= 20)) return detail(422, 'q 必須是 1–64 字、limit 必須是 1–20');
+    const db = mockDb();
+    const members = new Set(db.memberships.filter((m) => m.project_id === ctx.project.id).map((m) => m.user_id));
+    const found = db.users.filter((u) => u.username.toLowerCase().startsWith(q))
+      .map((u) => ({ username: u.username, member: members.has(u.id) }))
+      .sort((a, b) => Number(b.member) - Number(a.member) || a.username.localeCompare(b.username));
+    return json(found.slice(0, limit));
   }),
 ];
