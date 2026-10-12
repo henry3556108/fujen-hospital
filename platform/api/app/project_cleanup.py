@@ -1,4 +1,5 @@
-"""刪除專案後清掉平台以外的資料：Orthanc 影像、物件儲存檔案、HAPI 的 FHIR 租戶，並取消叢集中還在排隊／執行的工作。
+"""刪除專案後清掉平台以外的資料：Orthanc 影像、物件儲存檔案、HAPI 的 FHIR 租戶，取消叢集中還在排隊／執行的工作，
+並停止專案的線上推論服務。
 
 採 outbox：資料庫是唯一事實來源。
 1. `stage()`：與刪除專案同一個交易，刪掉專案的影像／結構式索引列，並把要清的外部資料寫進 `storage_cleanup_tasks`。
@@ -11,8 +12,12 @@
 Orthanc 是跨專案共用的節點（同一張影像只存一份），所以只刪「沒有任何專案還在引用」的影像。
 FHIR：租戶＝專案（HAPI 分割區編號＝專案編號）。FHIR 有設定時才寫這筆工作；清理＝刪資源、expunge、刪分割區。
 叢集工作：狀態為 queued／running 的排程工作（訓練也經由排程工作執行）各一筆，經 JobBackend.cancel 取消。
+線上推論：部署列在同一個交易刪除（端點立即停用，與刪除部署相同）；推論服務有設定時，專案的每個模型各寫一筆，
+經 InferenceBackend.unload 從推論服務卸下（部署、上傳推論都會把模型載入推論服務的記憶體）。
+與取消叢集工作相同，不逐筆寫 deployment.delete 稽核，數量記在 project.data_cleanup。
 """
 import logging
+import os
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer, String, delete, inspect, select, text, update
@@ -31,6 +36,8 @@ from app.scheduling.backend import backend_from_env
 from app.scheduling.models import Job
 from app.scheduling.states import TERMINAL, JobStatus
 from app.tabular_api.models import TabularColumnView, TabularDataset, TabularTargetFeature
+from app.training.inference import inference_from_env
+from app.training.models import Deployment, DeploymentTitle, TrainedModel
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +45,7 @@ OBJECT_PREFIX = "object_prefix"
 ORTHANC_INSTANCE = "orthanc_instance"
 FHIR_TENANT = "fhir_tenant"
 CLUSTER_JOB = "cluster_job"
+INFERENCE_MODEL = "inference_model"
 _ACTIVE_JOB = (JobStatus.QUEUED.value, JobStatus.RUNNING.value)
 
 
@@ -45,8 +53,8 @@ class StorageCleanupTask(Base):
     """待清理清單。project_id 不設外鍵：專案已經刪除。"""
     __tablename__ = "storage_cleanup_tasks"
     id: Mapped[int] = mapped_column(primary_key=True)
-    kind: Mapped[str] = mapped_column(String(32))    # object_prefix | orthanc_instance | fhir_tenant | cluster_job
-    ref: Mapped[str] = mapped_column(String(512))    # 物件前綴、SOP Instance UID、FHIR 租戶編號、Kubernetes Job 名稱
+    kind: Mapped[str] = mapped_column(String(32))    # object_prefix | orthanc_instance | fhir_tenant | cluster_job | inference_model
+    ref: Mapped[str] = mapped_column(String(512))    # 物件前綴、SOP Instance UID、FHIR 租戶編號、Kubernetes Job 名稱、模型編號
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str] = mapped_column(String(512), default="")
@@ -87,9 +95,19 @@ def job_backend(state):
     return backend
 
 
-def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
+def inference_backend(state):
+    """與推論路由相同：app.state.inference_backend，沒有就依 INFERENCE_URL 建立；都沒有回 None（沒有模型載入過）。"""
+    backend = getattr(state, "inference_backend", None)
+    if backend is None:
+        backend = inference_from_env(os.environ)
+        if backend is not None:
+            state.inference_backend = backend
+    return backend
+
+
+def stage(session: Session, project_id: int, *, fhir: bool = False, inference: bool = False) -> None:
     """與刪除專案同一個交易：寫待清理清單，並刪掉專案的索引列（不依賴資料庫的 ON DELETE CASCADE）。只 flush，不 commit。
-    fhir=True（有 FHIR 伺服器）時多寫一筆清租戶的工作。"""
+    fhir=True（有 FHIR 伺服器）時多寫一筆清租戶的工作；inference=True（有推論服務）時每個模型多寫一筆卸下的工作。"""
     elsewhere = select(ImagingInstance.sop_instance_uid).where(ImagingInstance.project_id != project_id)
     sops = session.scalars(select(ImagingInstance.sop_instance_uid)
                            .where(ImagingInstance.project_id == project_id,
@@ -102,6 +120,10 @@ def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
     active = session.scalars(select(Job.k8s_name).where(Job.project_id == project_id, Job.status.in_(_ACTIVE_JOB),
                                                         Job.k8s_name.is_not(None)).order_by(Job.id)).all()
     session.add_all(StorageCleanupTask(kind=CLUSTER_JOB, ref=name, project_id=project_id) for name in active)
+    if inference:
+        models = session.scalars(select(TrainedModel.id).where(TrainedModel.project_id == project_id)
+                                 .order_by(TrainedModel.id)).all()
+        session.add_all(StorageCleanupTask(kind=INFERENCE_MODEL, ref=str(m), project_id=project_id) for m in models)
 
     studies = select(ImagingStudy.id).where(ImagingStudy.project_id == project_id)
     jobs = select(ImportJob.id).where(ImportJob.project_id == project_id)
@@ -121,6 +143,8 @@ def stage(session: Session, project_id: int, *, fhir: bool = False) -> None:
         delete(LabelGroupMember).where(LabelGroupMember.group_id.in_(
             select(LabelGroup.id).where(LabelGroup.project_id == project_id))),
         delete(LabelGroup).where(LabelGroup.project_id == project_id),
+        delete(DeploymentTitle).where(DeploymentTitle.project_id == project_id),
+        delete(Deployment).where(Deployment.project_id == project_id),   # 線上端點立即停用
         *_llm_deletes(session, project_id),
     ):
         session.execute(statement.execution_options(synchronize_session=False))
@@ -159,7 +183,7 @@ def _llm_deletes(session: Session, project_id: int) -> list:
     return statements
 
 
-def _run_one(session: Session, task: StorageCleanupTask, store, orthanc, fhir, jobs) -> tuple[str, int]:
+def _run_one(session: Session, task: StorageCleanupTask, store, orthanc, fhir, jobs, inference) -> tuple[str, int]:
     """執行一筆清理，回傳（計數欄位, 刪除數）。資料又被使用中時放棄清理（回 0）。失敗就拋例外。"""
     if task.kind == OBJECT_PREFIX:
         if session.get(Project, task.project_id) is not None:
@@ -200,27 +224,37 @@ def _run_one(session: Session, task: StorageCleanupTask, store, orthanc, fhir, j
             return "jobs_cancelled", 0
         jobs.cancel(task.ref)
         return "jobs_cancelled", 1
+    if task.kind == INFERENCE_MODEL:
+        model = session.get(TrainedModel, int(task.ref))
+        if model is not None and session.get(Project, model.project_id) is not None:
+            log.warning("模型編號 %s 已被重用，放棄從推論服務卸下（避免停掉新專案的模型）", task.ref)
+            return "models_unloaded", 0
+        if inference is None:
+            raise RuntimeError("推論服務未設定")
+        inference.unload(int(task.ref))    # 沒有載入過的模型也回成功
+        return "models_unloaded", 1
     raise RuntimeError(f"不認得的清理種類 {task.kind!r}")
 
 
 def run_pending(session: Session, store, orthanc, *, actor: str, source_ip: str | None = None,
-                fhir=None, jobs=None) -> dict[int, dict]:
+                fhir=None, jobs=None, inference=None) -> dict[int, dict]:
     """執行所有待清理工作（含先前失敗的）。不拋例外；回傳 {project_id: {objects_deleted, orthanc_deleted, failed}}，
-    有 FHIR 或叢集工作的清理成功時多 fhir_deleted、jobs_cancelled。"""
+    有 FHIR、叢集工作或推論服務的清理成功時多 fhir_deleted、jobs_cancelled、models_unloaded。"""
     try:
-        return _run_pending(session, store, orthanc, fhir, jobs, actor=actor, source_ip=source_ip)
+        return _run_pending(session, store, orthanc, fhir, jobs, inference, actor=actor, source_ip=source_ip)
     except Exception:
         session.rollback()
         log.exception("專案資料清理中斷；待清理清單保留，之後會重試")
         return {}
 
 
-def _run_pending(session: Session, store, orthanc, fhir, jobs, *, actor: str, source_ip: str | None) -> dict[int, dict]:
+def _run_pending(session: Session, store, orthanc, fhir, jobs, inference, *, actor: str,
+                 source_ip: str | None) -> dict[int, dict]:
     summary: dict[int, dict] = {}
     for task in session.scalars(select(StorageCleanupTask).order_by(StorageCleanupTask.id)).all():
         counts = summary.setdefault(task.project_id, {"objects_deleted": 0, "orthanc_deleted": 0, "failed": 0})
         try:
-            field, done = _run_one(session, task, store, orthanc, fhir, jobs)
+            field, done = _run_one(session, task, store, orthanc, fhir, jobs, inference)
         except Exception as exc:
             counts["failed"] += 1
             task.attempts += 1
@@ -251,5 +285,6 @@ if __name__ == "__main__":
     with app.state.sessionmaker() as s:
         print(json.dumps(run_pending(s, app.state.store, getattr(app.state, "orthanc", None),
                                      actor=os.environ.get("SEED_ADMIN", "admin01"), source_ip="local:project_cleanup",
-                                     fhir=fhir_client(app.state), jobs=job_backend(app.state)),
+                                     fhir=fhir_client(app.state), jobs=job_backend(app.state),
+                                     inference=inference_backend(app.state)),
                          ensure_ascii=False, indent=2))

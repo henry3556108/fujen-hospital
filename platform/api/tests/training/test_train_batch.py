@@ -247,6 +247,50 @@ def test_bundle_download_marks_the_batch_running(client, pi, project, backend, t
     assert row.status == "running" and row.batch.started_at is not None
 
 
+def _job_row(client, record: dict) -> Job:
+    with client.app.state.sessionmaker() as s:   # 直接讀資料庫：不經過任何會同步狀態的 API
+        job = s.get(Job, record["job_id"])
+        s.expunge(job)
+        return job
+
+
+def test_job_row_is_finished_when_the_container_reports(client, pi, project, backend, tabular_model, tmp_path):
+    """容器回報結果時，jobs 表同時記為結束，不必等有人列出工作（叢集裡的 Job 還沒結束也一樣）。"""
+    from trainer.batch import BatchIO, run_batch as entry
+
+    from conftest_training import stub_load
+
+    record = batch(client, pi, project.id, tabular_model["id"])
+    assert _job_row(client, record).status == "queued", "送出後還沒有人查詢過"
+    env = batch_env(backend, record)
+    path = "/api/job-io/inference/" + env["JOB_IO_URL"].rsplit("/api/job-io/inference/", 1)[1]
+    assert entry(BatchIO(client, path, env["JOB_IO_TOKEN"]), tmp_path / "job", load=stub_load) == 0
+
+    job = _job_row(client, record)
+    assert job.status == "succeeded" and job.started_at and job.finished_at and job.started_at <= job.finished_at
+    assert backend.get(job.k8s_name).state == "running", "叢集還沒同步也已記為結束"
+    backend.advance(60)
+    listed = ok(client.get(f"/api/projects/{project.id}/jobs", headers=pi))
+    assert [j["status"] for j in listed if j["id"] == job.id] == ["succeeded"]
+
+
+def test_job_row_failed_when_the_container_reports_failure(client, pi, project, backend, tabular_model):
+    record = batch(client, pi, project.id, tabular_model["id"])
+    ok(client.post(f"/api/job-io/inference/{record['id']}/complete", headers=batch_headers(backend, record),
+                   json={"status": "failed", "message": "資料缺少特徵欄位：age"}))
+    job = _job_row(client, record)
+    assert (job.status, job.message) == ("failed", "資料缺少特徵欄位：age") and job.started_at and job.finished_at
+
+
+def test_job_row_succeeds_even_when_the_answer_is_rejected(client, pi, project, backend, tabular_model):
+    """容器回報 succeeded 後以 0 結束：工作本身是成功，推論紀錄因結果不合格而失敗。"""
+    record = batch(client, pi, project.id, tabular_model["id"])
+    ok(client.post(f"/api/job-io/inference/{record['id']}/complete", headers=batch_headers(backend, record),
+                   json={"status": "succeeded", "answer": {"predictions": ["1"], "notes": [None]}}))
+    assert _job_row(client, record).status == "succeeded"
+    assert ok(client.get(f"/api/projects/{project.id}/inference/{record['id']}", headers=pi))["status"] == "failed"
+
+
 def test_deleting_the_project_cancels_its_batch_jobs(client, pi, admin, project, backend, tabular_model, image_model,
                                                     session):
     """刪除專案時，排隊與執行中的批次推論 Job 由專案清理流程從叢集取消（與訓練相同）；之後 token 一律 401。"""

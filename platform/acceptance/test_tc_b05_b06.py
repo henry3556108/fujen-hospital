@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from training_support import (ROOT, SPLIT, audit, gateway, headers, last_audit_id, ok, p1_id, require_training,
-                              submit, synth, wait, wait_all)
+from training_support import (ROOT, SPLIT, audit, gateway, headers, last_audit_id, ok, p1_id, psql,
+                              require_training, submit, synth, wait, wait_all)
 from labeling_support import ensure_images
 
 AUGMENT = {"rotation_range": 10, "width_shift_range": 0.1, "height_shift_range": 0.1, "shear_range": 5,
@@ -258,6 +258,9 @@ def test_tc_b06_01_batch_inference_twenty_or_more(trained, env):
     assert {r["target"] for r in finished} == {f"inference:{tab['id']}", f"inference:{img['id']}"}
     assert all(r["result"] == "success" for r in finished)
     assert len(audit("inference", "inference.batch", mark)) == 2 and audit("inference", "job.submit", mark)
+    # 容器回報時 jobs 表同時定案：直接查資料庫（不經過會同步狀態的工作清單）
+    ids = f"{tab['job_id']}, {img['job_id']}"
+    assert psql(f"select string_agg(status, ',' order by id) from jobs where id in ({ids})").strip() == "succeeded,succeeded"
 
 
 def test_batch_inference_cancelled_while_queued_in_kind(trained, env):

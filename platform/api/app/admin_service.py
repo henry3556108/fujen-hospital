@@ -70,20 +70,21 @@ def _revoke_memberships(session: Session, condition, *, actor: str, reason: str,
 
 
 def delete_project(session: Session, *, actor: str, project_id: int, source_ip: str | None = None,
-                   store=None, orthanc=None, fhir=None, jobs=None) -> None:
-    """刪除專案與它的索引；commit 之後才清 Orthanc 影像、物件儲存檔案與 FHIR 租戶，並取消叢集中的工作
-    （失敗可重試，見 app.project_cleanup）。"""
+                   store=None, orthanc=None, fhir=None, jobs=None, inference=None) -> None:
+    """刪除專案與它的索引（含線上部署）；commit 之後才清 Orthanc 影像、物件儲存檔案與 FHIR 租戶，取消叢集中的工作，
+    並從推論服務卸下專案的模型（失敗可重試，見 app.project_cleanup）。"""
     project = _get(session, Project, project_id)
     name = project.name
     labeling_groups.delete_project_groups(session, project_id, actor=actor, source_ip=source_ip)
     _revoke_memberships(session, Membership.project_id == project_id, actor=actor, reason="project_deleted",
                         source_ip=source_ip)
-    project_cleanup.stage(session, project_id, fhir=fhir is not None)
+    project_cleanup.stage(session, project_id, fhir=fhir is not None, inference=inference is not None)
     session.delete(session.get(Project, project_id))
     record(session, actor=actor, category=AuditCategory.PROJECT, action="delete",
            target=f"project:{project_id}", source_ip=source_ip, detail={"name": name})
     session.commit()
-    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip, fhir=fhir, jobs=jobs)
+    project_cleanup.run_pending(session, store, orthanc, actor=actor, source_ip=source_ip, fhir=fhir, jobs=jobs,
+                                inference=inference)
 
 
 def _commit_after_idp(session: Session, idp_call) -> None:

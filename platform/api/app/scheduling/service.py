@@ -287,6 +287,18 @@ def sync_job(backend: JobBackend, job: Job) -> None:
         job.message = message
 
 
+def mark_reported(job: Job, status: JobStatus, message: str = "") -> None:
+    """Job 容器自己回報結果、回報後隨即結束：不等下一次查詢同步，直接記為結束。容器回報 succeeded 時以 0 結束、
+    failed 時以非 0 結束，與叢集之後的狀態一致。已結束或暫存中的工作不動。不 commit。"""
+    current = JobStatus(job.status)
+    if current in TERMINAL or current == JobStatus.HELD:
+        return
+    for step in path_to(current, JobStatus.RUNNING) + path_to(JobStatus.RUNNING, status):   # 有回報就一定執行過
+        _apply(job, step)
+    if message:
+        job.message = message[:512]
+
+
 def get_job(session: Session, project_id: int, job_id: int) -> Job:
     job = session.get(Job, job_id)
     if job is None or job.project_id != project_id:

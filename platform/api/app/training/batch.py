@@ -4,7 +4,7 @@
   影像模型排進專案綁定的 GPU 群組（工作種類 inference），結構式模型排進 cpu-data（inference-cpu），不占 GPU。
 - Job 容器只拿到這一筆推論的 I/O 位址與一次性 token：下載輸入包、回報原始預測。token 在定案時失效。
 - 定案：容器回報時立即定案（組結果、存物件儲存、改狀態、寫 `inference.batch.finish`，同一個交易）；
-  沒有回報就結束的工作在查詢時依排程狀態記為失敗。
+  排程工作列（jobs）同時記為結束，不必等有人列出工作。沒有回報就結束的工作在查詢時依排程狀態記為失敗。
 """
 from __future__ import annotations
 
@@ -281,11 +281,22 @@ def _result(session: Session, store: ObjectStore, row: InferenceRecord, answer: 
     return json.dumps(body, ensure_ascii=False).encode("utf-8"), "json", len(results), {}
 
 
+def _job_reported(session: Session, job_batch: InferenceBatch, status: str, message: str) -> None:
+    """排程工作列與推論紀錄同時定案，不必等有人列出工作。記的是容器的結果（之後的結束碼）：
+    回報 succeeded 但結果不合格時，推論紀錄是失敗、工作本身仍是成功。"""
+    job = session.get(Job, job_batch.job_id) if job_batch.job_id else None
+    if job is None:
+        return
+    job.started_at = job.started_at or job_batch.started_at
+    scheduling.mark_reported(job, JobStatus(status), message if status == "failed" else "")
+
+
 def io_complete(session: Session, store: ObjectStore, row: InferenceRecord, *, status: str, message: str,
                 answer: Any) -> None:
     if status not in ("succeeded", "failed"):
         raise Invalid("status 必須是 succeeded 或 failed")
     job_batch = row.batch
+    _job_reported(session, job_batch, status, message)
     if status == "failed":
         _finish(session, row, job_batch, status="failed", message=message or "批次推論工作回報失敗")
         session.commit()
