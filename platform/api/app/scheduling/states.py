@@ -7,13 +7,16 @@ class JobStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    HELD = "held"             # 暫存：排隊中的工作移出佇列、保存定義，稍後再恢復排隊
 
 
 TERMINAL = frozenset({JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED})
 
 _ALLOWED: dict[JobStatus, frozenset[JobStatus]] = {
     # 排隊中也可能直接失敗（例如映像拉不到、超過時限）
-    JobStatus.QUEUED: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED, JobStatus.FAILED}),
+    JobStatus.QUEUED: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED, JobStatus.FAILED, JobStatus.HELD}),
+    # 暫存中的工作不在叢集裡，只能恢復排隊或取消
+    JobStatus.HELD: frozenset({JobStatus.QUEUED, JobStatus.CANCELLED}),
     JobStatus.RUNNING: frozenset({JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED}),
 }
 

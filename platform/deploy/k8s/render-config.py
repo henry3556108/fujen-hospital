@@ -141,6 +141,7 @@ def outputs() -> dict[Path, str | Path]:
         HERE / "overlays/kind/config/llm-preload-manifest.json": LOCAL / "llm/preload/offline-small/manifest.json",
         HERE / "overlays/production/config/realm-ai-platform.json": realm(production=True),
         HERE / "overlays/production/config/app-config.js": ohif("https://KEYCLOAK_HOST/realms/ai-platform"),
+        HERE / "overlays/production/config/llm-models.json": LOCAL / "llm/models.json",
     }
 
 

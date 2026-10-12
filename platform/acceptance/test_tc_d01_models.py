@@ -54,5 +54,9 @@ def test_tc_d01_04_remote_code_needs_admin_approval(api, llm):
     approved = api.post(f"/api/admin/llm/models/{name}/remote-code-approval", headers=llm.admin)
     assert approved.status_code == 201, approved.text
     loaded = api.post(f"{llm.base}/models/{name}/load", headers=llm.ca)
+    if llm.real:
+        # 假 repo 沒有權重檔，Ollama 載不起來；這裡只確認已不再被遠端程式碼的管控擋下
+        assert loaded.status_code == 422 and "GGUF" in loaded.text, loaded.text
+        return
     assert loaded.status_code == 200 and loaded.json()["trust_remote_code"] is True
     assert api.post(f"{llm.base}/models/{name}/unload", headers=llm.ca).status_code == 200

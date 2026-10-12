@@ -88,8 +88,22 @@ def delete_kb(session: Session, services: LlmServices, *, project_id: int, actor
     session.commit()
 
 
-def _embed(services: LlmServices, model: str, texts: list[str]) -> list[list[float]]:
+# 需要任務前綴的向量模型（名稱片段 → 查詢、文件的前綴），依各模型的說明；不加時檢索準確度明顯變差
+EMBED_PREFIXES = {"embeddinggemma": ("task: search result | query: ", "title: none | text: "),
+                  "nomic-embed": ("search_query: ", "search_document: ")}
+
+
+def _prefixed(model: str, texts: list[str], *, query: bool) -> list[str]:
+    for fragment, (query_prefix, document_prefix) in EMBED_PREFIXES.items():
+        if fragment in model.lower():
+            prefix = query_prefix if query else document_prefix
+            return [prefix + t for t in texts]
+    return texts
+
+
+def _embed(services: LlmServices, model: str, texts: list[str], *, query: bool = False) -> list[list[float]]:
     client = require_client(services)
+    texts = _prefixed(model, texts, query=query)
     vectors: list[list[float]] = []
     for start in range(0, len(texts), EMBED_BATCH):
         vectors += client.embed(model=model, texts=texts[start:start + EMBED_BATCH])
@@ -165,7 +179,7 @@ def delete_document(session: Session, services: LlmServices, *, kb: KnowledgeBas
 
 
 def search(session: Session, services: LlmServices, *, kb: KnowledgeBase, query: str, k: int = 3) -> list[dict]:
-    vector = _embed(services, kb.embed_model, [query])[0]
+    vector = _embed(services, kb.embed_model, [query], query=True)[0]
     hits = services.vectors.search(session, kb.id, vector, k)
     names = {d.id: d.filename for d in documents_of(session, kb.id)}
     return [{"document_id": h.document_id, "filename": names.get(h.document_id, ""), "chunk_index": h.chunk_index,

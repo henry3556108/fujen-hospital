@@ -1,0 +1,47 @@
+# 疊加檔：真的 LLM。Ollama（GPU）跑對話與向量模型，模型由 Hugging Face 下載（或離線預載目錄）。
+# 疊在 compose.llm.yaml 之後：
+#   COMPOSE_FILE=compose.yaml:...:compose.llm.yaml:compose.ollama.yaml docker compose up -d --build --wait
+#   docker compose exec -T api /app/.venv/bin/python -m app.llm.model_setup /opt/llm-models.json
+# model_setup 依 llm/models.json 登記白名單、下載（核對 commit 與 hash）並以設定的量化載入預設模型，可重複執行。
+#
+# - 需要 NVIDIA Container Toolkit；沒有 GPU 的主機把 deploy 段拿掉，Ollama 會改用 CPU（慢很多）。
+# - fake 來源保留給驗收測試（白名單外下載、遠端程式碼等案例用假 repo）；甲方環境只設 huggingface。
+# - 離線預載目錄：LLM_PRELOAD_HOST_DIR 指到主機上「每個模型一個資料夾＋manifest.json」的目錄（見 llm/README.md）。
+services:
+  ollama:
+    image: ollama/ollama:0.40.3
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"           # 載入後常駐，卸載由平台決定
+      OLLAMA_MAX_LOADED_MODELS: "4"
+      OLLAMA_NUM_PARALLEL: "4"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  api:
+    environment:
+      LLM_API: ollama
+      LLM_BASE_URL: http://ollama:11434
+      LLM_RUNTIME: ollama
+      LLM_CHAT_MODEL: gemma-3-4b-it
+      LLM_EMBED_MODEL: embeddinggemma-300m
+      LLM_MODEL_SOURCE: fake,huggingface
+    volumes:
+      - ${LLM_PRELOAD_HOST_DIR:-./llm/preload}:/opt/llm-preload:ro
+      - ./llm/models.json:/opt/llm-models.json:ro
+    depends_on:
+      ollama: {condition: service_healthy}
+
+volumes:
+  ollama-data:

@@ -26,8 +26,11 @@ full_name() {
 }
 jobs_images=$(python3 "$K8S/images.py" jobs)
 gpu_images=$(python3 "$K8S/images.py" gpu-jobs)
+autolabel_images=$(python3 "$K8S/images.py" autolabel)
 while read -r ref; do
   [ -n "$ref" ] || continue
+  # MONAI Label 與轉接服務只用在正式環境（kind 用 fake-autolabel）：甲方照部署說明放進 registry 或節點
+  echo "$autolabel_images" | grep -qx "$ref" && { log "略過 $ref（正式環境才用）"; continue; }
   file="$BUNDLE/images/$(echo "$ref" | tr '/:@' '___').tar"
   nodes=$PLATFORM_NODES
   echo "$jobs_images" | grep -qx "$ref" && nodes="$PLATFORM_NODES,$JOB_NODES"

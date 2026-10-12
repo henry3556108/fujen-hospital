@@ -9,6 +9,10 @@
 
 測試暫時把 ca01（coder_assistant）與 vw01（viewer）加入 P3-llm；建立的白名單、模型、知識庫、服務、工作流、
 Wiki 頁面在結束時移除，可重複執行。沒有 LLM 疊加檔的環境（/models/available 回 503 或未設定）整組略過。
+
+真模型：再疊 compose.ollama.yaml 並執行 app.llm.model_setup（見該檔開頭）。同一組測試兩種環境都能跑：
+依賴假模型回覆內容的檢查只在假模型時做，真模型改查呼叫紀錄（實際送出的參數、脈絡來源）。
+真的從 Hugging Face 下載的案例需要開發機能連外；需要授權的模型另需環境變數 HF_TOKEN（沒有就略過那一段）。
 """
 import hashlib
 import json
@@ -24,6 +28,22 @@ PRELOAD = PLATFORM / "deploy" / "local" / "llm" / "preload"
 PROJECT = "P3-llm"
 FAKE_HOST = "models.test.invalid"
 FAKE_TOKEN = "hf_test_valid_token"     # 假模型來源接受的測試值，不是真的 Token
+HF_HOST = "huggingface.co"
+
+
+def sent_params(request: dict) -> dict:
+    """呼叫紀錄 request 裡實際送給模型服務的生成參數，換成平台的名稱（OpenAI 相容直接放、Ollama 放在 options）。"""
+    if "options" in request:
+        names = {"num_predict": "max_tokens", "repeat_penalty": "repetition_penalty"}
+        return {names.get(k, k): v for k, v in request["options"].items()}
+    return {k: v for k, v in request.items() if k not in ("model", "messages", "stream")}
+
+
+def reply_text(response: dict) -> str:
+    """呼叫紀錄 response 裡模型回覆的文字（OpenAI 相容或 Ollama）。"""
+    if "choices" in response:
+        return response["choices"][0]["message"]["content"]
+    return response["message"]["content"]
 
 
 def unique(prefix: str) -> str:
@@ -94,7 +114,26 @@ class Llm:
         assert done.status_code == 200, done.text
         # 清理順序與建立相反：先刪模型，才能移出白名單
         self.later("DELETE", f"{self.base}/models/{name}", self.admin)
-        return done.json()
+        return self.wait_download(headers, done.json())
+
+    def wait_download(self, headers: dict, download: dict, timeout: float = 900) -> dict:
+        """大檔在背景下載（execute 先回 downloading），輪詢到完成或失敗。"""
+        deadline = time.monotonic() + timeout
+        while download["status"] == "downloading" and time.monotonic() < deadline:
+            time.sleep(3)
+            listed = self.api.get(f"{self.base}/models/downloads", headers=headers)
+            assert listed.status_code == 200, listed.text
+            download = next(d for d in listed.json() if d["id"] == download["id"])
+        return download
+
+    def whitelist_from_hf(self, name: str, repo: str, revision: str, files: list[str], token: str | None = None,
+                          **extra) -> dict:
+        seen = self.api.post("/api/admin/llm/whitelist/inspect", headers=self.admin, timeout=120,
+                             json={"source": HF_HOST, "repo": repo, "revision": revision, "token": token,
+                                   "files": files})
+        assert seen.status_code == 200, seen.text
+        return self.whitelist(name, source=HF_HOST, repo=repo, revision=seen.json()["commit"],
+                              sha256=seen.json()["sha256"], files=files, **extra)
 
     # ---- 知識庫
     def knowledge_base(self, headers: dict, documents: dict) -> dict:
@@ -118,6 +157,10 @@ def llm(api, auth):
         for undo in reversed(env.cleanup):
             undo()
         pytest.skip("這個環境沒有啟用 LLM（需以 compose.llm.yaml 疊加檔啟動）")
+    env.info = available.json()
+    env.real = env.info.get("api") == "ollama"          # 真模型（Ollama）；否則是假模型服務
+    env.service = "ollama" if env.real else "fake-llm"  # 「模型服務停止」案例要停的 compose 服務
+    env.chat_model = env.info.get("default")
     try:
         yield env
     finally:

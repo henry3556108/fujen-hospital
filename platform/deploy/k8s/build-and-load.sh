@@ -4,7 +4,8 @@
 #   SKIP_BUILD=1 ./build-and-load.sh       不重建平台映像（用本機已有的）
 #   SKIP_PULL=1  ./build-and-load.sh       不拉上游映像（離線；本機要已有）
 #   SKIP_GPU_IMAGE=1 ./build-and-load.sh   不建置、不載入 GPU 訓練映像（約 35 GB）；影像訓練 Job 會因節點上沒有映像而失敗
-# 映像清單只來自 components/images/kustomization.yaml（images.py）。
+# 映像清單只來自 components/images/kustomization.yaml（images.py）。正式環境才用的自動標註映像（MONAI Label）不在這裡，
+# 由 platform/autolabel/build.sh 建置。
 #   平台節點（cpu-web）：所有上游映像、platform-api、platform-fakes、platform-trainer（推論服務）
 #   工作節點（cpu-data、GPU 池）：Job 映像 platform-trainer、busybox（../kind/load-trainer-image.sh 也會載入 trainer）
 #   GPU 節點（GPU 兩個池）：GPU 訓練映像 platform-trainer-gpu（影像訓練、影像批次推論）

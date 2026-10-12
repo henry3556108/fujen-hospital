@@ -11,7 +11,7 @@ manifest 全部以 Kustomize（kubectl 內建）管理；部署時包成一個 H
 |---|---|
 | `base/` | 共同的 manifest；`base/config/` 由 `render-config.py` 從 compose 的設定原始檔產生 |
 | `overlays/kind/` | 本機 kind：開發密碼、fake-llm、fake-autolabel、Mailpit、模擬 PACS、NodePort、種子工作 |
-| `overlays/production/` | 甲方範本：沒有假服務與模擬 PACS；網域、TLS、外部服務是佔位（`CHANGE-ME`、`*.example.invalid`） |
+| `overlays/production/` | 甲方範本：沒有假服務與模擬 PACS，多了 LLM 模型服務 Ollama（GPU）；網域、TLS、外部服務是佔位（`CHANGE-ME`、`*.example.invalid`） |
 | `components/images/` | **唯一的映像清單**。manifest 只寫 `ai-platform/<服務>`，版本與 digest 只改這裡 |
 | `render-config.py` | 產生設定檔；`--check` 檢查是否與 compose 原始檔同步（manifest 測試會跑） |
 | `create-secrets.sh` | 建立 Secret `platform-secrets`（`--dev` 開發值；預設隨機產生） |
@@ -85,6 +85,7 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 - **一次性工作**寫成暫停的 CronJob（工作範本），由 `deploy.sh` 以 `kubectl create job --from=cronjob/<名稱>` 建立：
   `db-init`、`minio-init`、`bootstrap-admin`、`wiki-setup`，kind 另有 `seed`。全部可重複執行；Job 建立後 Pod 範本不能改，直接 apply Job 會失敗，所以不這樣做。
 - **放置**：所有平台 Pod `nodeSelector: platform/pool=cpu-web`。推論服務也在 cpu-web（映像約 6 GB，`build-and-load.sh` 會匯入）。
+  唯一例外是 production 的 Ollama：GPU 共享池（`platform/pool=gpu-shared`，容忍 `nvidia.com/gpu` taint，要 1 份 `nvidia.com/gpu`）。
 - **NetworkPolicy**：命名空間預設拒絕所有進入流量；命名空間外只能連 Gateway 與 Keycloak。平台 API 另接受 `platform-jobs`（Job 以一次性 token 回連工作 I/O）。
   標籤 `platform/backend=true`（平台程式的 Pod）可連內部服務，`platform/db-client=true` 可連 PostgreSQL。只管進入流量。
 - **RBAC**（`base/rbac.yaml`）：`platform-jobs` 的 Job 建立／讀取／刪除、Pod 讀取；Node 讀取；Kueue ClusterQueue `gpu-shared` 讀取與修改。
@@ -116,12 +117,31 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 
 1. 映像推到甲方內部 registry，把 `components/images/kustomization.yaml` 的 `newName` 改成 registry 位址
    （或在 `overlays/production/kustomization.yaml` 另加 `images:` 覆寫）。甲方環境可上網，節點直接向來源 registry 拉取亦可（照 `components/images` 的版本與 digest）；離線安裝包只在不能上網的環境使用。
-2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（vLLM、自動標註、SMTP）、`pacs`、
+2. 替換 `overlays/production` 的佔位：`platform-urls`（三個網域與 CORS）、`api-env`（SMTP）、`pacs`、
    `ingress.yaml`（ingressClassName、TLS Secret）、`networkpolicy-production.yaml`（PACS 位址）、`config/app-config.js`（Keycloak 網域）。
    `deploy.sh production` 發現還有 `CHANGE-ME` 或 `example.invalid` 就停止。
 3. `./create-secrets.sh`（隨機產生，不進版控；`--print-keys` 列出所有鍵）；`kubectl -n ai-platform create secret tls ai-platform-tls --cert=… --key=…`。
 4. `./deploy.sh production`：不跑種子，改跑 `bootstrap-admin` 把 realm 匯入的 `admin01` 登記為平台 Admin；admin01 第一次登入必須改密碼。
 5. 正式 realm 關閉所有 public client 的密碼授權（`directAccessGrantsEnabled`），匯入 CLI 用 device-code。
+6. LLM 模型：部署後執行一次（可重複執行；依 `config/llm-models.json` 登記白名單、從 Hugging Face 下載並核對 commit 與 hash、推進 Ollama 常駐）
+   `kubectl -n ai-platform exec deploy/api -- /app/.venv/bin/python -m app.llm.model_setup /opt/llm-models.json`。
+   白名單改 `platform/deploy/local/llm/models.json` 後執行 `render-config.py`。
+
+LLM（`overlays/production/ollama.yaml`，與 `platform/deploy/local/compose.ollama.yaml` 相同）：
+- Ollama 一個副本，排在 GPU 共享池、佔 1 份 GPU（time-slicing），不經 Kueue：共享池的 Kueue 配額（平台「共享排程設定」）要少算一份。
+  要獨占一張卡時把 `nodeSelector` 改成 `gpu-exclusive`，獨占池配額少一張。節點要有 NVIDIA device plugin。
+- 模型庫在 PVC `ollama-data`（50Gi）；下載的 GGUF 在 api 的 `api-objects`（正式環境 50Gi，`LLM_MODEL_DIR`）。
+- 只有平台 API 連得到 Ollama（`networkpolicy-production.yaml` 的 `ollama`）。
+- **出口**：api 要能以 HTTPS 連 `huggingface.co` 與 `cas-bridge.xethub.hf.co`（Hugging Face 把大檔轉址到這裡）；Ollama 不需要對外。
+  經甲方核准的鏡像站時在 `api-env` 加 `HF_ENDPOINT`。不能上網時改用離線預載目錄（`/opt/llm-preload`，每個模型一個資料夾＋`manifest.json`，
+  另掛 PVC 並設 `LLM_PRELOAD_DIR`；格式見 `platform/deploy/local/llm/README.md`）。
+
+自動標註（B-03，`overlays/production/autolabel-monai.yaml`，說明見 `platform/autolabel/README.md`）：
+- `monai-label`：MONAI Label 0.8.5（radiology app，預訓練 `segmentation_spleen`、`segmentation`，權重在映像內，不需連網），
+  GPU 共享池 1 份、不經 Kueue：與 Ollama 合計，共享池的 Kueue 配額要少算兩份。
+- `monai-autolabel`：轉接服務（cpu-web），平台 `AUTOLABEL_URL=http://monai-autolabel:8102`；以 Orthanc 唯讀帳號 `autolabel`
+  （Secret 鍵 `ORTHANC_AUTOLABEL_PASSWORD`，Orthanc 端以 `autolabel-readonly.lua` 限制只能 GET `/dicom-web/`）取像。
+- 映像 `platform-autolabel`、`platform-monailabel` 以 `platform/autolabel/build.sh` 建置（`images.py autolabel`）；kind 不部署，仍用 fake-autolabel。
 
 資料庫帳號：平台程式（api、fhir-worker、bootstrap-admin、seed）以 `platform_app` 連線，稽核表只有 INSERT 與 SELECT（TC-SS-07）；
 `platform` 只給 db-init 建表與授權（`app/db_init.py`）。既有環境升級與細節見 `docs/delivery/部署說明.md`「資料庫帳號與升級」。

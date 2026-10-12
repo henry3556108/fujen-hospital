@@ -87,6 +87,7 @@ if [ "$OVERLAY" = kind ]; then
   wait_ready deployment/fake-llm deployment/autolabel deployment/mailpit statefulset/orthanc-pacs
   if [ -z "${SKIP_SEED:-}" ]; then run_job seed; else run_job bootstrap-admin; fi
 else
+  wait_ready deployment/ollama   # GPU 共享池；模型由部署後的 model_setup 載入（README「正式環境」）
   run_job bootstrap-admin
 fi
 run_job wiki-setup

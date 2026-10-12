@@ -142,6 +142,32 @@ def cancel_run(run_id: int, request: Request, ctx: ProjectContext = Depends(can_
         return service.cancel_run(ctx, request.app.state, backend, run_id, source_ip=client_ip(request))
 
 
+@router.post(BASE + "/training/runs/{run_id}/hold")
+def hold_run(run_id: int, request: Request, ctx: ProjectContext = Depends(can_train),
+             backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        return service.hold_run(ctx, request.app.state, backend, run_id, source_ip=client_ip(request))
+
+
+@router.post(BASE + "/training/runs/{run_id}/resume")
+def resume_run(run_id: int, request: Request, ctx: ProjectContext = Depends(can_train),
+               backend: JobBackend = Depends(get_backend)) -> dict:
+    with _errors():
+        return service.resume_run(ctx, request.app.state, backend, run_id, source_ip=client_ip(request))
+
+
+class SaveSettingIn(BaseModel):
+    name: str
+
+
+@router.post(BASE + "/training/runs/{run_id}/save-setting", status_code=201)
+def save_run_as_setting(run_id: int, body: SaveSettingIn, request: Request,
+                        ctx: ProjectContext = Depends(can_train)) -> dict:
+    with _errors():
+        return service.setting_out(service.save_run_as_setting(ctx, run_id, name=body.name,
+                                                               source_ip=client_ip(request)))
+
+
 @router.get(BASE + "/training/runs/{run_id}/log")
 def run_log(run_id: int, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
     with _errors():

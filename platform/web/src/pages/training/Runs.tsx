@@ -18,9 +18,11 @@ import { RunSteps, STATUS_TEXT } from './RunSteps';
 
 export const POLL_MS = 1500;
 
-const TONE: Record<RunStatus, BadgeTone> = { queued: 'info', running: 'warning', succeeded: 'success', failed: 'error', cancelled: 'neutral' };
+const TONE: Record<RunStatus, BadgeTone> = { queued: 'info', running: 'warning', succeeded: 'success', failed: 'error', cancelled: 'neutral', held: 'neutral' };
 const LABELS: Record<RunStatus, string> = { ...JOB_STATUS_LABELS, running: '訓練中' };
 const active = (s: RunStatus) => s === 'queued' || s === 'running';
+/** 還沒結束、可以取消（含暫存） */
+const unfinished = (s: RunStatus) => active(s) || s === 'held';
 const EXECUTORS: Record<string, string> = { fake: '快速測試', source: '修改後的原始碼' };
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {
@@ -44,10 +46,12 @@ function scoreText(run: TrainingRun): string {
 
 type Sort = { by: 'id' | 'score'; desc: boolean };
 
-export function Runs({ api, selected, onSelect, settings, onRuns }: {
+export function Runs({ api, selected, onSelect, settings, onRuns, onSettingSaved }: {
   api: TrainingApi; selected: number | null; onSelect: (id: number | null) => void; settings: TrainingSetting[];
   /** 清單每次更新後通知（例如讓頂端「已送出訓練」的訊息跟著狀態更新） */
   onRuns?: (runs: TrainingRun[]) => void;
+  /** 「另存為訓練設定」成功後通知（重新載入設定清單） */
+  onSettingSaved?: (setting: TrainingSetting, run: TrainingRun) => void;
 }) {
   const { me } = useSession();
   const runs = useResource(() => api.runs(), [api]);
@@ -142,7 +146,8 @@ export function Runs({ api, selected, onSelect, settings, onRuns }: {
                     {open ? (
                       <tr className="run-expanded">
                         <td colSpan={7}>
-                          <RunDetail api={api} run={r} settings={settings} onChanged={reload} onSelect={onSelect} />
+                          <RunDetail api={api} run={r} settings={settings} onChanged={reload} onSelect={onSelect}
+                            onSettingSaved={onSettingSaved} />
                         </td>
                       </tr>
                     ) : null}
@@ -163,12 +168,16 @@ function datasetOf(run: TrainingRun, settings: TrainingSetting[]): number | null
   return source?.type === 'tabular' ? source.dataset_id : null;
 }
 
-function RunDetail({ api, run, settings, onChanged, onSelect }: {
+function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSaved }: {
   api: TrainingApi; run: TrainingRun; settings: TrainingSetting[]; onChanged: () => void; onSelect: (id: number) => void;
+  onSettingSaved?: (setting: TrainingSetting, run: TrainingRun) => void;
 }) {
   const [log, setLog] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [cancelling, setCancelling] = useState(false);
+  // 另存為訓練設定：輸入的名稱（null＝沒有開啟）
+  const [saveName, setSaveName] = useState<string | null>(null);
+  const [savedAs, setSavedAs] = useState<string | null>(null);
   const canDeploy = useHasPermission('prediction');
   const failure = run.status === 'failed' ? splitFailure(run.message) : null;
   const dataset = datasetOf(run, settings);
@@ -256,7 +265,19 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
         </dl>
       </details>
       <div className="row-actions">
-        {active(run.status) ? (
+        {run.status === 'queued' ? (
+          <button type="button" className="btn btn--secondary" title="移出佇列並保存，稍後再恢復排隊（已開始訓練的不能暫存）"
+            onClick={() => void act(async () => { await api.hold(run.id); onChanged(); })}>
+            暫存
+          </button>
+        ) : null}
+        {run.status === 'held' ? (
+          <button type="button" className="btn btn--primary"
+            onClick={() => void act(async () => { await api.resume(run.id); onChanged(); })}>
+            恢復排隊
+          </button>
+        ) : null}
+        {unfinished(run.status) ? (
           <button type="button" className="btn btn--danger" onClick={() => setCancelling(true)}>
             取消訓練
           </button>
@@ -269,7 +290,33 @@ function RunDetail({ api, run, settings, onChanged, onSelect }: {
         <button type="button" className="btn btn--secondary" onClick={() => void act(async () => setLog((await api.log(run.id)).log))}>
           檢視訓練輸出
         </button>
+        <button type="button" className="btn btn--secondary" aria-expanded={saveName !== null}
+          onClick={() => { setSavedAs(null); setSaveName(saveName === null ? `${run.name}（訓練 #${run.id}）`.slice(0, 128) : null); }}>
+          另存為訓練設定
+        </button>
       </div>
+      {saveName !== null ? (
+        <form className="row-actions" aria-label={`把訓練 #${run.id} 的設定另存為訓練設定`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act(async () => {
+              const s = await api.saveAsSetting(run.id, saveName);
+              setSaveName(null);
+              setSavedAs(s.name);
+              onSettingSaved?.(s, run);
+            });
+          }}>
+          <label htmlFor={`save-as-${run.id}`}>新設定名稱</label>
+          <input id={`save-as-${run.id}`} className="input" value={saveName} maxLength={128}
+            onChange={(e) => setSaveName(e.target.value)} />
+          <button type="submit" className="btn btn--primary btn--small" disabled={!saveName.trim()}>
+            儲存設定
+          </button>
+        </form>
+      ) : null}
+      {savedAs ? (
+        <Alert tone="success">已另存為訓練設定「{savedAs}」，之後可在上方的訓練設定隨時送出訓練（會重新凍結當時的資料）。</Alert>
+      ) : null}
       {log !== null ? (
         <pre className="training-log" aria-label={`訓練 #${run.id} 的輸出`}>
           {log || '（還沒有輸出）'}

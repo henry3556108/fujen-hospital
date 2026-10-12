@@ -7,11 +7,60 @@ import os
 import subprocess
 import time
 
+import httpx
 import pytest
 
 import platform_exec as pe
 
-from llm_support import FAKE_TOKEN, PRELOAD, content_hash, documents, llm, unique  # noqa: F401
+from llm_support import (FAKE_TOKEN, HF_HOST, PRELOAD, content_hash, documents, llm, reply_text,  # noqa: F401
+                         sent_params, unique)
+
+# 真的從 Hugging Face 下載用的小模型（約 80 MB）：commit 固定、只取 Q4_K_M 一個檔
+HF_SMALL = ("nomic-ai/nomic-embed-text-v1.5-GGUF", "0188c9bf409793f810680a5a431e7b899c46104c",
+            ["*Q4_K_M.gguf"])
+HF_GATED = "google/gemma-3-1b-it"      # 需要同意授權的 repo：沒有 Token 不能取得檔案
+
+
+def need_real(llm):
+    if not llm.real:
+        pytest.skip("需要真模型環境（compose.ollama.yaml）")
+
+
+def hf_commit(repo: str) -> str:
+    try:
+        return httpx.get(f"https://{HF_HOST}/api/models/{repo}", timeout=30).json()["sha"]
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        pytest.skip(f"開發機連不到 Hugging Face：{exc}")
+
+
+def test_tc_b07_01_real_huggingface_download_by_commit(api, llm):
+    """真的從 Hugging Face 下載：依白名單的 commit 與 hash 核對，只取登記的檔案，刪除後可再下載。"""
+    need_real(llm)
+    repo, commit, files = HF_SMALL
+    name = unique("b0701-hf")
+    entry = llm.whitelist_from_hf(name, repo, commit, files, license="apache-2.0")
+    assert entry["files"] == files
+    done = llm.install(llm.ca, name)
+    assert (done["status"], done["mode"], done["commit"]) == ("completed", "online", commit), done
+    assert done["hash"] == entry["sha256"]
+    catalog = {m["name"]: m for m in api.get(f"{llm.base}/models/catalog", headers=llm.ca).json()}
+    assert catalog[name]["installed"] is True
+    assert api.delete(f"{llm.base}/models/{name}", headers=llm.ca).status_code == 204
+
+
+def test_tc_b07_01_real_huggingface_gated_needs_token(api, llm):
+    need_real(llm)
+    commit = hf_commit(HF_GATED)
+    body = {"source": HF_HOST, "repo": HF_GATED, "revision": commit}
+    refused = api.post("/api/admin/llm/whitelist/inspect", headers=llm.admin, timeout=120, json=body)
+    assert refused.status_code == 403, refused.text
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        pytest.skip("沒有設定 HF_TOKEN，略過有 Token 的那一段")
+    allowed = api.post("/api/admin/llm/whitelist/inspect", headers=llm.admin, timeout=120,
+                       json={**body, "token": token, "files": ["config.json"]})
+    assert allowed.status_code == 200, allowed.text
+    assert allowed.json()["gated"] is True
 
 
 def test_tc_b07_01_download_by_name_and_token_then_delete(api, llm):
@@ -103,6 +152,39 @@ def test_tc_b07_03_twenty_messages_each_within_ten_seconds(api, llm, documents):
         assert len(conversation["messages"]) == 20
 
 
+def test_tc_b07_03_prompt_and_rag_alone_and_combined(api, llm, documents):
+    """Playground 套用公開與個人範本各至少 1 次；提示詞、檢索增強、兩者混合各 3 次，呼叫紀錄可查。"""
+    kb = llm.knowledge_base(llm.ca, documents)
+    mark = unique("b0703")
+    templates = []
+    for visibility in ("public", "personal"):
+        r = api.post(f"{llm.base}/prompts", headers=llm.ca, json={
+            "title": f"{mark} {visibility}", "content": f"請以條列方式簡短回答（{visibility}）：{{input}}",
+            "tags": [mark], "visibility": visibility})
+        assert r.status_code == 201, r.text
+        llm.later("DELETE", f"{llm.base}/prompts/{r.json()['id']}", llm.ca)
+        templates.append(r.json())
+    questions = ["夜間門診是星期幾", "資訊室分機幾號", "乾洗手要搓多久"]
+    cases = ([("prompt", templates[i % 2], None, q) for i, q in enumerate(questions)]
+             + [("rag", None, kb["id"], q) for q in questions]
+             + [("both", templates[(i + 1) % 2], kb["id"], q) for i, q in enumerate(questions)])
+    for kind, template, kb_id, question in cases:
+        body = {"mode": "kb" if kb_id else "free", "message": question, "kb_id": kb_id,
+                "prompt_id": template["id"] if template else None}
+        answer = api.post(f"{llm.base}/chat", headers=llm.ca, json=body, timeout=60)
+        assert answer.status_code == 200, (kind, answer.text)
+        call = api.get(f"{llm.base}/calls/{answer.json()['call_id']}", headers=llm.ca).json()
+        assert call["prompt_id"] == body["prompt_id"], kind
+        assert call["context_source"] == ("vector" if kb_id else "none"), kind
+        assert bool(call["context_refs"]) == bool(kb_id), kind
+        user_message = call["request"]["messages"][-1]["content"]
+        if template:
+            assert user_message == template["content"].replace("{input}", question), kind
+        else:
+            assert user_message == question, kind
+        assert reply_text(call["response"]) == answer.json()["message"]["content"]
+
+
 def test_tc_b07_04_quantization_settings_are_saved(api, llm):
     name = unique("b0704")
     llm.whitelist_from_source(name, "fake-org/fake-llm-small", "a" * 40)
@@ -114,6 +196,30 @@ def test_tc_b07_04_quantization_settings_are_saved(api, llm):
         assert {k: reloaded[k] for k in config} == config
 
 
+def test_tc_b07_04_real_model_loads_in_4bit_and_8bit(api, llm):
+    """真的以 4-bit、8-bit 載入對話模型，從 Ollama 讀回實際的量化等級與 CPU 執行緒數；結束時恢復原設定。"""
+    need_real(llm)
+    name = llm.chat_model
+    url = f"{llm.base}/models/{name}"
+    original = api.get(f"{url}/load-config", headers=llm.ca).json()
+    keys = ("quantization", "cpu", "memory_gb", "gpu_type", "gpu_count")
+    try:
+        for quantization, level, cpu in (("4bit", "Q4_K_M", 6), ("8bit", "Q8_0", 4)):
+            config = {**{k: original[k] for k in keys}, "quantization": quantization, "cpu": cpu}
+            assert api.put(f"{url}/load-config", headers=llm.ca, json=config).status_code == 200
+            loaded = api.post(f"{url}/load", headers=llm.ca, timeout=300)
+            assert loaded.status_code == 200, loaded.text
+            runtime = api.get(f"{url}/runtime", headers=llm.ca).json()["runtime"]
+            assert (runtime["running"], runtime["quantization_level"], runtime["num_thread"]) == (True, level, cpu)
+            assert runtime["processor"] == "gpu"
+            answer = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=60,
+                              json={"mode": "free", "message": "用一句話說明手部衛生的重要性", "model": name})
+            assert answer.status_code == 200 and answer.json()["message"]["content"], answer.text
+    finally:
+        api.put(f"{url}/load-config", headers=llm.ca, json={k: original[k] for k in keys})
+        api.post(f"{url}/load", headers=llm.ca, timeout=300)
+
+
 def test_tc_b07_05_generation_params_round_trip_and_reach_the_model(api, llm):
     url = f"{llm.base}/generation-params"
     original = api.get(url, headers=llm.ca).json()
@@ -123,11 +229,17 @@ def test_tc_b07_05_generation_params_round_trip_and_reach_the_model(api, llm):
         assert api.put(url, headers=llm.ca, json=wanted).json() == wanted
         for _ in range(3):
             assert api.get(url, headers=llm.ca).json() == wanted
-        answer = api.post(f"{llm.base}/chat", headers=llm.ca, json={"mode": "free", "message": "hi"}).json()
-        for fragment in ("temperature=0.35", "max_tokens=256", "repetition_penalty=1.15", "length_penalty=0.8",
-                         "top_k=40", "top_p=0.85"):
-            assert fragment in answer["message"]["content"], fragment
+        answer = api.post(f"{llm.base}/chat", headers=llm.ca, json={"mode": "free", "message": "hi"},
+                          timeout=60).json()
         call = api.get(f"{llm.base}/calls/{answer['call_id']}", headers=llm.ca).json()
+        sent = sent_params(call["request"])
+        expected = {"temperature": 0.35, "max_tokens": 256, "repetition_penalty": 1.15, "top_k": 40, "top_p": 0.85}
+        if not llm.real:
+            # 假模型把收到的參數寫回回覆；Ollama（llama.cpp）沒有 length_penalty（只對 beam search 有效），不送出
+            expected["length_penalty"] = 0.8
+            for key, value in expected.items():
+                assert f"{key}={value}" in answer["message"]["content"], key
+        assert {k: sent.get(k) for k in expected} == expected, sent
         assert call["request"]["messages"][0] == {"role": "system", "content": wanted["system_prompt"]}
     finally:
         api.put(url, headers=llm.ca, json=original)
@@ -142,10 +254,14 @@ def test_tc_b07_06_six_formats_build_and_mount(api, llm, documents):
     for fmt, (filename, _, phrase) in documents.items():
         hits = api.post(f"{url}/search", headers=llm.ca, json={"query": phrase, "k": 2}).json()
         assert hits and hits[0]["filename"] == filename and phrase in hits[0]["content"], fmt
-    answer = api.post(f"{llm.base}/chat", headers=llm.ca,
+    answer = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=60,
                       json={"mode": "kb", "kb_id": kb["id"], "message": "體內有心律調節器可以做磁振造影嗎"}).json()
     assert answer["message"]["sources"][0]["filename"] == documents["docx"][0]
-    assert "context:" in answer["message"]["content"]
+    call = api.get(f"{llm.base}/calls/{answer['call_id']}", headers=llm.ca).json()
+    assert call["context_source"] == "vector" and call["context_refs"][0]["filename"] == documents["docx"][0]
+    assert "心律調節器" in call["request"]["messages"][0]["content"]     # 檢索到的段落放進系統訊息
+    if not llm.real:
+        assert "context:" in answer["message"]["content"]
     assert api.get(url, headers=llm.vw).status_code == 403
 
 
@@ -174,8 +290,9 @@ def test_tc_b07_08_model_service_down(api, llm):
     if not pe.AVAILABLE:
         pytest.skip(pe.REASON)
 
-    started = api.post(f"{llm.base}/chat", headers=llm.ca, json={"mode": "free", "message": "先問一題"}).json()
-    pe.stop("fake-llm")
+    started = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=60,
+                       json={"mode": "free", "message": "先問一題"}).json()
+    pe.stop(llm.service)
     try:
         begin = time.monotonic()
         answer = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=35,
@@ -187,9 +304,9 @@ def test_tc_b07_08_model_service_down(api, llm):
         # 平台其他功能不受影響
         assert api.get(f"{llm.base}/prompts", headers=llm.ca).status_code == 200
     finally:
-        pe.start("fake-llm")
-    for _ in range(30):
-        again = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=35,
+        pe.start(llm.service)
+    for _ in range(90):         # Ollama 重啟後要重新把模型載入 GPU
+        again = api.post(f"{llm.base}/chat", headers=llm.ca, timeout=60,
                          json={"mode": "free", "message": "恢復了嗎", "session_id": started["session_id"]})
         if again.status_code == 200:
             break

@@ -1,6 +1,16 @@
 // 模擬 platform/api 的排程 API（app/scheduling）：語意照 FakeJobBackend（StrictFIFO、獨占一卡一件、共享池時間片）。
 import { http } from 'msw';
-import type { ClusterNode, GpuAllocation, GpuGroup, Job, JobKind, SharedSchedulingSettings } from '../pages/scheduling/types';
+import type {
+  ClusterNode,
+  GpuAllocation,
+  GpuGroup,
+  Job,
+  JobKind,
+  QueueJob,
+  QueueOverview,
+  SharedSchedulingSettings,
+} from '../pages/scheduling/types';
+import type { User } from '../api/types';
 import { POOL_MODES } from '../pages/scheduling/types';
 import { mockDb } from './handlers';
 import { API, detail, json, jsonBody, moduleState, noContent, requireAdmin, requireProject, validation } from './support';
@@ -14,6 +24,10 @@ interface SimJob extends Job {
   slots: number[];
   endsAt: number | null;
   timeout: number | null;
+  /** 佇列中的先後（建立順序；調整順序或恢復排隊時重新編號，排到最後） */
+  seq: number;
+  heldBy?: string | null;
+  heldAt?: string | null;
 }
 
 interface SimNode {
@@ -59,6 +73,10 @@ function seed(): State {
 const state = () => moduleState('scheduling', seed);
 const clock = (s: State) => Date.now() / 1000 + s.offset;
 const iso = (t: number) => new Date(t * 1000).toISOString();
+// 舊的持久化狀態沒有 seq：以工作編號代替
+const seqOf = (j: SimJob) => j.seq ?? j.id;
+const bySeq = (a: SimJob, b: SimJob) => seqOf(a) - seqOf(b);
+const nextSeq = (s: State) => s.jobs.reduce((m, j) => Math.max(m, seqOf(j)), 0) + 1;
 
 /** 測試用：把模擬時鐘往前推（秒）。 */
 export function advanceMockClock(seconds: number): void {
@@ -102,7 +120,7 @@ function schedule(s: State, now: number): void {
   const queues = new Set(s.jobs.filter((j) => j.status === 'queued').map((j) => j.queue));
   for (const queue of queues) {
     // StrictFIFO：排頭放不下時，後面的也不能插隊
-    for (const job of s.jobs.filter((j) => j.status === 'queued' && j.queue === queue)) {
+    for (const job of s.jobs.filter((j) => j.status === 'queued' && j.queue === queue).sort(bySeq)) {
       if (!place(s, job)) break;
       job.status = 'running';
       job.started_at = iso(now);
@@ -177,6 +195,50 @@ function dashboard(s: State): GpuAllocation[] {
 }
 
 const unavailable = () => detail(503, '排程服務尚未設定（JOB_BACKEND）');
+const ACTIONS = ['hold', 'resume'] as const;
+
+const k8sName = (id: number, salt: number) => `job-${id}-${((id + salt) * 2654435761).toString(16).slice(-6)}`;
+
+function hold(s: State, job: SimJob, user: User): Response {
+  if (job.status === 'running') return detail(409, `工作 ${job.id} 已在執行中，無法暫存（執行中的訓練無法中途保存進度，只能取消）`);
+  if (job.status === 'held') return detail(409, `工作 ${job.id} 已經暫存`);
+  if (job.status !== 'queued') return detail(409, `工作 ${job.id} 已結束（${job.status}），無法暫存`);
+  Object.assign(job, { status: 'held', message: `由 ${user.username} 暫存，恢復排隊後重新排到佇列最後`, heldBy: user.username, heldAt: iso(clock(s)) });
+  return json(jobOut(job));
+}
+
+function resume(s: State, job: SimJob): Response {
+  if (job.status !== 'held') return detail(409, `工作 ${job.id} 不是暫存狀態（${job.status}），無法恢復排隊`);
+  const seq = nextSeq(s);
+  Object.assign(job, { status: 'queued', message: '', heldBy: null, heldAt: null, seq, k8s_name: k8sName(job.id, seq) });
+  schedule(s, clock(s));
+  return json(jobOut(job));
+}
+
+function queueNames(s: State): string[] {
+  const names = [...new Set(s.groups.map((g) => g.pool))].sort();
+  if (!names.includes('cpu-data')) names.push('cpu-data');
+  for (const j of s.jobs) if (!names.includes(j.queue) && ['queued', 'running', 'held'].includes(j.status)) names.push(j.queue);
+  return names;
+}
+
+function overview(s: State): QueueOverview[] {
+  const projects = mockDb().projects;
+  const row = (j: SimJob, position: number | null): QueueJob => ({
+    id: j.id, project_id: j.project_id, project_name: projects.find((p) => p.id === j.project_id)?.name ?? '', user: j.user,
+    kind: j.kind, status: j.status, queue: j.queue, k8s_name: j.k8s_name, created_at: j.created_at, started_at: j.started_at,
+    position, admitted: false, training_run: null, inference_id: null, held_by: j.heldBy ?? null, held_at: j.heldAt ?? null,
+  });
+  return queueNames(s).map((queue) => {
+    const jobs = s.jobs.filter((j) => j.queue === queue);
+    return {
+      queue,
+      running: jobs.filter((j) => j.status === 'running').map((j) => row(j, null)),
+      waiting: jobs.filter((j) => j.status === 'queued').sort(bySeq).map((j, i) => row(j, i + 1)),
+      held: jobs.filter((j) => j.status === 'held').map((j) => row(j, null)),
+    };
+  });
+}
 
 function intField(b: Record<string, unknown>, field: string, min: number, max: number, fallback?: number): number | Response {
   const v = b[field] === undefined ? fallback : b[field];
@@ -252,6 +314,7 @@ export const schedulingHandlers = [
       slots: [],
       endsAt: null,
       timeout: group?.mode === 'shared' ? s.settings.job_timeout_minutes * 60 : null,
+      seq: nextSeq(s),
     };
     s.jobs.push(job);
     return json(jobOut(job), 201);
@@ -273,7 +336,7 @@ export const schedulingHandlers = [
     sync(s);
     const job = s.jobs.find((j) => j.id === Number(params.jid) && j.project_id === ctx.project.id);
     if (!job) return detail(404, `找不到工作 ${params.jid}`);
-    if (job.status !== 'queued' && job.status !== 'running') {
+    if (job.status !== 'queued' && job.status !== 'running' && job.status !== 'held') {
       return detail(409, `工作 ${job.id} 已結束（${job.status}），無法取消`);
     }
     job.status = 'cancelled';
@@ -283,6 +346,70 @@ export const schedulingHandlers = [
     schedule(s, clock(s));
     return json(jobOut(job));
   }),
+
+  // ---- 暫存與恢復排隊 ----
+  ...ACTIONS.map((action) => http.post(`${API}/projects/:pid/jobs/:jid/${action}`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const s = state();
+    if (!s.available) return unavailable();
+    sync(s);
+    const job = s.jobs.find((j) => j.id === Number(params.jid) && j.project_id === ctx.project.id);
+    if (!job) return detail(404, `找不到工作 ${params.jid}`);
+    if (job.user !== ctx.user.username && ctx.user.account_type !== 'admin') {
+      return detail(403, `只有送出工作 ${job.id} 的使用者（${job.user}）或 Admin 可以暫存或恢復排隊`);
+    }
+    return action === 'hold' ? hold(s, job, ctx.user) : resume(s, job);
+  })),
+
+  // ---- 佇列順序（Admin） ----
+  http.get(`${API}/admin/queues`, ({ request }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const s = state();
+    if (!s.available) return unavailable();
+    sync(s);
+    return json(overview(s));
+  }),
+  http.put(`${API}/admin/queues/:queue/order`, async ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const s = state();
+    if (!s.available) return unavailable();
+    const queue = String(params.queue);
+    if (!queueNames(s).includes(queue)) return detail(404, `找不到佇列 ${queue}`);
+    const b = await jsonBody(request);
+    const ids = b.job_ids;
+    if (!Array.isArray(ids) || !ids.every((x) => Number.isInteger(x))) {
+      return validation('job_ids', 'Input should be a valid list', 'list_type', ids ?? null);
+    }
+    if (new Set(ids).size !== ids.length) return detail(422, '工作清單有重複的編號');
+    sync(s);
+    const waiting = s.jobs.filter((j) => j.queue === queue && j.status === 'queued').sort(bySeq);
+    const current = waiting.map((j) => j.id);
+    if (current.length !== ids.length || !ids.every((id) => current.includes(id as number))) {
+      return detail(409, `佇列 ${queue} 目前等待中的工作是 ${current.join('、') || '（沒有）'}，與送出的清單不同（可能有工作已開始或剛送出）；請重新整理後再調整`);
+    }
+    // 與平台相同：開頭已在正確位置的不動，其餘依新順序排到最後
+    let keep = 0;
+    while (keep < current.length && current[keep] === ids[keep]) keep += 1;
+    for (const id of ids.slice(keep) as number[]) {
+      const job = waiting.find((j) => j.id === id)!;
+      job.seq = nextSeq(s);
+      job.k8s_name = k8sName(job.id, job.seq);
+    }
+    return json({ queue, job_ids: ids });
+  }),
+  ...ACTIONS.map((action) => http.post(`${API}/admin/jobs/:jid/${action}`, ({ request, params }) => {
+    const a = requireAdmin(request);
+    if (a instanceof Response) return a;
+    const s = state();
+    if (!s.available) return unavailable();
+    sync(s);
+    const job = s.jobs.find((j) => j.id === Number(params.jid));
+    if (!job) return detail(404, `找不到工作 ${params.jid}`);
+    return action === 'hold' ? hold(s, job, a) : resume(s, job);
+  })),
 
   // ---- GPU 群組 ----
   http.get(`${API}/admin/gpu-groups`, ({ request }) => {

@@ -73,9 +73,13 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] 刪除專案時停止該專案已部署的線上推論服務（目前不停）
 - [ ] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁
 - [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳；批次完成後 jobs 表要等有人列出工作才更新狀態；工作頁顯示原始代碼 inference、inference-cpu
+- [x] 後台調整佇列順序、暫存排隊中的工作稍後再恢復排隊、訓練另存為訓練設定（2026-10-12，分支 `feat/queue-order`；Admin「排程與叢集 → 佇列順序」，專案工作頁與訓練紀錄有「暫存」「恢復排隊」；新資料表 `job_holds`、工作狀態 `held`；kind 驗收 `acceptance/test_queue_order_kind.py`）。已開始執行的訓練不能暫存（不做中途 checkpoint）；GPU 等級分群不在這次範圍
+- [x] LLM 真模型（2026-10-12）：平台依白名單的 commit 與 hash 從 Hugging Face 下載 GGUF，Ollama 在 GPU 上以 4-bit／8-bit 載入；預設 Gemma 3 4B（對話）與 EmbeddingGemma 300M（知識庫向量，多語言）。疊加 `compose.ollama.yaml` 後執行 `app.llm.model_setup`，見 `platform/deploy/local/llm/README.md`；正式環境 Ollama 在 GPU 共享池。經 Gateway 驗收 B07／B08／D01 對真模型 19 過、1 略過（需要授權的模型要 `HF_TOKEN`）
+  - [ ] `length_penalty` 只在 beam search 有作用，Ollama（llama.cpp）沒有對應，真模型下只儲存不生效（其他 5 個參數與 System Prompt 都實際送到模型）
+  - [ ] 授權清單與映像漏洞報告要以 `compliance licences generate`、`vulns` 重新產生，納入 `ollama/ollama`
 - [ ] 甲方環境部署（見第四節）
 - [ ] AutoML：暫不導入，之後再評估；評估結果與建議做法（Optuna 搜尋現有 scikit-learn 範本）見 `docs/superpowers/plans/2026-10-03-automl-evaluation.md`
-- [ ] GPU 實際運算：依等級分群與張數上限、GPU 訓練映像、vLLM，見 `docs/superpowers/plans/2026-10-05-gpu-enablement.md`
+- [ ] GPU 實際運算：依等級分群與張數上限、GPU 訓練映像（LLM 已改用 Ollama，不用 vLLM），見 `docs/superpowers/plans/2026-10-05-gpu-enablement.md`
   - [x] 軌 B 的 B1–B6：GPU 訓練映像 `platform-trainer-gpu`（`platform/training/Dockerfile.gpu`）、Keras 後端可切換、GPU 上的重現性、平台的影像工作改用 GPU 映像、部署腳本與合規清單、A-01 驗收劇本（2026-10-11）
   - [ ] B7：在 K8s 上以真 GPU 跑訓練 Job 並計時（甲方主機，或本機 kind 接真 GPU）
   - [ ] 結構式訓練改走 CPU 池（計畫 B4 的一部分）：會改變 M1 已驗證的排程行為與 TC-B05-01 的排隊測試，驗收後再做；目前結構式訓練仍排在 GPU 群組，但用 CPU 映像
@@ -110,7 +114,8 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] FHIR：Gateway 以設定檔運作、沒有管理後台；「修改路由」以平台的路由政策實作（啟用、方法、告警門檻）
 - [ ] FHIR：流量告警為每人每專案每分鐘超過 120 次，最多每分鐘寄 1 封，不阻擋；排程在 worker 停機期間錯過的執行不補跑
 - [ ] LLM：發布的 API 以平台帳號清單授權，外部系統各需一個 Keycloak 帳號（另一選項是 API 金鑰）
-- [ ] LLM：只有 Admin 能核准模型下載（可考慮另設審核角色）；正式環境的模型來源與離線預載目錄的交付方式未定
+- [ ] LLM：只有 Admin 能核准模型下載（可考慮另設審核角色）；正式環境預設從 Hugging Face 下載（需對外連 `huggingface.co`、`cas-bridge.xethub.hf.co`），沒有對外網路時用離線預載目錄
+- [ ] LLM：預設模型 Gemma 3 4B 與 EmbeddingGemma 300M，受 Gemma Terms of Use 規範；未採用中國來源的模型
 - [ ] LLM：Wiki.js 以一個服務帳號寫入，作者欄都是它；真正的使用者記在平台稽核
 - [ ] 稽核類別：LLM 操作記「推論」、知識庫與 Wiki 記「資料集」、白名單與 Prompt 記「專案」、種子重設記「專案」、掃毒攔截記「資料集」
 - [ ] 掃毒：掃毒服務中斷時一律拒絕上傳（503）；寫入物件儲存與 DICOM 匯入時都掃，另有排程掃描
@@ -146,7 +151,7 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 
 - [ ] A-01：OS、驅動、CUDA、cuDNN、PyTorch、TensorFlow、GPU 偵測 3 次
 - [ ] 真實 GPU 分配、DCGM 指標、獨占卡上無其他工作、時間片效能
-- [ ] LLM 4-bit 與 8-bit 量化（bitsandbytes＋vLLM）
+- [ ] LLM 4-bit 與 8-bit 量化在甲方 GPU 上重跑（開發機已以 Ollama 驗證：Q4_K_M、Q8_0 皆在 GPU 載入）
 - [ ] 時間與效能指標：權限 10 秒生效、DICOM 查詢 30 秒、自動標註 30 秒、Playground 10 秒、首屏時間、FHIR 壓測延遲
 - [ ] GPU 上的訓練速度與重現性、真實模型品質；LLM 真模型的回應時間
 - [ ] 真實 PACS、HIS、生理監視器、Email 或通訊軟體

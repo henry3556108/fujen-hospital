@@ -37,6 +37,9 @@ images:
   - name: ai-platform/ohif
     newName: ohif/app
     newTag: v3.13.10
+  - name: ai-platform/ollama        # 只在 production overlay（GPU 池）
+    newName: ollama/ollama
+    newTag: 0.40.3
   - name: ai-platform/mailpit
     newName: axllent/mailpit
     newTag: v1.31.3

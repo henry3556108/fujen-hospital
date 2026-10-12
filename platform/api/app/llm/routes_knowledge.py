@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.deps import ProjectContext, client_ip
 from app.llm import calls, chat, knowledge
+from app.llm.client import OllamaClient
 from app.llm.documents import MAX_DOCUMENT_BYTES
 from app.llm.http import coding, errors
 from app.llm.services import LlmServices, get_services
@@ -107,7 +108,9 @@ def search(kb_id: int, body: SearchIn, ctx: ProjectContext = Depends(coding),
 @router.get("/models/available")
 def available_models(ctx: ProjectContext = Depends(coding), services: LlmServices = Depends(get_services)) -> dict:
     models = calls.allowed_models(ctx.session, services)
-    return {"default": models[0], "models": models, "configured": services.client is not None}
+    api = "ollama" if isinstance(services.client, OllamaClient) else "openai" if services.client else None
+    return {"default": models[0], "models": models, "configured": services.client is not None, "api": api,
+            "embed_model": services.settings.embed_model}
 
 
 @router.post("/chat")

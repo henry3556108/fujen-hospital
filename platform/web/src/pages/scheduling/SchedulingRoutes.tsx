@@ -6,12 +6,14 @@ import { ClusterNodesPage } from './ClusterNodesPage';
 import { GpuDashboardPage } from './GpuDashboardPage';
 import { GpuGroupsPage } from './GpuGroupsPage';
 import { MonitoringPage } from './MonitoringPage';
+import { QueueOrderPage } from './QueueOrderPage';
 import { SharedSchedulingPage } from './SharedSchedulingPage';
 import '../../styles/pages.css';
 
 const TABS = [
   { to: '/admin/scheduling', label: '共享排程設定', end: true },
   { to: '/admin/scheduling/groups', label: 'GPU 群組' },
+  { to: '/admin/scheduling/queues', label: '佇列順序' },
   { to: '/admin/scheduling/nodes', label: '叢集節點' },
   { to: '/admin/scheduling/gpu-dashboard', label: 'GPU Dashboard' },
   { to: '/admin/scheduling/monitoring', label: '監控儀表板' },
@@ -34,6 +36,7 @@ export function SchedulingRoutes() {
     <Routes>
       <Route index element={<SharedSchedulingPage />} />
       <Route path="groups" element={<GpuGroupsPage />} />
+      <Route path="queues" element={<QueueOrderPage />} />
       <Route path="nodes" element={<ClusterNodesPage />} />
       <Route path="gpu-dashboard" element={<GpuDashboardPage />} />
       <Route path="monitoring" element={<MonitoringPage />} />

@@ -47,7 +47,11 @@ if __name__ == "__main__":
         print("\n".join(job_images()))
     elif kind == "gpu-jobs":
         print("\n".join(job_images(gpu=True)))
+    elif kind == "autolabel":
+        print("\n".join(ref for name, ref in entries() if name in PRODUCTION_ONLY))
+    elif kind == "gpu-services":
+        print("\n".join(ref for name, ref in entries() if name in GPU_SERVICES))
     else:
         rows = [ref for name, ref in entries()
-                if kind == "all" or (kind == "built") == (name in BUILT)]
+                if kind == "all" or ((kind == "built") == (name in BUILT) and name not in PRODUCTION_ONLY)]
         print("\n".join(rows))

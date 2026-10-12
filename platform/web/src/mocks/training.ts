@@ -659,9 +659,55 @@ export const trainingHandlers = [
     if (ctx instanceof Response) return ctx;
     const run = findRun(ctx.project.id, params.rid);
     if (run instanceof Response) return run;
-    if (!['queued', 'running'].includes(run.status)) return detail(409, `訓練 ${run.id} 已結束（${run.status}），無法取消`);
+    if (!['queued', 'running', 'held'].includes(run.status)) return detail(409, `訓練 ${run.id} 已結束（${run.status}），無法取消`);
     Object.assign(run, { status: 'cancelled' as RunStatus, finished_at: isoNow(), message: `由 ${ctx.user.username} 取消` });
     return json(runOut(run));
+  }),
+  // 暫存與恢復排隊（照 service.hold_run／resume_run）：只限送出的人或 Admin；已開始訓練的不能暫存
+  http.post(`${P}/training/runs/:rid/hold`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const run = findRun(ctx.project.id, params.rid);
+    if (run instanceof Response) return run;
+    if (run.created_by !== ctx.user.username && ctx.user.account_type !== 'admin') {
+      return detail(403, `只有送出工作 ${run.job_id} 的使用者（${run.created_by}）或 Admin 可以暫存或恢復排隊`);
+    }
+    if (run.status === 'running') return detail(409, `訓練 ${run.id} 已開始訓練，無法暫存（訓練中無法中途保存進度，只能取消）`);
+    if (run.status !== 'queued') return detail(409, `訓練 ${run.id} 已結束（${run.status}）`);
+    run.status = 'held';
+    return json(runOut(run));
+  }),
+  http.post(`${P}/training/runs/:rid/resume`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const run = findRun(ctx.project.id, params.rid);
+    if (run instanceof Response) return run;
+    if (run.created_by !== ctx.user.username && ctx.user.account_type !== 'admin') {
+      return detail(403, `只有送出工作 ${run.job_id} 的使用者（${run.created_by}）或 Admin 可以暫存或恢復排隊`);
+    }
+    if (run.status !== 'held') return detail(409, `工作 ${run.job_id} 不是暫存狀態（${run.status}），無法恢復排隊`);
+    Object.assign(run, { status: 'queued' as RunStatus, ticks: 0, changedMs: Date.now() });
+    return json(runOut(run));
+  }),
+  http.post(`${P}/training/runs/:rid/save-setting`, async ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const run = findRun(ctx.project.id, params.rid);
+    if (run instanceof Response) return run;
+    const b = await jsonBody(request);
+    const name = checkName(b.name);
+    if (name instanceof Response) return name;
+    return configError(() => {
+      const { executor: _e, ...rest } = run.config as TrainingConfig & { executor?: string };
+      const config = normalise(rest);
+      const s = state();
+      if (s.settings.some((x) => x.project_id === ctx.project.id && x.name === name)) return detail(409, `訓練設定「${name}」已存在`);
+      const now = isoNow();
+      const row: TrainingSetting = { id: s.nextSetting++, project_id: ctx.project.id, name, kind: config.kind, config,
+        created_by: ctx.user.username, updated_by: ctx.user.username, created_at: now, updated_at: now };
+      s.settings.push(row);
+      return json(row, 201);
+    });
   }),
   http.post(`${P}/training/runs/:rid/rerun`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
@@ -698,7 +744,7 @@ export const trainingHandlers = [
     if (ctx instanceof Response) return ctx;
     const run = findRun(ctx.project.id, params.rid);
     if (run instanceof Response) return run;
-    if (run.status === 'queued' || run.status === 'running') return detail(409, `訓練 ${run.id} 尚未完成，完成後才能下載報表`);
+    if (run.status === 'queued' || run.status === 'running' || run.status === 'held') return detail(409, `訓練 ${run.id} 尚未完成，完成後才能下載報表`);
     if (run.status !== 'succeeded') return detail(409, `訓練 ${run.id} 沒有成功完成（${run.status}），沒有可下載的報表`);
     const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>訓練報表：${run.name}（訓練 #${run.id}）</title>` +
       `<h1>訓練報表：${run.name}（訓練 #${run.id}）</h1><pre>${JSON.stringify(run.metrics, null, 2)}</pre></html>`;

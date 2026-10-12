@@ -22,6 +22,9 @@ container_metrics_only:
   - ai-platform/web                   # 靜態檔案（nginx）
   - ai-platform/fhir-worker           # 背景工作，沒有 HTTP 服務；處理結果記在平台資料庫
   - ai-platform/inference             # 推論服務，沒有 /metrics；經 Gateway 的請求由 apisix 指標涵蓋
+  - ai-platform/ollama                # 正式環境的 LLM 模型服務，沒有 /metrics；GPU 用量由 DCGM 指標涵蓋
+  - ai-platform/monai-label           # 正式環境的自動標註工具（MONAI Label），沒有 /metrics；GPU 用量由 DCGM 指標涵蓋
+  - ai-platform/monai-autolabel       # 正式環境的自動標註轉接服務，沒有 /metrics；請求延遲由平台 API 的指標涵蓋
   - ai-platform/fake-llm              # kind 才有的假 LLM
   - ai-platform/autolabel             # kind 才有的假自動標註
   - ai-platform/mailpit               # kind 才有：平台寄出的通知信收件匣

@@ -6,18 +6,10 @@ import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
-import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
-import { isActive, JOB_KIND_LABELS, JOB_STATUS_LABELS, type Job, type JobKind, type JobStatus } from './types';
+import { StatusBadge } from '../../components/StatusBadge';
+import { isActive, isOpen, JOB_KIND_LABELS, JOB_STATUS_LABELS, JOB_STATUS_TONE as STATUS_TONE, QUEUE_KIND_LABELS, type Job, type JobKind } from './types';
 
 const POLL_MS = 2000;
-
-const STATUS_TONE: Record<JobStatus, BadgeTone> = {
-  queued: 'info',
-  running: 'warning',
-  succeeded: 'success',
-  failed: 'error',
-  cancelled: 'neutral',
-};
 
 function invalid(error: unknown, field: string): boolean {
   return error instanceof ApiError && error.fieldErrors.some((f) => f.field === field);
@@ -64,6 +56,21 @@ export function JobsPage() {
       reload();
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function queueAction(job: Job, action: 'hold' | 'resume') {
+    setBusy(true);
+    setNotice(null);
+    setCancelError(null);
+    try {
+      const out = await api.post<Job>(`/api/projects/${pid}/jobs/${job.id}/${action}`);
+      setNotice(action === 'hold' ? `已暫存工作 ${out.id}，之後按「恢復排隊」會排到佇列最後` : `工作 ${out.id} 已恢復排隊（排在佇列最後）`);
+      reload();
+    } catch (err) {
+      setCancelError(err);
     } finally {
       setBusy(false);
     }
@@ -163,6 +170,7 @@ export function JobsPage() {
           {hasActive ? '有工作在排隊或執行中，每 2 秒自動更新。' : '沒有進行中的工作。'}
         </p>
         <p className="field__hint">開始與結束時間是叢集實際啟動與結束工作的時間（不是畫面更新的時間），可與叢集紀錄比對。</p>
+        <p className="field__hint">排隊中的工作可以「暫存」移出佇列、保留工作內容，之後按「恢復排隊」會重新排到佇列最後。</p>
         <div className="table-wrap">
           <table aria-label="工作列表">
             <thead>
@@ -195,7 +203,7 @@ export function JobsPage() {
                   <th scope="row" className="num">
                     {j.id}
                   </th>
-                  <td>{JOB_KIND_LABELS[j.kind] ?? j.kind}</td>
+                  <td>{QUEUE_KIND_LABELS[j.kind] ?? j.kind}</td>
                   <td>
                     <StatusBadge tone={STATUS_TONE[j.status] ?? 'neutral'}>{JOB_STATUS_LABELS[j.status] ?? j.status}</StatusBadge>
                   </td>
@@ -207,19 +215,44 @@ export function JobsPage() {
                   <td>{formatTime(j.finished_at)}</td>
                   <td>{j.message || '—'}</td>
                   <td>
-                    {isActive(j.status) ? (
-                      <button
-                        type="button"
-                        className="btn btn--secondary btn--small"
-                        aria-label={`取消工作 ${j.id}`}
-                        onClick={() => {
-                          setNotice(null);
-                          setCancelError(null);
-                          setCancelling(j);
-                        }}
-                      >
-                        取消
-                      </button>
+                    {isOpen(j.status) ? (
+                      <div className="row-actions">
+                        {j.status === 'queued' && (
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--small"
+                            aria-label={`暫存工作 ${j.id}`}
+                            title="移出佇列並保存，稍後再恢復排隊（已開始執行的工作不能暫存）"
+                            disabled={busy}
+                            onClick={() => void queueAction(j, 'hold')}
+                          >
+                            暫存
+                          </button>
+                        )}
+                        {j.status === 'held' && (
+                          <button
+                            type="button"
+                            className="btn btn--primary btn--small"
+                            aria-label={`恢復排隊工作 ${j.id}`}
+                            disabled={busy}
+                            onClick={() => void queueAction(j, 'resume')}
+                          >
+                            恢復排隊
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn--secondary btn--small"
+                          aria-label={`取消工作 ${j.id}`}
+                          onClick={() => {
+                            setNotice(null);
+                            setCancelError(null);
+                            setCancelling(j);
+                          }}
+                        >
+                          取消
+                        </button>
+                      </div>
                     ) : (
                       '—'
                     )}

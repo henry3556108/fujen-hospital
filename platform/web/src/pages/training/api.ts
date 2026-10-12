@@ -99,7 +99,7 @@ export interface TrainingSetting {
   updated_at: string;
 }
 
-export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'held';
 
 export interface TrainingRun {
   id: number;
@@ -183,6 +183,12 @@ export interface TrainingApi {
   run(id: number): Promise<TrainingRun>;
   cancel(id: number): Promise<TrainingRun>;
   rerun(id: number): Promise<TrainingRun>;
+  /** 暫存排隊中的訓練（移出佇列，稍後恢復排隊） */
+  hold(id: number): Promise<TrainingRun>;
+  /** 恢復排隊：排到佇列最後 */
+  resume(id: number): Promise<TrainingRun>;
+  /** 把這次訓練用的設定另存成新的訓練設定 */
+  saveAsSetting(runId: number, name: string): Promise<TrainingSetting>;
   log(id: number): Promise<{ run_id: number; status: RunStatus; log: string }>;
   exportSource(runId: number): Promise<Download>;
   charts(runId: number): Promise<RunCharts>;
@@ -249,6 +255,9 @@ export function createTrainingApi(
     run: (id) => api.get(`${root}/training/runs/${id}`),
     cancel: (id) => api.post(`${root}/training/runs/${id}/cancel`),
     rerun: (id) => api.post(`${root}/training/runs/${id}/rerun`),
+    hold: (id) => api.post(`${root}/training/runs/${id}/hold`),
+    resume: (id) => api.post(`${root}/training/runs/${id}/resume`),
+    saveAsSetting: (runId, name) => api.post(`${root}/training/runs/${runId}/save-setting`, { name }),
     log: (id) => api.get(`${root}/training/runs/${id}/log`),
     exportSource: (runId) => download(`${root}/training/runs/${runId}/source`, `training-run-${runId}-source.zip`),
     charts: (runId) => api.get(`${root}/training/runs/${runId}/charts`),

@@ -77,8 +77,8 @@ spec:
     metadata:
       labels: {app: monai-label}
     spec:
-      # GPU 共享池（time-slicing）：常駐佔用 1 份。Kueue 的 gpu-shared 配額不會扣掉這一份，
-      # 共享池滿載時最後送出的訓練工作會 Pending 到有空位為止（README「真實自動標註工具」）。
+      # GPU 共享池（time-slicing）：常駐佔用 1 份，不經 Kueue（與 Ollama 相同），共享池的 Kueue 配額要少算這一份
+      # （README「正式環境」）。沒有 GPU 時同一個映像改用 CPU，但腹部 CT 推論要數十秒，超過平台的 25 秒等候。
       nodeSelector: {platform/pool: gpu-shared}
       tolerations:
         - {key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}
@@ -107,8 +107,8 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
-            requests: {cpu: 250m, memory: 4Gi, nvidia.com/gpu: 1}
-            limits: {cpu: 750m, memory: 12Gi, nvidia.com/gpu: 1}
+            requests: {cpu: "1", memory: 4Gi, nvidia.com/gpu: 1}
+            limits: {cpu: "4", memory: 12Gi, nvidia.com/gpu: 1}
           volumeMounts:
             - {name: studies, mountPath: /data/studies}
             - {name: shm, mountPath: /dev/shm}

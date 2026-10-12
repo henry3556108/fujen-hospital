@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from llm_support import documents, llm, unique  # noqa: F401
+from llm_support import documents, llm, reply_text, unique  # noqa: F401
 
 
 def workflow(kb_id: int) -> dict:
@@ -56,7 +56,7 @@ def test_tc_b08_03_workflow_llm_call_is_recorded(api, llm, flow, documents):
     node = next(n for n in body["nodes"] if n["type"] == "llm")
     assert node["llm_request"]["messages"][-1]["content"] == "請回答：體內有心律調節器可以做磁振造影嗎"
     assert "心律調節器" in node["llm_request"]["messages"][0]["content"]
-    assert node["llm_response"]["choices"][0]["message"]["content"] == node["state_out"]["draft"]
+    assert reply_text(node["llm_response"]) == node["state_out"]["draft"]
     call = api.get(f"{llm.base}/calls/{node['call_id']}", headers=llm.ca).json()
     assert (call["origin"], call["origin_ref"]) == ("workflow", f"workflow-run:{body['id']}:draft")
     assert call["context_source"] == "vector" and call["context_refs"][0]["filename"] == documents["docx"][0]
@@ -126,12 +126,14 @@ def test_tc_b08_04_wiki_document_goes_to_llm_through_wiki_api(api, llm, wiki):
     assert answer.status_code == 200, answer.text
     body = answer.json()
     assert body["context_source"] == "wiki_api" and body["pages"][0]["page_id"] == page["id"]
-    assert body["pages"][0]["via"] == "wiki_api:pages.single" and "context:" in body["answer"]
+    assert body["pages"][0]["via"] == "wiki_api:pages.single" and body["answer"]
+    if not llm.real:
+        assert "context:" in body["answer"]
     call = api.get(f"{llm.base}/calls/{body['call_id']}", headers=llm.ca).json()
     assert (call["origin"], call["context_source"]) == ("wiki", "wiki_api")
     assert call["context_refs"][0]["title"] == "探病規定"
     assert "探病時間為每日 11:00 至 13:00" in call["request"]["messages"][0]["content"]
-    assert call["response"]["choices"][0]["message"]["content"] == body["answer"]
+    assert reply_text(call["response"]) == body["answer"]
     # 同一時間沒有任何走向量檢索的呼叫被記在這次問答上
     vector_calls = [c for c in api.get(f"{llm.base}/calls", headers=llm.ca, params={"origin": "wiki"}).json()
                     if c["id"] == body["call_id"] and c["context_source"] != "wiki_api"]
