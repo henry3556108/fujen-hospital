@@ -218,10 +218,12 @@ def _pod_gpus(pod) -> int:
 
 
 class KubernetesJobBackend:
-    def __init__(self, *, core, batch, custom, namespace: str, image: str,
+    def __init__(self, *, core, batch, custom, namespace: str, image: str, shared_reserved: int = 0,
                  clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep):
         self.core, self.batch, self.custom = core, batch, custom
         self.namespace, self.image = namespace, image
+        # 共享池裡不經 Kueue 的常駐服務（正式環境的 Ollama、MONAI Label）占用的份數，從配額扣掉
+        self.shared_reserved = shared_reserved
         self._clock, self._sleep = clock, sleep
         self._last_submit: dict[str, float] = {}
         self._lock = threading.RLock()
@@ -236,7 +238,8 @@ class KubernetesJobBackend:
             config.load_kube_config(context=os.environ.get("KUBE_CONTEXT") or None)
         return cls(core=client.CoreV1Api(), batch=client.BatchV1Api(), custom=client.CustomObjectsApi(),
                    namespace=os.environ.get("JOB_NAMESPACE", "platform-jobs"),
-                   image=os.environ.get("JOB_IMAGE", "busybox:1.36"))
+                   image=os.environ.get("JOB_IMAGE", "busybox:1.36"),
+                   shared_reserved=int(os.environ.get("GPU_SHARED_RESERVED", "0")))
 
     # --- JobBackend ---
     def submit(self, spec: JobSpec) -> None:
@@ -313,6 +316,7 @@ class KubernetesJobBackend:
         cq = self.custom.get_cluster_custom_object(KUEUE_GROUP, KUEUE_VERSION, "clusterqueues", "gpu-shared")
         groups = cq["spec"]["resourceGroups"]
         total = sum(max(1, n.gpu_physical) for n in self.nodes() if n.pool == "gpu-shared") * replicas
+        total = max(0, total - self.shared_reserved)
         for group in groups:
             for flavor in group["flavors"]:
                 for resource in flavor["resources"]:

@@ -48,6 +48,8 @@ configMapGenerator:
       - LLM_MODEL_SOURCE=huggingface
       # 自動標註：MONAI Label 轉接服務（autolabel-monai.yaml）。改接甲方指定的其他工具時換成它的位址
       - AUTOLABEL_URL=http://monai-autolabel:8102
+      # GPU 共享池裡不經 Kueue 的常駐服務份數（Ollama、MONAI Label 各一），同步共享份數時從 Kueue 配額扣掉
+      - GPU_SHARED_RESERVED=2
       - ALERT_SMTP_HOST=CHANGE-ME-smtp.example.invalid
       - ALERT_SMTP_PORT=25
       - ALERT_EMAIL_FROM=ai-platform@example.invalid

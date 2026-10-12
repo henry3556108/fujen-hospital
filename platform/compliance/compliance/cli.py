@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -236,4 +237,6 @@ def main(argv: list[str] | None = None) -> int:
     from compliance import cli_checks  # 其餘檢查（掃毒、稽核、監控、報告、機密）
     cli_checks.register(parser._subparsers._group_actions[0])  # type: ignore[attr-defined]
     args = parser.parse_args(argv)
+    # docker compose 一律以 -p <專案> 指定；呼叫端的 COMPOSE_FILE 多半是相對 deploy/local 的路徑，在這裡會找不到檔
+    os.environ.pop("COMPOSE_FILE", None)
     return args.func(args)

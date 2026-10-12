@@ -85,7 +85,8 @@ kubectl -n ai-platform create job seed-$(date +%s) --from=cronjob/seed      # ki
 - **一次性工作**寫成暫停的 CronJob（工作範本），由 `deploy.sh` 以 `kubectl create job --from=cronjob/<名稱>` 建立：
   `db-init`、`minio-init`、`bootstrap-admin`、`wiki-setup`，kind 另有 `seed`。全部可重複執行；Job 建立後 Pod 範本不能改，直接 apply Job 會失敗，所以不這樣做。
 - **放置**：所有平台 Pod `nodeSelector: platform/pool=cpu-web`。推論服務也在 cpu-web（映像約 6 GB，`build-and-load.sh` 會匯入）。
-  唯一例外是 production 的 Ollama：GPU 共享池（`platform/pool=gpu-shared`，容忍 `nvidia.com/gpu` taint，要 1 份 `nvidia.com/gpu`）。
+  例外是 production 的 Ollama 與 MONAI Label：GPU 共享池（`platform/pool=gpu-shared`，容忍 `nvidia.com/gpu` taint，各要 1 份 `nvidia.com/gpu`）。
+  這兩份不經 Kueue，`GPU_SHARED_RESERVED=2` 讓平台同步共享份數時從 `gpu-shared` 配額扣掉，避免訓練工作被放行後排不上節點。
 - **NetworkPolicy**：命名空間預設拒絕所有進入流量；命名空間外只能連 Gateway 與 Keycloak。平台 API 另接受 `platform-jobs`（Job 以一次性 token 回連工作 I/O）。
   標籤 `platform/backend=true`（平台程式的 Pod）可連內部服務，`platform/db-client=true` 可連 PostgreSQL。只管進入流量。
 - **RBAC**（`base/rbac.yaml`）：`platform-jobs` 的 Job 建立／讀取／刪除、Pod 讀取；Node 讀取；Kueue ClusterQueue `gpu-shared` 讀取與修改。

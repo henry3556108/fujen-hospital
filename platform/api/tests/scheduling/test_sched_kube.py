@@ -210,6 +210,20 @@ def test_configure_shared_patches_node_capacity_and_cluster_queue():
     assert name == "gpu-shared" and gpu == {"name": "nvidia.com/gpu", "nominalQuota": "2"}
 
 
+def test_configure_shared_subtracts_resident_services():
+    core = FakeCore(nodes=[node("w4", "gpu-shared", gpus=4, physical=1)])
+    custom = FakeCustom()
+    b = make_backend(core=core, custom=custom)
+    b.shared_reserved = 2                    # 正式環境：Ollama 與 MONAI Label 各占一份
+    b.configure_shared(4)
+    assert core.patched == [("w4", {"status": {"capacity": {"nvidia.com/gpu": "4"}}})]
+    quota = lambda: custom.patches[-1][1]["spec"]["resourceGroups"][0]["flavors"][0]["resources"][1]["nominalQuota"]
+    assert quota() == "2"
+    b.shared_reserved = 9
+    b.configure_shared(4)
+    assert quota() == "0"
+
+
 def test_backend_from_env(monkeypatch):
     monkeypatch.setenv("JOB_BACKEND", "fake")
     assert type(backend_from_env()).__name__ == "FakeJobBackend"

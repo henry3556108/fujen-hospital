@@ -21,7 +21,8 @@ def p1_id(client: httpx.Client) -> int:
 
 
 def ensure_images(client: httpx.Client, pid: int, out: Path) -> list[dict]:
-    """把合成的 20 個研究匯入 P1（已匯入的會判為重複），回傳目前看得到的研究。"""
+    """把合成的 20 個研究匯入 P1（已匯入的會判為重複），回傳其中目前看得到的研究
+    （P1 可能另有其他案例匯入的影像，例如 B-03 真實模式的腹部 CT，不列入）。"""
     if not (out / "manifest.json").exists():
         subprocess.run(["uv", "run", "-q", "python", "-m", "synth", "dicom", "--out", str(out)], cwd=SYNTH,
                        check=True, capture_output=True)
@@ -29,9 +30,10 @@ def ensure_images(client: httpx.Client, pid: int, out: Path) -> list[dict]:
     r = client.post(f"/api/projects/{pid}/imaging/dicom", headers=headers("ra01"), files=files, timeout=120)
     assert r.status_code == 201, r.text
     assert r.json()["counts"]["failed"] == 0
-    studies = client.get(f"/api/projects/{pid}/imaging/studies", headers=headers("ra01")).json()
     manifest = json.loads((out / "manifest.json").read_text())
     by_uid = {s["study_instance_uid"]: s for s in manifest["studies"]}
+    studies = [s for s in client.get(f"/api/projects/{pid}/imaging/studies", headers=headers("ra01")).json()
+               if s["study_instance_uid"] in by_uid]
     for s in studies:
         s["sop_instance_uids"] = by_uid[s["study_instance_uid"]]["sop_instance_uids"]
     return studies
