@@ -1,0 +1,45 @@
+# MONAI Label 伺服器（platform/autolabel/Dockerfile.monailabel）加裝的套件。
+# monailabel 以 --no-deps 安裝：它的相依清單含 sam2（建置時要編 CUDA 擴充，平台不用）、girder-client（病理 DSA）等用不到的套件，
+# 這裡只列 radiology app 與伺服器實際載入的套件。PyTorch 用基底映像內建的 2.8.0（cu128，含 Blackwell sm_120）。
+# MONAI 1.4.0 與 monailabel 0.8.5 是 MONAI Label 官方映像（projectmonai/monailabel，2025-06）採用的組合。
+monailabel==0.8.5
+monai==1.4.0
+pytorch-ignite==0.4.11
+nibabel
+itk==5.4.3
+pynrrd
+scikit-image
+pydicom==2.4.4
+pydicom-seg==0.4.1
+pynetdicom
+dicomweb-client
+shapely
+numpymaxflow==0.0.7
+einops
+fire
+tqdm
+psutil
+fastapi==0.110.2
+uvicorn==0.29.0
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart==0.0.9
+httpx
+schedule
+timeloop
+expiringdict
+expiring-dict
+cachetools
+watchdog
+pyyaml
+filelock
+passlib
+pyjwt
+bcrypt
+requests
+requests-toolbelt
+urllib3
+scikit-learn
+scipy
+google-auth

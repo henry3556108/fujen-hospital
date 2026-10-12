@@ -1,0 +1,51 @@
+# platform-monailabel：MONAI Label 伺服器（radiology app），B-03 的第三方自動標註工具。
+# 平台不直接呼叫它，而是經轉接服務（platform/autolabel/adapter，規格 docs/specs/autolabel-io-format.md 1.0）。
+#   docker build -f Dockerfile.monailabel -t platform-monailabel:dev platform/autolabel
+#
+# 為什麼不用官方映像 projectmonai/monailabel：官方映像的 PyTorch 2.7.1+cu126 只編到 sm_90，
+# RTX PRO 6000 Blackwell（sm_120）跑不了任何 CUDA 運算（"no kernel image is available"）。
+# 這裡以 PyTorch 官方 2.8.0 cu128 映像（含 sm_120；CUDA 12.8 在驅動 572.83 支援範圍內）為基底，
+# 裝上官方映像同一組 monailabel 0.8.5＋MONAI 1.4.0。沒有 GPU 時同一個映像自動改用 CPU（MONAI Label 依 torch.cuda.is_available()）。
+#
+# 預訓練權重在建置時下載並以 SHA-256 驗證，烤進映像：執行時不需要連網（甲方環境可能離線）。
+# 權重來源是 MONAI Label 官方 GitHub release；內部鏡像站或離線建置可改 WEIGHTS_BASE_URL（雜湊照樣檢查）：
+#   docker build --build-arg WEIGHTS_BASE_URL=http://<內部鏡像>/monailabel ...
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+
+ARG WEIGHTS_BASE_URL=https://github.com/Project-MONAI/MONAILabel/releases/download/pretrained
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore PIP_DEFAULT_TIMEOUT=60 PIP_RETRIES=10
+
+COPY monailabel/constraints.txt monailabel/requirements.txt /tmp/req/
+RUN pip install -q --no-deps -c /tmp/req/constraints.txt monailabel==0.8.5 \
+ && grep -v '^monailabel' /tmp/req/requirements.txt > /tmp/req/deps.txt \
+ && pip install -q -c /tmp/req/constraints.txt -r /tmp/req/deps.txt \
+ && python -c "import torch, monai, monailabel; assert torch.__version__.startswith('2.8.0'), torch.__version__" \
+ && rm -rf /tmp/req /root/.cache
+
+# radiology app（monailabel 套件內附的範例 app）複製到 /opt/monailabel/apps/radiology，權重放在它的 model/ 下。
+# 檔名 pretrained_<模型名稱>.pt 是 radiology app 找預訓練權重的固定位置；啟動時以 use_pretrained_model=false 關閉下載。
+RUN monailabel apps --download --name radiology --output /opt/monailabel/apps >/dev/null \
+ && mkdir -p /opt/monailabel/apps/radiology/model
+ADD --checksum=sha256:b606697f9efad300bbb3b1115abd1245b29e5de0c9de8fac052ab6d2d94f920a \
+    ${WEIGHTS_BASE_URL}/radiology_segmentation_unet_spleen_total_seg.pt \
+    /opt/monailabel/apps/radiology/model/pretrained_segmentation_spleen.pt
+ADD --checksum=sha256:1616b0d9b74caf0a0928e6dbea03416dbe859149560b56d25ce97ee1725820db \
+    ${WEIGHTS_BASE_URL}/radiology_segmentation_segresnet_multilabel.pt \
+    /opt/monailabel/apps/radiology/model/pretrained_segmentation.pt
+
+COPY monailabel/start.sh /opt/monailabel/start.sh
+RUN useradd --uid 10001 --create-home --home-dir /home/app app \
+ && chmod 0644 /opt/monailabel/apps/radiology/model/*.pt && chmod 0755 /opt/monailabel/start.sh \
+ && mkdir -p /data/studies && chown -R app /data /opt/monailabel/apps/radiology
+
+# MONAI_LABEL_MODELS：要載入的模型（radiology app 的 --conf models），逗號分隔
+# MONAI_LABEL_STUDIES：MONAI Label 的本機資料夾（平台不用它的資料庫功能；推論的影像由轉接服務上傳），需可寫
+ENV MONAI_LABEL_MODELS=segmentation_spleen,segmentation \
+    MONAI_LABEL_STUDIES=/data/studies \
+    MONAI_LABEL_PORT=8000 \
+    PYTHONUNBUFFERED=1 HOME=/home/app
+USER app
+WORKDIR /opt/monailabel
+EXPOSE 8000
+ENTRYPOINT []
+CMD ["/opt/monailabel/start.sh"]

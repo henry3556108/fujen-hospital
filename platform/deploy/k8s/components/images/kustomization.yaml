@@ -53,6 +53,13 @@ images:
   - name: ai-platform/web
     newName: platform-web
     newTag: dev
+  # ---- 只用在正式環境的自動標註工具（B-03；kind 用 fake-autolabel）。建置：platform/autolabel/build.sh ----
+  - name: ai-platform/autolabel
+    newName: platform-autolabel
+    newTag: dev
+  - name: ai-platform/monailabel       # MONAI Label＋預訓練權重，約 15 GB，只放 GPU 共享池
+    newName: platform-monailabel
+    newTag: dev
 # 平台 API 送到叢集的 Job 用的映像（環境變數，不是 Pod 的 image 欄位，所以放在 ConfigMap）。
 # 這些映像要載入工作節點（cpu-data、GPU 池），不是平台節點；GPU 映像（約 35 GB）只載入 GPU 池。
 #   TRAINING_GPU_IMAGE  影像訓練與影像批次推論（NGC TensorFlow＋PyTorch，platform/training/Dockerfile.gpu）

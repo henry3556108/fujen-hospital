@@ -2,7 +2,9 @@
 """列出 components/images/kustomization.yaml 的映像（build-and-load.sh、offline/bundle.sh 用）。
 
   python3 images.py upstream   上游映像（name:tag 或 name@digest），一行一個
-  python3 images.py built      平台建置的映像（name:tag），一行一個
+  python3 images.py built      平台建置、kind 也用到的映像（name:tag），一行一個
+  python3 images.py autolabel  只用在正式環境的自動標註映像（MONAI Label 與轉接服務；platform/autolabel/build.sh 建置）
+  python3 images.py gpu-services  常駐在 GPU 共享池的服務映像（MONAI Label），只載入 GPU 節點
   python3 images.py jobs       平台 API 送到叢集的 Job 映像（TRAINING_IMAGE、JOB_IMAGE），載入所有工作節點
   python3 images.py gpu-jobs   只在 GPU 池執行的 Job 映像（TRAINING_GPU_IMAGE），只載入 GPU 節點
 """
@@ -12,7 +14,11 @@ from pathlib import Path
 import yaml
 
 COMPONENT = Path(__file__).resolve().parent / "components/images/kustomization.yaml"
-BUILT = {"ai-platform/api", "ai-platform/fakes", "ai-platform/trainer", "ai-platform/web"}
+BUILT = {"ai-platform/api", "ai-platform/fakes", "ai-platform/trainer", "ai-platform/web",
+         "ai-platform/autolabel", "ai-platform/monailabel"}
+# kind 不部署（overlays/kind 用 fake-autolabel）：build-and-load.sh 不建置也不載入
+PRODUCTION_ONLY = {"ai-platform/autolabel", "ai-platform/monailabel"}
+GPU_SERVICES = {"ai-platform/monailabel"}
 
 
 def entries() -> list[tuple[str, str]]:
