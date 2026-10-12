@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from datetime import date
 from pathlib import Path
 
@@ -114,7 +115,14 @@ def _openapi_paths(compose_project: str, kube_namespace: str | None = None) -> l
         cmd = ["kubectl", "-n", kube_namespace, "exec", "deploy/api", "--", "/app/.venv/bin/python", "-c", OPENAPI]
     else:
         cmd = ["docker", "compose", "-p", compose_project, "exec", "-T", "api", "/app/.venv/bin/python", "-c", OPENAPI]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=True)
+    # 驗收整套跑時，前一個案例可能剛重啟 api 或資料庫：失敗就等一下重試，最後一次失敗附上錯誤輸出
+    for _ in range(6):
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if proc.returncode == 0:
+            break
+        time.sleep(10)
+    else:
+        raise RuntimeError(f"取不到平台 API 的 OpenAPI：{proc.stderr.strip()[-1500:]}")
     spec = json.loads(proc.stdout.strip().splitlines()[-1])
     return sorted(p for p, ops in spec["paths"].items() if "get" in ops)
 
