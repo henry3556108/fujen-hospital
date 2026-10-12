@@ -13,12 +13,15 @@
 FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
 ARG WEIGHTS_BASE_URL=https://github.com/Project-MONAI/MONAILabel/releases/download/pretrained
+# 內部套件鏡像或離線建置：PIP_WHEELS=<放 wheel 的網址或目錄>（pip --no-index --find-links），版本照 requirements.txt
+ARG PIP_WHEELS=
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore PIP_DEFAULT_TIMEOUT=60 PIP_RETRIES=10
 
 COPY monailabel/constraints.txt monailabel/requirements.txt /tmp/req/
-RUN pip install -q --no-deps -c /tmp/req/constraints.txt monailabel==0.8.5 \
+RUN src="${PIP_WHEELS:+--no-index --find-links $PIP_WHEELS}" \
+ && pip install -q $src --no-deps -c /tmp/req/constraints.txt monailabel==0.8.5 \
  && grep -v '^monailabel' /tmp/req/requirements.txt > /tmp/req/deps.txt \
- && pip install -q -c /tmp/req/constraints.txt -r /tmp/req/deps.txt \
+ && pip install -q $src -c /tmp/req/constraints.txt -r /tmp/req/deps.txt \
  && python -c "import torch, monai, monailabel; assert torch.__version__.startswith('2.8.0'), torch.__version__" \
  && rm -rf /tmp/req /root/.cache
 

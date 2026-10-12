@@ -15,6 +15,9 @@
 | 逾時 | 平台等候 25 秒（環境變數 `AUTOLABEL_TIMEOUT_SECONDS`），逾時視為服務離線 |
 | 錯誤 | 服務回 4xx／5xx、無法連線、逾時、回應不合本規格時，平台不寫入任何標註 |
 
+說明（不改變 1.0 介面）：模型本身是 3D 的工具（例如 MONAI Label，`platform/autolabel`）由轉接服務對影像所屬的整個序列推論，
+只回傳指定影像（切面）的 2D 遮罩，所以 `/info/` 的 `dimension` 報 2。
+
 ## 2. 查詢模型的回應（`GET /info/`）
 
 <!-- spec:info -->

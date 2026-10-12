@@ -54,12 +54,29 @@ docker compose -f compose.yaml -f compose.labeling.yaml up -d --build
 cd platform/acceptance && COMPOSE_PROJECT=ai-platform uv run pytest -q test_tc_b02.py test_tc_b03.py test_ohif.py
 ```
 
-- `autolabel`：`platform/fakes` 的 fake-autolabel（MONAI Label 介面子集），只有平台 API 連得到；甲方環境改 `AUTOLABEL_URL` 指向真正的工具。格式規格見 `docs/specs/autolabel-io-format.md`。
+- `autolabel`：`platform/fakes` 的 fake-autolabel（MONAI Label 介面子集），只有平台 API 連得到；真正的工具（MONAI Label）見下方「真實自動標註工具」。格式規格見 `docs/specs/autolabel-io-format.md`。
 - OHIF 檢視器在 Gateway 的 `http://localhost:9081`（`OHIF_HOST_PORT` 可改），網址 `/viewer?StudyInstanceUIDs=<uid>&project=<pid>`。
   DICOMweb 與 OHIF 同源，一律走 `/dicomweb/projects/{pid}`，Accession 清單照樣生效；登入用 Keycloak client `ai-platform-ohif`。
 - Gateway 會把 Orthanc 回傳的 `BulkDataURI` 改寫成 Gateway 的專案範圍位址（取代 Orthanc `PublicRoot` 設定），bulk data 同樣經過 forward-auth。
 - DICOMweb 的 CORS 在開發環境放行 `localhost` 任意埠，甲方環境改成正式網域。
 - 改了 `keycloak/realm-ai-platform.json`（新增 `ai-platform-ohif`）的既有環境，要照下方「已知狀況」重新匯入 realm。
+
+## 真實自動標註工具（MONAI Label，B-03）
+
+疊加 `compose.monai.yaml`（放在 `compose.labeling.yaml` 之後）就以 MONAI Label 取代 fake-autolabel；服務名稱仍是 `autolabel`，
+`AUTOLABEL_URL` 與驗收測試都不用改。需要 NVIDIA GPU 與 NVIDIA Container Toolkit；第一次建置 `monai-label` 映像約 15 GB。
+
+```bash
+BUILD_NETWORK=host ../../autolabel/build.sh      # 先建映像；WSL2 的 Docker bridge 對外下載很慢，用主機網路
+docker compose -f compose.yaml -f compose.labeling.yaml -f compose.monai.yaml up -d --no-build --wait
+docker compose exec -T api /app/.venv/bin/python -m app.seed
+cd ../../acceptance && AUTOLABEL_CT_DIR=<腹部 CT 資料夾> COMPOSE_PROJECT=ai-platform uv run pytest -q test_tc_b03.py
+```
+
+- `autolabel`：轉接服務（`platform/autolabel/adapter`），以 Orthanc 唯讀帳號 `autolabel`（只能 GET `/dicom-web/`，`orthanc/platform/autolabel-readonly.lua`）取像。
+- `monai-label`：MONAI Label 0.8.5，模型 `segmentation_spleen`（脾臟）與 `segmentation`（25 個器官），權重在映像內，不需連網。
+- 腹部 CT 測試資料以 `platform/autolabel/scripts/msd_to_dicom.py` 由 MSD Task09_Spleen（CC-BY-SA 4.0）產生。
+- 模型、授權與限制（規格 1.0 是 2D、模型是 3D）見 `platform/autolabel/README.md`。
 
 ## 網頁前端（正式映像）
 

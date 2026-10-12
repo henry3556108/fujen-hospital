@@ -94,7 +94,7 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] C-03 的「租戶」對應 A-03 的「專案」（目前採用）還是「單位」
 - [ ] 影像訓練一律用 Keras 輸出 H5
 - [ ] GPU 訓練映像以 NVIDIA NGC TensorFlow 25.02（TF 2.17，NVIDIA 已停止更新）為基底：受 NVIDIA Deep Learning Container License 規範；官方 TensorFlow 不支援 Blackwell，所以版本比 CPU 映像（TF 2.21）舊；GPU 上的逐位元重現只保證同一張卡、同一映像
-- [ ] MONAI Label 是否算「Clara 等級或同等」（B-03）
+- [ ] MONAI Label 是否算「Clara 等級或同等」（B-03）。2026-10-12 已接上真實 MONAI Label 0.8.5（GPU，`platform/autolabel/README.md`）：經平台 API 推論 4.1 秒、Dice 0.981；仍待甲方書面確認
 - [ ] M1、M2 測試資料基線由甲方提供，還是可用乙方準備的公開或合成資料
 - [ ] 影像：匯入需 Labeling 權限；只有 Admin 能設定 Accession 清單，空清單代表不限制；清單外的影像可匯入但看不到；重複影像以 SOP Instance UID 在專案內判斷；DICOMweb 唯讀
 - [ ] 排程：GPU 群組變更記在「專案」類稽核；只有共享池有時間上限；同佇列兩次送出間隔至少約 1 秒
