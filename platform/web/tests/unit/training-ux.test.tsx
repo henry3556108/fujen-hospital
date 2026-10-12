@@ -221,7 +221,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(order()).toEqual(['收合訓練 #1', '展開訓練 #2']);
     expect(screen.getAllByRole('heading', { name: /^訓練 #\d+：/ })).toHaveLength(1);
     await user.click(screen.getByRole('checkbox', { name: '只看我送出的' }));
-    expect(order()).toHaveLength(3);
+    await waitFor(() => expect(order()).toHaveLength(3));   // 「只看我送出的」由伺服器篩選，重新載入這一頁
   });
 
   it('a failure shows the Chinese reason, a fix link and collapsed technical details', async () => {

@@ -71,7 +71,10 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [ ] 映像漏洞：與甲方議定門檻與修補期限後，把 Trivy 從「只報告」改成「超過門檻即失敗」
 - [x] `cgr.dev/chainguard/minio:latest` 改成以 digest 釘版本（2026-09-30）
 - [ ] 刪除專案時停止該專案已部署的線上推論服務（目前不停）
-- [ ] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁
+- [x] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁（2026-10-12，分支 `feat/gaps-web`）：
+  新增 `GET /api/projects/{pid}/user-lookup?q=`（本專案 training 或 coding 權限，帳號開頭比對、最多 20 筆、只回帳號與是否為成員），分享模型與發布 LLM 服務的帳號欄位輸入開頭即可點選；
+  部署回傳 `model_name`、`model_kind`；部署頁「試呼叫」以目前登入帳號經 Gateway 呼叫 `/api/inference/{name}/predict`（不在分享對象中會 403，與程式呼叫相同）；
+  `GET /training/runs?limit=&offset=&mine=` 伺服器分頁（不帶 limit 維持原本的完整陣列），訓練紀錄每頁 20 筆、由新到舊，依分數排序只排目前這一頁。驗收 `test_tc_b05_b06.py::test_web_gaps_model_name_user_lookup_try_call_and_run_paging`
 - [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳；批次完成後 jobs 表要等有人列出工作才更新狀態；工作頁顯示原始代碼 inference、inference-cpu
 - [x] 後台調整佇列順序、暫存排隊中的工作稍後再恢復排隊、訓練另存為訓練設定（2026-10-12，分支 `feat/queue-order`；Admin「排程與叢集 → 佇列順序」，專案工作頁與訓練紀錄有「暫存」「恢復排隊」；新資料表 `job_holds`、工作狀態 `held`；kind 驗收 `acceptance/test_queue_order_kind.py`）。已開始執行的訓練不能暫存（不做中途 checkpoint）；GPU 等級分群不在這次範圍
 - [x] LLM 真模型（2026-10-12）：平台依白名單的 commit 與 hash 從 Hugging Face 下載 GGUF，Ollama 在 GPU 上以 4-bit／8-bit 載入；預設 Gemma 3 4B（對話）與 EmbeddingGemma 300M（知識庫向量，多語言）。疊加 `compose.ollama.yaml` 後執行 `app.llm.model_setup`，見 `platform/deploy/local/llm/README.md`；正式環境 Ollama 在 GPU 共享池。經 Gateway 驗收 B07／B08／D01 對真模型 19 過、1 略過（需要授權的模型要 `HF_TOKEN`）

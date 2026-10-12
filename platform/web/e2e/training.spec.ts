@@ -206,6 +206,39 @@ test.describe('AI 模型部署', () => {
     await expect(page.getByText('還沒有分享任何模型。')).toBeVisible();
   });
 
+  test('非 Admin 以帳號開頭選同事、清單顯示模型名稱、在網頁上試呼叫端點', async ({ page }, testInfo) => {
+    await loginAs(page, 'ra01');
+    await page.goto('/deployment');
+    const form = page.getByRole('form', { name: '分享給同事使用' });
+    await form.getByLabel('模型').selectOption({ label: 'diagnosis-rf-run1（結構式分類）' });
+    await form.getByLabel('顯示名稱（同事看到的名稱，可用中文）').fill('確診預測');
+    await form.getByLabel('分享給（同事的帳號，以逗號分隔）').pressSequentially('md');
+    await form.getByRole('list', { name: '符合的帳號' }).getByRole('button', { name: 'md01' }).click();
+    await expect(form.getByLabel('分享給（同事的帳號，以逗號分隔）')).toHaveValue('md01, ');
+    await form.getByRole('button', { name: '分享給同事使用' }).click();
+    await expect(page.getByText(/^已把「確診預測」分享給 md01。/)).toBeVisible();
+    const row = page.getByRole('table', { name: '已分享的模型' }).getByRole('row', { name: /確診預測/ });
+    await expect(row).toContainText('diagnosis-rf-run1');
+
+    const call = page.getByRole('form', { name: '試呼叫' });
+    await expect(call.getByText(/你（ra01）不在「確診預測」的分享對象中/)).toBeVisible();
+    await call.getByRole('button', { name: /^送出試呼叫/ }).click();
+    await expect(call.getByRole('alert')).toContainText('你沒有呼叫這個推論服務的授權');
+
+    await row.getByRole('button', { name: '修改分享對象「確診預測」' }).click();
+    const access = page.getByRole('form', { name: '修改分享對象' });
+    await access.getByLabel(/分享給/).press('End');
+    await access.getByLabel(/分享給/).pressSequentially(', r');
+    await access.getByRole('list', { name: '符合的帳號' }).getByRole('button', { name: 'ra01' }).click();
+    await access.getByRole('button', { name: '儲存分享對象' }).click();
+    await expect(row).toContainText('md01、ra01');
+    await call.getByLabel('送出的 JSON').fill('{"rows": [{"age": 51, "bmi": 24, "glucose": 100, "sbp": 120}]}');
+    await call.getByRole('button', { name: /^送出試呼叫/ }).click();
+    await expect(call.getByLabel('試呼叫的回應')).toContainText('"predictions"');
+    await expectNoHorizontalOverflow(page);
+    await snap(page, testInfo.project.name, 'deployment/try-call');
+  });
+
   test('只有 Prediction 的帳號只看得到模型清單與說明', async ({ page }) => {
     await loginAs(page, 'vw01');
     await page.goto('/deployment');

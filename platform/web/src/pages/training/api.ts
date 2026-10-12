@@ -1,7 +1,7 @@
 // 建模管理（B-05）與 AI 模型部署（B-06 部署）的 API 呼叫。形狀照 platform/api/app/training（router.py、service.py、config.py）。
 // 頁面只透過 useTrainingApi() 取用，不直接組路徑。
 import { useMemo } from 'react';
-import { ApiError, type ApiClient } from '../../api/client';
+import { ApiError, withQuery, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
 import type { Study } from '../imaging/types';
 import type { ColumnInfo, Dataset, DatasetDetail, MissingChoice, Step, TargetFeature } from '../tabular/types';
@@ -137,8 +137,33 @@ export interface Deployment {
   cannot_use_in_platform?: string[];
   allowed_users: string[];
   endpoint: string;
+  /** 部署的模型名稱與種類（模型已刪除時為 null） */
+  model_name?: string | null;
+  model_kind?: TrainingKind | null;
   created_by: string;
   created_at: string;
+}
+
+/** 試呼叫線上推論的回應（照 service.online_predict）：結構式回 predictions，影像回 results。 */
+export interface OnlinePrediction {
+  inference_id: number;
+  deployment: string;
+  model_id: number;
+  predictions?: (string | null)[];
+  notes?: (string | null)[];
+  probabilities?: (number | null)[];
+  positive_label?: string;
+  positive_probabilities?: (number | null)[];
+  results?: { name: string; label?: string; scores?: Record<string, number> }[];
+  blocked?: { name: string; reason: string }[];
+}
+
+/** 訓練紀錄的一頁（GET /training/runs?limit=…）。 */
+export interface RunPage {
+  items: TrainingRun[];
+  total: number;
+  offset: number;
+  limit: number;
 }
 
 /** charts.json（platform/training/trainer/templates/tabularkit.py 的 charts()）。 */
@@ -180,6 +205,8 @@ export interface TrainingApi {
   deleteSetting(id: number): Promise<void>;
   submit(settingId: number, executor: string): Promise<TrainingRun>;
   runs(): Promise<TrainingRun[]>;
+  /** 訓練紀錄分頁：由新到舊；mine 只列自己送出的 */
+  runPage(params: { limit: number; offset: number; mine: boolean }): Promise<RunPage>;
   run(id: number): Promise<TrainingRun>;
   cancel(id: number): Promise<TrainingRun>;
   rerun(id: number): Promise<TrainingRun>;
@@ -200,6 +227,8 @@ export interface TrainingApi {
   deploy(body: { model_id: number; name?: string; title?: string; allowed_users: string[] }): Promise<Deployment>;
   setAccess(id: number, users: string[]): Promise<Deployment>;
   undeploy(id: number): Promise<void>;
+  /** 以目前登入的帳號試呼叫部署的線上端點：結構式送 JSON rows，影像上傳檔案 */
+  callDeployment(endpoint: string, input: { rows: Record<string, unknown>[] } | File[]): Promise<OnlinePrediction>;
   studies(): Promise<Study[]>;
   datasets(): Promise<Dataset[]>;
   dataset(id: number): Promise<DatasetDetail>;
@@ -252,6 +281,8 @@ export function createTrainingApi(
     deleteSetting: (id) => api.delete(`${root}/training/settings/${id}`),
     submit: (settingId, executor) => api.post(`${root}/training/settings/${settingId}/runs`, { executor }),
     runs: () => api.get(`${root}/training/runs`),
+    runPage: ({ limit, offset, mine }) =>
+      api.get(withQuery(`${root}/training/runs`, { limit, offset, mine: mine ? 'true' : undefined })),
     run: (id) => api.get(`${root}/training/runs/${id}`),
     cancel: (id) => api.post(`${root}/training/runs/${id}/cancel`),
     rerun: (id) => api.post(`${root}/training/runs/${id}/rerun`),
@@ -268,6 +299,12 @@ export function createTrainingApi(
     deploy: (body) => api.post(`${root}/deployments`, body),
     setAccess: (id, users) => api.put(`${root}/deployments/${id}/access`, { allowed_users: users }),
     undeploy: (id) => api.delete(`${root}/deployments/${id}`),
+    callDeployment(endpoint, input) {
+      if (!Array.isArray(input)) return api.post(endpoint, input);
+      const form = new FormData();
+      input.forEach((f) => form.append('files', f));
+      return api.postForm(endpoint, form);
+    },
     studies: () => api.get(`${root}/imaging/studies`),
     datasets: () => api.get(`${root}/tabular/datasets`),
     dataset: (id) => api.get(`${root}/tabular/datasets/${id}`),

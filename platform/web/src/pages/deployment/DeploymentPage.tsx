@@ -1,5 +1,6 @@
 // AI 模型部署（B-06 部署）：模型清單與下載、分享給同事使用（顯示名稱、分享對象；技術名稱由伺服器產生）、
-// 修改分享對象、停止分享；端點、curl、Token 收在「給資訊人員：程式呼叫方式」。
+// 修改分享對象、停止分享；端點、curl、Token 收在「給資訊人員：程式呼叫方式」，下方可用目前的帳號試呼叫端點。
+// 分享對象可輸入帳號開頭再點選（/user-lookup，不需要 Admin）。
 // 入口規則是 Prediction（看模型清單）；分享、下載模型的 API 需要 Training，沒有時只顯示清單與說明。
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -11,6 +12,9 @@ import { KIND_NAMES, displayName, isImageModel, type Model } from '../inference/
 import { ModelName } from '../inference/ModelName';
 import { parseUsers, useTrainingApi, type Deployment, type TrainingApi } from '../training/api';
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
+import { useUserLookup } from '../../api/userLookup';
+import { UserPicker } from '../../components/UserPicker';
+import { TryCall } from './TryCall';
 import { TryPredict } from './TryPredict';
 import '../training/training.css';
 
@@ -31,6 +35,7 @@ export function DeploymentPage() {
 
 function Deployments({ api }: { api: TrainingApi }) {
   const canTrain = useHasPermission('training');
+  const lookup = useUserLookup();
   const models = useResource(() => api.models(), [api]);
   const deployments = useResource(() => (canTrain ? api.deployments() : Promise.resolve([])), [api, canTrain]);
   const [done, setDone] = useState('');
@@ -191,7 +196,7 @@ function Deployments({ api }: { api: TrainingApi }) {
             </div>
             <div className="field">
               <label htmlFor="dep-users">分享給（同事的帳號，以逗號分隔）</label>
-              <input id="dep-users" className="input" value={form.users} placeholder="例如 md01" onChange={(e) => setForm({ ...form, users: e.target.value })} />
+              <UserPicker id="dep-users" value={form.users} placeholder="例如 md01" lookup={lookup} onChange={(users) => setForm({ ...form, users })} />
             </div>
           </div>
           <div className="row-actions">
@@ -225,7 +230,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                   {deployments.data.map((d) => (
                     <tr key={d.id}>
                       <th scope="row">{titleOf(d)}</th>
-                      <td className="text-muted">{modelOf(d.model_id)?.name ?? `#${d.model_id}`}</td>
+                      <td className="text-muted">{d.model_name ?? modelOf(d.model_id)?.name ?? `#${d.model_id}`}</td>
                       <td>
                         {d.allowed_users.join('、') || '（無）'}
                         {d.cannot_use_in_platform?.length ? (
@@ -256,7 +261,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                 <label htmlFor="dep-access">
                   「{titleOf(deployments.data?.find((d) => d.id === editing.id))}」分享給（同事的帳號，以逗號分隔）
                 </label>
-                <input id="dep-access" className="input" value={editing.users} onChange={(e) => setEditing({ ...editing, users: e.target.value })} />
+                <UserPicker id="dep-access" value={editing.users} lookup={lookup} onChange={(users) => setEditing({ ...editing, users })} />
               </div>
               <div className="row-actions">
                 <button type="submit" className="btn btn--primary">
@@ -302,6 +307,9 @@ function Deployments({ api }: { api: TrainingApi }) {
                 <CallExample deployment={deployments.data[0]} model={modelOf(deployments.data[0].model_id)} />
               </div>
             </details>
+          ) : null}
+          {deployments.data && deployments.data.length > 0 ? (
+            <TryCall key={deployments.data.map((d) => d.id).join(',')} api={api} deployments={deployments.data} modelOf={modelOf} />
           ) : null}
         </section>
       ) : null}

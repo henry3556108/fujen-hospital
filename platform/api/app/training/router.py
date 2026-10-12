@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -105,9 +105,17 @@ def submit_run(setting_id: int, request: Request, body: RunIn | None = None,
 
 
 @router.get(BASE + "/training/runs")
-def list_runs(request: Request, ctx: ProjectContext = Depends(can_train),
-              backend: JobBackend = Depends(get_backend)) -> list[dict]:
-    return service.list_runs(ctx.session, request.app.state, backend, ctx.project.id)
+def list_runs(request: Request, limit: int | None = Query(None, ge=1, le=200), offset: int = Query(0, ge=0),
+              mine: bool = False, ctx: ProjectContext = Depends(can_train),
+              backend: JobBackend = Depends(get_backend)) -> list[dict] | dict:
+    """不帶 limit：回完整陣列，依編號由舊到新（既有行為）。帶 limit：分頁，依編號由新到舊，
+    回 {items, total, offset, limit}；mine=true 只列自己送出的。"""
+    if limit is None:
+        runs = service.list_runs(ctx.session, request.app.state, backend, ctx.project.id)
+        return [r for r in runs if r["created_by"] == ctx.user.username] if mine else runs
+    total, items = service.page_runs(ctx.session, request.app.state, backend, ctx.project.id, limit=limit,
+                                     offset=offset, created_by=ctx.user.username if mine else None)
+    return {"items": items, "total": total, "offset": offset, "limit": limit}
 
 
 @router.get(BASE + "/training/runs/{run_id}")
