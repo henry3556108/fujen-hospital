@@ -70,9 +70,12 @@ kind 叢集先以 `platform/deploy/kind/up.sh` 建立，並產生 `kubeconfig.ki
 - [x] 批次推論改成 Kubernetes Job 背景執行（2026-09-30，`2026-09-30-async-inference.md`；上傳推論與線上呼叫仍同步）
 - [ ] 映像漏洞：與甲方議定門檻與修補期限後，把 Trivy 從「只報告」改成「超過門檻即失敗」
 - [x] `cgr.dev/chainguard/minio:latest` 改成以 digest 釘版本（2026-09-30）
-- [ ] 刪除專案時停止該專案已部署的線上推論服務（目前不停）
+- [x] 刪除專案時停止該專案已部署的線上推論服務（2026-10-12，分支 `feat/gaps-backend`）：部署列與專案同一個交易刪除，端點立即停用；
+  commit 後從推論服務卸下專案的每個模型（待清理清單種類 `inference_model`，失敗重試，數量記在 `project.data_cleanup` 的 `models_unloaded`，不逐筆寫 `deployment.delete`）
 - [ ] 網頁：非 Admin 沒有列帳號的 API，授權使用者要手動輸入帳號；部署 API 不回傳模型名稱；網頁上不能試呼叫部署；訓練紀錄清單沒有分頁
-- [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳；批次完成後 jobs 表要等有人列出工作才更新狀態；工作頁顯示原始代碼 inference、inference-cpu
+- [ ] 批次推論：結果以一個 JSON 回傳，上限 256 MB，數萬張影像的批次要改分段上傳
+  - [x] 批次完成後 jobs 表要等有人列出工作才更新狀態（2026-10-12，分支 `feat/gaps-backend`）：Job 容器回報結果時，工作列與推論紀錄同時定案
+  - [x] 工作頁顯示原始代碼 inference、inference-cpu（2026-10-12 確認：分支 `feat/queue-order` 已改顯示「批次推論（GPU）」「批次推論（CPU）」，補上單元測試）
 - [x] 後台調整佇列順序、暫存排隊中的工作稍後再恢復排隊、訓練另存為訓練設定（2026-10-12，分支 `feat/queue-order`；Admin「排程與叢集 → 佇列順序」，專案工作頁與訓練紀錄有「暫存」「恢復排隊」；新資料表 `job_holds`、工作狀態 `held`；kind 驗收 `acceptance/test_queue_order_kind.py`）。已開始執行的訓練不能暫存（不做中途 checkpoint）；GPU 等級分群不在這次範圍
 - [x] LLM 真模型（2026-10-12）：平台依白名單的 commit 與 hash 從 Hugging Face 下載 GGUF，Ollama 在 GPU 上以 4-bit／8-bit 載入；預設 Gemma 3 4B（對話）與 EmbeddingGemma 300M（知識庫向量，多語言）。疊加 `compose.ollama.yaml` 後執行 `app.llm.model_setup`，見 `platform/deploy/local/llm/README.md`；正式環境 Ollama 在 GPU 共享池。經 Gateway 驗收 B07／B08／D01 對真模型 19 過、1 略過（需要授權的模型要 `HF_TOKEN`）
   - [ ] `length_penalty` 只在 beam search 有作用，Ollama（llama.cpp）沒有對應，真模型下只儲存不生效（其他 5 個參數與 System Prompt 都實際送到模型）

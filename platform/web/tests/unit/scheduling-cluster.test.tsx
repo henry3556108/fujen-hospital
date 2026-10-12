@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { server } from '../../src/mocks/server';
 import { monitoringLinks } from '../../src/pages/scheduling/MonitoringPage';
 import { advanceMockClock, mockJobs, setSchedulingAvailable } from '../../src/mocks/scheduling';
 import { renderApp } from '../render';
@@ -172,6 +174,21 @@ describe('專案工作', () => {
     await user.selectOptions(within(form).getByLabelText('工作種類'), 'data-cleaning');
     await user.click(within(form).getByRole('button', { name: '送出工作' }));
     expect(await screen.findByText('已送出工作 1，進入佇列 cpu-data')).toBeInTheDocument();
+  });
+
+  it('batch inference jobs show 批次推論 labels instead of the raw kind codes', async () => {
+    const job = (id: number, kind: string, queue: string, gpu_group: string | null) => ({
+      id, project_id: 1, user: 'pi01', kind, gpu_group, queue, status: 'succeeded', k8s_name: `job-${id}-abc123`,
+      message: '', created_at: '2026-10-12T01:00:00Z', started_at: '2026-10-12T01:00:05Z', finished_at: '2026-10-12T01:01:00Z',
+    });
+    server.use(http.get('*/api/projects/:pid/jobs', () => HttpResponse.json([
+      job(1, 'inference', 'gpu-exclusive', 'gpu-exclusive'), job(2, 'inference-cpu', 'cpu-data', null),
+    ])));
+    await renderApp('/training/jobs', 'pi01');
+    const table = await screen.findByRole('table', { name: '工作列表' });
+    await waitFor(() => expect(row(table, '^1 ')).toHaveTextContent('批次推論（GPU）'));
+    expect(row(table, '^2 ')).toHaveTextContent('批次推論（CPU）');
+    expect(table).not.toHaveTextContent(/inference/);
   });
 
   it('422 and 409 are shown inline', async () => {
