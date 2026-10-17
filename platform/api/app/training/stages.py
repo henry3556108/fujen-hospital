@@ -494,6 +494,15 @@ def list_overrides(session: Session, setting_id: int) -> list[StageOverride]:
                                 .order_by(StageOverride.id)))
 
 
+def locked_by_setting(session: Session, project_id: int) -> dict[int, list[str]]:
+    """專案內各訓練設定由匯入檔控制的環節（訓練設定清單的標籤用）。"""
+    out: dict[int, list[str]] = {}
+    for row in session.scalars(select(StageOverride).where(StageOverride.project_id == project_id)):
+        out.setdefault(row.setting_id, []).append(row.stage)
+    order = list(STAGE_NAMES)
+    return {sid: sorted(names, key=order.index) for sid, names in out.items()}
+
+
 def custom_stages(session: Session, setting_id: int) -> dict[str, bool]:
     """環節 → 程式是否與平台預設不同（只列匯入控制的環節）。"""
     return {row.stage: row.code_changed for row in list_overrides(session, setting_id)}

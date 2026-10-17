@@ -162,6 +162,8 @@ def test_line_ending_and_trailing_space_do_not_count_as_code_change(client, pi, 
 
 def test_f07_locked_stage_cannot_be_changed_from_the_form(client, pi, tab):
     ok(apply(client, pi, tab, "preprocess", view(client, pi, tab, "preprocess")["files"]))
+    listed = ok(client.get(f"/api/projects/{tab['project_id']}/training/settings", headers=pi))
+    assert [s["locked_stages"] for s in listed] == [["preprocess"]], "訓練設定清單標示「匯入控制」"
     body = {"name": tab["name"], "config": current(client, pi, tab)["config"]}
     assert client.put(base(tab["project_id"], tab["id"]), headers=pi, json=body).status_code == 200, \
         "同樣的值存檔可以"

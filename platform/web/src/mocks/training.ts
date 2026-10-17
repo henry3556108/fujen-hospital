@@ -21,6 +21,7 @@ import type {
 import { models as projectModels } from './inference';
 import { API, authUser, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject } from './support';
 import { mockDb } from './handlers';
+import { dropStages, lockedChange, lockedStages } from './trainingStages';
 
 const P = `${API}/projects/:pid`;
 
@@ -598,7 +599,7 @@ export const trainingHandlers = [
   http.get(`${P}/training/settings`, ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
     if (ctx instanceof Response) return ctx;
-    return json(state().settings.filter((x) => x.project_id === ctx.project.id));
+    return json(state().settings.filter((x) => x.project_id === ctx.project.id).map((x) => ({ ...x, locked_stages: lockedStages(x.id) })));
   }),
   http.post(`${P}/training/settings`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'training');
@@ -636,6 +637,8 @@ export const trainingHandlers = [
       if (state().settings.some((x) => x.project_id === ctx.project.id && x.name === name && x.id !== row.id)) {
         return detail(409, `訓練設定「${name}」已存在`);
       }
+      const locked = lockedChange(row, config);
+      if (locked) return locked;
       Object.assign(row, { name, kind: config.kind, config, updated_by: ctx.user.username, updated_at: isoNow() });
       return json(row);
     });
@@ -647,6 +650,7 @@ export const trainingHandlers = [
     const row = s.settings.find((x) => x.id === Number(params.sid) && x.project_id === ctx.project.id);
     if (!row) return detail(404, `找不到訓練設定 ${String(params.sid)}`);
     s.settings = s.settings.filter((x) => x !== row);
+    dropStages(row.id);
     for (const run of s.runs) if (run.setting_id === row.id) run.setting_id = null;
     return noContent();
   }),
@@ -660,6 +664,8 @@ export const trainingHandlers = [
     const executor = typeof b.executor === 'string' ? b.executor : 'template';
     if (!CATALOGUE.executors.includes(executor)) return detail(422, `執行方式必須是：${CATALOGUE.executors.join('、')}`);
     const run = newRun(ctx, { setting_id: setting.id, name: setting.name, kind: setting.kind, config: setting.config, executor, parent_run_id: null });
+    const imported = lockedStages(setting.id);
+    if (imported.length) run.imported_stages = imported;
     return json(runOut(run), 201);
   }),
   http.get(`${P}/training/runs`, ({ request, params }) => {

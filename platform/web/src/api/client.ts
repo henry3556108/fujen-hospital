@@ -67,8 +67,10 @@ function toApiError(status: number, body: unknown): ApiError {
     return new ApiError(status, `資料驗證失敗：${fieldErrors.map((f) => f.message).join('；')}`, fieldErrors);
   }
   if (detail && typeof detail === 'object' && 'message' in detail) {
-    const d = detail as { code?: string; permission?: string; message: string };
-    return new ApiError(status, d.message, [], d.code, d.permission);
+    const d = detail as { code?: string; permission?: string; message: string; errors?: unknown };
+    // 一次列出全部錯誤的回應（例如流程程式碼不符合框架）：{"message", "errors": [str, ...]}
+    const list = Array.isArray(d.errors) ? d.errors.map((m) => ({ field: '', message: String(m) })) : [];
+    return new ApiError(status, d.message, list, d.code, d.permission);
   }
   if (typeof detail === 'string') return new ApiError(status, detail);
   const fallback: Record<number, string> = {

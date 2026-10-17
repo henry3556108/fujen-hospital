@@ -7,6 +7,7 @@ import { createLabelingHandlers } from './labeling';
 import { createInferenceHandlers } from './inference';
 import { llmHandlers, resetLlmMock } from './llm';
 import { trainingHandlers } from './training';
+import { trainingStageHandlers } from './trainingStages';
 import { mockStudyCounts } from './imaging';
 import { mockGpuGroupCount, mockJobs } from './scheduling';
 import { mockDatasetCounts } from './tabular';
@@ -416,6 +417,7 @@ export const handlers = [
   // WP6 FHIR（C-03）
   ...fhirHandlers,
   // M2 建模管理與 AI 模型部署：定義在 mocks/training.ts（標註頁「建立訓練任務」也走這裡）
+  ...trainingStageHandlers,
   ...trainingHandlers,
   // WP5a 影像標註：定義在 mocks/labeling.ts
   ...createLabelingHandlers(() => db),

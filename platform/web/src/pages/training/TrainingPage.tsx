@@ -8,8 +8,10 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { KIND_NAMES } from '../inference/api';
-import { useTrainingApi, type Catalogue, type RunStatus, type TrainingApi, type TrainingRun, type TrainingSetting } from './api';
+import { useTrainingApi, type Catalogue, type RunStatus, type StageLock, type TrainingApi, type TrainingRun, type TrainingSetting } from './api';
 import { SettingForm } from './SettingForm';
+import { StagesPanel } from './StagesPanel';
+import { stageNames } from './stages';
 import { emptyForm, formFromSetting, settingDifference, suggestKind, type FormState } from './settingForm';
 import type { TargetFeature } from '../tabular/types';
 import { Runs } from './Runs';
@@ -91,7 +93,9 @@ function Training({ api }: { api: TrainingApi }) {
   const [params, setParams] = useSearchParams();
   const fromDataset = Number(params.get('dataset')) || null;
   const [mineOnly, setMineOnly] = useState(true);
-  const [editor, setEditor] = useState<{ form: FormState; editing: TrainingSetting | null; key: number } | null>(null);
+  const [editor, setEditor] = useState<{ form: FormState; editing: TrainingSetting | null; key: number; locks?: StageLock[] } | null>(null);
+  // 流程程式碼（錄製巨集）：目前開啟的訓練設定
+  const [flow, setFlow] = useState<TrainingSetting | null>(null);
   const [notice, setNoticeText] = useState('');
   // 剛送出的訓練與它目前的狀態（其他訊息出現時清掉）
   const [submitted, setSubmitted] = useState<{ id: number; name: string; status: RunStatus } | null>(null);
@@ -141,7 +145,11 @@ function Training({ api }: { api: TrainingApi }) {
     setNotice('');
     try {
       const fresh = await api.setting(s.id); // 以伺服器存的版本為準
-      setEditor({ form: formFromSetting(cat, fresh), editing: fresh, key: Date.now() });
+      // 由匯入檔控制的環節：表單上對應的欄位停用
+      const locks = s.locked_stages?.length
+        ? (await api.stages(s.id)).stages.flatMap((x) => (x.locked ? [x.locked] : []))
+        : [];
+      setEditor({ form: formFromSetting(cat, fresh), editing: fresh, key: Date.now(), locks });
     } catch (err) {
       setError(err);
     }
@@ -180,6 +188,7 @@ function Training({ api }: { api: TrainingApi }) {
       await api.deleteSetting(deleting.id);
       setNotice(`已刪除訓練設定「${deleting.name}」。`);
       if (editor?.editing?.id === deleting.id) setEditor(null);
+      if (flow?.id === deleting.id) setFlow(null);
       settings.reload();
     } catch (err) {
       setError(err);
@@ -240,10 +249,17 @@ function Training({ api }: { api: TrainingApi }) {
                 </thead>
                 <tbody>
                   {visible.map((s) => {
-                    const diff = outdated(s, saved.data ?? {});
+                    const locked = s.locked_stages ?? [];
+                    // 標註或前處理由匯入檔控制時，不提供套用資料集設定（資料集的設定不影響這份訓練設定）
+                    const diff = locked.includes('labels') || locked.includes('preprocess') ? null : outdated(s, saved.data ?? {});
                     return (
                     <tr key={s.id}>
-                      <th scope="row">{s.name}</th>
+                      <th scope="row">
+                        {s.name}
+                        {locked.length ? (
+                          <span className="badge status-badge status-badge--info" data-testid="locked-stages">匯入控制：{stageNames(locked)}</span>
+                        ) : null}
+                      </th>
                       <td>{KIND_NAMES[s.kind]}</td>
                       <td>
                         {s.config.source.type === 'tabular' ? datasetName(s.config.source.dataset_id) : '影像'}
@@ -267,6 +283,10 @@ function Training({ api }: { api: TrainingApi }) {
                         <button type="button" className="btn btn--small btn--secondary" onClick={() => void edit(s)}>
                           編輯「{s.name}」
                         </button>
+                        <button type="button" className="btn btn--small btn--secondary"
+                          onClick={() => { setNotice(''); setError(null); setFlow(s); }}>
+                          流程程式碼「{s.name}」
+                        </button>
                         <button type="button" className="btn btn--small btn--danger" onClick={() => setDeleting(s)}>
                           刪除「{s.name}」
                         </button>
@@ -288,6 +308,7 @@ function Training({ api }: { api: TrainingApi }) {
           catalogue={cat}
           initial={editor.form}
           editing={editor.editing}
+          locks={editor.locks}
           onCancel={() => setEditor(null)}
           onSaved={(s) => {
             setNotice(editor.editing ? `已儲存訓練設定「${s.name}」的修改。` : `已新增訓練設定「${s.name}」。`);
@@ -295,6 +316,11 @@ function Training({ api }: { api: TrainingApi }) {
             settings.reload();
           }}
         />
+      ) : null}
+
+      {flow ? (
+        <StagesPanel key={flow.id} api={api} setting={flow} onClose={() => setFlow(null)}
+          onChanged={() => { setEditor(null); settings.reload(); }} />
       ) : null}
 
       <Runs key={runsNonce} api={api} selected={selectedRun} onSelect={setSelectedRun} settings={all} onRuns={onRuns}

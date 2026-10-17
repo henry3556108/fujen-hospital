@@ -64,7 +64,9 @@ def create_setting(body: SettingIn, request: Request, ctx: ProjectContext = Depe
 
 @router.get(BASE + "/training/settings")
 def list_settings(ctx: ProjectContext = Depends(can_train)) -> list[dict]:
-    return [service.setting_out(s) for s in service.list_settings(ctx.session, ctx.project.id)]
+    locked = stages.locked_by_setting(ctx.session, ctx.project.id)
+    return [service.setting_out(s) | {"locked_stages": locked.get(s.id, [])}
+            for s in service.list_settings(ctx.session, ctx.project.id)]
 
 
 @router.get(BASE + "/training/settings/{setting_id}")

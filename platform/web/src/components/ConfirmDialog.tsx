@@ -9,10 +9,12 @@ interface Props {
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
+  /** 「取消」與確認按鈕之間的其他按鈕（例如先下載再刪除） */
+  extraActions?: ReactNode;
 }
 
 /** 危險操作前的確認視窗：開啟時焦點移到「取消」，Esc 關閉，Tab 不會離開視窗，關閉後焦點回到觸發按鈕。 */
-export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = '取消', onConfirm, onCancel, busy }: Props) {
+export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = '取消', onConfirm, onCancel, busy, extraActions }: Props) {
   const titleId = useId();
   const descId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -63,6 +65,7 @@ export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = '�
           <button ref={cancelRef} type="button" className="btn btn--secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {extraActions}
           <button type="button" className="btn btn--danger" onClick={onConfirm} disabled={busy}>
             {confirmLabel}
           </button>

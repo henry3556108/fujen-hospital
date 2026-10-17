@@ -2,7 +2,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import type { ParamSpec, TrainingApi, TrainingKind, TrainingSetting, Catalogue } from './api';
+import { Icon } from '../../components/Icon';
+import type { ParamSpec, StageLock, TrainingApi, TrainingKind, TrainingSetting, Catalogue } from './api';
+import { keepLocked, lockText } from './stages';
 import { isImageKind } from './api';
 import type { ColumnInfo } from '../tabular/types';
 import { MissingChoiceField } from '../tabular/MissingChoiceField';
@@ -42,9 +44,15 @@ interface Props {
   editing: TrainingSetting | null;
   onSaved: (setting: TrainingSetting) => void;
   onCancel: () => void;
+  /** 由匯入檔控制的環節（流程程式碼）：對應的欄位停用 */
+  locks?: StageLock[];
 }
 
-export function SettingForm({ api, catalogue, initial, editing, onSaved, onCancel }: Props) {
+export function SettingForm({ api, catalogue, initial, editing, onSaved, onCancel, locks = [] }: Props) {
+  const lockedIds = locks.map((l) => l.stage);
+  const labelsLocked = lockedIds.includes('labels');
+  const preprocessLocked = lockedIds.includes('preprocess');
+  const trainLocked = lockedIds.includes('train');
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -75,7 +83,8 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
     }
     setBusy(true);
     try {
-      const config = configFromForm(catalogue, form);
+      const formConfig = configFromForm(catalogue, form);
+      const config = editing ? keepLocked(formConfig, editing.config, lockedIds) : formConfig;
       const saved = editing ? await api.updateSetting(editing.id, form.name.trim(), config) : await api.createSetting(form.name.trim(), config);
       onSaved(saved);
     } catch (err) {
@@ -89,6 +98,18 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
     <form aria-label={editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'} className="card section stack" onSubmit={submit} noValidate>
       <h2>{editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'}</h2>
       <ApiErrorAlert error={error} />
+      {locks.length ? (
+        <Alert tone="info" title="匯入控制">
+          <span className="stack" data-testid="stage-locks">
+            {locks.map((l) => (
+              <span key={l.stage}>
+                <Icon name="lock" className="stage-lock" /> {lockText(l)}
+              </span>
+            ))}
+            <span>這些環節的欄位已停用。要修改請到訓練設定清單按「流程程式碼」，或在那裡改回用介面設定。</span>
+          </span>
+        </Alert>
+      ) : null}
       <div className="form-grid">
         <div className="field">
           <label htmlFor="ts-name">設定名稱</label>
@@ -96,7 +117,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         </div>
         <div className="field">
           <label htmlFor="ts-kind">訓練種類</label>
-          <select id="ts-kind" className="select" value={form.kind} onChange={(e) => setForm(changeKind(catalogue, form, e.target.value as TrainingKind))}>
+          <select id="ts-kind" className="select" value={form.kind} disabled={locks.length > 0} onChange={(e) => setForm(changeKind(catalogue, form, e.target.value as TrainingKind))}>
             {catalogue.kinds.map((k) => (
               <option key={k.kind} value={k.kind}>
                 {k.name}
@@ -106,11 +127,12 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         </div>
       </div>
 
-      {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} /> : null}
-      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} onRows={setRows} /> : null}
+      {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} labelsLocked={labelsLocked} preprocessLocked={preprocessLocked} /> : null}
+      {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} onRows={setRows}
+        disabled={labelsLocked || preprocessLocked} algorithmLocked={trainLocked} /> : null}
 
       {!image && kindEntry?.validation_methods ? (
-        <fieldset>
+        <fieldset disabled={trainLocked}>
           <legend>驗證方式（怎麼檢查模型好不好）</legend>
           <div className="stack" role="radiogroup" aria-label="驗證方式">
             {kindEntry.validation_methods.map((m) => (
@@ -134,7 +156,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         </fieldset>
       ) : null}
 
-      <fieldset>
+      <fieldset disabled={trainLocked}>
         <legend>資料切分與亂數種子</legend>
         <div className="form-grid">
           {kfold ? (
@@ -159,13 +181,13 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
       </fieldset>
 
       {image ? (
-        <fieldset>
+        <fieldset disabled={preprocessLocked}>
           <legend>資料增強（只套用在訓練資料）</legend>
           <ParamFields prefix="ts-aug" specs={catalogue.augmentation} values={form.augmentation} onChange={(v) => set('augmentation', v)} />
         </fieldset>
       ) : null}
 
-      <fieldset>
+      <fieldset disabled={trainLocked}>
         <legend>超參數（模型怎麼學）</legend>
         <p className="field__hint">每個欄位都有建議值，不確定就保留預設值。</p>
         <ParamFields prefix="ts-hp" specs={hyperSpecs(catalogue, form.kind, form.algorithm)} values={form.hyper} onChange={(v) => set('hyper', v)} />
@@ -183,14 +205,15 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   );
 }
 
-function NumberField({ id, label, value, onChange, min, max, step, hint }: {
+function NumberField({ id, label, value, onChange, min, max, step, hint, disabled }: {
   id: string; label: string; value: string; onChange: (v: string) => void; min?: number | null; max?: number | null; step?: string; hint?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       <input id={id} type="number" inputMode="decimal" className="input" value={value} min={min ?? undefined} max={max ?? undefined}
-        step={step ?? 'any'} aria-describedby={hint ? `${id}-hint` : undefined} onChange={(e) => onChange(e.target.value)} />
+        step={step ?? 'any'} disabled={disabled} aria-describedby={hint ? `${id}-hint` : undefined} onChange={(e) => onChange(e.target.value)} />
       {hint ? (
         <span id={`${id}-hint`} className="field__hint">
           {hint}
@@ -263,7 +286,9 @@ function paramHint(s: ParamSpec): string | undefined {
 
 type Setter = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 
-function ImageSource({ api, form, set, sourceTypes }: { api: TrainingApi; form: FormState; set: Setter; sourceTypes: string[] }) {
+function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLocked }: {
+  api: TrainingApi; form: FormState; set: Setter; sourceTypes: string[]; labelsLocked?: boolean; preprocessLocked?: boolean;
+}) {
   const studies = useResource(() => (form.sourceType === 'dicom' ? api.studies() : Promise.resolve([])), [api, form.sourceType]);
   const toggle = (uid: string) => set('studies', form.studies.includes(uid) ? form.studies.filter((s) => s !== uid) : [...form.studies, uid]);
   return (
@@ -314,7 +339,7 @@ function ImageSource({ api, form, set, sourceTypes }: { api: TrainingApi; form: 
             ) : null}
             <div className="field">
               <label htmlFor="ts-provider">標註來源</label>
-              <select id="ts-provider" className="select" value={form.labelProvider} onChange={(e) => set('labelProvider', e.target.value)}>
+              <select id="ts-provider" className="select" value={form.labelProvider} disabled={labelsLocked} onChange={(e) => set('labelProvider', e.target.value)}>
                 {PROVIDERS.map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
@@ -342,13 +367,13 @@ function ImageSource({ api, form, set, sourceTypes }: { api: TrainingApi; form: 
         <div className="form-grid">
           <div className="field">
             <label htmlFor="ts-labels">Label（以逗號分隔）</label>
-            <input id="ts-labels" className="input" value={form.labels} aria-describedby="ts-labels-hint" onChange={(e) => set('labels', e.target.value)} />
+            <input id="ts-labels" className="input" value={form.labels} disabled={labelsLocked} aria-describedby="ts-labels-hint" onChange={(e) => set('labels', e.target.value)} />
             <span id="ts-labels-hint" className="field__hint">
               {form.kind === 'image_segmentation' ? '必填；順序對應遮罩值 1、2、…' : '留白代表使用標註中出現的全部 Label'}
             </span>
           </div>
-          <NumberField id="ts-resize-h" label="Resize 高（像素）" value={form.resizeH} onChange={(v) => set('resizeH', v)} min={8} max={1024} step="1" />
-          <NumberField id="ts-resize-w" label="Resize 寬（像素）" value={form.resizeW} onChange={(v) => set('resizeW', v)} min={8} max={1024} step="1" />
+          <NumberField id="ts-resize-h" label="Resize 高（像素）" value={form.resizeH} onChange={(v) => set('resizeH', v)} min={8} max={1024} step="1" disabled={preprocessLocked} />
+          <NumberField id="ts-resize-w" label="Resize 寬（像素）" value={form.resizeW} onChange={(v) => set('resizeW', v)} min={8} max={1024} step="1" disabled={preprocessLocked} />
         </div>
       </div>
     </fieldset>
@@ -374,11 +399,15 @@ function useProcessedColumns(api: TrainingApi, datasetId: string, steps: FormSta
   return datasetId && columns?.key === key ? columns.columns : null;
 }
 
-function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
+function TabularSource({ api, form, setForm, catalogue, processed, onRows, disabled, algorithmLocked }: {
   api: TrainingApi; form: FormState; setForm: (f: FormState | ((f: FormState) => FormState)) => void; catalogue: Catalogue;
   processed: ColumnInfo[] | null;
   /** 選到的資料集有幾列（沒選時 null），用來預選驗證方式 */
   onRows: (rows: number | null) => void;
+  /** 標註或前處理由匯入檔控制 */
+  disabled?: boolean;
+  /** 訓練環節由匯入檔控制（演算法） */
+  algorithmLocked?: boolean;
 }) {
   const datasets = useResource(() => api.datasets(), [api]);
   const chosenRows = datasets.data?.find((d) => String(d.id) === form.datasetId)?.valid_rows ?? null;
@@ -438,7 +467,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
         <div className="form-grid">
           <div className="field">
             <label htmlFor="ts-dataset">資料集</label>
-            <select id="ts-dataset" className="select" value={form.datasetId}
+            <select id="ts-dataset" className="select" value={form.datasetId} disabled={disabled}
               onChange={(e) => setForm((f) => ({ ...f, datasetId: e.target.value, target: '', features: [], steps: [] }))}>
               <option value="">請選擇</option>
               {(datasets.data ?? []).map((d) => (
@@ -450,7 +479,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
           </div>
           <div className="field">
             <label htmlFor="ts-target">要預測的結果（Target）</label>
-            <select id="ts-target" className="select" value={form.target} disabled={!detail.data}
+            <select id="ts-target" className="select" value={form.target} disabled={disabled || !detail.data}
               onChange={(e) => setForm((f) => ({ ...f, target: e.target.value, features: f.features.filter((x) => x !== e.target.value) }))}>
               <option value="">請選擇</option>
               {(detail.data?.columns ?? []).map((c) => (
@@ -462,7 +491,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
           </div>
           <div className="field">
             <label htmlFor="ts-algorithm">演算法</label>
-            <select id="ts-algorithm" className="select" value={form.algorithm} onChange={(e) => setForm(changeAlgorithm(catalogue, form, e.target.value))}>
+            <select id="ts-algorithm" className="select" value={form.algorithm} disabled={algorithmLocked} onChange={(e) => setForm(changeAlgorithm(catalogue, form, e.target.value))}>
               {(entry?.algorithms ?? []).map((a) => (
                 <option key={a.name} value={a.name}>
                   {ALGORITHM_NAMES[a.name] ?? a.name}
@@ -481,14 +510,14 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
           <div role="group" aria-label="用來預測的資料（Feature）" className="checkbox-row">
             {choices.map((c) => (
               <label key={c.name} className="checkbox">
-                <input type="checkbox" checked={choiceChecked(c, form.features)}
+                <input type="checkbox" checked={choiceChecked(c, form.features)} disabled={disabled}
                   onChange={() => setForm((f) => ({ ...f, features: toggleChoice(c, f.features) }))} />
                 {choiceLabel(c)}
               </label>
             ))}
             {unknown.map((name) => (
               <label key={name} className="checkbox">
-                <input type="checkbox" checked onChange={() => setForm((f) => ({ ...f, features: f.features.filter((x) => x !== name) }))} />
+                <input type="checkbox" checked disabled={disabled} onChange={() => setForm((f) => ({ ...f, features: f.features.filter((x) => x !== name) }))} />
                 {name}（資料集裡找不到）
               </label>
             ))}
@@ -499,7 +528,9 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows }: {
             {encoded.map((c) => `${c.name} 已在資料集設定轉成 ${c.columns.join('、')}`).join('；')}（One-Hot：把每個類別變成一個 0／1 欄位）。勾選「{encoded[0].name}」就會用到這些欄位。
           </p>
         ) : null}
-        <MissingChoiceField id="ts" columns={gapColumns} value={form.missing} onChange={(v) => setForm((f) => ({ ...f, missing: v }))} />
+        <fieldset className="fieldset-plain" disabled={disabled}>
+          <MissingChoiceField id="ts" columns={gapColumns} value={form.missing} onChange={(v) => setForm((f) => ({ ...f, missing: v }))} />
+        </fieldset>
         {unknown.length ? (
           <Alert tone="warning">
             <span data-testid="feature-problems">

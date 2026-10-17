@@ -14,6 +14,7 @@ import { primaryScore, splitFailure, verdict } from './metrics';
 import { ModelExport, useHasPermission } from './ModelExport';
 import { ResultView } from './ResultView';
 import { RunSteps, STATUS_TEXT } from './RunSteps';
+import { stageNames } from './stages';
 
 export const POLL_MS = 1500;
 /** 訓練紀錄每頁筆數 */
@@ -155,7 +156,9 @@ export function Runs({ api, selected, onSelect, settings, onRuns, onSettingSaved
                       <td>{r.name}</td>
                       <td>
                         {KIND_NAMES[r.kind]}
-                        {EXECUTORS[r.executor] ? <span className="text-muted">（{EXECUTORS[r.executor]}）</span> : null}
+                        {r.imported_stages?.length ? (
+                          <span className="text-muted">（使用匯入的程式：{stageNames(r.imported_stages)}）</span>
+                        ) : EXECUTORS[r.executor] ? <span className="text-muted">（{EXECUTORS[r.executor]}）</span> : null}
                       </td>
                       <td>
                         <RunStatusBadge status={r.status} />

@@ -97,6 +97,8 @@ export interface TrainingSetting {
   updated_by: string;
   created_at: string;
   updated_at: string;
+  /** 由匯入檔控制的環節（只有訓練設定清單會帶） */
+  locked_stages?: StageId[];
 }
 
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'held';
@@ -123,6 +125,55 @@ export interface TrainingRun {
   finished_at: string | null;
   custom_source: boolean;
   model_id: number | null;
+  /** 送出時由匯入檔控制的環節（流程程式碼）；沒有則為空 */
+  imported_stages?: StageId[];
+}
+
+/** 流程程式碼（錄製巨集）的環節：標註、資料清理與前處理、訓練 */
+export type StageId = 'labels' | 'preprocess' | 'train';
+
+export interface StageLock {
+  stage: StageId;
+  name: string;
+  sha256: string;
+  files: Record<string, string>;
+  /** 程式與平台預設不同（只改設定值時為 false） */
+  code_changed: boolean;
+  imported_by: string;
+  imported_at: string;
+}
+
+export interface StageEntry {
+  stage: StageId;
+  name: string;
+  files: string[];
+  entrypoints: Record<string, string[]>;
+  /** 由匯入檔控制時的匯入資訊；介面控制時為 null */
+  locked: StageLock | null;
+  /** 與其他環節合併後的問題（需要處理） */
+  problem: string | null;
+}
+
+export interface StageOverview {
+  setting_id: number;
+  kind: TrainingKind;
+  stages: StageEntry[];
+  problem: string | null;
+  locked: StageId[];
+  /** 可以匯入或修改程式（Coding 權限） */
+  can_code?: boolean;
+  /** 套用、上傳、改回後的訓練設定 */
+  setting?: TrainingSetting;
+}
+
+export interface StageView {
+  setting_id: number;
+  stage: StageId;
+  name: string;
+  kind: TrainingKind;
+  files: Record<string, string>;
+  default_code: string;
+  locked: StageLock | null;
 }
 
 export interface Deployment {
@@ -238,14 +289,26 @@ export interface TrainingApi {
   distinct(datasetId: number, column: string): Promise<number>;
   /** 套用前處理步驟後的欄位（名稱、型態、缺值數）；不改動資料集 */
   processedColumns(datasetId: number, steps: Step[]): Promise<ColumnInfo[]>;
+  /** 流程程式碼：各環節由介面或匯入檔控制 */
+  stages(settingId: number): Promise<StageOverview>;
+  stageView(settingId: number, stage: StageId): Promise<StageView>;
+  /** 網頁編輯後套用（設定檔與程式檔的文字） */
+  applyStage(settingId: number, stage: StageId, files: Record<string, string>): Promise<StageOverview>;
+  uploadStage(settingId: number, stage: StageId, file: File): Promise<StageOverview>;
+  /** 改回用介面設定：刪除匯入檔，設定回到匯入前 */
+  unlockStage(settingId: number, stage: StageId): Promise<StageOverview>;
+  exportStage(settingId: number, stage: StageId): Promise<Download>;
+  /** 整個流程（專案包）；includeData 只有計畫主持人可以 */
+  exportPackage(settingId: number, includeData: boolean): Promise<Download>;
 }
 
 async function errorOf(res: Response): Promise<ApiError> {
   const data = (await res.json().catch(() => null)) as { detail?: unknown } | null;
   const d = data?.detail;
   if (d && typeof d === 'object' && 'message' in d) {
-    const x = d as { message: unknown; code?: string; permission?: string };
-    return new ApiError(res.status, String(x.message), [], x.code, x.permission);
+    const x = d as { message: unknown; code?: string; permission?: string; errors?: unknown };
+    const list = Array.isArray(x.errors) ? x.errors.map((m) => ({ field: '', message: String(m) })) : [];
+    return new ApiError(res.status, String(x.message), list, x.code, x.permission);
   }
   return new ApiError(res.status, typeof d === 'string' ? d : `伺服器錯誤（HTTP ${res.status}）`);
 }
@@ -318,6 +381,18 @@ export function createTrainingApi(
       const out = await api.post<{ columns: ColumnInfo[] }>(`${root}/tabular/datasets/${datasetId}/preprocess/preview`, { steps, limit: 1 });
       return out.columns;
     },
+    stages: (id) => api.get(`${root}/training/settings/${id}/stages`),
+    stageView: (id, stage) => api.get(`${root}/training/settings/${id}/stages/${stage}`),
+    applyStage: (id, stage, files) => api.put(`${root}/training/settings/${id}/stages/${stage}`, { files }),
+    uploadStage(id, stage, file) {
+      const form = new FormData();
+      form.append('file', file);
+      return api.postForm(`${root}/training/settings/${id}/stages/${stage}/upload`, form);
+    },
+    unlockStage: (id, stage) => api.delete(`${root}/training/settings/${id}/stages/${stage}`),
+    exportStage: (id, stage) => download(`${root}/training/settings/${id}/stages/${stage}/export`, `${stage}.zip`),
+    exportPackage: (id, includeData) =>
+      download(`${root}/training/settings/${id}/package${includeData ? '?include_data=true' : ''}`, `flow-${id}.zip`),
     async targetFeature(id) {
       try {
         return await api.get<TargetFeature>(`${root}/tabular/datasets/${id}/target-feature`);
