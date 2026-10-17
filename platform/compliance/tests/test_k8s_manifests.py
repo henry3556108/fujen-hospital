@@ -54,13 +54,17 @@ def test_config_is_in_sync_with_compose_sources():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+JOBS_POLICY = ("NetworkPolicy", "jobs-egress-api-only")
+
+
 def test_every_resource_is_in_the_platform_namespace(rendered):
     _, docs = rendered
     cluster_scoped = {"Namespace", "ClusterRole", "ClusterRoleBinding"}
     for d in docs:
         if d["kind"] in cluster_scoped:
             continue
-        expected = "platform-jobs" if d["kind"] in ("Role", "RoleBinding") else "ai-platform"
+        jobs = d["kind"] in ("Role", "RoleBinding") or (d["kind"], d["metadata"]["name"]) == JOBS_POLICY
+        expected = "platform-jobs" if jobs else "ai-platform"
         assert d["metadata"].get("namespace") == expected, (d["kind"], d["metadata"]["name"])
 
 
@@ -294,3 +298,21 @@ def test_compose_platform_programs_use_the_app_database_account():
     init = compose["db-init"]
     assert init["command"][-2:] == ["-m", "app.db_init"]
     assert init["environment"]["DATABASE_OWNER_URL"].startswith("postgresql+psycopg://platform:")
+
+
+def test_jobs_can_only_reach_dns_and_the_api(rendered):
+    """M2 缺口 1：訓練與推論 Job 可能跑使用者匯入的程式，對外只能連 DNS 與平台 API 的工作 I/O。"""
+    _, docs = rendered
+    [policy] = [d for d in docs if (d["kind"], d["metadata"]["name"]) == JOBS_POLICY]
+    spec = policy["spec"]
+    assert policy["metadata"]["namespace"] == "platform-jobs" and spec["podSelector"] == {}
+    assert sorted(spec["policyTypes"]) == ["Egress", "Ingress"] and not spec.get("ingress")
+    rules = {(r["to"][0]["namespaceSelector"]["matchLabels"]["kubernetes.io/metadata.name"],
+              tuple(sorted(r["to"][0]["podSelector"]["matchLabels"].items())),
+              tuple(sorted((p["port"], p["protocol"]) for p in r["ports"]))) for r in spec["egress"]}
+    assert rules == {("kube-system", (("k8s-app", "kube-dns"),), ((53, "TCP"), (53, "UDP"))),
+                     ("ai-platform", (("app", "api"),), ((8000, "TCP"),))}
+    assert all(len(r["to"]) == 1 for r in spec["egress"])
+    others = [d for d in docs if d["kind"] == "NetworkPolicy" and d["metadata"].get("namespace") == "platform-jobs"
+              and d is not policy]
+    assert others == [], "platform-jobs 不能有其他放寬的政策"

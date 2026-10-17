@@ -32,10 +32,11 @@ SAFE_GLOBALS = {("copyreg", "_reconstructor"), ("copyreg", "__newobj__"), ("coll
 SAFE_BUILTINS = {"object", "set", "frozenset", "slice", "complex", "range", "bytearray", "dict", "list", "tuple",
                  "int", "float", "str", "bool", "bytes", "type"}
 # 允許的套件內，可以讀寫檔案、連網路、執行程式或再反序列化的部分一律不放行
-_UNSAFE_PARTS = {"io", "testing", "f2py", "distutils", "ctypeslib", "_pytesttester", "conftest", "_config",
-                 "externals", "parallel", "joblib"}
+_UNSAFE_PARTS = {"io", "testing", "_testing", "f2py", "distutils", "ctypeslib", "_pytesttester", "conftest",
+                 "_config", "externals", "parallel", "joblib", "datasets", "npyio", "_npyio", "_datasource", "memmap"}
 _UNSAFE_NAMES = ("read", "load", "save", "open", "eval", "exec", "system", "popen", "compile", "import", "to_pickle",
-                 "from_file", "fromfile", "tofile", "getattr", "setattr", "__import__")
+                 "from_file", "fromfile", "tofile", "getattr", "setattr", "memmap", "datasource", "hdfstore",
+                 "excel", "fetch", "dump", "genfromtxt", "fromregex", "set_option", "option_context")
 
 
 class UnsafeModel(pickle.UnpicklingError):
@@ -50,8 +51,13 @@ def allowed_global(module: str, name: str) -> bool:
     parts = module.split(".")
     if parts[0] not in SAFE_MODULES or _UNSAFE_PARTS & set(parts):
         return False
-    lowered = name.lower()
-    return not any(lowered.startswith(word) or f"_{word}" in lowered for word in _UNSAFE_NAMES)
+    for segment in name.split("."):               # 也檢查「類別.方法」這種有點的名稱
+        if segment.startswith("__") and segment.endswith("__"):
+            return False                              # __init__、__globals__ 等內部屬性
+        lowered = segment.lower()
+        if any(lowered.startswith(word) or f"_{word}" in lowered for word in _UNSAFE_NAMES):
+            return False
+    return True
 
 
 class SafeUnpickler(pickle.Unpickler):

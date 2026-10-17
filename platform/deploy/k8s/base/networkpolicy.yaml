@@ -199,3 +199,26 @@ spec:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}
       ports:
         - {port: 9000, protocol: TCP}
+---
+# 訓練與推論 Job（platform-jobs）：使用者可以匯入或修改訓練程式，所以 Job 只能連 DNS 與平台 API 的工作 I/O（8000），
+# 不能連資料庫、MinIO、Orthanc、其他服務或外網；也不接受任何進入流量。kubelet 探針不受影響。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jobs-egress-api-only
+  namespace: platform-jobs
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ai-platform}}
+          podSelector: {matchLabels: {app: api}}
+      ports:
+        - {port: 8000, protocol: TCP}
