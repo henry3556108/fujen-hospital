@@ -1062,6 +1062,9 @@ def deployment_out(row: Deployment, session: Session | None = None) -> dict[str,
         out["model_kind"] = model.kind if model else None
         out["title"] = _title(session, row)
         out["cannot_use_in_platform"] = without_platform_access(session, row.project_id, list(row.allowed_users))
+        from app.training import flow_stages
+
+        out["stage_lock"] = flow_stages.lock_out(session, row.id)      # 由匯入的 deploy.json 控制時
     return out
 
 
@@ -1156,6 +1159,11 @@ def create_deployment(ctx: ProjectContext, state, *, model: TrainedModel, name: 
 
 def set_access(ctx: ProjectContext, deployment: Deployment, *, allowed_users: Any,
                source_ip: str | None) -> Deployment:
+    from app.training import flow_stages
+
+    if flow_stages.deployment_lock(ctx.session, deployment.id) is not None:
+        raise Conflict("這個部署由匯入的 deploy.json 控制，可呼叫的帳號不能在這裡修改；"
+                       "請到建模管理該訓練設定的「流程程式碼」修改部署環節，或改回用介面設定")
     users = _users(ctx.session, allowed_users)
     before = list(deployment.allowed_users)
     deployment.allowed_users = users
@@ -1167,6 +1175,9 @@ def set_access(ctx: ProjectContext, deployment: Deployment, *, allowed_users: An
 
 
 def delete_deployment(ctx: ProjectContext, state, deployment: Deployment, *, source_ip: str | None) -> None:
+    from app.training import flow_stages
+
+    flow_stages.drop_deployment_locks(ctx.session, state.store, deployment)
     for title in ctx.session.scalars(select(DeploymentTitle).where(DeploymentTitle.deployment_id == deployment.id)):
         ctx.session.delete(title)
     ctx.session.flush()

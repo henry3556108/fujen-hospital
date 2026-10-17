@@ -63,8 +63,10 @@ def _stage_dir() -> Path:
 
 # ---------------------------------------------------------------- 資料匯入與部署環節的設定（只匯出的部分）
 
-def import_config(session: Session, setting: TrainingSetting) -> tuple[dict[str, Any], dict | None]:
-    """import.json 的內容與結構式資料集的欄位結構（schema.json）。"""
+def import_config(session: Session, setting: TrainingSetting, store: ObjectStore | None = None
+                  ) -> tuple[dict[str, Any], dict | None]:
+    """import.json 的內容與結構式資料集的欄位結構（schema.json）。csv_sha256 是乾淨檔的 sha256，
+    匯入專案包時用來在目標專案找同一份資料。"""
     from app.tabular_api.models import TabularDataset
 
     source = setting.config["source"]
@@ -73,6 +75,11 @@ def import_config(session: Session, setting: TrainingSetting) -> tuple[dict[str,
         info = None
         if ds is not None:
             info = {"name": ds.name, "original_filename": ds.original_filename, "valid_rows": ds.valid_rows}
+            if store is not None:
+                try:
+                    info["csv_sha256"] = _sha(store.get(ds.object_key))
+                except ObjectNotFound:
+                    pass
         return {"source": dict(source), "dataset": info}, (ds.schema if ds is not None else None)
     out = {k: v for k, v in source.items() if k != "label_source"}
     return {"source": out}, None
@@ -103,22 +110,17 @@ def deploy_config(session: Session, setting: TrainingSetting) -> dict[str, Any]:
 def stage_folder(session: Session, store: ObjectStore, setting: TrainingSetting, stage: str, *,
                  actor: str) -> dict[str, bytes]:
     """環節資料夾的檔案（stage.json、設定檔、程式檔）。"""
+    from app.training import flow_stages
+
     image = setting.kind in cfg.IMAGE_KINDS
     if stage in stages.STAGES:
         files = stages.stage_files(setting, stage, store, session)
         meta = stages.descriptor(setting, stage, files, actor=actor)
-    elif stage == "import":
-        body, schema = import_config(session, setting)
-        files = {"import.json": _json(body),
-                 "load_data.py": (_stage_dir() / f"load_data_{'image' if image else 'tabular'}.py").read_bytes()}
-        if schema is not None:
-            files["schema.json"] = _json(schema)
-        meta = _meta(setting, stage, files, actor)
-    else:
-        files = {"deploy.json": _json(deploy_config(session, setting)),
-                 "predict.py": (_stage_dir() / "predict_local.py").read_bytes()}
-        meta = _meta(setting, stage, files, actor)
-    return {**files, "stage.json": _json(meta)}
+        return {**files, "stage.json": _json(meta)}
+    files = flow_stages.current_files(session, store, setting, stage)
+    meta = flow_stages.descriptor(setting, stage, files, actor=actor)
+    local = "predict_local.py" if stage == "deploy" else f"load_data_{'image' if image else 'tabular'}.py"
+    return {**files, flow_stages.LOCAL_ONLY[stage]: (_stage_dir() / local).read_bytes(), "stage.json": _json(meta)}
 
 
 def _meta(setting: TrainingSetting, stage: str, files: dict[str, bytes], actor: str) -> dict[str, Any]:
@@ -143,8 +145,11 @@ def deidentify_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def deidentify_config(config: dict[str, Any]) -> dict[str, Any]:
-    """inline 標註的對照鍵（研究 UID、Accession）換成序號。"""
+    """inline 標註的對照鍵（研究 UID、Accession）與指定的研究清單換成序號。"""
     out = json.loads(json.dumps(config))
+    source = out.get("source") or {}
+    if isinstance(source.get("studies"), list):
+        source["studies"] = [f"study-{no:04d}" for no, _ in enumerate(source["studies"], 1)]
     label_source = (out.get("source") or {}).get("label_source") or {}
     if label_source.get("provider") == "inline":
         label_source["values"] = {f"key-{no:04d}": value
@@ -271,6 +276,10 @@ def export_package(ctx: ProjectContext, state, setting: TrainingSetting, *, incl
     for stage in ALL_STAGES:
         for name, body in stage_folder(session, store, setting, stage, actor=ctx.user.username).items():
             files[f"stages/{stage}/{name}"] = body
+    if "stages/import/import.json" in files:
+        body = json.loads(files["stages/import/import.json"])
+        body["source"] = deidentify_config({"source": body.get("source") or {}})["source"]
+        files["stages/import/import.json"] = _json(body)
     if (files.get("stages/labels/labels.json") and image
             and (setting.config["source"].get("label_source") or {}).get("provider") == "inline"):
         labels = json.loads(files["stages/labels/labels.json"])

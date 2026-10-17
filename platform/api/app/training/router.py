@@ -1,4 +1,5 @@
 """訓練、模型、推論、部署的端點，以及只給 Job 容器用的工作 I/O 端點。"""
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -14,7 +15,7 @@ from app.permissions import Permission
 from app.scheduling.backend import JobBackend
 from app.scheduling.backend import backend_from_env
 from app.scheduling.router import get_backend
-from app.training import batch, config as cfg, flow, service, snapshot, stages
+from app.training import batch, config as cfg, flow, flow_import, service, snapshot, stages
 
 router = APIRouter()
 
@@ -107,18 +108,24 @@ def stage_overview(setting_id: int, request: Request, ctx: ProjectContext = Depe
             "can_code": Permission.CODING in _permissions(ctx)}
 
 
+def _stage_permission(ctx: ProjectContext, stage: str) -> None:
+    """有程式檔的環節（標註、前處理、訓練）需要 Coding；只有設定檔的環節（資料匯入、部署）只需要 Training。"""
+    if stage in stages.STAGES:
+        _need(ctx, Permission.CODING)
+
+
 @router.get(BASE + "/training/settings/{setting_id}/stages/{stage}")
-def stage_view(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_code)) -> dict:
+def stage_view(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
     """「檢視程式碼」：這個環節的設定檔與程式檔內容。"""
-    _need(ctx, Permission.TRAINING)
+    _stage_permission(ctx, stage)
     with _errors():
         setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
         return stages.stage_view(ctx.session, request.app.state, setting, stage)
 
 
 @router.get(BASE + "/training/settings/{setting_id}/stages/{stage}/export")
-def stage_export(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_code)) -> Response:
-    _need(ctx, Permission.TRAINING)
+def stage_export(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_train)) -> Response:
+    _stage_permission(ctx, stage)
     with _errors():
         setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
         data = stages.export_stage(ctx, request.app.state, setting, stage, source_ip=client_ip(request))
@@ -131,9 +138,9 @@ class StageFilesIn(BaseModel):
 
 @router.put(BASE + "/training/settings/{setting_id}/stages/{stage}")
 def stage_apply(setting_id: int, stage: str, body: StageFilesIn, request: Request,
-                ctx: ProjectContext = Depends(can_code)) -> dict:
+                ctx: ProjectContext = Depends(can_train)) -> dict:
     """網頁編輯後「套用」：設定檔與程式檔的文字。符合框架才套用，這個環節改由匯入的內容控制。"""
-    _need(ctx, Permission.TRAINING)        # 匯入程式碼同時需要 coding（改程式）與 training（改訓練設定）
+    _stage_permission(ctx, stage)          # 匯入程式碼同時需要 coding（改程式）與 training（改訓練設定）
     files = {name: text.encode("utf-8") for name, text in body.files.items()}
     for name, data in files.items():       # 逐檔掃毒（貼上的文字）；不乾淨回 422 並寫 malware_blocked 稽核
         scanning.ensure_clean(request, name, data)
@@ -145,9 +152,9 @@ def stage_apply(setting_id: int, stage: str, body: StageFilesIn, request: Reques
 
 @router.post(BASE + "/training/settings/{setting_id}/stages/{stage}/upload")
 def stage_upload(setting_id: int, stage: str, request: Request, file: UploadFile = File(...),
-                 ctx: ProjectContext = Depends(can_code)) -> dict:
+                 ctx: ProjectContext = Depends(can_train)) -> dict:
     """上傳環節檔（平台匯出、修改後重新壓縮的 zip）。"""
-    _need(ctx, Permission.TRAINING)
+    _stage_permission(ctx, stage)
     data = file.file.read(service.bundle.MAX_SOURCE_BYTES + 1)
     scanning.ensure_clean(request, file.filename or f"{stage}.zip", data)   # 不乾淨回 422 並寫 malware_blocked 稽核
     with _errors():
@@ -181,6 +188,54 @@ def package_export(setting_id: int, request: Request, include_data: bool = False
         data, filename = flow.export_package(ctx, request.app.state, setting, include_data=include_data,
                                              source_ip=client_ip(request))
     return _download(data, filename, "application/zip")
+
+
+def _package_form(dataset_id: str | None, studies: str | None) -> tuple[int | None, Any]:
+    try:
+        ds = int(dataset_id) if dataset_id not in (None, "", "null") else None
+    except ValueError:
+        raise HTTPException(422, "dataset_id 必須是資料集編號") from None
+    chosen: Any = None
+    if studies not in (None, "", "null"):
+        if studies.strip().startswith("["):
+            try:
+                chosen = json.loads(studies)
+            except ValueError:
+                raise HTTPException(422, "studies 必須是 all 或研究 UID 的 JSON 清單") from None
+        else:
+            chosen = studies.strip().strip('"')
+    return ds, chosen
+
+
+def _package_data(request: Request, file: UploadFile, ctx: ProjectContext) -> bytes:
+    _need(ctx, Permission.CODING)          # 匯入含程式碼的專案包：Coding 與 Training
+    data = file.file.read(flow_import.PACKAGE_MAX_BYTES + 1)
+    scanning.ensure_clean(request, file.filename or "flow.zip", data)
+    return data
+
+
+@router.post(BASE + "/training/package-import/check")
+def package_import_check(request: Request, file: UploadFile = File(...), dataset_id: str | None = Form(None),
+                         studies: str | None = Form(None), ctx: ProjectContext = Depends(can_train)) -> dict:
+    """匯入專案包的第一步：檢核與資料對應（不建立任何東西）。回傳 errors（全部列出）、ready、mapping、warnings。"""
+    data = _package_data(request, file, ctx)
+    ds, chosen = _package_form(dataset_id, studies)
+    with _errors():
+        return flow_import.plan_out(flow_import.check_package(ctx, request.app.state, data, dataset_id=ds,
+                                                              studies=chosen))
+
+
+@router.post(BASE + "/training/package-import", status_code=201)
+def package_import(request: Request, file: UploadFile = File(...), dataset_id: str | None = Form(None),
+                   studies: str | None = Form(None), ctx: ProjectContext = Depends(can_train)) -> dict:
+    """匯入專案包：建立新的訓練設定，包內匯入控制的環節在新設定同樣是匯入控制。"""
+    data = _package_data(request, file, ctx)
+    ds, chosen = _package_form(dataset_id, studies)
+    with _errors():
+        setting, plan = flow_import.import_package(ctx, request.app.state, data, dataset_id=ds, studies=chosen,
+                                                   source_ip=client_ip(request))
+        return stages.overview(ctx.session, request.app.state, setting) | {
+            "setting": service.setting_out(setting), "mapping": plan["mapping"], "warnings": plan["warnings"]}
 
 
 # ---------------------------------------------------------------- 訓練

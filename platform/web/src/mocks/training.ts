@@ -21,7 +21,7 @@ import type {
 import { models as projectModels } from './inference';
 import { API, authUser, detail, isoNow, json, jsonBody, moduleState, noContent, requireProject } from './support';
 import { mockDb } from './handlers';
-import { dropStages, lockedChange, lockedStages } from './trainingStages';
+import { dropDeploymentLocks, dropStages, lockedChange, lockedStages } from './trainingStages';
 
 const P = `${API}/projects/:pid`;
 
@@ -845,6 +845,7 @@ export const trainingHandlers = [
     if (ctx instanceof Response) return ctx;
     const row = state().deployments.find((d) => d.id === Number(params.did) && d.project_id === ctx.project.id);
     if (!row) return detail(404, `找不到部署 ${String(params.did)}`);
+    if (row.stage_lock) return detail(409, '這個部署由匯入的 deploy.json 控制，可呼叫的帳號不能在這裡修改；請到建模管理該訓練設定的「流程程式碼」修改部署環節，或改回用介面設定');
     const allowed = users((await jsonBody(request)).allowed_users);
     if (allowed instanceof Response) return allowed;
     row.allowed_users = allowed;
@@ -857,6 +858,7 @@ export const trainingHandlers = [
     const row = s.deployments.find((d) => d.id === Number(params.did) && d.project_id === ctx.project.id);
     if (!row) return detail(404, `找不到部署 ${String(params.did)}`);
     s.deployments = s.deployments.filter((d) => d !== row);
+    dropDeploymentLocks(row.id);
     return noContent();
   }),
 

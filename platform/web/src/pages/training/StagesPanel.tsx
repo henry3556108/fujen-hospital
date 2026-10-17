@@ -1,5 +1,6 @@
-// 流程程式碼（錄製巨集）：一份訓練設定的標註、資料清理與前處理、訓練三個環節。
-// 每個環節可以檢視程式碼、在網頁上修改後套用、下載環節檔、上傳環節檔、改回用介面設定；另可下載整個流程（專案包）。
+// 流程程式碼（錄製巨集）：一份訓練設定的資料匯入、標註、資料清理與前處理、訓練、部署五個環節。
+// 每個環節可以檢視程式碼（資料匯入與部署只有設定檔）、在網頁上修改後套用、下載環節檔、上傳環節檔、改回用介面設定；
+// 另可下載整個流程（專案包）。標註、前處理、訓練的程式需要 Coding 權限；資料匯入與部署只需要 Training 權限。
 import { useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useResource } from '../../api/useResource';
@@ -8,7 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { Icon } from '../../components/Icon';
 import { isImageKind, saveFile, type StageEntry, type StageId, type StageOverview, type TrainingApi, type TrainingSetting } from './api';
-import { STAGE_NAMES } from './stages';
+import { CODE_STAGES, STAGE_NAMES } from './stages';
 
 interface Props {
   api: TrainingApi;
@@ -22,7 +23,11 @@ interface Editing {
   stage: StageId;
   files: Record<string, string>;
   defaultCode: string;
+  /** 有程式檔（標註、前處理、訓練） */
+  code: boolean;
 }
+
+const hasCode = (s: { stage: StageId; code?: boolean }) => s.code ?? CODE_STAGES.includes(s.stage);
 
 /** 不符合框架時伺服器一次列出全部錯誤 */
 export function StageErrors({ error }: { error: unknown }) {
@@ -78,15 +83,20 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
     setNotice('');
     try {
       const view = await api.stageView(setting.id, stage);
-      setEditing({ stage, files: { ...view.files }, defaultCode: view.default_code });
+      setEditing({ stage, files: { ...view.files }, defaultCode: view.default_code, code: hasCode(view) });
     } catch (err) {
       setError(err);
     }
   }
 
-  const applied = (stage: StageId) => (out: StageOverview) =>
-    `已套用「${STAGE_NAMES[stage]}」：這個環節改由匯入的內容控制，訓練設定表單上對應的欄位已停用。` +
-    (out.problem ? '' : '送出訓練時會使用這些設定與程式。');
+  const applied = (stage: StageId) => (out: StageOverview) => {
+    if (stage === 'deploy') {
+      return '已套用「部署」：服務已依 deploy.json 建立或更新，部署頁上這個服務的分享對象改由匯入檔控制。';
+    }
+    const what = stage === 'import' ? '資料來源' : '對應的欄位';
+    return `已套用「${STAGE_NAMES[stage]}」：這個環節改由匯入的內容控制，訓練設定表單上${what}已停用。` +
+      (out.problem ? '' : '送出訓練時會使用這些設定與程式。');
+  };
 
   function upload(file: File | undefined) {
     if (!file || !uploadStage) return;
@@ -98,7 +108,7 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
   if (loaded.error) return <ApiErrorAlert error={loaded.error} />;
   if (!overview) return <p role="status">載入中…</p>;
 
-  const codeName = editing ? `${editing.stage}.py` : '';
+  const codeName = editing?.code ? `${editing.stage}.py` : '';
   return (
     <section className="card section stack" aria-labelledby="stages-title">
       <div className="training-head">
@@ -108,10 +118,14 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
         </button>
       </div>
       <p className="field__hint">
-        每個環節可以下載設定檔與程式檔，修改後上傳或直接在網頁上修改後套用。套用後這個環節由匯入的內容控制，訓練設定表單上對應的欄位會停用；
-        要回到用表單設定，按「改回用介面設定」。
+        每個環節可以下載設定檔與程式檔（資料匯入與部署只有設定檔），修改後上傳或直接在網頁上修改後套用。套用後這個環節由匯入的內容控制，
+        訓練設定表單（部署則是部署頁的分享對象）上對應的欄位會停用；要回到用表單設定，按「改回用介面設定」。
       </p>
-      {!canCode ? <Alert tone="info">你沒有程式開發（Coding）權限，可以查看狀態與改回用介面設定，不能檢視或匯入程式碼。</Alert> : null}
+      {!canCode ? (
+        <Alert tone="info">
+          你沒有程式開發（Coding）權限：可以處理資料匯入與部署環節、查看狀態、改回用介面設定，不能檢視或匯入標註、前處理、訓練的程式碼。
+        </Alert>
+      ) : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
       {overview.problem ? (
         <Alert tone="warning" title="需要處理">
@@ -148,10 +162,10 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
                   )}
                 </td>
                 <td className="row-actions">
-                  {canCode ? (
+                  {canCode || !hasCode(s) ? (
                     <>
                       <button type="button" className="btn btn--small btn--secondary" onClick={() => void openView(s.stage)}>
-                        檢視程式碼「{s.name}」
+                        {hasCode(s) ? '檢視程式碼' : '檢視設定檔'}「{s.name}」
                       </button>
                       <button type="button" className="btn btn--small btn--secondary"
                         onClick={() => void run(async () => saveFile(await api.exportStage(setting.id, s.stage)))}>
@@ -178,10 +192,15 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
         onChange={(e) => upload(e.target.files?.[0])} />
 
       {editing ? (
-        <div className="stack" role="group" aria-label={`程式碼「${STAGE_NAMES[editing.stage]}」`}>
-          <h3>程式碼「{STAGE_NAMES[editing.stage]}」</h3>
+        <div className="stack" role="group" aria-label={`${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」`}>
+          <h3>{editing.code ? '程式碼' : '設定檔'}「{STAGE_NAMES[editing.stage]}」</h3>
           <p className="field__hint">
-            {editing.stage}.json 是這個環節的設定值，{codeName} 是程式（必須保留平台呼叫的函式名稱與參數）。按「套用」後平台會先檢查，不符合時列出全部問題，設定不會改變。
+            {editing.code
+              ? `${editing.stage}.json 是這個環節的設定值，${codeName} 是程式（必須保留平台呼叫的函式名稱與參數）。`
+              : editing.stage === 'deploy'
+                ? 'deploy.json 是部署設定：要部署的模型（sha256）、服務名稱、顯示名稱、可呼叫的帳號。'
+                : `${Object.keys(editing.files).join('、')} 是資料來源設定。結構式資料改了欄位結構時，平台會用原始檔重新驗證並建立新的資料集，原資料集不變。`}
+            按「套用」後平台會先檢查，不符合時列出全部問題，設定不會改變。
           </p>
           {Object.entries(editing.files).map(([name, text]) => (
             <div className="field" key={name}>
@@ -199,10 +218,12 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
               }, applied(editing.stage))}>
               {busy ? '檢查中…' : `套用「${STAGE_NAMES[editing.stage]}」`}
             </button>
-            <button type="button" className="btn btn--secondary"
-              onClick={() => setEditing({ ...editing, files: { ...editing.files, [codeName]: editing.defaultCode } })}>
-              {codeName} 還原成平台預設程式
-            </button>
+            {editing.code ? (
+              <button type="button" className="btn btn--secondary"
+                onClick={() => setEditing({ ...editing, files: { ...editing.files, [codeName]: editing.defaultCode } })}>
+                {codeName} 還原成平台預設程式
+              </button>
+            ) : null}
             <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>
               不套用，關閉
             </button>
@@ -243,7 +264,7 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
             void run(() => api.unlockStage(setting.id, stage.stage), (out) =>
               `已改回用介面設定「${stage.name}」，匯入的檔案已刪除。` + (out.problem ? '其他環節需要處理，請看上方說明。' : ''));
           }}
-          extraActions={canCode ? (
+          extraActions={canCode || !hasCode(unlocking) ? (
             <button type="button" className="btn btn--secondary"
               onClick={() => void run(async () => saveFile(await api.exportStage(setting.id, unlocking.stage)))}>
               下載匯入檔
@@ -256,7 +277,12 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
           <p>改回介面設定後：</p>
           <ul>
             <li>匯入的檔案會從平台刪除，不能復原。需要保留請先下載。</li>
-            <li>這個環節的設定回到匯入前最後一次用介面儲存的內容。</li>
+            {unlocking.stage === 'deploy' ? (
+              <li>部署的顯示名稱與分享對象回到匯入前；由匯入建立的部署會保留，要停止分享請到部署頁。</li>
+            ) : (
+              <li>這個環節的設定回到匯入前最後一次用介面儲存的內容。</li>
+            )}
+            {unlocking.stage === 'import' ? <li>因匯入建立的資料集會保留，不會刪除。</li> : null}
             <li>其他環節會重新檢查。檢查不通過的環節會標示「需要處理」，處理完才能送出訓練。</li>
             <li>已完成的訓練紀錄與模型不受影響。</li>
           </ul>

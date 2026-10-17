@@ -70,12 +70,14 @@ def tab(client, pi, project, table):
 
 # ---------------------------------------------------------------- 檢視與匯出
 
-def test_overview_lists_three_stages_controlled_by_the_ui(client, pi, tab):
+def test_overview_lists_the_stages_controlled_by_the_ui(client, pi, tab):
     out = ok(client.get(base(tab["project_id"], tab["id"], "/stages"), headers=pi))
-    assert [s["stage"] for s in out["stages"]] == ["labels", "preprocess", "train"]
-    assert [s["name"] for s in out["stages"]] == ["標註", "資料清理與前處理", "訓練"]
+    assert [s["stage"] for s in out["stages"]] == ["import", "labels", "preprocess", "train", "deploy"]
+    assert [s["name"] for s in out["stages"]] == ["資料匯入", "標註", "資料清理與前處理", "訓練", "模型匯出與部署"]
+    assert [s["code"] for s in out["stages"]] == [False, True, True, True, False]
     assert all(s["locked"] is None for s in out["stages"]) and out["locked"] == [] and out["can_code"]
-    assert out["stages"][1]["entrypoints"] == {"fit_transform": ["train", "config"]}
+    assert out["stages"][2]["entrypoints"] == {"fit_transform": ["train", "config"]}
+    assert out["stages"][0]["files"] == ["import.json", "schema.json"] and out["stages"][4]["files"] == ["deploy.json"]
 
 
 def test_view_code_shows_the_stage_config_and_the_platform_program(client, pi, tab):

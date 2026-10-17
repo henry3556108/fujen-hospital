@@ -236,12 +236,21 @@ function Deployments({ api }: { api: TrainingApi }) {
                         {d.cannot_use_in_platform?.length ? (
                           <span className="field__hint">（{d.cannot_use_in_platform.join('、')} 不是本專案有推論權限的成員，平台上看不到）</span>
                         ) : null}
+                        {d.stage_lock ? (
+                          <span className="stack" data-testid="deployment-lock">
+                            <span className="badge status-badge status-badge--info">匯入檔控制</span>
+                            <span className="field__hint">
+                              由 deploy.json 控制（{d.stage_lock.imported_by}，{formatTime(d.stage_lock.imported_at)} 匯入
+                              {d.stage_lock.setting ? `，訓練設定「${d.stage_lock.setting.name}」` : ''}）。要修改分享對象，請到建模管理的流程程式碼改 deploy.json，或改回用介面設定。
+                            </span>
+                          </span>
+                        ) : null}
                       </td>
                       <td>
                         {d.created_by}，{formatTime(d.created_at)}
                       </td>
                       <td className="row-actions">
-                        <button type="button" className="btn btn--small btn--secondary"
+                        <button type="button" className="btn btn--small btn--secondary" disabled={Boolean(d.stage_lock)}
                           onClick={() => setEditing({ id: d.id, users: d.allowed_users.join(', ') })}>
                           修改分享對象「{titleOf(d)}」
                         </button>

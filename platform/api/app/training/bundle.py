@@ -144,9 +144,9 @@ def write_zip(files: dict[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
-def read_zip(data: bytes, marker: str, *, max_bytes: int = MAX_SOURCE_BYTES) -> dict[str, bytes]:
+def read_zip(data: bytes, marker: str, *, max_bytes: int = MAX_SOURCE_BYTES, allow=None) -> dict[str, bytes]:
     """檢查使用者上傳的 zip（大小、檔案數、副檔名白名單、不得有絕對路徑或 ..），回傳（路徑 → 內容）。
-    整包放在單一資料夾內（找不到 marker 時）去掉那一層。"""
+    整包放在單一資料夾內（找不到 marker 時）去掉那一層。allow：另外允許的路徑（正規表示式，例如專案包的 dataset/blobs/<sha256>）。"""
     if len(data) > max_bytes:
         raise SourceError(f"壓縮檔超過上限 {max_bytes // 1024 // 1024} MB")
     try:
@@ -163,7 +163,7 @@ def read_zip(data: bytes, marker: str, *, max_bytes: int = MAX_SOURCE_BYTES) -> 
         path = PurePosixPath(entry.filename.replace("\\", "/"))
         if path.is_absolute() or ".." in path.parts or not path.parts:
             raise SourceError(f"原始碼內有不合法的路徑：{entry.filename}")
-        if path.suffix.lower() not in SOURCE_SUFFIXES:
+        if path.suffix.lower() not in SOURCE_SUFFIXES and not (allow is not None and allow.match(path.as_posix())):
             raise SourceError(f"原始碼內有不允許的檔案類型：{entry.filename}")
         files[path.as_posix()] = archive.read(entry)
     # 整包放在單一資料夾內時，去掉那一層

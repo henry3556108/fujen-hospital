@@ -11,6 +11,8 @@ import { KIND_NAMES } from '../inference/api';
 import { useTrainingApi, type Catalogue, type RunStatus, type StageLock, type TrainingApi, type TrainingRun, type TrainingSetting } from './api';
 import { SettingForm } from './SettingForm';
 import { StagesPanel } from './StagesPanel';
+import { PackageImport, mappingText } from './PackageImport';
+import { useHasPermission } from './ModelExport';
 import { stageNames } from './stages';
 import { emptyForm, formFromSetting, settingDifference, suggestKind, type FormState } from './settingForm';
 import type { TargetFeature } from '../tabular/types';
@@ -96,6 +98,9 @@ function Training({ api }: { api: TrainingApi }) {
   const [editor, setEditor] = useState<{ form: FormState; editing: TrainingSetting | null; key: number; locks?: StageLock[] } | null>(null);
   // 流程程式碼（錄製巨集）：目前開啟的訓練設定
   const [flow, setFlow] = useState<TrainingSetting | null>(null);
+  // 匯入整個流程（專案包）：需要 Coding 與 Training
+  const canCode = useHasPermission('coding');
+  const [importing, setImporting] = useState(false);
   const [notice, setNoticeText] = useState('');
   // 剛送出的訓練與它目前的狀態（其他訊息出現時清掉）
   const [submitted, setSubmitted] = useState<{ id: number; name: string; status: RunStatus } | null>(null);
@@ -202,10 +207,17 @@ function Training({ api }: { api: TrainingApi }) {
       <section className="card section" aria-labelledby="settings-title">
         <div className="training-head">
           <h2 id="settings-title">訓練設定</h2>
-          <button type="button" className="btn btn--primary"
-            onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
-            新增訓練設定
-          </button>
+          <div className="row-actions">
+            <button type="button" className="btn btn--primary"
+              onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
+              新增訓練設定
+            </button>
+            {canCode ? (
+              <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setError(null); setImporting(true); }}>
+                匯入專案包
+              </button>
+            ) : null}
+          </div>
         </div>
         {notice ? <Alert tone="success">{notice}</Alert> : null}
         {submitted ? (
@@ -316,6 +328,17 @@ function Training({ api }: { api: TrainingApi }) {
             settings.reload();
           }}
         />
+      ) : null}
+
+      {importing ? (
+        <PackageImport api={api} onClose={() => setImporting(false)}
+          onImported={(out) => {
+            setImporting(false);
+            setNotice(`已匯入專案包，建立訓練設定「${out.setting.name}」。${mappingText(out.mapping)}` +
+              (out.locked.length ? `由匯入檔控制的環節：${stageNames(out.locked)}。` : '') +
+              (out.problem ? `需要處理：${out.problem}` : '可以送出訓練。'));
+            settings.reload();
+          }} />
       ) : null}
 
       {flow ? (

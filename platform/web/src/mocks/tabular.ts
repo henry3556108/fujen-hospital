@@ -879,3 +879,8 @@ export function mockDatasetCounts(): Map<number, number> {
   for (const d of state().datasets) out.set(d.project_id, (out.get(d.project_id) ?? 0) + 1);
   return out;
 }
+
+/** 流程程式碼的專案包匯入：本專案的結構式資料集（可對應的候選）。 */
+export function mockDatasetList(projectId: number): { id: number; name: string; valid_rows: number | null }[] {
+  return state().datasets.filter((d) => d.project_id === projectId).map((d) => ({ id: d.id, name: d.name, valid_rows: d.valid_rows ?? null }));
+}

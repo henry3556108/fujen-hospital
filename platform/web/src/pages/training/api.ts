@@ -129,8 +129,9 @@ export interface TrainingRun {
   imported_stages?: StageId[];
 }
 
-/** 流程程式碼（錄製巨集）的環節：標註、資料清理與前處理、訓練 */
-export type StageId = 'labels' | 'preprocess' | 'train';
+/** 流程程式碼（錄製巨集）的環節：資料匯入、標註、資料清理與前處理、訓練、部署。
+ * 標註、前處理、訓練有程式檔（需要 Coding 權限）；資料匯入與部署只有設定檔。 */
+export type StageId = 'import' | 'labels' | 'preprocess' | 'train' | 'deploy';
 
 export interface StageLock {
   stage: StageId;
@@ -146,6 +147,8 @@ export interface StageLock {
 export interface StageEntry {
   stage: StageId;
   name: string;
+  /** 有程式檔（標註、前處理、訓練）；資料匯入與部署為 false */
+  code?: boolean;
   files: string[];
   entrypoints: Record<string, string[]>;
   /** 由匯入檔控制時的匯入資訊；介面控制時為 null */
@@ -172,8 +175,59 @@ export interface StageView {
   name: string;
   kind: TrainingKind;
   files: Record<string, string>;
+  /** 平台預設程式；只有設定檔的環節為空字串 */
   default_code: string;
+  code?: boolean;
   locked: StageLock | null;
+}
+
+/** 部署由匯入的 deploy.json 控制時（分享對象不能在部署頁修改） */
+export interface DeploymentLock {
+  sha256: string;
+  files: Record<string, string>;
+  imported_by: string;
+  imported_at: string;
+  setting: { id: number; name: string } | null;
+}
+
+/** 匯入專案包時的資料對應 */
+export interface PackageMapping {
+  /** package：用專案包內的資料建立新資料集；matched：本專案已有內容相同的資料集；chosen：使用者選的資料集；
+   * version：本專案已有內容相同的影像資料版本；studies：使用者選的研究範圍；choose：需要使用者選擇 */
+  mode: 'package' | 'matched' | 'chosen' | 'version' | 'studies' | 'choose';
+  dataset_id?: number;
+  dataset_name?: string;
+  rows?: number | null;
+  candidates?: { id: number; name: string; valid_rows: number | null }[];
+  version_id?: number;
+  studies_available?: number;
+  source?: Record<string, unknown>;
+}
+
+/** 匯入專案包的檢核結果（照 flow_import.check_package） */
+export interface PackagePlan {
+  name: string;
+  kind: TrainingKind;
+  kind_name: string;
+  locked: StageId[];
+  platform_version?: string | null;
+  warnings: string[];
+  includes: Record<string, unknown>;
+  ready: boolean;
+  errors: string[];
+  mapping?: PackageMapping;
+}
+
+/** 專案包的資料對應選擇：結構式選資料集；影像選全部研究或研究清單 */
+export interface PackageChoice {
+  datasetId?: number | null;
+  studies?: 'all' | string[] | null;
+}
+
+export interface PackageImported extends StageOverview {
+  setting: TrainingSetting;
+  mapping: PackageMapping;
+  warnings: string[];
 }
 
 export interface Deployment {
@@ -188,6 +242,8 @@ export interface Deployment {
   cannot_use_in_platform?: string[];
   allowed_users: string[];
   endpoint: string;
+  /** 由匯入的 deploy.json 控制時的匯入資訊 */
+  stage_lock?: DeploymentLock | null;
   /** 部署的模型名稱與種類（模型已刪除時為 null） */
   model_name?: string | null;
   model_kind?: TrainingKind | null;
@@ -300,6 +356,18 @@ export interface TrainingApi {
   exportStage(settingId: number, stage: StageId): Promise<Download>;
   /** 整個流程（專案包）；includeData 只有計畫主持人可以 */
   exportPackage(settingId: number, includeData: boolean): Promise<Download>;
+  /** 匯入專案包第一步：檢核與資料對應（不建立任何東西） */
+  packageCheck(file: File, choice: PackageChoice): Promise<PackagePlan>;
+  /** 匯入專案包：建立新的訓練設定 */
+  packageImport(file: File, choice: PackageChoice): Promise<PackageImported>;
+}
+
+function packageForm(file: File, choice: PackageChoice): FormData {
+  const form = new FormData();
+  form.append('file', file);
+  if (choice.datasetId != null) form.append('dataset_id', String(choice.datasetId));
+  if (choice.studies != null) form.append('studies', choice.studies === 'all' ? 'all' : JSON.stringify(choice.studies));
+  return form;
 }
 
 async function errorOf(res: Response): Promise<ApiError> {
@@ -393,6 +461,8 @@ export function createTrainingApi(
     exportStage: (id, stage) => download(`${root}/training/settings/${id}/stages/${stage}/export`, `${stage}.zip`),
     exportPackage: (id, includeData) =>
       download(`${root}/training/settings/${id}/package${includeData ? '?include_data=true' : ''}`, `flow-${id}.zip`),
+    packageCheck: (file, choice) => api.postForm(`${root}/training/package-import/check`, packageForm(file, choice)),
+    packageImport: (file, choice) => api.postForm(`${root}/training/package-import`, packageForm(file, choice)),
     async targetFeature(id) {
       try {
         return await api.get<TargetFeature>(`${root}/tabular/datasets/${id}/target-feature`);

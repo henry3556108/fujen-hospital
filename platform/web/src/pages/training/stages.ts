@@ -3,8 +3,12 @@
 import { formatTime } from '../../components/format';
 import { isImageKind, type StageId, type StageLock, type TrainingConfig } from './api';
 
-export const STAGE_NAMES: Record<StageId, string> = { labels: '標註', preprocess: '資料清理與前處理', train: '訓練' };
-export const STAGE_ORDER: StageId[] = ['labels', 'preprocess', 'train'];
+export const STAGE_NAMES: Record<StageId, string> = {
+  import: '資料匯入', labels: '標註', preprocess: '資料清理與前處理', train: '訓練', deploy: '部署',
+};
+export const STAGE_ORDER: StageId[] = ['import', 'labels', 'preprocess', 'train', 'deploy'];
+/** 有程式檔的環節；資料匯入與部署只有設定檔 */
+export const CODE_STAGES: StageId[] = ['labels', 'preprocess', 'train'];
 
 export function stageNames(stages: string[]): string {
   return stages.map((s) => STAGE_NAMES[s as StageId] ?? s).join('、');
@@ -28,6 +32,12 @@ export function keepLocked(config: TrainingConfig, original: TrainingConfig, loc
   const out = clone(config);
   const image = isImageKind(original.kind);
   out.kind = original.kind;
+  if (locked.includes('import')) {
+    // 資料來源由匯入檔控制；標註來源（label_source）屬於標註環節
+    const labelSource = out.source.type === 'dicom' ? out.source.label_source : undefined;
+    out.source = clone(original.source);
+    if (out.source.type === 'dicom' && labelSource !== undefined && !locked.includes('labels')) out.source.label_source = labelSource;
+  }
   if (locked.includes('labels')) {
     if (image && out.image && original.image) {
       out.image.labels = clone(original.image.labels);

@@ -80,11 +80,11 @@ describe('輔助函式', () => {
 });
 
 describe('流程程式碼面板', () => {
-  it('lists the three stages controlled by the form', async () => {
+  it('lists the stages controlled by the form', async () => {
     seed();
     const { panel } = await openFlow();
     const rows = within(within(panel).getByRole('table', { name: '流程環節' })).getAllByRole('row').slice(1);
-    expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual(['標註', '資料清理與前處理', '訓練']);
+    expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual(['資料匯入', '標註', '資料清理與前處理', '訓練', '部署']);
     expect(rows.every((r) => r.textContent!.includes('介面設定'))).toBe(true);
     expect(within(panel).getByRole('button', { name: '下載整個流程（專案包）' })).toBeInTheDocument();
     expect(within(panel).getByRole('checkbox', { name: /附上原始資料/ })).toBeInTheDocument();
@@ -175,7 +175,9 @@ describe('流程程式碼面板', () => {
     const { panel } = await openFlow('糖尿病預測', 'ra01');
     expect(within(panel).getByText(/你沒有程式開發（Coding）權限/)).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: /檢視程式碼/ })).toBeNull();
-    expect(within(panel).queryByRole('button', { name: /上傳環節檔/ })).toBeNull();
+    for (const name of ['標註', '資料清理與前處理', '訓練']) {
+      expect(within(panel).queryByRole('button', { name: `上傳環節檔「${name}」` })).toBeNull();
+    }
     expect(within(panel).queryByRole('button', { name: '下載整個流程（專案包）' })).toBeNull();
     expect(within(panel).getByRole('button', { name: '改回用介面設定「訓練」' })).toBeInTheDocument();
   });

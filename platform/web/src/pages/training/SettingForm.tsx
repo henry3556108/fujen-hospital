@@ -53,6 +53,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   const labelsLocked = lockedIds.includes('labels');
   const preprocessLocked = lockedIds.includes('preprocess');
   const trainLocked = lockedIds.includes('train');
+  const sourceLocked = lockedIds.includes('import');
   const [form, setForm] = useState<FormState>(initial);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -127,9 +128,9 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         </div>
       </div>
 
-      {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} labelsLocked={labelsLocked} preprocessLocked={preprocessLocked} /> : null}
+      {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} labelsLocked={labelsLocked} preprocessLocked={preprocessLocked} sourceLocked={sourceLocked} /> : null}
       {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} onRows={setRows}
-        disabled={labelsLocked || preprocessLocked} algorithmLocked={trainLocked} /> : null}
+        disabled={labelsLocked || preprocessLocked} sourceLocked={sourceLocked} algorithmLocked={trainLocked} /> : null}
 
       {!image && kindEntry?.validation_methods ? (
         <fieldset disabled={trainLocked}>
@@ -286,8 +287,10 @@ function paramHint(s: ParamSpec): string | undefined {
 
 type Setter = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 
-function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLocked }: {
+function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLocked, sourceLocked }: {
   api: TrainingApi; form: FormState; set: Setter; sourceTypes: string[]; labelsLocked?: boolean; preprocessLocked?: boolean;
+  /** 資料匯入環節由匯入檔控制（資料來源、影像範圍、病例） */
+  sourceLocked?: boolean;
 }) {
   const studies = useResource(() => (form.sourceType === 'dicom' ? api.studies() : Promise.resolve([])), [api, form.sourceType]);
   const toggle = (uid: string) => set('studies', form.studies.includes(uid) ? form.studies.filter((s) => s !== uid) : [...form.studies, uid]);
@@ -298,7 +301,7 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
         {sourceTypes.length > 1 ? (
           <div className="field">
             <label htmlFor="ts-source">資料來源</label>
-            <select id="ts-source" className="select" value={form.sourceType} onChange={(e) => set('sourceType', e.target.value as FormState['sourceType'])}>
+            <select id="ts-source" className="select" value={form.sourceType} disabled={sourceLocked} onChange={(e) => set('sourceType', e.target.value as FormState['sourceType'])}>
               <option value="dicom">DICOM 研究（Orthanc）</option>
               <option value="files">NIfTI／ITK 檔案（含遮罩）</option>
             </select>
@@ -306,6 +309,7 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
         ) : null}
         {form.sourceType === 'dicom' ? (
           <>
+            <fieldset className="fieldset-plain stack" disabled={sourceLocked}>
             <div className="checkbox-row" role="radiogroup" aria-label="影像範圍">
               <label className="checkbox">
                 <input type="radio" name="ts-range" checked={form.studiesMode === 'all'} onChange={() => set('studiesMode', 'all')} />
@@ -337,6 +341,7 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
                   ))}
               </div>
             ) : null}
+            </fieldset>
             <div className="field">
               <label htmlFor="ts-provider">標註來源</label>
               <select id="ts-provider" className="select" value={form.labelProvider} disabled={labelsLocked} onChange={(e) => set('labelProvider', e.target.value)}>
@@ -350,7 +355,7 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
             </div>
           </>
         ) : (
-          <div className="form-grid">
+          <fieldset className="fieldset-plain form-grid" disabled={sourceLocked}>
             <div className="field">
               <label htmlFor="ts-format">檔案格式</label>
               <select id="ts-format" className="select" value={form.filesFormat} onChange={(e) => set('filesFormat', e.target.value as 'nifti' | 'itk')}>
@@ -362,7 +367,7 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
               <label htmlFor="ts-cases">病例（每行一個，空白代表全部）</label>
               <textarea id="ts-cases" className="input" rows={3} value={form.cases} onChange={(e) => set('cases', e.target.value)} />
             </div>
-          </div>
+          </fieldset>
         )}
         <div className="form-grid">
           <div className="field">
@@ -399,13 +404,15 @@ function useProcessedColumns(api: TrainingApi, datasetId: string, steps: FormSta
   return datasetId && columns?.key === key ? columns.columns : null;
 }
 
-function TabularSource({ api, form, setForm, catalogue, processed, onRows, disabled, algorithmLocked }: {
+function TabularSource({ api, form, setForm, catalogue, processed, onRows, disabled, sourceLocked, algorithmLocked }: {
   api: TrainingApi; form: FormState; setForm: (f: FormState | ((f: FormState) => FormState)) => void; catalogue: Catalogue;
   processed: ColumnInfo[] | null;
   /** 選到的資料集有幾列（沒選時 null），用來預選驗證方式 */
   onRows: (rows: number | null) => void;
   /** 標註或前處理由匯入檔控制 */
   disabled?: boolean;
+  /** 資料匯入環節由匯入檔控制（資料集） */
+  sourceLocked?: boolean;
   /** 訓練環節由匯入檔控制（演算法） */
   algorithmLocked?: boolean;
 }) {
@@ -467,7 +474,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
         <div className="form-grid">
           <div className="field">
             <label htmlFor="ts-dataset">資料集</label>
-            <select id="ts-dataset" className="select" value={form.datasetId} disabled={disabled}
+            <select id="ts-dataset" className="select" value={form.datasetId} disabled={disabled || sourceLocked}
               onChange={(e) => setForm((f) => ({ ...f, datasetId: e.target.value, target: '', features: [], steps: [] }))}>
               <option value="">請選擇</option>
               {(datasets.data ?? []).map((d) => (

@@ -37,6 +37,7 @@ FORMAT_VERSION = 1
 PLATFORM_VERSION = os.environ.get("PLATFORM_VERSION", "2026.11.0")
 MAX_ERRORS = 20
 STAGES = ("labels", "preprocess", "train")          # 有程式檔、可在網頁編輯的環節
+ALL_STAGES = ("import", "labels", "preprocess", "train", "deploy")   # 可匯入的環節（import、deploy 只有設定檔）
 STAGE_NAMES = {"import": "資料匯入", "labels": "標註", "preprocess": "資料清理與前處理", "dataset": "資料版本凍結",
                "train": "訓練", "deploy": "模型匯出與部署"}
 # 設定檔的鍵屬於哪個環節：放錯環節時指出應該在哪裡改
@@ -107,9 +108,13 @@ def config_name(stage: str) -> str:
 
 
 def check_stage(stage: str) -> str:
-    if stage not in STAGES:
-        raise StageNotFound(f"沒有「{stage}」這個環節（可用：{'、'.join(STAGES)}）")
+    if stage not in ALL_STAGES:
+        raise StageNotFound(f"沒有「{stage}」這個環節（可用：{'、'.join(ALL_STAGES)}）")
     return stage
+
+
+def has_code(stage: str) -> bool:
+    return stage in STAGES
 
 
 # ---------------------------------------------------------------- 設定的切分與合併
@@ -128,6 +133,8 @@ def stage_keys(config: dict[str, Any], stage: str) -> tuple[str, ...]:
 
 def stage_config(config: dict[str, Any], stage: str) -> dict[str, Any]:
     """正規化後的訓練設定中屬於這個環節的部分（環節的設定檔內容）。"""
+    if stage == "import":       # 資料來源（標註來源屬於標註環節）
+        return copy.deepcopy({k: v for k, v in config["source"].items() if k != "label_source"})
     image, tab = _image(config["kind"]), config.get("tabular") or {}
     hyper = config.get("hyperparameters") or {}
     if stage == "labels":
@@ -154,6 +161,12 @@ def merge_config(config: dict[str, Any], stage: str, values: dict[str, Any]) -> 
     out = copy.deepcopy(config)
     image = _image(out["kind"])
     hyper = out.setdefault("hyperparameters", {})
+    if stage == "import":
+        label_source = out["source"].get("label_source")
+        out["source"] = {k: v for k, v in values.items() if k != "label_source"}
+        if label_source is not None and out["source"].get("type") == "dicom":
+            out["source"]["label_source"] = label_source
+        return out
     if stage == "labels":
         if image:
             out["image"]["labels"] = values.get("labels")
@@ -237,6 +250,10 @@ def _readme(setting: TrainingSetting, stage: str) -> str:
 def stage_files(setting: TrainingSetting, stage: str, store: ObjectStore | None = None,
                 session: Session | None = None) -> dict[str, bytes]:
     """環節目前的設定檔與程式檔：匯入控制時是匯入的版本，否則是介面設定與平台預設程式。"""
+    if not has_code(stage):
+        from app.training import flow_stages
+
+        return flow_stages.current_files(session, store, setting, stage)
     row = get_override(session, setting.id, stage) if session is not None else None
     if row is not None and store is not None:
         files = override_files(store, row)
@@ -251,7 +268,7 @@ def descriptor(setting: TrainingSetting, stage: str, files: dict[str, bytes], *,
             "exported_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(), "exported_by": actor,
             "project_id": setting.project_id, "setting": {"id": setting.id, "name": setting.name},
             "files": {name: _sha(body) for name, body in sorted(files.items())},
-            "template_sha256": {code_name(stage): _sha(default_code(setting.kind, stage))}}
+            "template_sha256": ({code_name(stage): _sha(default_code(setting.kind, stage))} if has_code(stage) else {})}
 
 
 def stage_zip(setting: TrainingSetting, stage: str, files: dict[str, bytes], *, actor: str) -> bytes:
@@ -265,7 +282,12 @@ def export_stage(ctx: ProjectContext, state, setting: TrainingSetting, stage: st
                  source_ip: str | None) -> bytes:
     check_stage(stage)
     files = stage_files(setting, stage, state.store, ctx.session)
-    data = stage_zip(setting, stage, files, actor=ctx.user.username)
+    if has_code(stage):
+        data = stage_zip(setting, stage, files, actor=ctx.user.username)
+    else:
+        from app.training import flow_stages
+
+        data = flow_stages.stage_zip(setting, stage, files, actor=ctx.user.username)
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="flow.stage_export",
            target=f"training_setting:{setting.id}", source_ip=source_ip,
            detail={"project_id": setting.project_id, "stage": stage, "sha256": _sha(data),
@@ -537,11 +559,16 @@ def overview(session: Session, state, setting: TrainingSetting) -> dict[str, Any
     rows = list_overrides(session, setting.id)
     locked = overrides_out(rows)
     problem = setting_problem(session, state, setting) if rows else None
+    from app.training import flow_stages
+
     stages = []
-    for stage in STAGES:
-        entry = {"stage": stage, "name": STAGE_NAMES[stage], "files": [config_name(stage), code_name(stage)],
-                 "entrypoints": {k: list(v) for k, v in ENTRYPOINTS[(stage, _image(setting.kind))].items()},
-                 "locked": locked.get(stage), "problem": problem if stage in locked else None}
+    for stage in ALL_STAGES:
+        code = has_code(stage)
+        entry = {"stage": stage, "name": STAGE_NAMES[stage], "code": code,
+                 "files": [config_name(stage), code_name(stage)] if code else flow_stages.file_names(setting, stage),
+                 "entrypoints": ({k: list(v) for k, v in ENTRYPOINTS[(stage, _image(setting.kind))].items()}
+                                 if code else {}),
+                 "locked": locked.get(stage), "problem": problem if stage in locked and stage != "deploy" else None}
         stages.append(entry)
     return {"setting_id": setting.id, "kind": setting.kind, "stages": stages, "problem": problem,
             "locked": sorted(locked, key=list(STAGE_NAMES).index)}
@@ -554,8 +581,8 @@ def stage_view(session: Session, state, setting: TrainingSetting, stage: str) ->
     row = get_override(session, setting.id, stage)
     return {"setting_id": setting.id, "stage": stage, "name": STAGE_NAMES[stage], "kind": setting.kind,
             "files": {name: body.decode("utf-8", "replace") for name, body in files.items()},
-            "default_code": default_code(setting.kind, stage).decode("utf-8"),
-            "locked": overrides_out([row])[stage] if row else None}
+            "default_code": default_code(setting.kind, stage).decode("utf-8") if has_code(stage) else "",
+            "code": has_code(stage), "locked": overrides_out([row])[stage] if row else None}
 
 
 def files_key(setting: TrainingSetting, stage: str, digest: str) -> str:
@@ -596,6 +623,8 @@ def read_stage_zip(setting: TrainingSetting, stage: str, data: bytes) -> dict[st
     if meta.get("kind") != setting.kind:
         a = cfg.KIND_NAMES.get(str(meta.get("kind")), str(meta.get("kind")))
         raise StageInvalid([f"檔案的訓練種類是「{a}」，這份訓練設定是「{cfg.KIND_NAMES[setting.kind]}」，不能匯入"])
+    if not has_code(stage):        # 資料匯入、部署：設定檔（load_data.py、predict.py 只供地端，套用時略過）
+        return {name: body for name, body in files.items() if name not in ("stage.json", "README.md")}
     return {name: body for name, body in files.items() if name in (config_name(stage), code_name(stage))}
 
 
@@ -604,6 +633,11 @@ def apply_stage(ctx: ProjectContext, state, setting: TrainingSetting, stage: str
     """套用環節檔（網頁編輯後的文字，或上傳的 zip 內容）。符合框架才寫入，否則列出全部錯誤並留失敗稽核。
     套用後這個環節由匯入的檔案控制；再次套用時覆寫，config_before 保留第一次匯入前的設定。"""
     check_stage(stage)
+    if not has_code(stage):
+        from app.training import flow_stages
+
+        apply = flow_stages.apply_import if stage == "import" else flow_stages.apply_deploy
+        return apply(ctx, state, setting, files, source_ip=source_ip, upload=upload)
     files = {config_name(stage): files.get(config_name(stage)), code_name(stage): files.get(code_name(stage))}
     files = {k: v for k, v in files.items() if v is not None}
     errors, _, normal = check_stage_files(ctx, state, setting, stage, files)
@@ -652,6 +686,11 @@ def unlock_stage(ctx: ProjectContext, state, setting: TrainingSetting, stage: st
     row = get_override(ctx.session, setting.id, stage)
     if row is None:
         raise StageConflict(f"「{STAGE_NAMES[stage]}」環節目前不是由匯入的檔案控制")
+    if stage == "deploy":
+        from app.training import flow_stages
+
+        flow_stages.unlock_deploy(ctx, state, setting, row, source_ip=source_ip)
+        return setting
     try:
         normal = cfg.normalise(merge_config(setting.config, stage, row.config_before))
     except cfg.ConfigError as exc:
@@ -674,16 +713,21 @@ def locked_changes(session: Session, setting: TrainingSetting, new: dict[str, An
     for row in list_overrides(session, setting.id):
         if new.get("kind") != setting.config.get("kind"):
             return [STAGE_NAMES[row.stage]]
-        if row.stage in STAGES and stage_config(new, row.stage) != stage_config(setting.config, row.stage):
+        if row.stage != "deploy" and stage_config(new, row.stage) != stage_config(setting.config, row.stage):
             out.append(STAGE_NAMES[row.stage])
     return out
 
 
 def delete_files(session: Session, store: ObjectStore, setting_id: int) -> None:
     """刪除訓練設定時一併刪除匯入檔。"""
+    from app.training.models import DeploymentStageOverride
+
     for row in list_overrides(session, setting_id):
         _delete(store, row.files_key)
         session.delete(row)
+    for lock in session.scalars(select(DeploymentStageOverride)):
+        if (lock.config_before or {}).get("setting_id") == setting_id:
+            session.delete(lock)
 
 
 # ---------------------------------------------------------------- 送出訓練：組合原始碼
@@ -692,7 +736,8 @@ def compose_source(session: Session, store: ObjectStore, setting: TrainingSettin
     """送出訓練時，把平台範本與匯入控制環節的程式組成一份原始碼 zip（以 executor=source 執行）。
     程式都沒改過（只改參數）時回傳 None：用平台範本執行，設定已在訓練設定內。"""
     rows = list_overrides(session, setting.id)
-    used = {row.stage: {"sha256": row.sha256, "code_changed": row.code_changed} for row in rows}
+    used = {row.stage: {"sha256": row.sha256, "code_changed": row.code_changed} for row in rows
+            if row.stage != "deploy"}            # 部署與這次訓練無關
     code_rows = [row for row in rows if row.code_changed and row.stage in STAGES]
     if not code_rows:
         return None, used
