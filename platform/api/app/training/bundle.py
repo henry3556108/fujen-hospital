@@ -122,8 +122,33 @@ def export_source(kind: str, config: dict[str, Any]) -> bytes:
 
 def read_source(data: bytes) -> dict[str, bytes]:
     """檢查使用者上傳的原始碼 zip，回傳（路徑 → 內容）。"""
-    if len(data) > MAX_SOURCE_BYTES:
-        raise SourceError(f"原始碼壓縮檔超過上限 {MAX_SOURCE_BYTES // 1024 // 1024} MB")
+    files = read_zip(data, "train.py")
+    if "train.py" not in files:
+        raise SourceError("原始碼內找不到 train.py")
+    try:
+        compile(files["train.py"], "train.py", "exec")
+    except SyntaxError as exc:
+        raise SourceError(f"train.py 有語法錯誤（第 {exc.lineno} 行）：{exc.msg}") from None
+    return files
+
+
+def write_zip(files: dict[str, bytes]) -> bytes:
+    """固定檔案時間與順序：同內容產出相同的 zip。"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in sorted(files):
+            info = zipfile.ZipInfo(name, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            archive.writestr(info, files[name])
+    return buffer.getvalue()
+
+
+def read_zip(data: bytes, marker: str, *, max_bytes: int = MAX_SOURCE_BYTES) -> dict[str, bytes]:
+    """檢查使用者上傳的 zip（大小、檔案數、副檔名白名單、不得有絕對路徑或 ..），回傳（路徑 → 內容）。
+    整包放在單一資料夾內（找不到 marker 時）去掉那一層。"""
+    if len(data) > max_bytes:
+        raise SourceError(f"壓縮檔超過上限 {max_bytes // 1024 // 1024} MB")
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile:
@@ -131,7 +156,7 @@ def read_source(data: bytes) -> dict[str, bytes]:
     entries = [e for e in archive.infolist() if not e.is_dir()]
     if len(entries) > MAX_SOURCE_FILES:
         raise SourceError(f"原始碼檔案數超過上限 {MAX_SOURCE_FILES}")
-    if sum(e.file_size for e in entries) > MAX_SOURCE_BYTES * 4:
+    if sum(e.file_size for e in entries) > max_bytes * 4:
         raise SourceError("原始碼解壓後過大")
     files: dict[str, bytes] = {}
     for entry in entries:
@@ -143,14 +168,8 @@ def read_source(data: bytes) -> dict[str, bytes]:
         files[path.as_posix()] = archive.read(entry)
     # 整包放在單一資料夾內時，去掉那一層
     tops = {name.split("/", 1)[0] for name in files}
-    if "train.py" not in files and len(tops) == 1 and all("/" in name for name in files):
+    if marker not in files and len(tops) == 1 and all("/" in name for name in files):
         files = {name.split("/", 1)[1]: body for name, body in files.items()}
-    if "train.py" not in files:
-        raise SourceError("原始碼內找不到 train.py")
-    try:
-        compile(files["train.py"], "train.py", "exec")
-    except SyntaxError as exc:
-        raise SourceError(f"train.py 有語法錯誤（第 {exc.lineno} 行）：{exc.msg}") from None
     return files
 
 

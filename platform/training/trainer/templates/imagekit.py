@@ -179,7 +179,28 @@ def augment(image: np.ndarray, params: dict[str, Any], *, mask: np.ndarray | Non
     return new_image, new_mask, new_boxes
 
 
+_IN_STAGE = False
+
+
 def augment_training_set(samples: list[dict], config: dict[str, Any], seed: int, copies: int = 1) -> list[dict]:
+    """訓練資料的增強。匯入控制的「前處理」環節（preprocess.py 的 augment_training_set）有就用它，
+    否則用平台的做法（augment_samples）。"""
+    global _IN_STAGE
+    module = None if _IN_STAGE else runtime.stage_module("preprocess")
+    custom = getattr(module, "augment_training_set", None)
+    if custom is None:
+        return augment_samples(samples, config, seed, copies)
+    _IN_STAGE = True            # 自訂程式再呼叫這個函式時直接用平台的做法，不會無限遞迴
+    try:
+        out = custom(list(samples), {"augmentation": dict(config), "augmentation_copies": copies}, seed)
+    finally:
+        _IN_STAGE = False
+    if not isinstance(out, list) or not all(isinstance(s, dict) and "image" in s for s in out):
+        raise TypeError("preprocess.py 的 augment_training_set 必須回傳樣本（含 image 的 dict）的清單")
+    return out
+
+
+def augment_samples(samples: list[dict], config: dict[str, Any], seed: int, copies: int = 1) -> list[dict]:
     """在原始訓練樣本之外，每筆再產生 copies 筆增強樣本。驗證與測試資料不增強。"""
     if not augmentation_enabled(config) or copies < 1:
         return list(samples)
@@ -195,6 +216,27 @@ def augment_training_set(samples: list[dict], config: dict[str, Any], seed: int,
 
 
 # --------------------------------------------------------------------------- 樣本
+
+def apply_labels(manifest: dict, config: dict) -> dict:
+    """匯入控制的「標註」環節（labels.py 的 build_labels）。沒有 labels.py 時原樣傳回。
+    這個環節只能刪除、改名、合併 Label；不能新增影像項目或改動影像檔案。"""
+    module = runtime.stage_module("labels")
+    if module is None:
+        return manifest
+    import copy
+
+    labels = list((config.get("image") or {}).get("labels") or manifest.get("label_names") or [])
+    out = module.build_labels(copy.deepcopy(manifest), {"labels": labels})
+    if not isinstance(out, dict) or not isinstance(out.get("items"), list):
+        raise TypeError(f"labels.py 的 build_labels 必須回傳 dict（含 items），實際是 {type(out).__name__}")
+    files = {item["id"]: item["files"] for item in manifest["items"]}
+    for item in out["items"]:
+        if not isinstance(item, dict) or item.get("id") not in files or item.get("files") != files[item["id"]]:
+            raise ValueError("labels.py 新增或改動了影像檔案，這個環節只能改 Label")
+    if not out.get("label_names"):
+        raise ValueError("labels.py 執行後沒有任何 Label（label_names 是空的）")
+    return out
+
 
 def load_samples(data_dir: Path, manifest: dict, size: tuple[int, int], *, want_mask: bool = False,
                  want_boxes: bool = False) -> list[dict]:

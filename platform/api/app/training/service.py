@@ -27,8 +27,8 @@ from app.storage import ObjectNotFound, ObjectStore
 from app.training import bundle, config as cfg, report, snapshot, tracking
 from app.training.inference import (ImageInput, InferenceBackend, InferenceError, InferenceRejected,
                                     ModelNotLoaded)
-from app.training.models import (DatasetVersion, Deployment, DeploymentTitle, InferenceRecord, TrainedModel, TrainingRun,
-                                 TrainingSetting)
+from app.training.models import (DatasetVersion, Deployment, DeploymentTitle, InferenceRecord, RunStages, TrainedModel,
+                                 TrainingRun, TrainingSetting)
 
 ARTIFACTS = ("model.h5", "model.pkl", "preprocess.pkl", "metrics.json", "splits.json", "model_card.json",
              "train.log", "charts.json")
@@ -134,6 +134,12 @@ def update_setting(ctx: ProjectContext, setting_id: int, *, name: Any, config: A
     row = get_setting(ctx.session, ctx.project.id, setting_id)
     name, normal = _check_name(name), cfg.normalise(config)
     _same_name(ctx.session, ctx.project.id, name, exclude=row.id)
+    from app.training import stages
+
+    locked = stages.locked_changes(ctx.session, row, normal)
+    if locked:
+        raise Conflict(f"「{'、'.join(locked)}」環節由匯入的檔案控制，不能在介面修改；"
+                       "要修改請到「流程程式碼」編輯，或按「改回用介面設定」")
     row.name, row.kind, row.config, row.updated_by = name, normal["kind"], normal, ctx.user.username
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training_setting.update",
            target=f"training_setting:{row.id}", source_ip=source_ip,
@@ -142,8 +148,14 @@ def update_setting(ctx: ProjectContext, setting_id: int, *, name: Any, config: A
     return row
 
 
-def delete_setting(ctx: ProjectContext, setting_id: int, *, source_ip: str | None) -> None:
+def delete_setting(ctx: ProjectContext, setting_id: int, *, source_ip: str | None, store: ObjectStore | None = None
+                   ) -> None:
     row = get_setting(ctx.session, ctx.project.id, setting_id)
+    if store is not None:
+        from app.training import stages
+
+        stages.delete_files(ctx.session, store, row.id)       # 匯入控制的環節檔
+        ctx.session.flush()
     ctx.session.delete(row)
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training_setting.delete",
            target=f"training_setting:{setting_id}", source_ip=source_ip,
@@ -165,7 +177,9 @@ def run_out(run: TrainingRun, version: DatasetVersion | None = None, model: Trai
            "artifacts": {name: {"sha256": a["sha256"], "size": a["size"]} for name, a in run.artifacts.items()},
            "tracking_run_id": run.tracking_run_id, "created_by": run.created_by,
            "created_at": _iso(run.created_at), "started_at": _iso(run.started_at),
-           "finished_at": _iso(run.finished_at), "custom_source": run.source_key is not None}
+           "finished_at": _iso(run.finished_at), "custom_source": run.source_key is not None,
+           # 送出時由匯入檔控制的環節（例如 ["preprocess", "train"]）；沒有時是空清單
+           "imported_stages": sorted(run.imported.stages) if run.imported is not None else []}
     if version is not None:
         out["dataset_version"] = snapshot.version_out(version)
     out["model_id"] = model.id if model is not None else None
@@ -196,19 +210,24 @@ def job_image(state, *, gpu: bool) -> str:
     return getattr(state, "training_gpu_image", None) or os.environ.get("TRAINING_GPU_IMAGE") or cpu
 
 
-def _workload(state, run: TrainingRun, token: str) -> Workload:
+IMPORTED_CODE_TIMEOUT = int(os.environ.get("TRAINING_IMPORTED_CODE_TIMEOUT_SECONDS", str(6 * 3600)))
+
+
+def _workload(state, run: TrainingRun, token: str, *, timeout: int | None = None) -> Workload:
     image = job_image(state, gpu=run.executor != "fake" and run.kind in cfg.IMAGE_KINDS)
     base = (getattr(state, "job_io_url", None) or os.environ.get("JOB_IO_BASE_URL", "http://api:8000")).rstrip("/")
     size = "fake" if run.executor == "fake" else ("image" if run.kind in cfg.IMAGE_KINDS else "tabular")
     # 容器只拿到這三個值加上執行緒數；token 只對這一次訓練的資料包與產出有效，不是平台憑證
     env = {"RUN_ID": str(run.id), "JOB_IO_URL": f"{base}/api/job-io/runs/{run.id}", "JOB_IO_TOKEN": token,
            "TRAIN_THREADS": "1"}
+    if timeout:
+        env["JOB_TIMEOUT_SECONDS"] = str(timeout)     # runner 在時限到時停止使用者程式（匯入的環節程式）
     return Workload(image=image, command=("python", "-m", "trainer.runner"), env=env, memory_mb=MEMORY_MB[size],
                     cpu_request="250m", expected_seconds=60, training_id=run.id)
 
 
 def _start(ctx: ProjectContext, state, backend: JobBackend, *, run: TrainingRun, version: DatasetVersion,
-           action: str, source_ip: str | None, detail: dict[str, Any]) -> TrainingRun:
+           action: str, source_ip: str | None, detail: dict[str, Any], timeout: int | None = None) -> TrainingRun:
     session = ctx.session
     session.add(run)
     session.flush()
@@ -235,7 +254,8 @@ def _start(ctx: ProjectContext, state, backend: JobBackend, *, run: TrainingRun,
 
     try:
         scheduling.submit_job(session, backend, project=ctx.project, actor=ctx.user.username, kind="training",
-                              source_ip=source_ip, workload=_workload(state, run, token), on_created=link)
+                              source_ip=source_ip, workload=_workload(state, run, token, timeout=timeout),
+                              on_created=link)
     except scheduling.SchedulingError as exc:
         session.rollback()
         error = Unavailable if exc.status_code == 503 else Conflict
@@ -264,15 +284,21 @@ APPLY_HINT = "資料集的 Target／Feature 或前處理可能已修改；請在
 def check_tabular(store: ObjectStore, project_id: int, manifest: dict[str, Any], setting: dict[str, Any]) -> None:
     """送出前先用凍結的資料檢查結構式設定，避免排隊後才失敗：欄位存在、目標欄位可訓練、特徵不是識別碼。
     文字／類別特徵不用先編碼（範本會在 scikit-learn Pipeline 內自動 One-Hot）。"""
-    import pandas as pd
-    from tabular.errors import TabularError
-    from tabular.fitted import fit_pipeline
     from tabular.schema import Schema
     from tabular.validate import load_clean_csv
 
     files = manifest["items"][0]["files"]
     schema = Schema.from_dict(json.loads(store.get(snapshot.blob_key(project_id, files["schema"]["blob"]))))
     frame = load_clean_csv(io.BytesIO(store.get(snapshot.blob_key(project_id, files["csv"]["blob"]))), schema)
+    check_tabular_frame(frame, setting)
+
+
+def check_tabular_frame(frame, setting: dict[str, Any]) -> None:
+    """check_tabular 的欄位檢查（資料表已載入）。流程程式碼套用時也用它檢查合併後的設定。"""
+    import pandas as pd
+    from tabular.errors import TabularError
+    from tabular.fitted import fit_pipeline
+
     spec = setting["tabular"]
     try:
         _, out = fit_pipeline(frame, spec.get("steps") or [])
@@ -313,18 +339,47 @@ def submit_run(ctx: ProjectContext, state, backend: JobBackend, *, setting: Trai
     except (cfg.ConfigError, snapshot.SnapshotError) as exc:
         ctx.session.rollback()
         raise _translate(exc) from exc
-    if setting.kind in cfg.TABULAR_KINDS:
+    # 流程程式碼：匯入控制的環節。整份設定要通過檢核；有改過程式的環節時組成原始碼 zip，以 executor=source 執行
+    from app.training import stages
+
+    problem = stages.setting_problem(ctx.session, state, setting)
+    if problem:
+        ctx.session.rollback()
+        raise Conflict(f"匯入控制的環節需要處理，處理完才能送出訓練：{problem}")
+    custom = stages.custom_stages(ctx.session, setting.id)
+    # 標註或前處理用了自訂程式時，欄位可能由程式產生，留到訓練時檢查
+    if setting.kind in cfg.TABULAR_KINDS and not (custom.get("labels") or custom.get("preprocess")):
         try:
             check_tabular(state.store, ctx.project.id, manifest, setting.config)
         except Invalid:
             ctx.session.rollback()
             raise
+    source, used = stages.compose_source(ctx.session, state.store, setting)
+    if source is not None and executor == "template":
+        executor = "source"
     config = cfg.job_config(setting.config, executor=executor, label_names=manifest["label_names"])
     run = TrainingRun(project_id=ctx.project.id, setting_id=setting.id, dataset_version_id=version.id,
                       name=setting.name, kind=setting.kind, executor=executor, config=config, seed=config["seed"],
                       created_by=ctx.user.username)
-    return _start(ctx, state, backend, run=run, version=version, action="training.submit", source_ip=source_ip,
-                  detail={"setting_id": setting.id, "items": version.item_count})
+    detail: dict[str, Any] = {"setting_id": setting.id, "items": version.item_count}
+    if used:
+        ctx.session.add(run)
+        ctx.session.flush()
+        ctx.session.add(RunStages(run_id=run.id, project_id=run.project_id, stages=used))
+        detail["stages"] = {name: entry["sha256"] for name, entry in used.items()}
+    if executor == "source":
+        run.source_key = run_prefix(run) + "source.zip"
+        state.store.put(run.source_key, source)
+        detail["source_sha256"] = hashlib.sha256(source).hexdigest()
+    try:
+        out = _start(ctx, state, backend, run=run, version=version, action="training.submit", source_ip=source_ip,
+                     detail=detail, timeout=IMPORTED_CODE_TIMEOUT if executor == "source" else None)
+    except TrainingError:
+        if run.source_key:
+            state.store.delete(run.source_key)
+        raise
+    ctx.session.expire(out, ["imported"])
+    return out
 
 
 def rerun(ctx: ProjectContext, state, backend: JobBackend, *, run: TrainingRun,
@@ -674,6 +729,14 @@ def _slug(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "model"
 
 
+def ensure_deployable(model: TrainedModel) -> None:
+    """使用者程式產生、引用了平台不允許類別的模型（runner 在訓練結束時檢查，寫在模型卡）：只能下載，
+    不能在平台推論或部署。平台範本的模型卡沒有 deployable，一律可以。"""
+    card = model.card or {}
+    if card.get("deployable") is False:
+        raise Conflict(card.get("deploy_blocked") or "這個模型使用自訂程式，不能在平台推論或部署，只能下載在平台外使用")
+
+
 def get_model(session: Session, project_id: int, model_id: int) -> TrainedModel:
     model = session.get(TrainedModel, model_id)
     if model is None or model.project_id != project_id:
@@ -902,6 +965,7 @@ def upload_inference(ctx: ProjectContext, state, *, model: TrainedModel, files: 
         raise Invalid("請上傳至少一個檔案")
     if sum(len(d) for _, d in files) > MAX_INFERENCE_BYTES:
         raise TooLarge(f"上傳檔案超過上限 {MAX_INFERENCE_BYTES // 1024 // 1024} MB")
+    ensure_deployable(model)
     backend = inference_backend(state)
     input_ = {"files": [{"name": n, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for n, d in files]}
     if blocked:
@@ -1069,6 +1133,7 @@ def create_deployment(ctx: ProjectContext, state, *, model: TrainedModel, name: 
         raise Invalid("部署名稱只能用小寫英數字與連字號，開頭結尾必須是英數字，最多 63 字")
     if title is not None and (not isinstance(title, str) or len(title.strip()) > 128):
         raise Invalid("顯示名稱最多 128 字")
+    ensure_deployable(model)
     title = (title or "").strip() or model.name
     users = _users(ctx.session, allowed_users)
     if ctx.session.scalar(select(Deployment).where(Deployment.name == name)):

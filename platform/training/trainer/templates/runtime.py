@@ -118,6 +118,30 @@ def finish(out_dir: Path, *, config: dict, manifest: dict, model_file: str, mode
     return full_card
 
 
+def stage_folder() -> Path:
+    """訓練程式（train.py）所在的資料夾。"""
+    main_module = sys.modules.get("__main__")
+    return Path(getattr(main_module, "__file__", None) or ".").resolve().parent
+
+
+def stage_module(name: str):
+    """匯入控制的環節程式（labels.py、preprocess.py）：與訓練程式同一個資料夾內有這個檔案才載入，否則回傳 None。
+    平台範本與「匯出原始碼」都沒有這兩個檔，行為與原本相同；只有用匯入程式碼送出的訓練才會有。"""
+    import importlib.util
+
+    path = stage_folder() / f"{name}.py"
+    if not path.is_file():
+        return None
+    loaded = sys.modules.get(name)
+    if loaded is not None and Path(getattr(loaded, "__file__", "") or "").resolve() == path.resolve():
+        return loaded
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def main(train: Callable[[dict, Path, Path], dict], argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="平台訓練範本")
     parser.add_argument("--config", default="config.json")

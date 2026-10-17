@@ -112,6 +112,21 @@ def failure_message(code: int, log: str) -> str:
     return f"{reason}{DETAILS}訓練程式以 {code} 結束：\n{_tail(log)}"
 
 
+def mark_deployable(out: Path) -> None:
+    """使用者程式（修改後的原始碼、匯入的環節程式）產生的模型：檢查能不能在平台推論或部署，寫進模型卡。
+    平台範本產生的模型不檢查（模型卡與原本相同）。檢查用限制類別的 Unpickler，被擋下的類別不會被建立。"""
+    from trainer.predict import model_check
+
+    path = out / "model_card.json"
+    try:
+        card = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return
+    if isinstance(card, dict):
+        card.update(model_check(out))
+        path.write_text(json.dumps(card, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def run_job(io_: JobIO, workdir: Path, *, python: str = sys.executable, templates: Path = TEMPLATES,
             timeout: float | None = None) -> int:
     workdir = Path(workdir)
@@ -141,6 +156,8 @@ def run_job(io_: JobIO, workdir: Path, *, python: str = sys.executable, template
         if missing or not any((out / n).is_file() for n in ("model.h5", "model.pkl")):
             io_.complete("failed", "訓練程式結束，但沒有寫出模型（model.h5 或 model.pkl）與 model_card.json")
             return 1
+        if config.get("executor") == "source":
+            mark_deployable(out)
         for name in UPLOADS:
             if (out / name).is_file():
                 io_.upload(name, (out / name).read_bytes())

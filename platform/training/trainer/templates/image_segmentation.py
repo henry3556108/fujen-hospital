@@ -39,7 +39,7 @@ def dice(predicted: np.ndarray, truth: np.ndarray, classes: int) -> float | None
 
 
 def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
-    manifest = runtime.load_manifest(data_dir)
+    manifest = imagekit.apply_labels(runtime.load_manifest(data_dir), config)
     size, augmentation = imagekit.image_config(config)
     if size[0] % 2 or size[1] % 2:
         raise ValueError("影像分割的 Resize 高與寬必須是偶數")

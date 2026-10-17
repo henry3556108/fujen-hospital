@@ -31,7 +31,7 @@ def build(keras, size, classes: int, filters: int, learning_rate: float):
 
 
 def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
-    manifest = runtime.load_manifest(data_dir)
+    manifest = imagekit.apply_labels(runtime.load_manifest(data_dir), config)
     size, augmentation = imagekit.image_config(config)
     labels = list((config.get("image") or {}).get("labels") or manifest.get("label_names") or [])
     if len(labels) < 2:

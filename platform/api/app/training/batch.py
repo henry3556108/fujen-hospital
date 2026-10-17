@@ -100,6 +100,9 @@ def _workload(state, row: InferenceRecord, model: TrainedModel, token: str) -> W
 def submit(ctx: ProjectContext, state, backend: JobBackend, *, model: TrainedModel, subset: Any,
            source_ip: str | None) -> InferenceRecord:
     session = ctx.session
+    from app.training.service import ensure_deployable
+
+    ensure_deployable(model)          # 自訂程式產生、引用不允許類別的模型不在平台推論
     input_ = _plan(session, state.store, model, subset)
     scheduling.ensure_defaults(session)
     count = len(input_.get("rows") or input_.get("items") or [])

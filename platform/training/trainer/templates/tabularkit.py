@@ -176,8 +176,50 @@ def _xy(part: pd.DataFrame, spec: dict) -> tuple[tuple[pd.DataFrame, pd.Series, 
 EMPTY_COUNTS = {"missing_target": 0, "missing_feature": 0, "filled": 0, "columns": {}}
 
 
+def apply_labels(frame: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """匯入控制的「標註」環節（labels.py 的 build_labels）。沒有 labels.py 時原樣傳回。
+    這個環節只能新增或修改目標欄位、刪除列；其他欄位推論時沒有這段程式，所以不能改。"""
+    module = runtime.stage_module("labels")
+    if module is None:
+        return frame
+    spec = config["tabular"]
+    target = spec["target"]
+    out = module.build_labels(frame.copy(), {"target": target, "features": list(spec["features"])})
+    if not isinstance(out, pd.DataFrame):
+        raise TypeError(f"labels.py 的 build_labels 必須回傳 DataFrame，實際是 {type(out).__name__}")
+    if target not in out.columns:
+        raise ValueError(f"labels.py 執行後找不到目標欄位「{target}」")
+    added = [str(c) for c in out.columns if c not in frame.columns and c != target]
+    if added:
+        raise ValueError(f"labels.py 新增了欄位「{'、'.join(added)}」，這個環節只能改 Target 與刪除列")
+    if out.index.has_duplicates or not out.index.isin(frame.index).all():
+        raise ValueError("labels.py 新增了資料列，這個環節只能改 Target 與刪除列")
+    for column in frame.columns:
+        if column != target and (column not in out.columns or not out[column].equals(frame.loc[out.index, column])):
+            raise ValueError(f"labels.py 改動了特徵欄位「{column}」，這個環節只能改 Target 與刪除列")
+    return out.reset_index(drop=True)
+
+
+def fit_preprocess(train: pd.DataFrame, spec: dict) -> tuple[Any, pd.DataFrame]:
+    """在訓練資料上擬合前處理。匯入控制的「前處理」環節（preprocess.py 的 fit_transform）有就用它，
+    否則用平台的步驟（tabular.fitted.fit_pipeline）。"""
+    module = runtime.stage_module("preprocess")
+    if module is None:
+        return fit_pipeline(train, spec.get("steps") or [])
+    result = module.fit_transform(train, {"steps": spec.get("steps") or [], "missing": spec.get("missing")})
+    if not isinstance(result, tuple) or len(result) != 2 or not isinstance(result[1], pd.DataFrame) \
+            or not callable(getattr(result[0], "transform", None)):
+        raise TypeError("preprocess.py 的 fit_transform 必須回傳 (轉換器, DataFrame)，轉換器要有 transform(frame)")
+    return result
+
+
+def is_custom_preprocess(fitted: Any) -> bool:
+    """前處理不是平台的步驟（匯入的 preprocess.py 自己寫的轉換器）：模型只能下載，不能在平台推論或部署。"""
+    return not isinstance(fitted, FittedPipeline)
+
+
 def _fit_transform(frame: pd.DataFrame, rows: dict[str, list[int]], spec: dict):
-    fitted, train_out = fit_pipeline(frame.iloc[rows["train"]].reset_index(drop=True), spec.get("steps") or [])
+    fitted, train_out = fit_preprocess(frame.iloc[rows["train"]].reset_index(drop=True), spec)
     data, counts = {}, {}
     data["train"], counts["train"] = _xy(train_out, spec)
     for name in rows:
@@ -212,7 +254,7 @@ def prepare(config: dict, data_dir: Path) -> dict[str, Any]:
     K 折交叉驗證時，訓練與驗證的列合併成交叉驗證用的資料（最後的模型也用它訓練），測試列照樣保留。"""
     manifest = runtime.load_manifest(data_dir)
     spec = {**config["tabular"], "missing": missing_of(config)}
-    frame = load_frame(data_dir, manifest)
+    frame = apply_labels(load_frame(data_dir, manifest), config)
     seed = int(config["seed"])
     rows = runtime.split_rows(len(frame), config["split"], seed)
     validation = validation_of(config)
@@ -319,8 +361,12 @@ def input_spec(prepared: dict, spec: dict) -> list[dict]:
     """推論時要提供的原始欄位與可填的值（模型卡用，網頁的「試用預測」依此產生表單）。"""
     frame = prepared["frame"]
     out = []
-    for name in needed_columns({"pipeline": prepared["fitted"], "features": spec["features"],
-                                "target": spec["target"]}):
+    if is_custom_preprocess(prepared["fitted"]):     # 自訂前處理：不知道它讀哪些欄位，只列原始資料裡有的特徵
+        names = [c for c in spec["features"] if c in frame.columns]
+    else:
+        names = needed_columns({"pipeline": prepared["fitted"], "features": spec["features"],
+                                "target": spec["target"]})
+    for name in names:
         col = frame[name]
         if pd.api.types.is_bool_dtype(col):
             out.append({"name": name, "type": "category", "values": ["false", "true"]})
@@ -439,7 +485,8 @@ def save(out_dir: Path, *, config: dict, prepared: dict, model: Any, metrics: di
               "validation": validation_of(config), "missing": prepared["missing"],
               "inputs": input_spec(prepared, spec),
               "encoded_features": categorical_columns(prepared["data"]["train"][0]),
-              "rows": {"total": prepared["frame_rows"], "dropped_for_missing": dropped}, **card},
+              "rows": {"total": prepared["frame_rows"], "dropped_for_missing": dropped},
+              **({"custom_preprocess": True} if is_custom_preprocess(prepared["fitted"]) else {}), **card},
         libraries=LIBRARIES)
 
 

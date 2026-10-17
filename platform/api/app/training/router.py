@@ -14,7 +14,7 @@ from app.permissions import Permission
 from app.scheduling.backend import JobBackend
 from app.scheduling.backend import backend_from_env
 from app.scheduling.router import get_backend
-from app.training import batch, config as cfg, service, snapshot
+from app.training import batch, config as cfg, flow, service, snapshot, stages
 
 router = APIRouter()
 
@@ -32,6 +32,10 @@ def _errors() -> Iterator[None]:
         raise HTTPException(exc.status_code, str(exc))
     except cfg.ConfigError as exc:
         raise HTTPException(422, str(exc))
+    except stages.StageInvalid as exc:
+        raise HTTPException(422, exc.detail())
+    except stages.StageError as exc:
+        raise HTTPException(exc.status_code, str(exc))
 
 
 def _download(data: bytes, filename: str, media_type: str = "application/octet-stream") -> Response:
@@ -80,8 +84,101 @@ def update_setting(setting_id: int, body: SettingIn, request: Request,
 @router.delete(BASE + "/training/settings/{setting_id}", status_code=204)
 def delete_setting(setting_id: int, request: Request, ctx: ProjectContext = Depends(can_train)) -> Response:
     with _errors():
-        service.delete_setting(ctx, setting_id, source_ip=client_ip(request))
+        service.delete_setting(ctx, setting_id, source_ip=client_ip(request), store=request.app.state.store)
     return Response(status_code=204)
+
+
+# ---------------------------------------------------------------- 流程程式碼（各環節的設定檔與程式檔）
+
+def _need(ctx: ProjectContext, permission: Permission) -> None:
+    if permission not in _permissions(ctx):
+        raise HTTPException(403, {"code": "forbidden", "permission": permission.value,
+                                  "message": f"你沒有 {permission.value} 權限"})
+
+
+@router.get(BASE + "/training/settings/{setting_id}/stages")
+def stage_overview(setting_id: int, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
+    """各環節的狀態：介面設定或匯入控制（誰、何時、sha256）、需要處理的問題。"""
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        return stages.overview(ctx.session, request.app.state, setting) | {
+            "can_code": Permission.CODING in _permissions(ctx)}
+
+
+@router.get(BASE + "/training/settings/{setting_id}/stages/{stage}")
+def stage_view(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_code)) -> dict:
+    """「檢視程式碼」：這個環節的設定檔與程式檔內容。"""
+    _need(ctx, Permission.TRAINING)
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        return stages.stage_view(ctx.session, request.app.state, setting, stage)
+
+
+@router.get(BASE + "/training/settings/{setting_id}/stages/{stage}/export")
+def stage_export(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_code)) -> Response:
+    _need(ctx, Permission.TRAINING)
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        data = stages.export_stage(ctx, request.app.state, setting, stage, source_ip=client_ip(request))
+    return _download(data, stages.stage_filename(setting, stage), "application/zip")
+
+
+class StageFilesIn(BaseModel):
+    files: dict[str, str]
+
+
+@router.put(BASE + "/training/settings/{setting_id}/stages/{stage}")
+def stage_apply(setting_id: int, stage: str, body: StageFilesIn, request: Request,
+                ctx: ProjectContext = Depends(can_code)) -> dict:
+    """網頁編輯後「套用」：設定檔與程式檔的文字。符合框架才套用，這個環節改由匯入的內容控制。"""
+    _need(ctx, Permission.TRAINING)        # 匯入程式碼同時需要 coding（改程式）與 training（改訓練設定）
+    files = {name: text.encode("utf-8") for name, text in body.files.items()}
+    for name, data in files.items():       # 逐檔掃毒（貼上的文字）；不乾淨回 422 並寫 malware_blocked 稽核
+        scanning.ensure_clean(request, name, data)
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        stages.apply_stage(ctx, request.app.state, setting, stage, files, source_ip=client_ip(request))
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+
+
+@router.post(BASE + "/training/settings/{setting_id}/stages/{stage}/upload")
+def stage_upload(setting_id: int, stage: str, request: Request, file: UploadFile = File(...),
+                 ctx: ProjectContext = Depends(can_code)) -> dict:
+    """上傳環節檔（平台匯出、修改後重新壓縮的 zip）。"""
+    _need(ctx, Permission.TRAINING)
+    data = file.file.read(service.bundle.MAX_SOURCE_BYTES + 1)
+    scanning.ensure_clean(request, file.filename or f"{stage}.zip", data)   # 不乾淨回 422 並寫 malware_blocked 稽核
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        stages.check_stage(stage)
+        try:
+            files = stages.read_stage_zip(setting, stage, data)
+        except stages.StageInvalid as exc:
+            stages._fail(ctx, setting, stage, data, exc.errors, client_ip(request))
+            raise
+        stages.apply_stage(ctx, request.app.state, setting, stage, files, source_ip=client_ip(request), upload=data)
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+
+
+@router.delete(BASE + "/training/settings/{setting_id}/stages/{stage}")
+def stage_unlock(setting_id: int, stage: str, request: Request, ctx: ProjectContext = Depends(can_train)) -> dict:
+    """改回用介面設定：刪除匯入檔，這個環節的設定還原成匯入前的內容。"""
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        stages.unlock_stage(ctx, request.app.state, setting, stage, source_ip=client_ip(request))
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+
+
+@router.get(BASE + "/training/settings/{setting_id}/package")
+def package_export(setting_id: int, request: Request, include_data: bool = False,
+                   ctx: ProjectContext = Depends(can_code)) -> Response:
+    """整個流程匯出成專案包（在自己的電腦以 run_all.py 重做）。include_data：結構式附上原始資料（限計畫主持人）。"""
+    _need(ctx, Permission.TRAINING)
+    with _errors():
+        setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
+        data, filename = flow.export_package(ctx, request.app.state, setting, include_data=include_data,
+                                             source_ip=client_ip(request))
+    return _download(data, filename, "application/zip")
 
 
 # ---------------------------------------------------------------- 訓練

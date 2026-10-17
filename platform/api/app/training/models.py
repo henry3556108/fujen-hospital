@@ -70,6 +70,8 @@ class TrainingRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # 送出時由匯入檔控制的環節（只讀的關聯，不是欄位）
+    imported: Mapped["RunStages | None"] = relationship(uselist=False, viewonly=True, lazy="selectin")
 
 
 class TrainedModel(Base):
@@ -143,3 +145,45 @@ class InferenceBatch(Base):
     io_closed: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class StageOverride(Base):
+    """匯入控制的環節：這個環節的設定與程式由使用者匯入（或在網頁編輯後套用）的檔案決定，介面不能點擊修改。
+    zip 本體在物件儲存（files_key）；config_before 是第一次匯入前該環節的設定，改回介面設定時還原。
+    另開資料表而不在 training_settings 加欄位，因為平台以 create_all 建表、沒有遷移工具。"""
+    __tablename__ = "training_stage_overrides"
+    __table_args__ = (UniqueConstraint("setting_id", "stage"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
+    setting_id: Mapped[int] = mapped_column(ForeignKey("training_settings.id", ondelete="CASCADE"), index=True)
+    stage: Mapped[str] = mapped_column(String(16))             # import | labels | preprocess | train
+    files_key: Mapped[str] = mapped_column(String(512))
+    sha256: Mapped[str] = mapped_column(String(64))
+    files: Mapped[dict] = mapped_column(JSON, default=dict)     # 檔名 → sha256
+    code_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    config_before: Mapped[dict] = mapped_column(JSON, default=dict)
+    imported_by: Mapped[str] = mapped_column(String(64))
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class DeploymentStageOverride(Base):
+    """匯入控制的部署（deploy 環節）：可呼叫的帳號由匯入的 deploy.json 決定。欄位與 training_stage_overrides 相同。"""
+    __tablename__ = "deployment_stage_overrides"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
+    deployment_id: Mapped[int] = mapped_column(ForeignKey("model_deployments.id", ondelete="CASCADE"), unique=True)
+    files_key: Mapped[str] = mapped_column(String(512))
+    sha256: Mapped[str] = mapped_column(String(64))
+    files: Mapped[dict] = mapped_column(JSON, default=dict)
+    config_before: Mapped[dict] = mapped_column(JSON, default=dict)
+    imported_by: Mapped[str] = mapped_column(String(64))
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class RunStages(Base):
+    """訓練送出時，由匯入檔控制的環節（環節 → 匯入檔 sha256、程式是否改過）。訓練紀錄顯示「使用匯入的程式」。"""
+    __tablename__ = "training_run_stages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("training_runs.id", ondelete="CASCADE"), unique=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT), index=True)
+    stages: Mapped[dict] = mapped_column(JSON, default=dict)

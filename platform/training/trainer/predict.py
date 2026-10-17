@@ -22,9 +22,111 @@ class InputError(ValueError):
     """輸入資料無法推論（422）。"""
 
 
+# 推論服務只載入這些套件的類別（平台範本產生的 model.pkl、preprocess.pkl 都只用到這些）。
+# 使用者修改過的訓練程式可以寫出任意 pkl；直接 pickle.loads 等於在推論服務內執行它的程式，所以限制類別。
+SAFE_MODULES = ("numpy", "pandas", "scipy", "sklearn", "tabular")
+# 標準函式庫只放行重建資料結構需要的
+SAFE_GLOBALS = {("copyreg", "_reconstructor"), ("copyreg", "__newobj__"), ("collections", "OrderedDict"),
+                ("collections", "defaultdict"), ("_codecs", "encode"), ("datetime", "datetime"),
+                ("datetime", "date"), ("datetime", "timedelta"), ("datetime", "timezone"), ("functools", "partial")}
+SAFE_BUILTINS = {"object", "set", "frozenset", "slice", "complex", "range", "bytearray", "dict", "list", "tuple",
+                 "int", "float", "str", "bool", "bytes", "type"}
+# 允許的套件內，可以讀寫檔案、連網路、執行程式或再反序列化的部分一律不放行
+_UNSAFE_PARTS = {"io", "testing", "f2py", "distutils", "ctypeslib", "_pytesttester", "conftest", "_config",
+                 "externals", "parallel", "joblib"}
+_UNSAFE_NAMES = ("read", "load", "save", "open", "eval", "exec", "system", "popen", "compile", "import", "to_pickle",
+                 "from_file", "fromfile", "tofile", "getattr", "setattr", "__import__")
+
+
+class UnsafeModel(pickle.UnpicklingError):
+    """模型檔引用了平台不允許的類別：不能在平台推論或部署。"""
+
+
+def allowed_global(module: str, name: str) -> bool:
+    if (module, name) in SAFE_GLOBALS:
+        return True
+    if module == "builtins":
+        return name in SAFE_BUILTINS
+    parts = module.split(".")
+    if parts[0] not in SAFE_MODULES or _UNSAFE_PARTS & set(parts):
+        return False
+    lowered = name.lower()
+    return not any(lowered.startswith(word) or f"_{word}" in lowered for word in _UNSAFE_NAMES)
+
+
+class SafeUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str):
+        if not allowed_global(module, name):
+            raise UnsafeModel(f"模型檔引用了平台不允許的類別「{module}.{name}」：使用自訂程式的模型不能在平台推論或部署，"
+                              "請下載後在平台外使用")
+        return super().find_class(module, name)
+
+
+def safe_loads(data: bytes) -> Any:
+    """限制類別的 pickle.loads：只允許 numpy、pandas、scipy、scikit-learn、tabular 的類別。"""
+    return SafeUnpickler(io.BytesIO(data)).load()
+
+
+def h5_reason(path: Path) -> str | None:
+    """H5 模型能不能在平台載入：含 Lambda 層或非 Keras 內建的層（自訂程式）時回傳原因。
+    只讀 model_config（JSON），不建立模型，不會執行檔案內的程式。"""
+    import json
+
+    import h5py
+
+    try:
+        with h5py.File(path, "r") as fh:
+            raw = fh.attrs.get("model_config")
+    except Exception as exc:  # noqa: BLE001
+        return f"不是可讀取的 H5：{type(exc).__name__}"
+    if raw is None:
+        return "H5 內沒有 model_config"
+    text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    found: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("class_name") == "Lambda":
+                found.append("Lambda 層")
+            module = node.get("module")
+            if isinstance(module, str) and module.split(".")[0] not in ("keras", "builtins", "numpy"):
+                found.append(f"自訂類別（{module}）")
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(json.loads(text))
+    return f"模型含有{'、'.join(sorted(set(found)))}" if found else None
+
+
+def model_check(out_dir: Path) -> dict[str, Any]:
+    """訓練結束時（runner 內）檢查模型能不能在平台推論或部署，結果寫進模型卡的 deployable。
+    pkl 用限制類別的 Unpickler 實際載入（被擋下的類別不會被建立）；H5 只讀模型結構。"""
+    out_dir = Path(out_dir)
+    reasons = []
+    for name in ("model.pkl", "preprocess.pkl"):
+        if (out_dir / name).is_file():
+            try:
+                safe_loads((out_dir / name).read_bytes())
+            except UnsafeModel as exc:
+                reasons.append(f"{name}：{str(exc).split('：')[0]}")
+            except Exception as exc:  # noqa: BLE001
+                reasons.append(f"{name}：無法載入（{type(exc).__name__}）")
+    if (out_dir / "model.h5").is_file():
+        reason = h5_reason(out_dir / "model.h5")
+        if reason:
+            reasons.append(f"model.h5：{reason}")
+    if not reasons:
+        return {"deployable": True}
+    return {"deployable": False,
+            "deploy_blocked": "自訂程式產生的模型，不能在平台推論或部署，可以下載在平台外使用（" + "；".join(reasons) + "）"}
+
+
 class TabularPredictor:
     def __init__(self, model: bytes, preprocess: bytes, card: dict, schema: dict | None):
-        self.model, self.preprocess, self.card = pickle.loads(model), pickle.loads(preprocess), card
+        self.model, self.preprocess, self.card = safe_loads(model), safe_loads(preprocess), card
         self.schema = Schema.from_dict(schema) if schema else None
 
     def _frame(self, data: bytes) -> pd.DataFrame:
@@ -73,7 +175,10 @@ class ImagePredictor:
         imagekit.keras_setup(0)
         import keras
 
-        self.model = keras.models.load_model(model_path, compile=False)
+        reason = h5_reason(Path(model_path))
+        if reason:
+            raise UnsafeModel(f"{reason}：使用自訂程式的模型不能在平台推論或部署，請下載後在平台外使用")
+        self.model = keras.models.load_model(model_path, compile=False, safe_mode=True)
         self.card = card
         self.size = tuple(card.get("input", {}).get("resize", (32, 32)))
         self.names = card.get("label_names") or []
