@@ -24,6 +24,10 @@ describe('admin Dashboard and Account pages', () => {
     expect(tile(overview, '影像研究')).toBe('6');
     expect(tile(overview, 'GPU 群組')).toBe('2');
     expect(tile(overview, '排程工作')).toBe('0');
+    // 帳號、專案、GPU 群組都能點進去
+    expect(within(overview).getByRole('link', { name: '管理帳號' })).toHaveAttribute('href', '/admin/users');
+    expect(within(overview).getByRole('link', { name: '管理專案' })).toHaveAttribute('href', '/admin/projects');
+    expect(within(overview).getByRole('link', { name: '管理 GPU 群組' })).toHaveAttribute('href', '/admin/compute/groups');
     const status = screen.getByRole('list', { name: '排程工作狀態' });
     expect(tile(status, '排隊中')).toBe('0');
     const table = screen.getByRole('table', { name: '各專案筆數' });

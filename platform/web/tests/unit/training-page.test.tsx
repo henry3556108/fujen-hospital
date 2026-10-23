@@ -201,8 +201,8 @@ describe('建模管理：送出訓練與狀態', () => {
     await user.click(refresh);
     await user.click(refresh);
     await waitFor(() => expect(within(table).getAllByText('已完成')).toHaveLength(5));
-    expect(within(table).getByRole('row', { name: /run-tabular_regression.*（R² -?\d\.\d\d，測試集）/ })).toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /run-image_classification.*準確率 \d+%，測試集/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /run-tabular_regression.*MAE \d+\.\d\d，測試集/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /run-image_classification.*(AUC \d\.\d\d|準確率 \d+%)，測試集/ })).toBeInTheDocument();
     expect(trainingMock().runs.map((r) => r.status)).toEqual(Array(5).fill('succeeded'));
   });
 

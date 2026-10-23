@@ -243,6 +243,13 @@ export function CsvImport({
           {result.dataset_id ? (
             <p>
               <Link to={`/labeling/datasets/${result.dataset_id}`}>查看這份標註資料集</Link>
+              {/* 匯入完的下一步（03 規格 4.1）：有 Training 權限才給建立模型 */}
+              {project?.permissions.includes('training') ? (
+                <>
+                  {'　'}
+                  <Link to={`/training/new?labelDataset=${result.dataset_id}`}>下一步：用這份資料建立模型</Link>
+                </>
+              ) : null}
             </p>
           ) : null}
           {problems.length > 0 ? (

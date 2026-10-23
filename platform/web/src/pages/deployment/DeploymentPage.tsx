@@ -184,7 +184,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
             分享後，同事（例如 md01）登入平台，點左側「使用模型」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「分享給你」）打開，
             就能預測一位病人或多位病人。
           </p>
-          <p className="field__hint">同一個專案中有「推論」權限的成員都看得到這個專案的模型；分享會把模型標示為「分享給你」，並允許資訊人員用程式呼叫。</p>
+          <p className="field__hint">同一個專案中有 Prediction（使用模型）權限的成員都看得到這個專案的模型；分享會把模型標示為「分享給你」，並允許資訊人員用程式呼叫。</p>
           <div className="form-grid">
             {modelId ? null : (
             <div className="field">

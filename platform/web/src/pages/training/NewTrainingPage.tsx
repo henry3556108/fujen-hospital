@@ -138,6 +138,8 @@ function Wizard({ api }: { api: TrainingApi }) {
   const [error, setError] = useState<unknown>(null);
   const [executor, setExecutor] = useState('template');
   const [formKey, setFormKey] = useState(0);
+  // 送出訓練（建立版本、排入佇列）可能要幾秒：期間鎖住表單，避免重複送出
+  const [submitting, setSubmitting] = useState(false);
   const query = params.toString();
   // 已選好研究目的或資料、還沒送出：離開前提醒（送出後導到訓練頁，元件卸載即取消登記）
   useUnsavedChanges(step > 1, '建立訓練還沒送出。');
@@ -167,12 +169,15 @@ function Wizard({ api }: { api: TrainingApi }) {
   const fakeAllowed = me?.account_type === 'admin' && cat.executors.includes('fake');
 
   async function submitRun(setting: TrainingSetting) {
+    if (submitting) return;
     setError(null);
+    setSubmitting(true);
     try {
       const run = await api.submit(setting.id, executor);
       navigate(`/training/runs/${run.id}`, { state: { submitted: setting.name } });
     } catch (err) {
       setError(err);
+      setSubmitting(false);
     }
   }
 
@@ -229,6 +234,8 @@ function Wizard({ api }: { api: TrainingApi }) {
               </button>
             </p>
           </section>
+          {submitting ? <p role="status">正在送出訓練，完成後會打開這次訓練的頁面…</p> : null}
+          <fieldset className="fieldset-plain" disabled={submitting}>
           <SettingForm
             key={formKey}
             api={api}
@@ -252,6 +259,7 @@ function Wizard({ api }: { api: TrainingApi }) {
               ) : null,
             }}
           />
+          </fieldset>
         </>
       ) : null}
     </div>

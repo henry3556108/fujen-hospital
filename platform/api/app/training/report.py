@@ -34,6 +34,7 @@ METRICS = {
     "pixel_accuracy": ("像素準確率", "每個像素分類正確的比例（0～1）。背景很多時容易偏高，請一併看 Dice。"),
     "dice": ("Dice 係數", "預測區域與標註區域的重疊程度（0～1）。越接近 1 越好，一般 0.7 以上算不錯。"),
     "mean_iou": ("平均 IoU", "預測方框與標註方框的重疊比例（0～1）。越接近 1 越好，0.5 以上通常算有框到。"),
+    "map50": ("mAP@0.5", "預測方框與標註方框重疊一半以上算找到，各類別平均精確度（0～1）。越接近 1 越好。"),
     "score": ("分數（快速測試）", "快速測試產生的亂數，沒有意義。"),
 }
 SPLIT_NAMES = {"test": "測試集", "validation": "驗證集", "train": "訓練集"}
@@ -301,9 +302,10 @@ def data_text(data: dict | None) -> str:
     return text
 
 
-PRIMARY = {"tabular_classification": ("auc", "accuracy"), "tabular_regression": ("r2",),
+# 主要指標（03 規格 3.5）：與前端 web/src/pages/training/metrics.ts 的 PRIMARY_METRICS 相同
+PRIMARY = {"tabular_classification": ("auc", "accuracy"), "tabular_regression": ("mae", "r2"),
            "image_classification": ("auc", "accuracy"), "image_segmentation": ("dice", "pixel_accuracy"),
-           "image_detection": ("mean_iou",)}
+           "image_detection": ("map50", "mean_iou")}
 PERCENT = {"accuracy", "sensitivity", "specificity", "baseline_accuracy", "pixel_accuracy"}
 
 
@@ -361,7 +363,7 @@ def verdict(kind: str, metrics: dict, executor: str = "template") -> str:
             if name in scores:
                 value = scores[name]
                 g = "快速測試，沒有意義" if executor == "fake" else grade(name, value, scores.get("baseline_accuracy"))
-                shown = {"auc": "AUC", "r2": "R²"}.get(name, METRICS.get(name, (name,))[0])
+                shown = {"auc": "AUC", "r2": "R²", "mae": "MAE", "rmse": "RMSE"}.get(name, METRICS.get(name, (name,))[0])
                 numbers = f"{shown} {headline_number(name, value)}，{label}"
                 return f"{g}（{numbers}）" if g else numbers
     return ""

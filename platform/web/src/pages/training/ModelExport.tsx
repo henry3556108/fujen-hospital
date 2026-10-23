@@ -42,7 +42,8 @@ export function ModelExport({ api, run }: { api: TrainingApi; run: TrainingRun }
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
       <div className="row-actions">
-        <button type="button" className="btn btn--primary" onClick={() => void act(() => api.downloadModel(run.model_id!))}>
+        {/* 訓練頁的主要按鈕是「前往使用模型」，這裡用描邊（03 規格 4.1） */}
+        <button type="button" className="btn btn--secondary" onClick={() => void act(() => api.downloadModel(run.model_id!))}>
           下載模型（{format}）
         </button>
         {canCode ? (

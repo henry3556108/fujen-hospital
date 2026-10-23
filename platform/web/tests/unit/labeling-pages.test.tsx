@@ -121,8 +121,22 @@ describe('label datasets', () => {
     const named = labelingMock().datasets.find((d) => d.name === 'diagnosis')!;
     expect(named.classes).toEqual(['nodule', 'normal']);
     expect(within(result).getByRole('link', { name: '查看這份標註資料集' })).toHaveAttribute('href', `/labeling/datasets/${named.id}`);
+    // md01 沒有 Training 權限：不給「用這份資料建立模型」
+    expect(within(result).queryByRole('link', { name: /用這份資料建立模型/ })).toBeNull();
     // 第一次有分類標註時，系統也自動建了專案的分類資料集
     await waitFor(() => expect(screen.getByRole('table', { name: '標註資料集' })).toHaveTextContent('分類標註'));
+  });
+
+  it('after a CSV import, someone with Training gets the next step to build a model', async () => {
+    const { user } = await renderArea('/labeling/datasets', 'pi01');
+    await screen.findByRole('heading', { name: '匯入診斷結果' });
+    const rows = MOCK_STUDIES.map((s, i) => `${s.patient_id},${['nodule', 'normal'][i % 2]}`);
+    await user.upload(screen.getByLabelText(/^CSV 檔/), new File([['病歷號,診斷結果', ...rows].join('\n')], 'dx.csv', { type: 'text/csv' }));
+    await screen.findByTestId('csv-preview');
+    await user.click(screen.getByRole('button', { name: '匯入' }));
+    const result = await screen.findByTestId('csv-result');
+    const named = labelingMock().datasets.find((d) => d.name === 'dx')!;
+    expect(within(result).getByRole('link', { name: '下一步：用這份資料建立模型' })).toHaveAttribute('href', `/training/new?labelDataset=${named.id}`);
   });
 
   it('CSV without the needed columns shows the server message', async () => {

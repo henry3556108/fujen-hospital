@@ -27,6 +27,7 @@ export const METRICS: Record<string, MetricInfo> = {
   dice: { label: 'Dice 係數', help: '預測區域與標註區域的重疊程度（0～1）。越接近 1 越好，一般 0.7 以上算不錯。' },
   mean_iou: { label: '平均 IoU', help: '預測方框與標註方框的重疊比例（0～1）。越接近 1 越好，0.5 以上通常算有框到。' },
   score: { label: '分數（快速測試）', help: '快速測試產生的亂數，沒有意義。' },
+  map50: { label: 'mAP@0.5', help: '預測方框與標註方框重疊一半以上算找到，各類別平均精確度（0～1）。越接近 1 越好。' },
 };
 
 export const SPLIT_NAMES: Record<string, string> = { test: '測試集', validation: '驗證集', train: '訓練集' };
@@ -60,7 +61,7 @@ export interface Cv {
   metrics: Record<string, CvMetric>;
 }
 
-export function cvOf(run: TrainingRun): Cv | null {
+export function cvOf(run: Pick<TrainingRun, 'metrics'>): Cv | null {
   const cv = obj(run.metrics.cv);
   if (!cv.folds) return null;
   const metrics = Object.fromEntries(Object.entries(cv).filter(([, v]) => v && typeof v === 'object' && 'mean' in (v as object))) as Record<string, CvMetric>;
@@ -68,7 +69,7 @@ export function cvOf(run: TrainingRun): Cv | null {
 }
 
 /** 各切分的指標（數值），依 測試、驗證、訓練 排列。 */
-export function splitScores(run: TrainingRun): [string, Scores][] {
+export function splitScores(run: Pick<TrainingRun, 'metrics'>): [string, Scores][] {
   return (['test', 'validation', 'train'] as const)
     .map((s): [string, Scores] => [s, numbers(run.metrics[s])])
     .filter(([, v]) => Object.keys(v).length > 0);
@@ -77,12 +78,17 @@ export function splitScores(run: TrainingRun): [string, Scores][] {
 export const sortMetrics = (names: string[]) =>
   [...names].sort((a, b) => (ORDER.indexOf(a) + 1 || 99) - (ORDER.indexOf(b) + 1 || 99));
 
-const PRIMARY: Record<TrainingKind, string[]> = {
+/**
+ * 各任務的主要指標（03 規格 3.5），依序取第一個有的：二分類先 AUC、沒有才用準確率（多分類沒有 AUC，就是準確率）；
+ * 偵測 mAP@0.5；分割 Dice；迴歸 MAE。首頁、模型清單、訓練紀錄、單次訓練都用 primaryScore／primaryText，
+ * 與 platform/api/app/training/report.py 的 PRIMARY 相同。
+ */
+export const PRIMARY_METRICS: Record<TrainingKind, string[]> = {
   tabular_classification: ['auc', 'accuracy'],
-  tabular_regression: ['r2'],
-  image_classification: ['accuracy'],
+  image_classification: ['auc', 'accuracy'],
+  image_detection: ['map50', 'mean_iou'],
   image_segmentation: ['dice', 'pixel_accuracy'],
-  image_detection: ['mean_iou'],
+  tabular_regression: ['mae', 'r2'],
 };
 
 /** 結論用的數字從哪裡來：有 K 折用 K 折平均，否則測試集，再否則驗證集，最後才用訓練集。 */
@@ -94,7 +100,7 @@ export interface Source {
   scores: Scores;
 }
 
-export function sourcesOf(run: TrainingRun): Source[] {
+export function sourcesOf(run: Pick<TrainingRun, 'metrics'>): Source[] {
   const cv = cvOf(run);
   const out: Source[] = [];
   if (cv) out.push({ key: 'cv', label: `${cv.folds} 折平均`, scores: Object.fromEntries(Object.entries(cv.metrics).map(([k, v]) => [k, v.mean])) });
@@ -105,9 +111,9 @@ export function sourcesOf(run: TrainingRun): Source[] {
 }
 
 /** 主要分數（清單排序用，與結論同一個數字）：K 折用平均；否則測試集，再否則驗證集。越大越好。 */
-export function primaryScore(run: TrainingRun): { name: string; value: number; source: string } | null {
-  const sources = sourcesOf(run);
-  for (const name of PRIMARY[run.kind] ?? []) {
+export function primaryScore(run: { kind: string; metrics: TrainingRun['metrics'] | null | undefined }): { name: string; value: number; source: string } | null {
+  const sources = sourcesOf({ metrics: run.metrics ?? {} });
+  for (const name of PRIMARY_METRICS[run.kind as TrainingKind] ?? []) {
     for (const s of sources) {
       if (typeof s.scores[name] === 'number') return { name, value: s.scores[name], source: s.label };
     }
@@ -118,6 +124,18 @@ export function primaryScore(run: TrainingRun): { name: string; value: number; s
     if (name) return { name, value: fallback.scores[name], source: fallback.label };
   }
   return null;
+}
+
+const SHORT_LABELS: Record<string, string> = { auc: 'AUC', r2: 'R²', mae: 'MAE', rmse: 'RMSE' };
+
+/** 主要指標的簡短名稱（AUC、R²、MAE、RMSE 用縮寫，其他同 metricLabel）；各頁共用。 */
+export function primaryLabel(name: string): string {
+  return SHORT_LABELS[name] ?? metricLabel(name);
+}
+
+/** 主要指標的一段文字，例如「AUC 0.84」「準確率 65%」；首頁、模型清單、訓練紀錄、單次訓練共用。 */
+export function primaryText(name: string, value: number): string {
+  return `${primaryLabel(name)} ${headlineNumber(name, value)}`;
 }
 
 /** 結論句的數字：比例用整數百分比，其他取兩位小數（例如 AUC 0.84）。四捨五入（0.725 → 0.73），與報表相同。 */
@@ -157,8 +175,7 @@ export function verdict(run: TrainingRun): Verdict | null {
   const source = sourcesOf(run).find((s) => s.label === score.source)!;
   const baseline = source.scores.baseline_accuracy;
   const g = run.executor === 'fake' ? '快速測試，沒有意義' : grade(score.name, score.value, baseline);
-  const label = score.name === 'auc' ? 'AUC' : score.name === 'r2' ? 'R²' : metricLabel(score.name);
-  const numbers = `${label} ${headlineNumber(score.name, score.value)}，${source.label}`;
+  const numbers = `${primaryText(score.name, score.value)}，${source.label}`;
   return { name: score.name, value: score.value, source, grade: g, text: g ? `${g}（${numbers}）` : numbers };
 }
 

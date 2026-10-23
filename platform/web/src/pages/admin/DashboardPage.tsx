@@ -13,12 +13,14 @@ const JOB_STATUS_LABELS: Record<string, string> = {
   held: '已暫存',
 };
 
-function Tile({ label, value, note }: { label: string; value: number; note?: string }) {
+/** 一格數字；有 to 時附上連結，總覽的每一項都能點進去（03 規格第一節 Admin 1） */
+function Tile({ label, value, note, to, link }: { label: string; value: number; note?: string; to?: string; link?: string }) {
   return (
     <li className="card stat-tile">
       <span className="stat-tile__label">{label}</span>
       <span className="stat-tile__value">{value.toLocaleString('zh-TW')}</span>
       {note && <span className="text-muted">{note}</span>}
+      {to && <Link to={to}>{link ?? `查看${label}`}</Link>}
     </li>
   );
 }
@@ -79,13 +81,13 @@ export function DashboardPage() {
           <PendingItems running={d.jobs.by_status.running ?? 0} queued={d.jobs.by_status.queued ?? 0} />
           <h2>全平台筆數</h2>
           <ul className="stat-grid section" aria-label="平台總覽">
-            <Tile label="帳號" value={d.accounts.total} note={`Admin ${d.accounts.admin}、User ${d.accounts.user}`} />
-            <Tile label="專案" value={d.projects} />
+            <Tile label="帳號" value={d.accounts.total} note={`Admin ${d.accounts.admin}、User ${d.accounts.user}`} to="/admin/users" link="管理帳號" />
+            <Tile label="專案" value={d.projects} to="/admin/projects" link="管理專案" />
             <Tile label="專案成員" value={d.memberships} note="帳號加入專案的次數" />
             <Tile label="標註群組" value={d.labeling_groups} note={`群組成員 ${d.labeling_group_members}`} />
             <Tile label="結構式資料集" value={d.tabular_datasets} />
             <Tile label="影像研究" value={d.imaging_studies} />
-            <Tile label="GPU 群組" value={d.gpu_groups} />
+            <Tile label="GPU 群組" value={d.gpu_groups} to="/admin/compute/groups" link="管理 GPU 群組" />
             <Tile label="排程工作" value={d.jobs.total} />
           </ul>
 

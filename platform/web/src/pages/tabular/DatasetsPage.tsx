@@ -59,7 +59,8 @@ export function DatasetsPage() {
       <div className="row-actions">
         <p className="text-muted">表格資料（CSV），例如從病歷或 Excel 匯出的檢驗值、診斷。上傳後可查看資料、選想預測的欄位並整理，再用來建立模型。</p>
         {writable && (
-          <a className="btn btn--primary" href="#upload-csv">
+          // 跳到下方上傳表單；主要按鈕是表單裡的「上傳並驗證」（03 規格 4.1）
+          <a className="btn btn--secondary" href="#upload-csv">
             上傳 CSV
           </a>
         )}

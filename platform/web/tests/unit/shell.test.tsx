@@ -276,7 +276,8 @@ describe('project home', () => {
   it('md01 sees how many are waiting and a 繼續標註 button', async () => {
     await renderApp('/', 'md01');
     expect(await screen.findByRole('heading', { name: /還有 \d+ 筆影像待處理/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /繼續標註/ })).toHaveAttribute('href', '/labeling');
+    // 讀到研究清單後直接指向第一筆待處理的工作台
+    await waitFor(() => expect(screen.getByRole('link', { name: /繼續標註/ }).getAttribute('href')).toMatch(/^\/labeling\/studies\//));
     expect(screen.getByRole('progressbar', { name: '標註進度' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '可以使用的模型' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '最近訓練' })).toBeNull();
@@ -303,7 +304,8 @@ describe('project home', () => {
       labeling: { pending: 3, confirmed: 1, total_studies: 4, last: { study_instance_uid: '1.2.3', accession_number: 'A1', updated_at: '2026-10-01T00:00:00Z' } },
       training: { recent: [], recent_completed: [9] },
     };
-    expect(primaryAction(withLast, [...all])).toEqual({ kind: 'label', to: '/labeling/studies/1.2.3', pending: 3 });
+    expect(primaryAction(withLast, [...all])).toEqual({ kind: 'label', to: '/labeling', pending: 3 });
+    expect(primaryAction(withLast, [...all], [], '1.2.4')).toEqual({ kind: 'label', to: '/labeling/studies/1.2.4', pending: 3 });
     expect(primaryAction(withLast, ['training'])).toEqual({ kind: 'result', to: '/training/runs/9', runId: 9 });
     expect(primaryAction(withLast, ['training'], [9])).toEqual({ kind: 'none' });
     expect(primaryAction({ ...base, data: { studies: 0, tabular_datasets: 0 } }, ['labeling'])).toEqual({ kind: 'import', to: '/data/imaging/import' });

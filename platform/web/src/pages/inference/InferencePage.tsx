@@ -228,7 +228,8 @@ export function ModelPanel({ inference, model, part }: { inference: InferenceApi
                 ))}
               </select>
             </div>
-            <button type="submit" className="btn btn--primary" disabled={busy}>
+            {/* 每頁只有一個實心主要按鈕（03 規格 4.1）：主要動作是「上傳並預測」 */}
+            <button type="submit" className="btn btn--secondary" disabled={busy}>
               {image ? '多張影像一起預測' : '多位病人一起預測'}
             </button>
           </form>

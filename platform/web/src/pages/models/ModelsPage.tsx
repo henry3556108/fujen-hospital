@@ -13,6 +13,7 @@ import { ModelPanel } from '../inference/InferencePage';
 import { ModelName } from '../inference/ModelName';
 import { useTrainingApi, type TrainingApi, type TrainingRun } from '../training/api';
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
+import { primaryScore, primaryText } from '../training/metrics';
 import { ResultView } from '../training/ResultView';
 import { FEW_TESTS, dataVersionText, keyMetrics, sameTestData, testCount } from './keyMetrics';
 import '../training/training.css';
@@ -90,7 +91,8 @@ function ModelList({ inference }: { inference: InferenceApi }) {
           <tbody>
             {list.map((m) => {
               const href = modelHref(m);
-              const main = keyMetrics(m.kind, m.card.metrics, m.card.classes ?? m.card.label_names)[0];
+              // 主要指標與首頁、訓練紀錄、單次訓練共用同一個判定（03 規格 3.5）
+              const main = primaryScore({ kind: m.kind, metrics: m.card.metrics });
               return (
                 <tr key={m.id}>
                   <th scope="row">
@@ -105,7 +107,7 @@ function ModelList({ inference }: { inference: InferenceApi }) {
                   </th>
                   <td>{KIND_NAMES[m.kind]}</td>
                   <td>{m.run_id ? `訓練 #${m.run_id}` : '—'}</td>
-                  <td>{main ? `${main.label} ${main.text}` : '—'}</td>
+                  <td>{main ? primaryText(main.name, main.value) : '—'}</td>
                   <td>{formatTime(m.created_at)}</td>
                 </tr>
               );

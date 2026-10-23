@@ -7,6 +7,9 @@ import { Alert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
 import { Icon } from '../../components/Icon';
 import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
+import { nextPendingStudy } from '../labeling/pending';
+import { primaryText } from '../training/metrics';
+import type { StudySummary } from '../labeling/types';
 import type { OverviewTrainingRun, ProjectOverview } from './types';
 import './home.css';
 
@@ -62,13 +65,20 @@ export type PrimaryAction =
   | { kind: 'import'; to: string }
   | { kind: 'none' };
 
-/** 首頁最上面的主要按鈕（03 規格 3.4，依序判斷） */
-export function primaryAction(ov: ProjectOverview | null, permissions: Permission[], seenRuns: number[] = []): PrimaryAction {
+/**
+ * 首頁最上面的主要按鈕（03 規格 3.4，依序判斷）。
+ * 「繼續標註」打開下一筆待處理（nextUid，上次處理那筆之後的第一筆）；還不知道是哪筆時先到待處理清單。
+ */
+export function primaryAction(
+  ov: ProjectOverview | null,
+  permissions: Permission[],
+  seenRuns: number[] = [],
+  nextUid: string | null = null,
+): PrimaryAction {
   if (!ov) return { kind: 'none' };
   const can = (p: Permission) => permissions.includes(p);
   if (can('labeling') && ov.labeling && ov.labeling.pending > 0) {
-    const last = ov.labeling.last;
-    const to = last ? `/labeling/studies/${encodeURIComponent(last.study_instance_uid)}` : '/labeling';
+    const to = nextUid ? `/labeling/studies/${encodeURIComponent(nextUid)}` : '/labeling';
     return { kind: 'label', to, pending: ov.labeling.pending };
   }
   const unseen = (ov.training?.recent_completed ?? []).find((id) => !seenRuns.includes(id));
@@ -171,7 +181,18 @@ export function HomePage() {
   const permissions = project!.permissions;
   const can = (p: Permission) => permissions.includes(p);
   const seen = readSeen(me.username, pid);
-  const action = primaryAction(ov, permissions, seen);
+  // 有待處理時讀研究清單，找出「繼續標註」要打開的那一筆（03 規格第一節醫師第 2 步）
+  const pendingCount = can('labeling') ? (ov?.labeling?.pending ?? 0) : 0;
+  const lastUid = ov?.labeling?.last?.study_instance_uid ?? null;
+  const studies = useResource(
+    () =>
+      pendingCount > 0
+        ? api.get<{ studies: StudySummary[] }>(`/api/projects/${pid}/labels/summary`).catch(() => null)
+        : Promise.resolve(null),
+    [pid, pendingCount],
+  );
+  const nextUid = nextPendingStudy(studies.data?.studies ?? [], lastUid)?.study_instance_uid ?? null;
+  const action = primaryAction(ov, permissions, seen, nextUid);
   const nav = visibleNav(me, project);
 
   let headline = '';
@@ -296,7 +317,7 @@ export function HomePage() {
                       <Link to={`/models/${m.run_id}/result`}>{m.name}</Link>
                       {m.metric_name && m.metric_value != null && (
                         <span className="text-muted">
-                          {m.metric_name} {m.metric_value.toFixed(3)}
+                          {primaryText(m.metric_name, m.metric_value)}
                         </span>
                       )}
                     </li>
