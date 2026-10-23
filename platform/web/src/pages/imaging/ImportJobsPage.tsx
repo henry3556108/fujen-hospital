@@ -4,6 +4,7 @@ import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
 import { StatusBadge } from '../../components/StatusBadge';
+import { ImagingNav } from './ImagingNav';
 import { countsText, IMPORT_TONE, ImportResult } from './ImportResult';
 import { IMPORT_KIND_LABELS, IMPORT_STATUS_LABELS, type ImportJob } from './types';
 
@@ -19,7 +20,7 @@ function JobDetail({ jobId }: { jobId: string }) {
   );
 }
 
-/** 匯入工作與逐檔結果（含 PACS 取像）。 */
+/** 匯入紀錄：每次匯入的結果與逐檔原因（含院內影像系統取像）。 */
 export function ImportJobsPage() {
   const { api, project } = useSession();
   const { jobId } = useParams();
@@ -27,15 +28,16 @@ export function ImportJobsPage() {
 
   return (
     <>
+      <ImagingNav />
       <div className="page-head">
-        <h2>匯入工作</h2>
+        <h2>匯入紀錄</h2>
         <button type="button" className="btn btn--secondary" onClick={jobs.reload} disabled={jobs.loading}>
           重新整理
         </button>
       </div>
       <ApiErrorAlert error={jobs.error} />
       <div className="table-wrap section">
-        <table aria-label="匯入工作列表">
+        <table aria-label="匯入紀錄">
           <thead>
             <tr>
               <th scope="col" className="num">
@@ -78,7 +80,7 @@ export function ImportJobsPage() {
             ))}
             {jobs.data?.length === 0 && (
               <tr>
-                <td colSpan={7}>這個專案還沒有匯入工作</td>
+                <td colSpan={7}>這個專案還沒有匯入紀錄</td>
               </tr>
             )}
           </tbody>

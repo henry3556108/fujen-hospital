@@ -40,7 +40,8 @@ interface PendingChange {
   current: MemberRow;
 }
 
-export function MembersPage() {
+/** fixedProjectId：管理區單一專案頁傳入路由的專案，不顯示頁內的專案下拉。 */
+export function MembersPage({ fixedProjectId }: { fixedProjectId?: number } = {}) {
   const { api } = useSession();
   const data = useResource(async () => {
     const [projects, users] = await Promise.all([
@@ -53,7 +54,7 @@ export function MembersPage() {
   const users = data.data?.users ?? [];
 
   const [projectId, setProjectId] = useState<number | null>(null);
-  const selectedProject = projects.find((p) => p.id === (projectId ?? projects[0]?.id)) ?? null;
+  const selectedProject = projects.find((p) => p.id === (fixedProjectId ?? projectId ?? projects[0]?.id)) ?? null;
   const members = useResource(
     () =>
       selectedProject
@@ -168,12 +169,12 @@ export function MembersPage() {
 
   return (
     <div className="section">
-      <h2>專案成員</h2>
+      <h2>成員與權限</h2>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={pageError} />
       <ApiErrorAlert error={data.error} />
 
-      <div className="field">
+      <div className="field" hidden={fixedProjectId !== undefined}>
         <label htmlFor="member-project">專案</label>
         <select
           id="member-project"

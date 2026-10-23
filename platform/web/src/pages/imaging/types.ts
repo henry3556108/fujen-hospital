@@ -95,9 +95,22 @@ export const EMPTY_FILTERS: StudyFilters = {
   series_description: '',
 };
 
-export const FILE_STATUS_LABELS: Record<FileStatus, string> = { imported: '已匯入', duplicate: '重複', failed: '失敗' };
+export const FILE_STATUS_LABELS: Record<FileStatus, string> = { imported: '新增', duplicate: '重複', failed: '失敗' };
 export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = { succeeded: '全部成功', partial: '部分失敗', failed: '全部失敗' };
-export const IMPORT_KIND_LABELS: Record<ImportKind, string> = { dicom: 'DICOM 上傳', files: 'NIfTI／ITK／makesense', pacs: 'PACS 取像' };
+export const IMPORT_KIND_LABELS: Record<ImportKind, string> = { dicom: '從電腦上傳（DICOM）', files: '影像與標註檔（NIfTI／ITK／makesense）', pacs: '院內影像系統（PACS）' };
 export const FORMAT_LABELS: Record<ImagingFile['format'], string> = { nifti: 'NIfTI', itk: 'ITK（.mha）', makesense: 'makesense' };
 export const PAIRING_LABELS: Record<ImagingFile['pairing'], string> = { 'n/a': '影像（不需配對）', paired: '已配對', unpaired: '未配對' };
 export const SEX_LABELS: Record<string, string> = { F: '女（F）', M: '男（M）', O: '其他（O）' };
+
+/** 資料範圍的篩選條件：key 與研究列表 API 的查詢參數同名（study_date 為 YYYYMMDD 或 YYYYMMDD-YYYYMMDD） */
+export type ScopeFilters = Partial<StudyFilters>;
+
+/** 資料範圍：存篩選條件，不存影像清單；之後新匯入的影像符合條件就會算進來 */
+export interface Scope {
+  id: number;
+  name: string;
+  filters: ScopeFilters;
+  study_count: number;
+  created_by: string;
+  created_at: string;
+}

@@ -5,7 +5,10 @@ import type { UploadResult } from './api';
 import { useLlm } from './useLlm';
 import { FileInput } from '../../components/FileInput';
 
-const STATUS: Record<string, string> = { indexed: '已寫入', duplicate: '重複', failed: '失敗' };
+const STATUS: Record<string, string> = { indexed: '可使用', duplicate: '重複，已略過', failed: '未完成' };
+
+/** 文件的處理狀態：有片段＝可使用，否則未完成。 */
+export const docStatus = (chunks: number) => (chunks > 0 ? '可使用' : '未完成');
 
 export function KnowledgePage() {
   const { llm } = useLlm();
@@ -49,10 +52,11 @@ export function KnowledgePage() {
 
   return (
     <>
+      <p className="text-muted">「根據文件回答」會從這裡的文件找答案。加入文件後狀態會由「處理中」變成「可使用」；「未完成」的文件請重新加入。</p>
       <ApiErrorAlert error={kbs.error ?? error} />
       <div className="table-wrap section">
-        <table aria-label="知識庫列表">
-          <thead><tr><th>名稱</th><th>文件</th><th>片段</th><th>操作</th></tr></thead>
+        <table aria-label="參考文件集">
+          <thead><tr><th>名稱</th><th>文件數</th><th>片段</th><th>操作</th></tr></thead>
           <tbody>
             {(kbs.data ?? []).map((k) => (
               <tr key={k.id} aria-selected={k.id === selected}>
@@ -66,27 +70,27 @@ export function KnowledgePage() {
           </tbody>
         </table>
       </div>
-      <form aria-label="新增知識庫" className="card section row-actions" onSubmit={create}>
+      <form aria-label="新增參考文件集" className="card section row-actions" onSubmit={create}>
         <div className="field">
-          <label htmlFor="kb-name">知識庫名稱</label>
+          <label htmlFor="kb-name">文件集名稱</label>
           <input id="kb-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-        <button type="submit" className="btn btn--primary">新增知識庫</button>
+        <button type="submit" className="btn btn--secondary">新增文件集</button>
       </form>
       {selected && (
         <section className="card section" aria-labelledby="docs-title">
           <h2 id="docs-title">文件（{kbs.data?.find((k) => k.id === selected)?.name}）</h2>
-          <form aria-label="上傳文件" className="stack" onSubmit={upload}>
+          <form aria-label="加入文件" className="stack" onSubmit={upload}>
             <div className="field">
               <label htmlFor="kb-files">選擇檔案（PDF、DOCX、TXT、CSV、JSON、HTML，可多選）</label>
               <FileInput id="kb-files" multiple accept=".pdf,.docx,.txt,.csv,.json,.html,.htm" onFiles={setFiles} fileNames={files.map((f) => f.name)} />
             </div>
-            <button type="submit" className="btn btn--primary" disabled={busy || files.length === 0}>上傳並建立向量</button>
+            <button type="submit" className="btn btn--primary" disabled={busy || files.length === 0}>{busy ? '處理中…' : '加入文件'}</button>
           </form>
           {result && (
             <>
               <Alert tone={result.counts.failed ? 'warning' : 'success'}>
-                寫入 {result.counts.indexed} 份、重複 {result.counts.duplicate} 份、失敗 {result.counts.failed} 份
+                可使用 {result.counts.indexed} 份、重複 {result.counts.duplicate} 份、未完成 {result.counts.failed} 份
               </Alert>
               <ul aria-label="上傳結果">
                 {result.results.map((r) => (
@@ -95,9 +99,9 @@ export function KnowledgePage() {
               </ul>
             </>
           )}
-          <ul aria-label="已寫入的文件">
+          <ul aria-label="文件與處理狀態">
             {(docs.data ?? []).map((d) => (
-              <li key={d.id}>{d.filename}（{d.format.toUpperCase()}，{d.chunks} 個片段）</li>
+              <li key={d.id}>{d.filename}（{d.format.toUpperCase()}，{d.chunks} 個片段）：{docStatus(d.chunks)}</li>
             ))}
           </ul>
         </section>

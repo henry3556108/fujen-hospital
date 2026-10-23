@@ -13,7 +13,7 @@ from datetime import timezone
 from typing import Any
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.audit import AuditCategory, record
 from app.deps import ProjectContext
@@ -179,11 +179,49 @@ def run_out(run: TrainingRun, version: DatasetVersion | None = None, model: Trai
            "created_at": _iso(run.created_at), "started_at": _iso(run.started_at),
            "finished_at": _iso(run.finished_at), "custom_source": run.source_key is not None,
            # 送出時由匯入檔控制的環節（例如 ["preprocess", "train"]）；沒有時是空清單
-           "imported_stages": sorted(run.imported.stages) if run.imported is not None else []}
+           "imported_stages": sorted(run.imported.stages) if run.imported is not None else [],
+           "label_dataset": _label_dataset_of(run), "test_count": run.test_count}
     if version is not None:
         out["dataset_version"] = snapshot.version_out(version)
     out["model_id"] = model.id if model is not None else None
     return out
+
+
+def _label_dataset_of(run: TrainingRun) -> dict | None:
+    """{id, name, version}；資料集已刪除時 name 為 None，版本號仍保留。"""
+    if run.label_dataset_id is None:
+        return None
+    from app.labeling.models import LabelDataset
+
+    session = object_session(run)
+    ds = session.get(LabelDataset, run.label_dataset_id) if session is not None else None
+    return {"id": run.label_dataset_id, "name": ds.name if ds is not None else None,
+            "version": run.label_dataset_version}
+
+
+def _label_dataset_version(ctx: ProjectContext, setting: TrainingSetting) -> tuple[dict, Any]:
+    """設定帶標註資料集時：對資料集建版（內容相同就沿用最新版），回傳（凍結用的設定, 版本）。"""
+    source = setting.config.get("source") or {}
+    dataset_id = source.get("label_dataset_id")
+    if dataset_id is None:
+        return setting.config, None
+    from app import admin_service
+    from app.labeling import datasets as label_datasets
+    from app.labeling.payloads import InvalidPayload
+
+    try:
+        ds = label_datasets.get_dataset(ctx.session, ctx.project.id, dataset_id)
+    except admin_service.NotFound:
+        raise NotFound(f"找不到標註資料集 {dataset_id}") from None
+    if setting.kind != f"image_{ds.task}":
+        raise Invalid(f"標註資料集「{ds.name}」的任務與訓練種類不符")
+    try:
+        version, _ = label_datasets.ensure_version(ctx.session, ds, actor=ctx.user.username, commit=False)
+    except InvalidPayload as exc:
+        raise Invalid(str(exc)) from exc
+    config = json.loads(json.dumps(setting.config))
+    config["source"]["label_source"] = {"provider": "annotations", "label_dataset_version_id": version.id}
+    return config, version
 
 
 _UNSET = object()
@@ -333,8 +371,13 @@ def submit_run(ctx: ProjectContext, state, backend: JobBackend, *, setting: Trai
     executor = _executor(executor)
     scheduling.ensure_defaults(ctx.session)
     try:
+        frozen_config, label_version = _label_dataset_version(ctx, setting)
+    except TrainingError:
+        ctx.session.rollback()
+        raise
+    try:
         version, manifest = snapshot.freeze(ctx.session, state.store, orthanc=getattr(state, "orthanc", None),
-                                            state=state, project_id=ctx.project.id, setting=setting.config,
+                                            state=state, project_id=ctx.project.id, setting=frozen_config,
                                             actor=ctx.user.username)
     except (cfg.ConfigError, snapshot.SnapshotError) as exc:
         ctx.session.rollback()
@@ -362,6 +405,9 @@ def submit_run(ctx: ProjectContext, state, backend: JobBackend, *, setting: Trai
                       name=setting.name, kind=setting.kind, executor=executor, config=config, seed=config["seed"],
                       created_by=ctx.user.username)
     detail: dict[str, Any] = {"setting_id": setting.id, "items": version.item_count}
+    if label_version is not None:
+        run.label_dataset_id, run.label_dataset_version = label_version.dataset_id, label_version.version
+        detail |= {"label_dataset_id": label_version.dataset_id, "label_dataset_version": label_version.version}
     if used:
         ctx.session.add(run)
         ctx.session.flush()
@@ -390,6 +436,7 @@ def rerun(ctx: ProjectContext, state, backend: JobBackend, *, run: TrainingRun,
     clone = TrainingRun(project_id=run.project_id, setting_id=run.setting_id, dataset_version_id=version.id,
                         parent_run_id=run.id, name=run.name, kind=run.kind, executor=run.executor,
                         config=json.loads(json.dumps(run.config)), seed=run.seed, source_key=run.source_key,
+                        label_dataset_id=run.label_dataset_id, label_dataset_version=run.label_dataset_version,
                         created_by=ctx.user.username)
     return _start(ctx, state, backend, run=clone, version=version, action="training.rerun", source_ip=source_ip,
                   detail={"parent_run_id": run.id})
@@ -417,7 +464,8 @@ def run_with_source(ctx: ProjectContext, state, backend: JobBackend, *, run: Tra
     version = ctx.session.get(DatasetVersion, run.dataset_version_id)
     child = TrainingRun(project_id=run.project_id, setting_id=run.setting_id, dataset_version_id=version.id,
                         parent_run_id=run.id, name=f"{run.name}（修改後的原始碼）"[:128], kind=run.kind,
-                        executor="source", config=config, seed=config["seed"], created_by=ctx.user.username)
+                        executor="source", config=config, seed=config["seed"], created_by=ctx.user.username,
+                        label_dataset_id=run.label_dataset_id, label_dataset_version=run.label_dataset_version)
     ctx.session.add(child)
     ctx.session.flush()
     child.source_key = run_prefix(child) + "source.zip"
@@ -470,6 +518,9 @@ def _finalise(session: Session, state, run: TrainingRun) -> None:
         return
     run.status = JobStatus.SUCCEEDED.value
     run.metrics = card.get("metrics") or _json_artifact(store, run, "metrics.json") or {}
+    splits = _json_artifact(store, run, "splits.json") or {}
+    if isinstance(splits.get("test"), list):        # 測試集筆數：畫面在少於 30 筆時提醒僅供參考
+        run.test_count = len(splits["test"])
     version = session.get(DatasetVersion, run.dataset_version_id)
     card = {**card, "dataset_version_id": version.id, "dataset_content_hash": version.content_hash,
             "run_id": run.id, "executor": run.executor}
@@ -627,7 +678,7 @@ def run_log(store: ObjectStore, run: TrainingRun) -> str:
 
 
 def run_charts(store: ObjectStore, run: TrainingRun) -> dict[str, Any]:
-    """結果圖表資料（範本另外寫的 charts.json）；影像、fake-trainer、舊訓練沒有時為 None。"""
+    """結果圖表資料（範本另外寫的 charts.json）；影像分割與偵測、fake-trainer、舊訓練沒有時為 None。"""
     charts = _json_artifact(store, run, "charts.json") if run.status == JobStatus.SUCCEEDED.value else None
     return {"run_id": run.id, "kind": run.kind, "charts": charts}
 

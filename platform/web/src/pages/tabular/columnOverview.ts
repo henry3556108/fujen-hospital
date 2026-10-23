@@ -63,12 +63,12 @@ export interface Hint {
 export function hints(f: ColumnFacts, role: 'target' | 'feature' | 'none', encoded: boolean): Hint[] {
   const out: Hint[] = [];
   if (role === 'target') {
-    if (f.missing > 0) out.push({ text: `Target 有 ${f.missing} 列缺值，這些列無法用來訓練；可在「前處理」刪除缺值的列`, warn: true });
+    if (f.missing > 0) out.push({ text: `Target 有 ${f.missing} 列缺值，這些列無法用來訓練；可在下方整理步驟刪除缺值的列`, warn: true });
     if (f.unique <= 1) out.push({ text: 'Target 只有一種值，無法訓練模型', warn: true });
   }
   if (role === 'feature') {
     if (isIdentifier(f)) out.push({ text: '每列都不同，像是病歷號等識別碼，建議不要當 Feature', warn: true });
-    if (f.rows && f.missing / f.rows >= HIGH_MISSING) out.push({ text: `缺值 ${Math.round((f.missing / f.rows) * 100)}%，建議在「前處理」補值或不要使用`, warn: true });
+    if (f.rows && f.missing / f.rows >= HIGH_MISSING) out.push({ text: `缺值 ${Math.round((f.missing / f.rows) * 100)}%，建議補值或不要使用`, warn: true });
     if (isTextual(f) && !encoded) out.push({ text: '文字或類別欄位要先轉成 One-Hot 才能訓練：請打開「當作類別」', warn: true });
   }
   if (role !== 'target' && looksLikeCodes(f) && !encoded) out.push({ text: `只有 ${f.unique} 種數字；若是代碼（例如 0、1、2 代表不同分類），請打開「當作類別」`, warn: false });

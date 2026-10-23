@@ -3,11 +3,11 @@ import { screen, within } from '@testing-library/react';
 import { mockDb } from '../../src/mocks/handlers';
 import { renderApp } from '../render';
 
-async function openPage() {
-  const r = await renderApp('/admin/labeling-groups');
-  await screen.findByRole('option', { name: 'P1-lung-ct' });
+// 標註群組在管理區的單一專案頁（/admin/projects/:id/groups），專案由路由決定
+async function openPage(projectId = 1) {
+  const r = await renderApp(`/admin/projects/${projectId}/groups`);
   const form = await screen.findByRole('form', { name: '新增標註群組' });
-  await within(form).findByRole('checkbox', { name: /md01/ });
+  if (projectId === 1) await within(form).findByRole('checkbox', { name: /md01/ });
   return { ...r, form };
 }
 
@@ -68,8 +68,7 @@ describe('admin labeling groups', () => {
   });
 
   it('switching project shows that project’s members and groups', async () => {
-    const { user } = await openPage();
-    await user.selectOptions(screen.getByLabelText('專案'), 'P2-tabular');
+    await openPage(2);
     expect(await screen.findByText('這個專案還沒有成員。')).toBeInTheDocument();
   });
 });

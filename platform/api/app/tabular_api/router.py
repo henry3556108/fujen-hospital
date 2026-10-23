@@ -33,6 +33,8 @@ class TabularRoute(APIRoute):
 router = APIRouter(prefix="/api/projects/{project_id}/tabular", route_class=TabularRoute)
 
 read_access = require_project_permission(Permission.PROJECT)
+# 建立／刪除資料集、儲存 Target／Feature 與前處理步驟屬於建模準備，需 Training；預檢、讀取、統計維持 Project。
+training_access = require_project_permission(Permission.TRAINING)
 
 
 def _dataset(dataset_id: int, ctx: ProjectContext = Depends(read_access)) -> TabularDataset:
@@ -72,7 +74,7 @@ def check_schema(request: Request, file: UploadFile = File(...), schema_text: st
 
 @router.post("/datasets", status_code=201)
 def upload_dataset(request: Request, file: UploadFile = File(...), schema_text: str = Form(..., alias="schema"),
-                   name: str | None = Form(None), ctx: ProjectContext = Depends(read_access)) -> dict:
+                   name: str | None = Form(None), ctx: ProjectContext = Depends(training_access)) -> dict:
     raw, filename = _read_upload(request, file)
     ds, report = service.create_dataset(ctx, request.app.state.store, raw=raw, schema_text=schema_text,
                                         name=(name or "").strip() or filename, filename=filename,
@@ -96,9 +98,9 @@ def get_report(request: Request, ds: TabularDataset = Depends(_dataset)) -> dict
 
 
 @router.delete("/datasets/{dataset_id}", status_code=204)
-def delete_dataset(request: Request, ds: TabularDataset = Depends(_dataset),
-                   ctx: ProjectContext = Depends(read_access),
+def delete_dataset(dataset_id: int, request: Request, ctx: ProjectContext = Depends(training_access),
                    frames: service.FrameCache = Depends(_frames)) -> Response:
+    ds = service.get_dataset(ctx, dataset_id)
     service.delete_dataset(ctx, request.app.state.store, frames, ds, client_ip(request))
     return Response(status_code=204)
 
@@ -184,9 +186,6 @@ def pipeline_preview(body: PipelinePreviewIn, df: pd.DataFrame = Depends(_frame)
 
 
 # ------------------------------------------------------------------ Target／Feature 設定（TC-B04-03）
-
-training_access = require_project_permission(Permission.TRAINING)
-
 
 @router.put("/datasets/{dataset_id}/target-feature")
 def save_target_feature(dataset_id: int, request: Request, body: dict = Body(...),

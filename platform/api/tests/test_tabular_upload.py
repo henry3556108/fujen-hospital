@@ -73,9 +73,11 @@ def test_upload_audited_with_row_counts(client, member, synth, schema_text, sess
     assert (entry.detail["total_rows"], entry.detail["valid_rows"], entry.detail["rejected_rows"]) == (30, 20, 10)
 
 
-def test_viewer_with_project_permission_can_upload(client, member, synth, schema_text):
+def test_viewer_without_training_cannot_create_dataset(client, member, synth, schema_text, store):
     pid, headers = member("vw01", PROJECT_ONLY)
-    assert upload(client, pid, headers, (synth / "cohort_01.csv").read_bytes(), schema_text).status_code == 201
+    response = upload(client, pid, headers, (synth / "cohort_01.csv").read_bytes(), schema_text)
+    assert response.status_code == 403 and response.json()["detail"]["permission"] == "training"
+    assert store.list("projects/") == []
 
 
 def test_non_member_is_403_and_nothing_stored(client, member, add_user, synth, schema_text, store):

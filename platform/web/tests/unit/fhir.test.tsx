@@ -6,7 +6,7 @@ import { layout } from '../../src/pages/fhir/GraphPage';
 describe('FHIR 資料交換（WP6）', () => {
   it('Admin 從帳號管理的分頁進入，看到各資源筆數', async () => {
     const { user } = await renderApp('/admin/projects');
-    await user.click(await screen.findByRole('link', { name: '資料交換（FHIR）' }));
+    await user.click(within(await screen.findByRole('navigation', { name: '系統管理選單' })).getByRole('link', { name: '資料交換' }));
     expect(await screen.findByRole('heading', { level: 1, name: '醫療資料交換（FHIR）' })).toBeInTheDocument();
     const stats = await screen.findByRole('list', { name: '資源筆數' });
     expect(await within(stats).findByText('2')).toBeInTheDocument();

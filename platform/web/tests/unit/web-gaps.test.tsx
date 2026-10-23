@@ -29,7 +29,7 @@ describe('選帳號（UserPicker）', () => {
   });
 
   it('a non-admin with Training picks a colleague by typing the start of the account', async () => {
-    const { user } = await renderApp('/deployment', 'ra01');
+    const { user } = await renderApp('/models/101/share', 'ra01');
     const form = await screen.findByRole('form', { name: '分享給同事使用' });
     const input = within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）');
     await user.type(input, 'md01, u');
@@ -79,7 +79,7 @@ describe('部署：模型名稱與試呼叫', () => {
   it('try-calls a deployment as the logged-in user: refused until the user is on the share list', async () => {
     const { training } = client('pi01');
     await training.deploy({ model_id: 101, title: '確診預測', allowed_users: ['md01'] });
-    const { user } = await renderApp('/deployment', 'pi01');
+    const { user } = await renderApp('/models/101/share', 'pi01');
     const form = await screen.findByRole('form', { name: '試呼叫' });
     expect(within(form).getByText(/你（pi01）不在「確診預測」的分享對象中/)).toBeInTheDocument();
     const body = within(form).getByLabelText('送出的 JSON');
@@ -109,7 +109,7 @@ describe('部署：模型名稱與試呼叫', () => {
   it('an image deployment is try-called with uploaded files', async () => {
     const { training } = client('pi01');
     await training.deploy({ model_id: 102, title: '影像分類', allowed_users: ['pi01'] });
-    const { user } = await renderApp('/deployment', 'pi01');
+    const { user } = await renderApp('/models/102/share', 'pi01');
     const form = await screen.findByRole('form', { name: '試呼叫' });
     await user.click(within(form).getByRole('button', { name: /^送出試呼叫/ }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('請選擇至少一個影像檔');
@@ -151,20 +151,23 @@ describe('訓練紀錄分頁', () => {
     seedRuns(RUN_PAGE + 25);
     const { user } = await renderApp('/training', 'pi01');
     const table = await screen.findByRole('table', { name: '訓練清單' });
-    const ids = () => within(table).getAllByRole('button', { name: /^展開訓練 #/ }).map((b) => Number(b.textContent!.replace(/\D/g, '')));
+    const ids = () => within(screen.getByRole('table', { name: '訓練清單' })).getAllByRole('link', { name: /^查看(進度|結果) #/ })
+      .map((b) => Number(b.textContent!.replace(/\D/g, '')));
     await waitFor(() => expect(ids()).toHaveLength(RUN_PAGE));
+    expect(table).toBeInTheDocument();
+    expect(ids()[0]).toBe(45);
+    expect(screen.getByTestId('runs-range')).toHaveTextContent(`共 45 筆，這一頁是第 1–${RUN_PAGE} 筆`);
+    expect(within(screen.getByRole('navigation', { name: '訓練紀錄分頁' })).getByText('第 1 / 3 頁')).toBeInTheDocument();
+
+    // 篩選建立者：只剩 pi01 送出的
+    await user.type(screen.getByLabelText('建立者'), 'pi01');
+    await waitFor(() => expect(screen.getByTestId('runs-range')).toHaveTextContent(`共 36 筆，這一頁是第 1–${RUN_PAGE} 筆`));
     expect(ids().every((id) => trainingMock().runs.find((r) => r.id === id)!.created_by === 'pi01')).toBe(true);
-    expect(screen.getByTestId('runs-range')).toHaveTextContent(`共 36 筆（只列你送出的），這一頁是第 1–${RUN_PAGE} 筆`);
     const pager = screen.getByRole('navigation', { name: '訓練紀錄分頁' });
     expect(within(pager).getByRole('button', { name: '上一頁' })).toBeDisabled();
     await user.click(within(pager).getByRole('button', { name: '下一頁' }));
     await waitFor(() => expect(ids()).toHaveLength(16));
     expect(within(pager).getByText('第 2 / 2 頁')).toBeInTheDocument();
     expect(within(pager).getByRole('button', { name: '下一頁' })).toBeDisabled();
-
-    await user.click(screen.getByRole('checkbox', { name: '只看我送出的' }));
-    await waitFor(() => expect(screen.getByTestId('runs-range')).toHaveTextContent(`共 45 筆，這一頁是第 1–${RUN_PAGE} 筆`));
-    expect(within(screen.getByRole('navigation', { name: '訓練紀錄分頁' })).getByText('第 1 / 3 頁')).toBeInTheDocument();
-    expect(ids()[0]).toBe(45);
   });
 });

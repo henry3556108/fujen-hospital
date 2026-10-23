@@ -260,8 +260,20 @@ def _like(value: str) -> str:
 
 def _studies_query(session: Session, project_id: int, *, modality: str | None = None,
                    patient_sex: str | None = None, study_description: str | None = None,
-                   study_date: str | None = None, series_description: str | None = None):
+                   study_date: str | None = None, series_description: str | None = None,
+                   study_date_from: str | None = None, study_date_to: str | None = None,
+                   scope_filters: dict | None = None):
     q = select(ImagingStudy).where(ImagingStudy.project_id == project_id)
+    if scope_filters is not None:       # 資料範圍：與其他條件同時成立（AND）
+        inner = _studies_query(session, project_id, **scope_filters).with_only_columns(ImagingStudy.id)
+        q = q.where(ImagingStudy.id.in_(inner))
+    # 起訖日（資料範圍與新版篩選用）：接受 YYYYMMDD 或 YYYY-MM-DD，可與 study_date 並用
+    for name, value, op in (("study_date_from", study_date_from, "ge"), ("study_date_to", study_date_to, "le")):
+        if value:
+            day = value.strip().replace("-", "")
+            if not re.fullmatch(r"\d{8}", day):
+                raise HTTPException(422, f"{name} 格式需為 YYYYMMDD 或 YYYY-MM-DD")
+            q = q.where(ImagingStudy.study_date >= day if op == "ge" else ImagingStudy.study_date <= day)
     allowed = allowlist(session, project_id)
     if allowed:
         q = q.where(ImagingStudy.accession_number.in_(allowed))

@@ -47,14 +47,14 @@ describe('資料集列表', () => {
   });
 
   it('TC-B01-10 uploads a clean CSV: 100 rows accepted, the dataset appears in the list', async () => {
-    const { user } = await renderApp('/data/tabular', 'vw01');
+    const { user } = await renderApp('/data/tabular', 'ra01');
     await upload(user, 'cohort_01.csv', 'cohort-a');
     expect(await screen.findByText('已建立資料集「cohort-a」')).toBeInTheDocument();
     const result = screen.getByRole('region', { name: '「cohort-a」的上傳結果' });
     expect(result).toHaveTextContent('全部通過');
     expect(result).toHaveTextContent('共 100 列，通過 100 列，拒絕 0 列');
     const row = await within(await list()).findByRole('row', { name: /^cohort-a/ });
-    expect(cellsOf(row).slice(0, 6)).toEqual(['cohort-a', 'cohort_01.csv', '100', '100', '0', 'vw01']);
+    expect(cellsOf(row).slice(0, 6)).toEqual(['cohort-a', 'cohort_01.csv', '100', '100', '0', 'ra01']);
   });
 
   it('TC-B01-10 bad.csv: every bad row is listed with column and reason; none is let through', async () => {
@@ -110,6 +110,38 @@ describe('資料集列表', () => {
     expect(await screen.findByText('這個專案還沒有資料集')).toBeInTheDocument();
   });
 
+  it('without Training permission: no upload form and no delete button', async () => {
+    await renderApp('/data/tabular', 'vw01');
+    const table = await list();
+    await within(table).findByRole('link', { name: 'lung-clinical' });
+    expect(within(table).queryByRole('button', { name: '刪除 lung-clinical' })).toBeNull();
+    expect(within(table).getByRole('button', { name: '驗證報告 lung-clinical' })).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: '上傳 CSV' })).toBeNull();
+    expect(screen.getByText(/沒有 Training 權限，無法上傳或刪除資料集/)).toBeInTheDocument();
+  });
+
+  it('dataset header: name, rows, columns, three tabs; 用這份資料建立模型 only with Training', async () => {
+    const first = await renderApp('/data/tabular/2', 'pi01');
+    expect(await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' })).toBeInTheDocument();
+    expect(screen.getByTestId('dataset-size')).toHaveTextContent('100 筆・12 個欄位');
+    const tabs = within(screen.getByRole('navigation', { name: '資料集分頁' })).getAllByRole('link');
+    expect(tabs.map((t) => t.textContent)).toEqual(['查看資料', '整理資料', '統計分析']);
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: '資料集分頁' })).getByRole('link', { name: '查看資料' })).toHaveAttribute('aria-current', 'page'));
+    expect(screen.getByRole('link', { name: '用這份資料建立模型' })).toHaveAttribute('href', '/training/new?tabular=2');
+    first.unmount();
+    await renderApp('/data/tabular/2/view', 'md01');
+    await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' });
+    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
+  });
+
+  it('old sub-paths redirect to the new tabs', async () => {
+    const first = await renderApp('/data/tabular/2/target', 'pi01');
+    expect(await screen.findByRole('form', { name: '整理資料' })).toBeInTheDocument();
+    first.unmount();
+    await renderApp('/data/tabular/2/preview', 'vw01');
+    expect(await screen.findByRole('table', { name: '資料預覽' })).toBeInTheDocument();
+  });
+
   it('404 for a dataset of another project', async () => {
     await renderApp('/data/tabular/1', 'pi01'); // 資料集 1 屬於 P2-tabular
     expect(await screen.findByRole('alert')).toHaveTextContent('找不到資料集 1');
@@ -118,7 +150,7 @@ describe('資料集列表', () => {
 
 describe('預覽與欄位顯示／隱藏', () => {
   it('shows the first 50 rows with row numbers, and pages', async () => {
-    const { user } = await renderApp('/data/tabular/2/preview', 'vw01');
+    const { user } = await renderApp('/data/tabular/2/view', 'vw01');
     expect(await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' })).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: '資料預覽' });
     expect(screen.getByText('第 1–50 列，共 100 列')).toBeInTheDocument();
@@ -132,7 +164,7 @@ describe('預覽與欄位顯示／隱藏', () => {
   });
 
   it('TC-B04-02 hides 3 columns; after a reload the same 3 are still hidden', async () => {
-    const first = await renderApp('/data/tabular/2/preview', 'vw01');
+    const first = await renderApp('/data/tabular/2/view', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     for (const c of ['patient_id', 'bmi', 'smoker']) await first.user.click(screen.getByRole('checkbox', { name: c }));
     await waitFor(() =>
@@ -143,7 +175,7 @@ describe('預覽與欄位顯示／隱藏', () => {
     expect(screen.getByText(/顯示 9 個欄位，已隱藏 3 個：patient_id、bmi、smoker/)).toBeInTheDocument();
     first.unmount();
 
-    const again = await renderApp('/data/tabular/2/preview', 'vw01');
+    const again = await renderApp('/data/tabular/2/view', 'vw01');
     const table = await screen.findByRole('table', { name: '資料預覽' });
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
       '列', 'age', 'sex', 'sbp', 'dbp', 'glucose', 'diagnosis', 'time_to_event', 'event', 'study_accession',
@@ -157,18 +189,18 @@ describe('預覽與欄位顯示／隱藏', () => {
   });
 
   it('TC-B04-02 the hidden state is per account and per dataset', async () => {
-    const first = await renderApp('/data/tabular/2/preview', 'vw01');
+    const first = await renderApp('/data/tabular/2/view', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     await first.user.click(screen.getByRole('checkbox', { name: 'age' }));
     await screen.findByText(/已隱藏 1 個：age/);
     first.unmount();
-    await renderApp('/data/tabular/2/preview', 'pi01');
+    await renderApp('/data/tabular/2/view', 'pi01');
     await screen.findByRole('table', { name: '資料預覽' });
     expect(screen.getByRole('checkbox', { name: 'age' })).toBeChecked();
   });
 
   it('hiding every column asks to show at least one', async () => {
-    const { user } = await renderApp('/data/tabular/2/preview', 'vw01');
+    const { user } = await renderApp('/data/tabular/2/view', 'vw01');
     await screen.findByRole('table', { name: '資料預覽' });
     for (const box of screen.getAllByRole('checkbox')) await user.click(box);
     expect(await screen.findByText('所有欄位都已隱藏，請至少勾選一個欄位。')).toBeInTheDocument();
@@ -178,7 +210,7 @@ describe('預覽與欄位顯示／隱藏', () => {
 
 describe('描述統計與分布', () => {
   it('TC-B04-01 shows the statistics returned by the API', async () => {
-    await renderApp('/data/tabular/2/describe', 'vw01');
+    await renderApp('/data/tabular/2/view?show=describe', 'vw01');
     const table = await screen.findByRole('table', { name: '描述統計' });
     const row = (name: string) => cellsOf(within(table).getByRole('row', { name: new RegExp(`^${name} `) }));
     // 欄位, 類型, 筆數, 缺值, 相異值, 平均, 標準差, 最小, P25, 中位數, P75, 最大, 最常見值, 次數
@@ -194,7 +226,7 @@ describe('描述統計與分布', () => {
   });
 
   it('draws a histogram for a numeric column and category counts for a categorical one', async () => {
-    const { user } = await renderApp('/data/tabular/2/describe', 'vw01');
+    const { user } = await renderApp('/data/tabular/2/view?show=describe', 'vw01');
     const fig = await screen.findByRole('figure', { name: 'age 的分布' });
     expect(within(fig).getAllByRole('img', { name: /：\d+$/ })).toHaveLength(10);
     await user.selectOptions(screen.getByLabelText('欄位'), 'bmi');

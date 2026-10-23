@@ -19,8 +19,13 @@ export function StudyDetailPage() {
   return (
     <>
       <h2>研究明細</h2>
-      <p>
-        <Link to="/data/imaging">回研究列表</Link>
+      <p className="row-actions">
+        <Link to="/data/imaging">回影像清單</Link>
+        {studyUid && (
+          <Link to={`/labeling/studies/${encodeURIComponent(studyUid)}`} className="btn btn--primary">
+            開始標註
+          </Link>
+        )}
       </p>
       <ApiErrorAlert error={study.error} />
       {study.loading && !s && <p role="status">載入中…</p>}

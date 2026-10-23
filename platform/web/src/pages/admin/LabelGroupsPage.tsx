@@ -129,11 +129,12 @@ function GroupForm({
   );
 }
 
-export function LabelGroupsPage() {
+/** fixedProjectId：管理區單一專案頁傳入路由的專案，不顯示頁內的專案下拉。 */
+export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } = {}) {
   const { api } = useSession();
   const projects = useResource(() => api.get<Project[]>('/api/admin/projects'));
   const [projectId, setProjectId] = useState<number | null>(null);
-  const project = projects.data?.find((p) => p.id === (projectId ?? projects.data?.[0]?.id)) ?? null;
+  const project = projects.data?.find((p) => p.id === (fixedProjectId ?? projectId ?? projects.data?.[0]?.id)) ?? null;
   const detail = useResource(async () => {
     if (!project) return null;
     const [groups, members] = await Promise.all([
@@ -176,7 +177,7 @@ export function LabelGroupsPage() {
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={projects.error} />
       <ApiErrorAlert error={detail.error} />
-      <div className="field">
+      <div className="field" hidden={fixedProjectId !== undefined}>
         <label htmlFor="group-project">專案</label>
         <select
           id="group-project"

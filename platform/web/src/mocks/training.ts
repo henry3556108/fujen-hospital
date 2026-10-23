@@ -380,7 +380,12 @@ function metricsFor(run: StoredRun): Record<string, unknown> {
   };
   switch (kind) {
     case 'image_classification':
-      return { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score } };
+      // 二分類補敏感度、特異度、AUC 與 ROC（第二期指標）
+      return (run.config.image?.labels ?? ['A', 'B']).length === 2
+        ? { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score, sensitivity: 0.8, specificity: 0.7, auc: r4(Math.min(0.99, score + 0.05)),
+              roc: { positive: (run.config.image?.labels ?? ['A', 'B'])[1], fpr: [0, 0.2, 0.5, 1], tpr: [0, 0.6, 0.85, 1] } } }
+
+        : { samples, training_samples: 12, validation: { accuracy: score }, test: { accuracy: score } };
     case 'image_segmentation':
       return { samples, training_samples: 12, test: { pixel_accuracy: score, dice: r4(score - 0.1) } };
     case 'image_detection':
@@ -453,12 +458,15 @@ function advance(run: StoredRun) {
   const fmt = FORMAT(run.kind);
   run.status = 'succeeded';
   run.metrics = metricsFor(run);
+  run.test_count = typeof (run.metrics.rows as Record<string, number> | undefined)?.test === 'number' ? (run.metrics.rows as Record<string, number>).test
+    : ((run.metrics.samples as Record<string, number> | undefined)?.test ?? null);
   const sha = (run.id * 2654435761).toString(16).padStart(8, '0').repeat(8).slice(0, 64);
   run.artifacts = { [`model.${fmt}`]: { sha256: sha, size: 20480 + run.id }, 'metrics.json': { sha256: 'a'.repeat(64), size: 120 } };
   if (chartsFor(run)) run.artifacts['charts.json'] = { sha256: 'c'.repeat(64), size: 2048 };
   const name = `${run.name}-run${run.id}`.slice(0, 128);
   const model: StoredModel = {
     id: 1000 + s.nextModel++, project_id: run.project_id, name, kind: run.kind, format: fmt, sha256: sha, filename: `${slug(name)}.${fmt}`,
+    run_id: run.id,
     created_by: run.created_by, created_at: isoNow(),
     card: run.config.image
       ? { label_names: run.config.image.labels ?? ['A', 'B'], input: { resize: [...run.config.image.resize] }, metrics: run.metrics }
@@ -503,6 +511,8 @@ function newRun(ctx: { user: { username: string }; project: { id: number } }, fr
     dataset_version_id: id, job_id: 100 + id, parent_run_id: from.parent_run_id, metrics: {}, artifacts: {},
     created_by: ctx.user.username, created_at: isoNow(), started_at: null, finished_at: null, custom_source: false, model_id: null,
     ticks: 0, fail: from.name.includes('失敗'), changedMs: Date.now(),
+    label_dataset: from.config.label_dataset_id ? { id: from.config.label_dataset_id, name: `標註資料集 #${from.config.label_dataset_id}`, version: 1 } : null,
+    test_count: null,
   };
   s.runs.push(run);
   return run;

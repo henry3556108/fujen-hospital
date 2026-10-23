@@ -1,11 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { withQuery } from '../../api/client';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
-import { ApiErrorAlert } from '../../components/Alert';
+import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { formatDicomDate } from '../../components/format';
-import { EMPTY_FILTERS, SEX_LABELS, type Study, type StudyFilters } from './types';
+import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
+import { useProjectAccess } from '../data/access';
+import { ImagingNav } from './ImagingNav';
+import { ScopeSelect, useScopes } from './ScopeSelect';
+import { EMPTY_FILTERS, SEX_LABELS, type Scope, type ScopeFilters, type Study, type StudyFilters } from './types';
 
 const MODALITIES = ['CT', 'MR', 'CR', 'DX', 'US', 'MG', 'PT', 'NM', 'XA'];
 /** 每頁研究數（API 的 limit） */
@@ -38,25 +42,127 @@ function splitRange(value: string): [string, string] {
   return [toInput(a), toInput(b)];
 }
 
-/** TC-B01-09 研究列表：以 5 個 DICOM 欄位篩選、每頁 50 個；篩選條件與頁碼放在網址，重新載入或分享連結都一致。 */
+/** 表格裡的性別用中文 */
+const SEX_SHORT: Record<string, string> = { F: '女', M: '男', O: '其他' };
+
+/** 研究的標註狀態（取自 /labels/summary；舊後端沒有 drafts／confirmed 時，有標註就當已確認） */
+type LabelState = 'confirmed' | 'draft' | 'none';
+const LABEL_STATE: Record<LabelState, { text: string; tone: BadgeTone }> = {
+  confirmed: { text: '已確認', tone: 'success' },
+  draft: { text: '待確認', tone: 'warning' },
+  none: { text: '未標註', tone: 'neutral' },
+};
+interface LabelCounts {
+  study_instance_uid: string;
+  annotations: number;
+  drafts?: number;
+  confirmed?: number;
+}
+export function labelState(c: LabelCounts | undefined): LabelState {
+  if (!c) return 'none';
+  if ((c.drafts ?? 0) > 0) return 'draft';
+  if ((c.confirmed ?? c.annotations) > 0) return 'confirmed';
+  return 'none';
+}
+
+/** 目前的篩選條件（只留有值的 key）疊在範圍原本的條件上 → 要存的資料範圍 filters */
+export function scopeFilters(applied: StudyFilters, base: ScopeFilters = {}): ScopeFilters {
+  const out: ScopeFilters = { ...base };
+  for (const k of KEYS) if (applied[k]) out[k] = applied[k];
+  return out;
+}
+
+/** 把目前的篩選條件存成資料範圍（需要 Labeling 權限）。 */
+function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scope: Scope) => void }) {
+  const { api, project } = useSession();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError(new Error('請輸入資料範圍名稱'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const scope = await api.post<Scope>(`/api/projects/${project!.id}/imaging/scopes`, { name: name.trim(), filters });
+      setOpen(false);
+      setName('');
+      onSaved(scope);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="btn btn--secondary btn--small" onClick={() => setOpen(true)}>
+        儲存為資料範圍
+      </button>
+    );
+  }
+  return (
+    <form aria-label="儲存為資料範圍" className="card section" onSubmit={submit} noValidate>
+      <ApiErrorAlert error={error} />
+      <p className="text-muted">資料範圍存的是目前的篩選條件，之後新加入、符合條件的影像也會算在裡面。</p>
+      <div className="field">
+        <label htmlFor="scope-name">資料範圍名稱</label>
+        <input id="scope-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="row-actions">
+        <button type="submit" className="btn btn--secondary" disabled={busy}>
+          儲存
+        </button>
+        <button type="button" className="btn btn--ghost" onClick={() => setOpen(false)}>
+          取消
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** TC-B01-09 影像清單：以 5 個 DICOM 欄位篩選、每頁 50 筆，可選或儲存資料範圍；篩選條件與頁碼放在網址，重新載入或分享連結都一致。 */
 export function StudiesPage() {
   const { api, project } = useSession();
+  const { can } = useProjectAccess();
   const pid = project!.id;
   const [params, setParams] = useSearchParams();
   const applied = Object.fromEntries(KEYS.map((k) => [k, params.get(k) ?? ''])) as unknown as StudyFilters;
+  const scopeId = params.get('scope_id') ? Number(params.get('scope_id')) : null;
   const appliedKey = KEYS.map((k) => applied[k]).join('|');
   const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
   const offset = (page - 1) * STUDY_PAGE;
   const studies = useResource(
     () =>
       api.get<StudyPage>(
-        withQuery(`/api/projects/${pid}/imaging/studies`, { ...applied, limit: STUDY_PAGE, offset: offset || undefined }),
+        withQuery(`/api/projects/${pid}/imaging/studies`, {
+          ...applied,
+          scope_id: scopeId ?? undefined,
+          limit: STUDY_PAGE,
+          offset: offset || undefined,
+        }),
       ),
-    [pid, appliedKey, offset],
+    [pid, appliedKey, scopeId, offset],
   );
+  const scopes = useScopes();
+  // 標註狀態：讀不到（舊後端或錯誤）就不顯示這一欄
+  const labels = useResource(
+    () => api.get<{ studies: LabelCounts[] }>(`/api/projects/${pid}/labels/summary`).catch(() => null),
+    [pid],
+  );
+  const labelOf = useMemo(() => new Map((labels.data?.studies ?? []).map((s) => [s.study_instance_uid, s])), [labels.data]);
+  const showLabels = Boolean(labels.data);
   const total = studies.data?.total ?? 0;
   const shown = studies.data?.items ?? [];
   const lastPage = Math.max(1, Math.ceil(total / STUDY_PAGE));
+  const scope = scopes.data?.find((s) => s.id === scopeId) ?? null;
+  const [notice, setNotice] = useState<string | null>(null);
 
   function goTo(next: number) {
     const q = new URLSearchParams(params);
@@ -73,29 +179,52 @@ export function StudiesPage() {
 
   const [from0, to0] = splitRange(applied.study_date);
   const [draft, setDraft] = useState({ ...applied, from: from0, to: to0 });
+  const emptyDraft = { ...EMPTY_FILTERS, from: '', to: '' };
+
+  function query(next: StudyFilters, nextScope: number | null) {
+    const q: Record<string, string> = Object.fromEntries(KEYS.filter((k) => next[k].trim()).map((k) => [k, next[k].trim()]));
+    if (nextScope != null) q.scope_id = String(nextScope);
+    setParams(q);
+  }
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    const next: StudyFilters = { ...draft, study_date: dateRange(draft.from, draft.to) };
-    setParams(Object.fromEntries(KEYS.filter((k) => next[k].trim()).map((k) => [k, next[k].trim()])));
+    query({ ...draft, study_date: dateRange(draft.from, draft.to) }, scopeId);
   }
 
   function clear() {
-    setDraft({ ...EMPTY_FILTERS, from: '', to: '' });
+    setDraft(emptyDraft);
     setParams({});
+  }
+
+  function chooseScope(next: Scope | null) {
+    // 換範圍時清掉手動篩選，範圍內可再自行篩選
+    setDraft(emptyDraft);
+    query(EMPTY_FILTERS, next?.id ?? null);
+    setNotice(null);
   }
 
   const active = KEYS.filter((k) => applied[k]);
   const set = (k: keyof typeof draft) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
+  const cols = showLabels ? 11 : 10;
 
   return (
     <>
-      <h2>研究列表</h2>
-      <form aria-label="篩選研究" className="card" onSubmit={submit} noValidate>
+      <ImagingNav />
+      <div className="page-head">
+        <h2>影像清單</h2>
+        {can('labeling') && (
+          <Link to="/data/imaging/import" className="btn btn--primary">
+            加入資料
+          </Link>
+        )}
+      </div>
+      <form aria-label="篩選影像" className="card" onSubmit={submit} noValidate>
         <div className="form-grid">
+          {scopes.data && scopes.data.length > 0 && <ScopeSelect id="f-scope" scopes={scopes.data} value={scopeId} onChange={chooseScope} />}
           <div className="field">
-            <label htmlFor="f-modality">Modality</label>
+            <label htmlFor="f-modality">影像種類（Modality）</label>
             <select id="f-modality" className="select" value={draft.modality} onChange={set('modality')}>
               <option value="">全部</option>
               {MODALITIES.map((mo) => (
@@ -106,7 +235,7 @@ export function StudiesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="f-sex">Patient&apos;s Sex</label>
+            <label htmlFor="f-sex">性別</label>
             <select id="f-sex" className="select" value={draft.patient_sex} onChange={set('patient_sex')}>
               <option value="">全部</option>
               {Object.entries(SEX_LABELS).map(([v, label]) => (
@@ -117,93 +246,127 @@ export function StudiesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="f-study-desc">Study Description（包含）</label>
+            <label htmlFor="f-study-desc">檢查描述（Study Description，包含）</label>
             <input id="f-study-desc" className="input" value={draft.study_description} onChange={set('study_description')} />
           </div>
           <div className="field">
-            <label htmlFor="f-series-desc">Series Description（包含）</label>
+            <label htmlFor="f-series-desc">序列描述（Series Description，包含）</label>
             <input id="f-series-desc" className="input" value={draft.series_description} onChange={set('series_description')} />
           </div>
           <div className="field">
-            <label htmlFor="f-from">Study Date 起</label>
+            <label htmlFor="f-from">檢查日期起</label>
             <input id="f-from" className="input" type="date" value={draft.from} onChange={set('from')} />
           </div>
           <div className="field">
-            <label htmlFor="f-to">Study Date 迄</label>
+            <label htmlFor="f-to">檢查日期迄</label>
             <input id="f-to" className="input" type="date" value={draft.to} onChange={set('to')} />
           </div>
         </div>
         <div className="row-actions section">
-          <button type="submit" className="btn btn--primary">
+          <button type="submit" className="btn btn--secondary">
             套用篩選
           </button>
-          <button type="button" className="btn btn--secondary" onClick={clear}>
+          <button type="button" className="btn btn--ghost" onClick={clear}>
             清除篩選
           </button>
         </div>
       </form>
 
       <ApiErrorAlert error={studies.error} />
-      <p role="status" className="section">
-        {studies.loading && !studies.data
-          ? '載入中…'
-          : `共 ${total} 個研究${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 個` : ''}`}
-      </p>
+      {notice && <Alert tone="success">{notice}</Alert>}
+      <div className="row-actions section">
+        <p role="status">
+          {studies.loading && !studies.data
+            ? '載入中…'
+            : `共 ${total} 筆影像${scope ? `（資料範圍「${scope.name}」）` : ''}${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 筆` : ''}`}
+        </p>
+        {can('labeling') && (
+          <SaveScope
+            key={`${scopeId}|${appliedKey}`}
+            filters={scopeFilters(applied, scope?.filters)}
+            onSaved={(saved) => {
+              scopes.setData([...(scopes.data ?? []), saved]);
+              setDraft(emptyDraft);
+              query(EMPTY_FILTERS, saved.id);
+              setNotice(`已儲存資料範圍「${saved.name}」，共 ${saved.study_count} 筆影像。標註時可以選這個範圍。`);
+            }}
+          />
+        )}
+      </div>
       {total > STUDY_PAGE && (
         <div className="row-actions section">
           <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => goTo(page - 1)}>
             上一頁
           </button>
+          <span>
+            第 {page}／{lastPage} 頁
+          </span>
           <button type="button" className="btn btn--secondary btn--small" disabled={page >= lastPage} onClick={() => goTo(page + 1)}>
             下一頁
           </button>
         </div>
       )}
       <div className="table-wrap">
-        <table aria-label="研究列表">
+        <table aria-label="影像清單">
           <thead>
             <tr>
-              <th scope="col">Study Date</th>
-              <th scope="col">Accession</th>
-              <th scope="col">Patient ID</th>
-              <th scope="col">Sex</th>
-              <th scope="col">Modality</th>
-              <th scope="col">Study Description</th>
-              <th scope="col">Series Description</th>
+              <th scope="col">檢查日期</th>
+              <th scope="col">影像編號（Accession）</th>
+              <th scope="col">病歷號</th>
+              <th scope="col">性別</th>
+              <th scope="col">影像種類</th>
+              <th scope="col">檢查描述</th>
+              <th scope="col">序列描述</th>
               <th scope="col" className="num">
-                序列
+                序列數
               </th>
               <th scope="col" className="num">
-                影像
+                影像數
               </th>
+              {showLabels && <th scope="col">標註狀態</th>}
               <th scope="col">操作</th>
             </tr>
           </thead>
           <tbody>
-            {shown.map((s) => (
-              <tr key={s.study_instance_uid}>
-                <td>{formatDicomDate(s.study_date)}</td>
-                <th scope="row">{s.accession_number ?? '—'}</th>
-                <td>{s.patient_id ?? '—'}</td>
-                <td>{s.patient_sex ?? '—'}</td>
-                <td>{s.modalities.join('、') || '—'}</td>
-                <td>{s.study_description ?? '—'}</td>
-                <td>{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
-                <td className="num">{s.series.length}</td>
-                <td className="num">{s.instances}</td>
-                <td>
-                  <Link
-                    to={`/data/imaging/studies/${encodeURIComponent(s.study_instance_uid)}`}
-                    aria-label={`檢視研究 ${s.accession_number ?? s.study_instance_uid}`}
-                  >
-                    檢視
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {shown.map((s) => {
+              const name = s.accession_number ?? s.study_instance_uid;
+              const state = LABEL_STATE[labelState(labelOf.get(s.study_instance_uid))];
+              return (
+                <tr key={s.study_instance_uid}>
+                  <td>{formatDicomDate(s.study_date)}</td>
+                  <th scope="row">{s.accession_number ?? '—'}</th>
+                  <td>{s.patient_id ?? '—'}</td>
+                  <td>{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
+                  <td>{s.modalities.join('、') || '—'}</td>
+                  <td>{s.study_description ?? '—'}</td>
+                  <td>{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
+                  <td className="num">{s.series.length}</td>
+                  <td className="num">{s.instances}</td>
+                  {showLabels && (
+                    <td>
+                      <StatusBadge tone={state.tone}>{state.text}</StatusBadge>
+                    </td>
+                  )}
+                  <td>
+                    <span className="row-actions">
+                      <Link to={`/data/imaging/studies/${encodeURIComponent(s.study_instance_uid)}`} aria-label={`預覽 ${name}`}>
+                        預覽
+                      </Link>
+                      {can('labeling') && (
+                        <Link to={`/labeling/studies/${encodeURIComponent(s.study_instance_uid)}`} aria-label={`開始標註 ${name}`}>
+                          開始標註
+                        </Link>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
             {studies.data && total === 0 && (
               <tr>
-                <td colSpan={10}>{active.length ? '沒有符合篩選條件的研究' : '這個專案還沒有影像，請到「匯入影像」或「PACS 查詢取像」'}</td>
+                <td colSpan={cols}>
+                  {active.length || scope ? '沒有符合篩選條件的影像' : '這個專案還沒有影像，請按「加入資料」上傳或從院內影像系統取得'}
+                </td>
               </tr>
             )}
           </tbody>

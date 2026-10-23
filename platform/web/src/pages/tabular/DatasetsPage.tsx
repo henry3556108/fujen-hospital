@@ -5,6 +5,7 @@ import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
+import { useProjectAccess } from '../data/access';
 import { ReportView } from './ReportView';
 import type { Dataset, UploadResult, ValidationReport } from './types';
 import { UploadForm } from './UploadForm';
@@ -12,6 +13,9 @@ import { UploadForm } from './UploadForm';
 /** TC-B01-10 資料集列表、CSV 上傳與驗證報告。 */
 export function DatasetsPage() {
   const { api, project } = useSession();
+  const { can, missing } = useProjectAccess();
+  // 建立、刪除資料集需要 Training 權限（與後端一致）
+  const writable = can('training');
   const base = `/api/projects/${project!.id}/tabular/datasets`;
   const datasets = useResource(() => api.get<Dataset[]>(base), [project!.id]);
   const [uploaded, setUploaded] = useState<UploadResult | null>(null);
@@ -51,13 +55,16 @@ export function DatasetsPage() {
 
   return (
     <>
-      <h2>結構式資料</h2>
+      <h2>表格資料</h2>
       <div className="row-actions">
-        <p className="text-muted">表格資料（CSV）。上傳後可看描述統計、設定要預測的欄位，再到「建模管理」訓練模型。</p>
-        <a className="btn btn--primary" href="#upload-csv">
-          上傳 CSV
-        </a>
+        <p className="text-muted">表格資料（CSV），例如從病歷或 Excel 匯出的檢驗值、診斷。上傳後可查看資料、選想預測的欄位並整理，再用來建立模型。</p>
+        {writable && (
+          <a className="btn btn--primary" href="#upload-csv">
+            上傳 CSV
+          </a>
+        )}
       </div>
+      {!writable && <Alert tone="info">{missing('training', '上傳或刪除資料集')}可以查看資料與做統計分析。</Alert>}
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={datasets.error} />
@@ -105,17 +112,19 @@ export function DatasetsPage() {
                     <button type="button" className="btn btn--secondary btn--small" aria-label={`驗證報告 ${d.name}`} onClick={() => void showReport(d)}>
                       驗證報告
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn--secondary btn--small"
-                      aria-label={`刪除 ${d.name}`}
-                      onClick={() => {
-                        setNotice(null);
-                        setDeleting(d);
-                      }}
-                    >
-                      刪除
-                    </button>
+                    {writable && (
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--small"
+                        aria-label={`刪除 ${d.name}`}
+                        onClick={() => {
+                          setNotice(null);
+                          setDeleting(d);
+                        }}
+                      >
+                        刪除
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -131,20 +140,23 @@ export function DatasetsPage() {
 
       {report && <ReportView report={report.report} title={`「${report.dataset.name}」的驗證報告`} />}
 
-      <UploadForm
-        datasets={datasets.data ?? []}
-        onUploaded={(r, replaced) => {
-          setUploaded(r);
-          setReport(null);
-          setNotice(replaced ? `已取代資料集「${r.dataset.name}」` : `已建立資料集「${r.dataset.name}」`);
-          datasets.reload();
-        }}
-      />
+      {writable && (
+        <UploadForm
+          datasets={datasets.data ?? []}
+          onUploaded={(r, replaced) => {
+            setUploaded(r);
+            setReport(null);
+            setNotice(replaced ? `已取代資料集「${r.dataset.name}」` : `已建立資料集「${r.dataset.name}」`);
+            datasets.reload();
+          }}
+        />
+      )}
       {uploaded && (
         <>
           <ReportView report={uploaded.report} title={`「${uploaded.dataset.name}」的上傳結果`} />
-          <p>
-            <Link to={`/data/tabular/${uploaded.dataset.id}`}>開啟資料集「{uploaded.dataset.name}」</Link>
+          <p className="row-actions">
+            <Link to={`/data/tabular/${uploaded.dataset.id}/view`}>開啟資料集「{uploaded.dataset.name}」</Link>
+            <Link to={`/data/tabular/${uploaded.dataset.id}/prepare`}>下一步：整理資料</Link>
           </p>
         </>
       )}
@@ -158,7 +170,7 @@ export function DatasetsPage() {
           onCancel={() => setDeleting(null)}
         >
           <p>
-            確定要刪除資料集「<strong>{deleting.name}</strong>」嗎？檔案與 Target／Feature 設定會一併刪除，此動作無法復原。
+            確定要刪除資料集「<strong>{deleting.name}</strong>」嗎？檔案與整理設定會一併刪除，此動作無法復原。
           </p>
         </ConfirmDialog>
       )}

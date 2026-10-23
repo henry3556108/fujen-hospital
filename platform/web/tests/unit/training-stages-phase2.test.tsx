@@ -38,7 +38,7 @@ function seed(name = '糖尿病預測', config: TrainingConfig = TABULAR) {
 /** 本專案訓練出的模型（部署環節用 sha256 指定） */
 function seedModel() {
   const s = trainingMock();
-  s.models.push({ id: 1000 + s.nextModel++, project_id: 1, name: '糖尿病預測-run9', kind: 'tabular_classification', format: 'pkl', sha256: SHA,
+  s.models.push({ id: 1000 + s.nextModel++, run_id: 9, project_id: 1, name: '糖尿病預測-run9', kind: 'tabular_classification', format: 'pkl', sha256: SHA,
     filename: 'm.pkl', created_by: 'pi01', created_at: '2026-10-01T00:00:00Z', card: {} } as never);
 }
 
@@ -46,9 +46,9 @@ const client = (user = 'pi01') =>
   createApiClient({ base: 'http://localhost', getToken: async () => `test-token:${user}`, onUnauthorized: () => {} });
 
 async function openFlow(name = '糖尿病預測', username = 'pi01') {
-  const app = await renderApp('/training', username);
+  const app = await renderApp('/training/settings', username);
   if (username !== 'pi01') await app.user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
-  await app.user.click(await screen.findByRole('button', { name: `流程程式碼「${name}」` }));
+  await app.user.click(await screen.findByRole('link', { name: `流程程式碼「${name}」` }));
   const panel = await screen.findByRole('region', { name: `流程程式碼「${name}」` });
   await within(panel).findByRole('table', { name: '流程環節' });
   return { ...app, panel };
@@ -95,7 +95,9 @@ describe('資料匯入與部署環節', () => {
     expect(lockedStages(row.id)).toEqual(['import']);
 
     await user.click(within(panel).getByRole('button', { name: '關閉流程程式碼' }));
-    await user.click(screen.getByRole('button', { name: '編輯「糖尿病預測」' }));
+    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
+    await user.click(await screen.findByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByTestId('stage-locks')).toHaveTextContent('「資料匯入」由匯入的檔案控制：import.json、schema.json');
     expect(within(form).getByLabelText('資料集')).toBeDisabled();
@@ -152,7 +154,7 @@ describe('資料匯入與部署環節', () => {
     const row = seed();
     seedModel();
     await client().put(`/api/projects/1/training/settings/${row.id}/stages/deploy`, { files: { 'deploy.json': deployJson() } });
-    await renderApp('/deployment', 'pi01');
+    await renderApp('/models/9/share', 'pi01');
     const table = await screen.findByRole('table', { name: '已分享的模型' });
     const tr = within(table).getByRole('row', { name: /糖尿病預測服務/ });
     expect(within(tr).getByTestId('deployment-lock')).toHaveTextContent('由 deploy.json 控制（pi01，');
@@ -168,7 +170,7 @@ describe('匯入整個流程（專案包）', () => {
   const pkg = (spec: Record<string, unknown>) => makeFile(JSON.stringify({ package: spec }), 'flow.zip', 'application/zip');
 
   async function openImport(username = 'pi01') {
-    const app = await renderApp('/training', username);
+    const app = await renderApp('/training/code', username);
     await app.user.click(await screen.findByRole('button', { name: '匯入專案包' }));
     const region = await screen.findByRole('region', { name: '匯入整個流程（專案包）' });
     return { ...app, region };
@@ -241,7 +243,7 @@ describe('匯入整個流程（專案包）', () => {
 
   it('is not offered to members without Coding', async () => {
     seed();
-    await renderApp('/training', 'ra01');
+    await renderApp('/training/settings', 'ra01');
     await screen.findByRole('button', { name: '新增訓練設定' });
     expect(screen.queryByRole('button', { name: '匯入專案包' })).toBeNull();
   });

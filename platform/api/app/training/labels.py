@@ -16,7 +16,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.imaging.models import ImagingFile
@@ -94,7 +94,8 @@ class InlineLabels:
 
 
 class AnnotationLabels:
-    """影像標註平台的標註。同一張影像有多筆同種標註時取最後修改的一筆。
+    """影像標註平台的標註。同一張影像有多筆同種標註時取最後修改的一筆。只用已確認（confirmed）的標註；
+    options 帶 label_dataset_version_id 時只用該標註資料集版本快照內的標註。
 
     分割遮罩依訓練設定的 Label 順序重新編號（第 1 個 Label＝1，其餘＝背景 0），存成 .npy。
     """
@@ -113,7 +114,15 @@ class AnnotationLabels:
         studies = {i.study_instance_uid for i in instances}
         rows = session.scalars(select(Annotation).where(
             Annotation.project_id == project_id, Annotation.kind == kind,
+            or_(Annotation.status.is_(None), Annotation.status != "draft"),   # 訓練只用已確認的標註
             Annotation.study_instance_uid.in_(studies)).order_by(Annotation.updated_at, Annotation.id)).all()
+        version_id = options.get("label_dataset_version_id")
+        if version_id is not None:                              # 指定標註資料集版本：只用快照內的標註
+            from app.labeling.models import LabelDatasetVersion
+
+            version = session.get(LabelDatasetVersion, version_id)
+            included = {entry[0] for entry in (version.items if version is not None else [])}
+            rows = [r for r in rows if r.id in included]
         by_sop = {r.sop_instance_uid: r for r in rows if r.sop_instance_uid in sops}    # 後面的覆蓋前面的
         by_study = {r.study_instance_uid: r for r in rows if r.sop_instance_uid is None}
         out: dict[str, ItemLabels] = {}

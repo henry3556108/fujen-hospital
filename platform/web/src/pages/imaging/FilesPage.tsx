@@ -3,6 +3,7 @@ import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
 import { FORMAT_LABELS, PAIRING_LABELS, type ImagingFile } from './types';
+import { ImagingNav } from './ImagingNav';
 
 const TONE: Record<ImagingFile['pairing'], BadgeTone> = { 'n/a': 'neutral', paired: 'success', unpaired: 'warning' };
 
@@ -32,6 +33,7 @@ export function FilesPage() {
 
   return (
     <>
+      <ImagingNav />
       <div className="page-head">
         <h2>檔案與配對</h2>
         <button type="button" className="btn btn--secondary" onClick={files.reload} disabled={files.loading}>

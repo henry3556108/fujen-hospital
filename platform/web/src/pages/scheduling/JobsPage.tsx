@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { ProjectPicker } from '../../components/ProjectPicker';
+import { SchedulingPage } from './SchedulingRoutes';
 import { ApiError } from '../../api/client';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
@@ -95,11 +96,11 @@ export function JobsPage() {
   const list = [...(jobs.data ?? [])].sort((a, b) => b.id - a.id);
 
   return (
-    <>
-      <h1>專案工作</h1>
+      <SchedulingPage title="測試工作">
+      <ProjectPicker id="jobs-project" label="送出到專案" />
       <p className="text-muted">
         專案「{project.name}」的排程工作。訓練工作進入專案綁定 GPU 群組的佇列，資料清洗工作進入 CPU 佇列。
-        <Link to="/training">回建模管理</Link>
+        研究者的訓練紀錄不會列出這裡送出的示範工作。
       </p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={cancelError} />
@@ -283,6 +284,6 @@ export function JobsPage() {
           </p>
         </ConfirmDialog>
       )}
-    </>
+    </SchedulingPage>
   );
 }

@@ -76,6 +76,8 @@ export interface TrainingConfig {
   version?: number;
   kind: TrainingKind;
   source: TrainingSource;
+  /** 影像訓練使用的標註資料集；送出時系統自動建版本 */
+  label_dataset_id?: number | null;
   split: Split;
   seed: number;
   /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例切分 */
@@ -127,6 +129,29 @@ export interface TrainingRun {
   model_id: number | null;
   /** 送出時由匯入檔控制的環節（流程程式碼）；沒有則為空 */
   imported_stages?: StageId[];
+  /** 使用的標註資料集與版本（第二期；舊訓練、結構式為 null） */
+  label_dataset?: { id: number; name: string; version: number } | null;
+  /** 測試資料筆數（第二期；不知道時為 null） */
+  test_count?: number | null;
+}
+
+/** 標註資料集（labels/datasets，第二期 API 合約） */
+export interface LabelDataset {
+  id: number;
+  name: string;
+  task: 'classification' | 'detection' | 'segmentation';
+  scope_id: number | null;
+  classes: string[];
+  created_by: string;
+  created_at: string;
+  current: {
+    annotations: number;
+    studies: number;
+    by_class: Record<string, number>;
+    by_source: Partial<Record<'manual' | 'csv' | 'autolabel', number>>;
+    drafts_excluded: number;
+  };
+  latest_version: { version: number; created_at: string; created_by: string; annotations: number; by_class: Record<string, number> } | null;
 }
 
 /** 流程程式碼（錄製巨集）的環節：資料匯入、標註、資料清理與前處理、訓練、部署。
@@ -360,6 +385,8 @@ export interface TrainingApi {
   packageCheck(file: File, choice: PackageChoice): Promise<PackagePlan>;
   /** 匯入專案包：建立新的訓練設定 */
   packageImport(file: File, choice: PackageChoice): Promise<PackageImported>;
+  /** 標註資料集（建立訓練精靈選資料用） */
+  labelDatasets(): Promise<LabelDataset[]>;
 }
 
 function packageForm(file: File, choice: PackageChoice): FormData {
@@ -463,6 +490,7 @@ export function createTrainingApi(
       download(`${root}/training/settings/${id}/package${includeData ? '?include_data=true' : ''}`, `flow-${id}.zip`),
     packageCheck: (file, choice) => api.postForm(`${root}/training/package-import/check`, packageForm(file, choice)),
     packageImport: (file, choice) => api.postForm(`${root}/training/package-import`, packageForm(file, choice)),
+    labelDatasets: () => api.get(`${root}/labels/datasets`),
     async targetFeature(id) {
       try {
         return await api.get<TargetFeature>(`${root}/tabular/datasets/${id}/target-feature`);

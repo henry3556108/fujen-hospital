@@ -672,7 +672,7 @@ export const tabularHandlers = [
   }),
 
   http.post(`${BASE}/datasets`, async ({ request, params }) => {
-    const ctx = requireProject(request, params.pid, 'project');
+    const ctx = requireProject(request, params.pid, 'training'); // 建立資料集需要 Training
     if (ctx instanceof Response) return ctx;
     const form = await request.formData();
     const file = form.get('file');
@@ -704,7 +704,7 @@ export const tabularHandlers = [
   }),
 
   http.delete(DS, ({ request, params }) => {
-    const r = dataset(request, params);
+    const r = dataset(request, params, 'training'); // 刪除需要 Training
     if (r instanceof Response) return r;
     const s = state();
     s.datasets = s.datasets.filter((x) => x.id !== r.d.id);

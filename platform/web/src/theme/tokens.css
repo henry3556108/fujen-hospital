@@ -1,47 +1,51 @@
 /*
- * 色彩 Token（依 ~/.claude/guidelines/color-system.md）
- * 品牌感受：可信任、冷靜、精確、專業（醫療 AI 平台）。
- * 色票方法：中性色 + 單一品牌主色（§4.1），狀態色另立。
+ * 色彩 Token（依 ~/.claude/guidelines/color-system.md；色碼照介面重整提案第 4 節）
+ * 只做淺色主題（03 規格 4.3）：影像檢視器維持深色底，其餘一律淺色。
  *
  * 第 1 層 Primitive：--primitive-<色相>-<色階>，只描述顏色本身，只有這一層可以寫色碼。
- * 第 2 層 Semantic：--color-*，描述用途；Light / Dark 各自對應到不同 Primitive。
+ * 第 2 層 Semantic：--color-*，描述用途。
  * 第 3 層 Component：--button-* / --input-* / --nav-* ...，描述元件與狀態，只引用 Semantic。
  *
  * 角色：
- *   Primary   藍綠  主要 CTA、選中、連結、Focus ring（克制使用）
- *   Secondary 中性  次要按鈕（外框）、一般操作
- *   Accent    紫    只用於「M2 預告」標籤，不可用於操作或狀態
- *   Neutral   冷灰  背景、卡片、文字、邊框（畫面 70–85%）
- *   Success   綠 / Warning 琥珀 / Error 紅 / Info 靛藍：一律搭配 Icon 與文字
+ *   Primary   深藍 #2458C6  每個工作區的一個主要按鈕、目前頁面、焦點框
+ *   Secondary 青綠 #087F78  已確認、完成標記、進度條；不做實心按鈕
+ *   Accent    紫            只用於「M2 預告」標籤
+ *   Neutral   文字 #172B4D／#526176，背景 #F4F7FB／#FFFFFF，分隔線 #DCE3ED
+ *   Warning #9A5800 / Error #B42318：一律搭配 Icon 與文字
  */
 
 :root {
   /* ---------- Primitive ---------- */
   --primitive-white: #ffffff;
-  --primitive-neutral-50: #f6f8fa;
-  --primitive-neutral-100: #eef1f4;
-  --primitive-neutral-200: #dde2e8;
-  --primitive-neutral-300: #c3cbd4;
-  --primitive-neutral-400: #8d98a5;
-  --primitive-neutral-500: #6b7684;
-  --primitive-neutral-600: #535e6b;
-  --primitive-neutral-700: #3b4450;
-  --primitive-neutral-800: #262d36;
-  --primitive-neutral-850: #1e242c;
-  --primitive-neutral-900: #171c22;
-  --primitive-neutral-950: #0f1318;
+  --primitive-neutral-50: #f4f7fb;
+  --primitive-neutral-100: #eef2f7;
+  --primitive-neutral-200: #dce3ed;
+  --primitive-neutral-300: #c3cdda;
+  --primitive-neutral-400: #8a97aa;
+  --primitive-neutral-500: #66758b;
+  --primitive-neutral-600: #526176;
+  --primitive-neutral-700: #3a4a63;
+  --primitive-neutral-800: #24395e;
+  --primitive-neutral-850: #1d3156;
+  --primitive-neutral-900: #172b4d;
+  --primitive-neutral-950: #0e1a2f;
 
-  --primitive-brand-50: #eaf5fb;
-  --primitive-brand-100: #d2e9f6;
-  --primitive-brand-200: #a6d2ec;
-  --primitive-brand-300: #6fb4dc;
-  --primitive-brand-400: #3993c6;
-  --primitive-brand-500: #1a78ad;
-  --primitive-brand-600: #11628f;
-  --primitive-brand-700: #0e5073;
-  --primitive-brand-800: #0d405c;
-  --primitive-brand-900: #0b3248;
-  --primitive-brand-950: #071f2e;
+  --primitive-brand-50: #edf2fc;
+  --primitive-brand-100: #d6e2f8;
+  --primitive-brand-200: #adc4f0;
+  --primitive-brand-300: #7fa2e6;
+  --primitive-brand-400: #4f7dd6;
+  --primitive-brand-500: #3567cf;
+  --primitive-brand-600: #2458c6;
+  --primitive-brand-700: #1c47a3;
+  --primitive-brand-800: #173a85;
+  --primitive-brand-900: #132f6b;
+  --primitive-brand-950: #0c1f4a;
+
+  --primitive-teal-50: #e6f5f4;
+  --primitive-teal-100: #c8eae7;
+  --primitive-teal-600: #087f78;
+  --primitive-teal-700: #066660;
 
   --primitive-green-50: #ecf8f0;
   --primitive-green-300: #7cc896;
@@ -50,19 +54,19 @@
   --primitive-green-700: #1c6337;
   --primitive-green-950: #0b2415;
 
-  --primitive-amber-50: #fdf6e7;
+  --primitive-amber-50: #fdf4e6;
   --primitive-amber-300: #efbc55;
   --primitive-amber-400: #d99c1f;
-  --primitive-amber-600: #946405;
-  --primitive-amber-700: #7a5306;
+  --primitive-amber-600: #9a5800;
+  --primitive-amber-700: #7a4500;
   --primitive-amber-950: #2a1d03;
 
-  --primitive-red-50: #fdefee;
+  --primitive-red-50: #fef0ee;
   --primitive-red-300: #f09a92;
   --primitive-red-400: #e0685e;
-  --primitive-red-600: #b3352b;
-  --primitive-red-700: #922a22;
-  --primitive-red-800: #74211b;
+  --primitive-red-600: #b42318;
+  --primitive-red-700: #912018;
+  --primitive-red-800: #7a1a13;
   --primitive-red-950: #2c0c09;
 
   --primitive-indigo-50: #eef0fb;
@@ -89,7 +93,7 @@
   --color-bg-backdrop: var(--primitive-neutral-900);
 
   --color-text-primary: var(--primitive-neutral-900);
-  --color-text-secondary: var(--primitive-neutral-700);
+  --color-text-secondary: var(--primitive-neutral-600);
   --color-text-muted: var(--primitive-neutral-600);
   --color-text-disabled: var(--primitive-neutral-500);
   --color-text-link: var(--primitive-brand-600);
@@ -113,10 +117,21 @@
   --color-accent-bg: var(--primitive-violet-50);
   --color-accent-text: var(--primitive-violet-700);
 
-  --color-status-success-bg: var(--primitive-green-50);
-  --color-status-success-border: var(--primitive-green-600);
-  --color-status-success-icon: var(--primitive-green-600);
-  --color-status-success-text: var(--primitive-green-700);
+  --color-status-success-bg: var(--primitive-teal-50);
+  --color-status-success-border: var(--primitive-teal-600);
+  --color-status-success-icon: var(--primitive-teal-600);
+  --color-status-success-text: var(--primitive-teal-700);
+  --color-secondary: var(--primitive-teal-600);
+  --color-secondary-bg: var(--primitive-teal-50);
+
+  /* 研究區／管理區側欄：深藍底 */
+  --color-sidebar-bg: var(--primitive-neutral-900);
+  --color-sidebar-text: var(--primitive-neutral-200);
+  --color-sidebar-text-muted: var(--primitive-neutral-300);
+  --color-sidebar-bg-hover: var(--primitive-neutral-800);
+  --color-sidebar-bg-selected: var(--primitive-brand-600);
+  --color-sidebar-text-selected: var(--primitive-white);
+  --color-sidebar-divider: var(--primitive-neutral-700);
   --color-status-warning-bg: var(--primitive-amber-50);
   --color-status-warning-border: var(--primitive-amber-600);
   --color-status-warning-icon: var(--primitive-amber-600);
@@ -168,6 +183,15 @@
   --nav-item-bg-selected: var(--color-bg-selected);
   --nav-item-text-selected: var(--color-text-selected);
   --nav-item-indicator-selected: var(--color-border-selected);
+  --sidebar-bg: var(--color-sidebar-bg);
+  --sidebar-text: var(--color-sidebar-text);
+  --sidebar-text-muted: var(--color-sidebar-text-muted);
+  --sidebar-bg-hover: var(--color-sidebar-bg-hover);
+  --sidebar-bg-selected: var(--color-sidebar-bg-selected);
+  --sidebar-text-selected: var(--color-sidebar-text-selected);
+  --sidebar-divider: var(--color-sidebar-divider);
+  --progress-track: var(--color-border-default);
+  --progress-fill: var(--color-secondary);
 
   --card-bg: var(--color-bg-surface);
   --card-border: var(--color-border-default);
@@ -230,7 +254,7 @@
 
   color-scheme: light;
 
-  /* 影像標註工作台（WP5a）。影像區固定深色底，不隨主題切換：醫療影像一律在暗底上判讀 */
+  /* 影像標註工作台（WP5a）。影像區固定深色底：醫療影像一律在暗底上判讀 */
   --viewer-bg: var(--primitive-neutral-950);
   --viewer-text: var(--primitive-neutral-100);
   --viewer-border: var(--primitive-neutral-700);
@@ -241,120 +265,4 @@
   --annotation-color-4: var(--primitive-indigo-300);
   --annotation-color-5: var(--primitive-violet-300);
   --annotation-color-6: var(--primitive-brand-300);
-}
-
-/* ---------- Semantic（Dark）：跟隨系統，除非使用者手動選了 light ---------- */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --color-bg-page: var(--primitive-neutral-950);
-    --color-bg-surface: var(--primitive-neutral-900);
-    --color-bg-raised: var(--primitive-neutral-850);
-    --color-bg-subtle: var(--primitive-neutral-850);
-    --color-bg-hover: var(--primitive-neutral-800);
-    --color-bg-pressed: var(--primitive-neutral-700);
-    --color-bg-selected: var(--primitive-brand-950);
-    --color-bg-disabled: var(--primitive-neutral-850);
-    --color-bg-backdrop: var(--primitive-neutral-950);
-    --color-text-primary: var(--primitive-neutral-50);
-    --color-text-secondary: var(--primitive-neutral-200);
-    --color-text-muted: var(--primitive-neutral-300);
-    --color-text-disabled: var(--primitive-neutral-400);
-    --color-text-link: var(--primitive-brand-300);
-    --color-text-selected: var(--primitive-brand-100);
-    --color-text-on-action: var(--primitive-neutral-950);
-    --color-text-on-danger: var(--primitive-neutral-950);
-    --color-border-default: var(--primitive-neutral-700);
-    --color-border-strong: var(--primitive-neutral-400);
-    --color-border-selected: var(--primitive-brand-300);
-    --color-border-disabled: var(--primitive-neutral-700);
-    --color-focus-ring: var(--primitive-brand-300);
-    --color-action-primary: var(--primitive-brand-300);
-    --color-action-primary-hover: var(--primitive-brand-200);
-    --color-action-primary-pressed: var(--primitive-brand-400);
-    --color-action-danger: var(--primitive-red-300);
-    --color-action-danger-hover: var(--primitive-red-50);
-    --color-action-danger-pressed: var(--primitive-red-400);
-    --color-accent-bg: var(--primitive-violet-950);
-    --color-accent-text: var(--primitive-violet-300);
-    --color-status-success-bg: var(--primitive-green-950);
-    --color-status-success-border: var(--primitive-green-400);
-    --color-status-success-icon: var(--primitive-green-300);
-    --color-status-success-text: var(--primitive-green-300);
-    --color-status-warning-bg: var(--primitive-amber-950);
-    --color-status-warning-border: var(--primitive-amber-400);
-    --color-status-warning-icon: var(--primitive-amber-300);
-    --color-status-warning-text: var(--primitive-amber-300);
-    --color-status-error-bg: var(--primitive-red-950);
-    --color-status-error-border: var(--primitive-red-400);
-    --color-status-error-icon: var(--primitive-red-300);
-    --color-status-error-text: var(--primitive-red-300);
-    --color-status-info-bg: var(--primitive-indigo-950);
-    --color-status-info-border: var(--primitive-indigo-400);
-    --color-status-info-icon: var(--primitive-indigo-300);
-    --color-status-info-text: var(--primitive-indigo-300);
-    --color-chart-series-1: var(--primitive-chart-blue-400);
-    --color-chart-series-2: var(--primitive-chart-orange-600);
-    --color-chart-series-3: var(--primitive-chart-aqua-600);
-    --color-chart-negative: var(--primitive-chart-blue-400);
-    --color-chart-positive: var(--primitive-chart-red-400);
-    --color-chart-neutral: var(--primitive-chart-gray-800);
-    color-scheme: dark;
-  }
-}
-
-/* ---------- Semantic（Dark）：手動切換；內容必須與上方 @media 區塊相同（有測試檢查） ---------- */
-:root[data-theme="dark"] {
-  --color-bg-page: var(--primitive-neutral-950);
-  --color-bg-surface: var(--primitive-neutral-900);
-  --color-bg-raised: var(--primitive-neutral-850);
-  --color-bg-subtle: var(--primitive-neutral-850);
-  --color-bg-hover: var(--primitive-neutral-800);
-  --color-bg-pressed: var(--primitive-neutral-700);
-  --color-bg-selected: var(--primitive-brand-950);
-  --color-bg-disabled: var(--primitive-neutral-850);
-  --color-bg-backdrop: var(--primitive-neutral-950);
-  --color-text-primary: var(--primitive-neutral-50);
-  --color-text-secondary: var(--primitive-neutral-200);
-  --color-text-muted: var(--primitive-neutral-300);
-  --color-text-disabled: var(--primitive-neutral-400);
-  --color-text-link: var(--primitive-brand-300);
-  --color-text-selected: var(--primitive-brand-100);
-  --color-text-on-action: var(--primitive-neutral-950);
-  --color-text-on-danger: var(--primitive-neutral-950);
-  --color-border-default: var(--primitive-neutral-700);
-  --color-border-strong: var(--primitive-neutral-400);
-  --color-border-selected: var(--primitive-brand-300);
-  --color-border-disabled: var(--primitive-neutral-700);
-  --color-focus-ring: var(--primitive-brand-300);
-  --color-action-primary: var(--primitive-brand-300);
-  --color-action-primary-hover: var(--primitive-brand-200);
-  --color-action-primary-pressed: var(--primitive-brand-400);
-  --color-action-danger: var(--primitive-red-300);
-  --color-action-danger-hover: var(--primitive-red-50);
-  --color-action-danger-pressed: var(--primitive-red-400);
-  --color-accent-bg: var(--primitive-violet-950);
-  --color-accent-text: var(--primitive-violet-300);
-  --color-status-success-bg: var(--primitive-green-950);
-  --color-status-success-border: var(--primitive-green-400);
-  --color-status-success-icon: var(--primitive-green-300);
-  --color-status-success-text: var(--primitive-green-300);
-  --color-status-warning-bg: var(--primitive-amber-950);
-  --color-status-warning-border: var(--primitive-amber-400);
-  --color-status-warning-icon: var(--primitive-amber-300);
-  --color-status-warning-text: var(--primitive-amber-300);
-  --color-status-error-bg: var(--primitive-red-950);
-  --color-status-error-border: var(--primitive-red-400);
-  --color-status-error-icon: var(--primitive-red-300);
-  --color-status-error-text: var(--primitive-red-300);
-  --color-status-info-bg: var(--primitive-indigo-950);
-  --color-status-info-border: var(--primitive-indigo-400);
-  --color-status-info-icon: var(--primitive-indigo-300);
-  --color-status-info-text: var(--primitive-indigo-300);
-  --color-chart-series-1: var(--primitive-chart-blue-400);
-  --color-chart-series-2: var(--primitive-chart-orange-600);
-  --color-chart-series-3: var(--primitive-chart-aqua-600);
-  --color-chart-negative: var(--primitive-chart-blue-400);
-  --color-chart-positive: var(--primitive-chart-red-400);
-  --color-chart-neutral: var(--primitive-chart-gray-800);
-  color-scheme: dark;
 }

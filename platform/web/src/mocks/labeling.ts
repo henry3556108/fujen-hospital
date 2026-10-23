@@ -12,6 +12,9 @@ import type {
   AutolabelRun,
   CsvRowResult,
   DetectionPayload,
+  LabelDataset,
+  LabelDatasetItem,
+  LabelDatasetVersion,
   LabelSummary,
   SegmentationPayload,
 } from '../pages/labeling/types';
@@ -61,6 +64,8 @@ interface State {
   nextAnnotationId: number;
   nextRunId: number;
   autolabelOffline: boolean;
+  datasets: MockLabelDataset[];
+  nextDatasetId: number;
 }
 
 const fresh = (): State => ({
@@ -69,6 +74,8 @@ const fresh = (): State => ({
   nextAnnotationId: 1,
   nextRunId: 1,
   autolabelOffline: false,
+  datasets: [],
+  nextDatasetId: 1,
 });
 
 let state: State | null = null;
@@ -219,9 +226,15 @@ function summary(projectId: number): LabelSummary {
     by_kind: count(kinds, (a) => a.kind),
     by_source: count(['manual', 'csv', 'autolabel'] as const, (a) => a.source),
     labels,
+    pending:
+      studiesOf(projectId).filter((s) => !rows.some((a) => a.study_instance_uid === s.study_instance_uid && a.status !== 'draft')).length +
+      rows.filter((a) => a.status === 'draft').length,
+    confirmed: studiesOf(projectId).filter((s) => rows.some((a) => a.study_instance_uid === s.study_instance_uid && a.status !== 'draft')).length,
     studies: studiesOf(projectId).map((s) => {
       const mine = rows.filter((a) => a.study_instance_uid === s.study_instance_uid);
       return {
+        drafts: mine.filter((a) => a.status === 'draft').length,
+        confirmed: mine.filter((a) => a.status !== 'draft').length,
         study_instance_uid: s.study_instance_uid,
         accession_number: s.accession_number,
         patient_id: s.patient_id,
@@ -367,6 +380,114 @@ const KEY_ALIASES: Record<string, string[]> = {
 };
 const LABEL_ALIASES = ['diagnosis', 'label', '診斷', '診斷結果'];
 
+// ---------- 標註資料集（內容是「篩選標註的條件」，版本是快照） ----------
+
+interface MockVersion extends LabelDatasetVersion {
+  /** 納入的標註 id 與當時的版本 */
+  members: [number, number][];
+}
+
+interface MockLabelDataset extends Omit<LabelDataset, 'current' | 'latest_version'> {
+  project_id: number;
+  versions: MockVersion[];
+}
+
+const TASK_NAMES: Record<AnnotationKind, string> = { classification: '分類標註', detection: '偵測標註', segmentation: '分割標註' };
+
+/** 資料集目前涵蓋的標註（含草稿；草稿不計入訓練）。資料範圍在模擬裡不另外篩。 */
+function datasetRows(d: MockLabelDataset): Annotation[] {
+  return load().annotations.filter(
+    (a) => a.project_id === d.project_id && a.kind === d.task && (d.classes.length === 0 || labelsOf(a).some((l) => d.classes.includes(l))),
+  );
+}
+
+function countClasses(rows: Annotation[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const a of rows) for (const l of labelsOf(a)) out[l] = (out[l] ?? 0) + 1;
+  return out;
+}
+
+function datasetJson(d: MockLabelDataset): LabelDataset {
+  const rows = datasetRows(d);
+  const confirmed = rows.filter((a) => a.status !== 'draft');
+  const latest = d.versions[d.versions.length - 1];
+  return {
+    id: d.id,
+    name: d.name,
+    task: d.task,
+    scope_id: d.scope_id,
+    classes: d.classes,
+    created_by: d.created_by,
+    created_at: d.created_at,
+    current: {
+      annotations: confirmed.length,
+      studies: new Set(confirmed.map((a) => a.study_instance_uid)).size,
+      by_class: countClasses(confirmed),
+      by_source: {
+        manual: confirmed.filter((a) => a.source === 'manual').length,
+        csv: confirmed.filter((a) => a.source === 'csv').length,
+        autolabel: confirmed.filter((a) => a.source === 'autolabel').length,
+      },
+      drafts_excluded: rows.length - confirmed.length,
+    },
+    latest_version: latest
+      ? { version: latest.version, created_at: latest.created_at, created_by: latest.created_by, annotations: latest.annotations, by_class: latest.by_class }
+      : null,
+  };
+}
+
+function projectName(projectId: number): string {
+  return mockDb().projects.find((p) => p.id === projectId)?.name ?? `專案 ${projectId}`;
+}
+
+/** 專案第一次有某任務的標註時，自動建「（專案名）分類標註」等資料集。 */
+function ensureDefaultDatasets(projectId: number, username: string): void {
+  const s = load();
+  const kinds = new Set(s.annotations.filter((a) => a.project_id === projectId).map((a) => a.kind));
+  for (const kind of kinds) {
+    if (s.datasets.some((d) => d.project_id === projectId && d.task === kind)) continue;
+    s.datasets.push({
+      id: s.nextDatasetId++,
+      project_id: projectId,
+      name: `${projectName(projectId)}${TASK_NAMES[kind]}`,
+      task: kind,
+      scope_id: null,
+      classes: [],
+      created_by: username,
+      created_at: now(),
+      versions: [],
+    });
+  }
+}
+
+/** 建立訓練時對資料集建版：內容與最新版相同就沿用（created: false）。 */
+export function snapshotDataset(id: number, username = 'system'): { version: LabelDatasetVersion; created: boolean } | null {
+  const d = load().datasets.find((x) => x.id === id);
+  if (!d) return null;
+  const confirmed = datasetRows(d).filter((a) => a.status !== 'draft');
+  const members = confirmed.map((a) => [a.id, a.version] as [number, number]);
+  const latest = d.versions[d.versions.length - 1];
+  if (latest && JSON.stringify(latest.members) === JSON.stringify(members)) return { version: latest, created: false };
+  const v: MockVersion = {
+    version: (latest?.version ?? 0) + 1,
+    created_at: now(),
+    created_by: username,
+    annotations: members.length,
+    by_class: countClasses(confirmed),
+    members,
+  };
+  d.versions.push(v);
+  save();
+  return { version: v, created: true };
+}
+
+function getDataset(ctx: Ctx, id: string | readonly string[] | undefined): MockLabelDataset | Response {
+  const d = load().datasets.find((x) => x.id === Number(id) && x.project_id === ctx.projectId);
+  return d ?? detail(404, `找不到標註資料集 ${String(id)}`);
+}
+
+const TASKS: AnnotationKind[] = ['classification', 'segmentation', 'detection'];
+
 // ---------- handlers ----------
 
 const API = '*/api/projects/:pid';
@@ -439,6 +560,9 @@ const labelingHandlers = [
       kind,
       payload: normalize(kind, b.payload),
       source: 'manual',
+      status: 'confirmed',
+      confirmed_by: ctx.username,
+      confirmed_at: now(),
       rating: null,
       version: 1,
       autolabel_run_id: null,
@@ -448,6 +572,7 @@ const labelingHandlers = [
       updated_at: now(),
     };
     s.annotations.push(a);
+    ensureDefaultDatasets(ctx.projectId, ctx.username);
     save();
     return json(a, 201);
   }),
@@ -469,6 +594,8 @@ const labelingHandlers = [
     if (problem) return detail(422, problem);
     a.payload = normalize(a.kind, b.payload);
     a.version += 1;
+    // 草稿被修改就算確認
+    if (a.status === 'draft') Object.assign(a, { status: 'confirmed', confirmed_by: ctx.username, confirmed_at: now() });
     a.updated_by = ctx.username;
     a.updated_at = now();
     save();
@@ -555,6 +682,9 @@ const labelingHandlers = [
                 kind: 'classification',
                 payload: { label: r.label },
                 source: 'csv',
+                status: 'confirmed',
+                confirmed_by: ctx.username,
+                confirmed_at: now(),
                 rating: null,
                 version: 1,
                 autolabel_run_id: null,
@@ -578,6 +708,32 @@ const labelingHandlers = [
       }
       return { ...item, study_instance_uids: matches.map((m) => m.study_instance_uid), annotation_ids: written.get(r.key)! };
     });
+    ensureDefaultDatasets(ctx.projectId, ctx.username);
+    // 寫進指定的資料集：加入既有（dataset_id）或用名稱建立新的（dataset_name）
+    let datasetId: number | null = null;
+    const csvLabels = [...new Set(results.filter((r) => r.status === 'matched').map((r) => r.label))].sort();
+    const wantedId = String(form.get('dataset_id') ?? '').trim();
+    const wantedName = String(form.get('dataset_name') ?? '').trim();
+    if (wantedId) {
+      const d = s.datasets.find((x) => x.id === Number(wantedId) && x.project_id === ctx.projectId);
+      if (!d) return detail(404, `找不到標註資料集 ${wantedId}`);
+      if (d.classes.length) d.classes = [...new Set([...d.classes, ...csvLabels])].sort();
+      datasetId = d.id;
+    } else if (wantedName) {
+      const d: MockLabelDataset = {
+        id: s.nextDatasetId++,
+        project_id: ctx.projectId,
+        name: wantedName,
+        task: 'classification',
+        scope_id: null,
+        classes: csvLabels,
+        created_by: ctx.username,
+        created_at: now(),
+        versions: [],
+      };
+      s.datasets.push(d);
+      datasetId = d.id;
+    }
     save();
     const tally = (st: string) => results.filter((r) => r.status === st).length;
     return json(
@@ -591,6 +747,7 @@ const labelingHandlers = [
         ...counts,
         annotated_studies: new Set([...written.values()].flat()).size,
         results,
+        dataset_id: datasetId,
       },
       201,
     );
@@ -642,6 +799,9 @@ const labelingHandlers = [
       kind: model.type,
       payload: autolabelPayload(model, sop),
       source: 'autolabel',
+      status: 'draft',
+      confirmed_by: null,
+      confirmed_at: null,
       rating: null,
       version: 1,
       autolabel_run_id: run.id,
@@ -652,8 +812,123 @@ const labelingHandlers = [
     };
     s.runs.push(run);
     s.annotations.push(annotation);
+    ensureDefaultDatasets(ctx.projectId, ctx.username);
     save();
     return json({ run, annotation }, 201);
+  }),
+
+  http.post(`${LABELS}/annotations/:id/confirm`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const a = getAnnotation(ctx, params.id);
+    if (a instanceof Response) return a;
+    if (a.status === 'draft') Object.assign(a, { status: 'confirmed', confirmed_by: ctx.username, confirmed_at: now() });
+    save();
+    return json(a);
+  }),
+
+  // ---- 標註資料集 ----
+  http.get(`${LABELS}/datasets`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    return json(load().datasets.filter((d) => d.project_id === ctx.projectId).map(datasetJson));
+  }),
+
+  http.post(`${LABELS}/datasets`, async ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const b = await bodyOf(request);
+    const name = String(b.name ?? '').trim();
+    if (!name) return detail(422, '請輸入資料集名稱');
+    if (!TASKS.includes(b.task as AnnotationKind)) return detail(422, 'task 必須是 classification、detection 或 segmentation');
+    const s = load();
+    if (s.datasets.some((d) => d.project_id === ctx.projectId && d.name === name)) return detail(409, `已經有名為「${name}」的資料集`);
+    const d: MockLabelDataset = {
+      id: s.nextDatasetId++,
+      project_id: ctx.projectId,
+      name,
+      task: b.task as AnnotationKind,
+      scope_id: typeof b.scope_id === 'number' ? b.scope_id : null,
+      classes: Array.isArray(b.classes) ? (b.classes as unknown[]).map(String).filter(Boolean) : [],
+      created_by: ctx.username,
+      created_at: now(),
+      versions: [],
+    };
+    s.datasets.push(d);
+    save();
+    return json(datasetJson(d), 201);
+  }),
+
+  http.get(`${LABELS}/datasets/:id`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    return d instanceof Response ? d : json(datasetJson(d));
+  }),
+
+  http.put(`${LABELS}/datasets/:id`, async ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    if (d instanceof Response) return d;
+    const b = await bodyOf(request);
+    if (typeof b.name === 'string' && b.name.trim()) d.name = b.name.trim();
+    if (Array.isArray(b.classes)) d.classes = (b.classes as unknown[]).map(String).filter(Boolean);
+    if ('scope_id' in b) d.scope_id = typeof b.scope_id === 'number' ? b.scope_id : null;
+    save();
+    return json(datasetJson(d));
+  }),
+
+  http.delete(`${LABELS}/datasets/:id`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    if (d instanceof Response) return d;
+    const s = load();
+    s.datasets = s.datasets.filter((x) => x !== d);
+    save();
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get(`${LABELS}/datasets/:id/items`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    if (d instanceof Response) return d;
+    const q = new URL(request.url).searchParams;
+    const offset = Math.max(0, Number(q.get('offset')) || 0);
+    const limit = Math.max(1, Number(q.get('limit')) || 50);
+    const rows = datasetRows(d);
+    const items: LabelDatasetItem[] = rows.slice(offset, offset + limit).map((a) => ({
+      annotation_id: a.id,
+      study_instance_uid: a.study_instance_uid,
+      accession_number: findStudy(ctx.projectId, a.study_instance_uid)?.accession_number ?? '',
+      sop_instance_uid: a.sop_instance_uid,
+      label: labelsOf(a).join('、'),
+      source: a.source,
+      status: a.status ?? 'confirmed',
+      updated_by: a.updated_by,
+      updated_at: a.updated_at,
+    }));
+    return json({ total: rows.length, items });
+  }),
+
+  http.get(`${LABELS}/datasets/:id/versions`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    if (d instanceof Response) return d;
+    return json(d.versions.map(({ members: _m, ...v }) => v).reverse());
+  }),
+
+  http.post(`${LABELS}/datasets/:id/versions`, ({ request, params }) => {
+    const ctx = authorize(request, params.pid, 'training');
+    if (ctx instanceof Response) return ctx;
+    const d = getDataset(ctx, params.id);
+    if (d instanceof Response) return d;
+    const r = snapshotDataset(d.id, ctx.username)!;
+    const { members: _m, ...v } = r.version as MockVersion;
+    return json({ ...v, created: r.created }, r.created ? 201 : 200);
   }),
 
   // ---- 合成的專案範圍 DICOMweb ----

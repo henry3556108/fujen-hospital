@@ -262,7 +262,15 @@ def normalise_source(value: Any, kind: str) -> dict[str, Any]:
                 isinstance(k, str) and isinstance(v, str) and v for k, v in values.items()):
             raise ConfigError("inline 標註的 values 必須是「識別碼 → Label」的對照")
         label_source |= {"by": labels["by"], "values": dict(sorted(values.items()))}
-    return {"type": "dicom", "studies": _selection(raw.get("studies"), "研究清單"), "label_source": label_source}
+    out = {"type": "dicom", "studies": _selection(raw.get("studies"), "研究清單"), "label_source": label_source}
+    # 標註資料集：送出訓練時系統自動建版，只用該版本快照內、已確認的標註
+    dataset_id = raw.get("label_dataset_id")
+    if dataset_id is not None:
+        if isinstance(dataset_id, bool) or not isinstance(dataset_id, int):
+            raise ConfigError("標註資料集（label_dataset_id）必須是編號")
+        out["label_source"] = {"provider": "annotations"}
+        out["label_dataset_id"] = dataset_id
+    return out
 
 
 def normalise_tabular(value: Any, kind: str) -> tuple[dict[str, Any], dict[str, tuple]]:
@@ -291,10 +299,14 @@ def normalise(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ConfigError("訓練設定必須是物件")
     known = {"version", "kind", "source", "split", "seed", "validation", "image", "tabular", "augmentation",
-             "hyperparameters"}
+             "hyperparameters", "label_dataset_id"}
     unknown = sorted(set(data) - known)
     if unknown:
         raise ConfigError(f"不支援的設定欄位：{'、'.join(unknown)}")
+    if data.get("label_dataset_id") is not None:     # 頂層的 label_dataset_id 併入 source（影像 DICOM 來源）
+        source = data.get("source") if isinstance(data.get("source"), dict) else {"type": "dicom"}
+        data = {**{k: v for k, v in data.items() if k != "label_dataset_id"},
+                "source": {**source, "label_dataset_id": data["label_dataset_id"]}}
     if data.get("version", CONFIG_VERSION) != CONFIG_VERSION:
         raise ConfigError(f"不支援的設定版本：{data.get('version')}")
     kind = data.get("kind")

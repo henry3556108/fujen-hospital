@@ -1,10 +1,12 @@
 """/api/projects/{project_id}/imaging/*：影像匯入、查詢、Accession 清單、PACS 查詢取像。"""
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 
 from app import scanning
 from app.deps import ProjectContext, client_ip, require_project_permission
-from app.imaging import service
+from app.imaging import scopes, service
 from app.imaging.orthanc import OrthancClient
 from app.permissions import AccountType, Permission
 
@@ -72,15 +74,64 @@ def get_job(job_id: int, ctx: ProjectContext = Depends(can_read)) -> dict:
 @router.get("/studies")
 def list_studies(modality: str | None = None, patient_sex: str | None = None, study_description: str | None = None,
                  study_date: str | None = None, series_description: str | None = None,
+                 study_date_from: str | None = None, study_date_to: str | None = None,
+                 scope_id: int | None = None,
                  limit: int | None = Query(None, ge=1, le=500), offset: int = Query(0, ge=0),
                  ctx: ProjectContext = Depends(can_read)) -> list[dict] | dict:
-    """不帶 limit：回完整陣列（既有行為）。帶 limit：分頁，回 {items, total, offset, limit}。"""
+    """不帶 limit：回完整陣列（既有行為）。帶 limit：分頁，回 {items, total, offset, limit}。
+    scope_id：只列資料範圍內的研究，可再加其他條件（同時成立）。"""
     filters = dict(modality=modality, patient_sex=patient_sex, study_description=study_description,
-                   study_date=study_date, series_description=series_description)
+                   study_date=study_date, series_description=series_description,
+                   study_date_from=study_date_from, study_date_to=study_date_to)
+    if scope_id is not None:
+        filters["scope_filters"] = scopes.get_scope(ctx.session, ctx.project.id, scope_id).filters or {}
     if limit is None:
         return service.studies_to_dicts(ctx.session, service.list_studies(ctx.session, ctx.project.id, **filters))
     total, page = service.page_studies(ctx.session, ctx.project.id, limit=limit, offset=offset, **filters)
     return {"items": service.studies_to_dicts(ctx.session, page), "total": total, "offset": offset, "limit": limit}
+
+
+# ---------- 資料範圍（具名的篩選條件；寫入需 Labeling） ----------
+
+class ScopeIn(BaseModel):
+    name: str
+    filters: dict[str, Any] = {}
+
+
+class ScopePatch(BaseModel):
+    name: str | None = None
+    filters: dict[str, Any] | None = None
+
+
+@router.get("/scopes")
+def list_scopes(ctx: ProjectContext = Depends(can_read)) -> list[dict]:
+    return [scopes.scope_out(ctx.session, s) for s in scopes.list_scopes(ctx.session, ctx.project.id)]
+
+
+@router.post("/scopes", status_code=201)
+def create_scope(body: ScopeIn, request: Request, ctx: ProjectContext = Depends(can_import)) -> dict:
+    scope = scopes.create_scope(ctx.session, project_id=ctx.project.id, actor=ctx.user.username,
+                                source_ip=client_ip(request), name=body.name, filters=body.filters)
+    return scopes.scope_out(ctx.session, scope)
+
+
+@router.get("/scopes/{scope_id}")
+def get_scope(scope_id: int, ctx: ProjectContext = Depends(can_read)) -> dict:
+    return scopes.scope_out(ctx.session, scopes.get_scope(ctx.session, ctx.project.id, scope_id))
+
+
+@router.put("/scopes/{scope_id}")
+def update_scope(scope_id: int, body: ScopePatch, request: Request, ctx: ProjectContext = Depends(can_import)) -> dict:
+    scope = scopes.update_scope(ctx.session, project_id=ctx.project.id, scope_id=scope_id, actor=ctx.user.username,
+                                source_ip=client_ip(request), name=body.name, filters=body.filters)
+    return scopes.scope_out(ctx.session, scope)
+
+
+@router.delete("/scopes/{scope_id}", status_code=204)
+def delete_scope(scope_id: int, request: Request, ctx: ProjectContext = Depends(can_import)) -> Response:
+    scopes.delete_scope(ctx.session, project_id=ctx.project.id, scope_id=scope_id, actor=ctx.user.username,
+                        source_ip=client_ip(request))
+    return Response(status_code=204)
 
 
 class AllowlistBody(BaseModel):

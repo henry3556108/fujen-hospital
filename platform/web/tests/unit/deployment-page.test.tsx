@@ -1,4 +1,4 @@
-// AI 模型部署頁（元件層級，MSW 模擬）。TC-B06-05、TC-B06-06；權限。
+// 使用模型 › 分享與服務、下載（原 AI 模型部署，MSW 模擬）。TC-B06-05、TC-B06-06；權限。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { trainingMock } from '../../src/mocks/training';
@@ -16,10 +16,10 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-describe('AI 模型部署', () => {
+describe('使用模型：分享與服務、下載（原 AI 模型部署）', () => {
   it('TC-B06-05 downloads a model three times without failure', async () => {
-    const { user } = await renderApp('/deployment', 'pi01');
-    const table = await screen.findByRole('table', { name: '可部署的模型' });
+    const { user } = await renderApp('/models/101/download', 'pi01');
+    const table = await screen.findByRole('region', { name: '下載模型檔' });
     for (let i = 0; i < 3; i += 1) {
       await user.click(within(table).getByRole('button', { name: '下載模型「diagnosis-rf-run1」' }));
       await waitFor(() => expect(saved).toHaveLength(i + 1));
@@ -30,17 +30,16 @@ describe('AI 模型部署', () => {
   });
 
   it('TC-B06-06 shares with colleagues using a Chinese display name; the technical details are collapsed for IT staff', async () => {
-    const { user } = await renderApp('/deployment', 'pi01');
+    const { user } = await renderApp('/models/101/share', 'pi01');
     const form = await screen.findByRole('form', { name: '分享給同事使用' });
-    await user.selectOptions(within(form).getByLabelText('模型'), within(form).getByRole('option', { name: /^diagnosis-rf-run1/ }));
     const title = within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）');
-    expect(title).toHaveValue('diagnosis-rf');
-    expect(within(form).getByTestId('share-explain')).toHaveTextContent('點左側「推論服務管理」，在模型清單找到「diagnosis-rf」');
+    await waitFor(() => expect(title).toHaveValue('diagnosis-rf'));
+    expect(within(form).getByTestId('share-explain')).toHaveTextContent('點左側「使用模型」，在模型清單找到「diagnosis-rf」');
     await user.clear(title);
     await user.type(title, '心臟科確診預測');
     await user.type(within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）'), 'md01, pi01');
     await user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
-    expect(await screen.findByText('已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「推論服務管理」，選模型「心臟科確診預測」就能預測。')).toBeInTheDocument();
+    expect(await screen.findByText('已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「使用模型」，打開模型「心臟科確診預測」就能預測。')).toBeInTheDocument();
     expect(trainingMock().deployments[0]).toMatchObject({ name: 'model-101', title: '心臟科確診預測' });
 
     const table = await screen.findByRole('table', { name: '已分享的模型' });
@@ -78,42 +77,43 @@ describe('AI 模型部署', () => {
   });
 
   it('sharing needs at least one colleague', async () => {
-    const { user } = await renderApp('/deployment', 'pi01');
+    const { user } = await renderApp('/models/101/share', 'pi01');
     const form = await screen.findByRole('form', { name: '分享給同事使用' });
     await user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('請填要分享的同事帳號');
   });
 
-  it('a model trained on 建模管理 can be shared and md01 finds it on 推論服務管理 and predicts', async () => {
+  it('a model trained can be shared and md01 finds it on 使用模型 and predicts', async () => {
     const s = trainingMock();
-    s.models.push({ id: 1001, project_id: 1, name: '心臟科訓練-run1', kind: 'tabular_classification', format: 'pkl', sha256: 'a'.repeat(64),
+    s.models.push({ id: 1001, run_id: 1, project_id: 1, name: '心臟科訓練-run1', kind: 'tabular_classification', format: 'pkl', sha256: 'a'.repeat(64),
       filename: 'run1.pkl', created_by: 'pi01', created_at: '2026-09-30T00:00:00Z',
       card: { target: 'diagnosis', features: ['age'], classes: ['0', '1'], inputs: [{ name: 'age', type: 'number', min: 20, max: 90 }] } });
-    const first = await renderApp('/deployment', 'pi01');
+    const first = await renderApp('/models/1/share', 'pi01');
     const form = await screen.findByRole('form', { name: '分享給同事使用' });
-    await first.user.selectOptions(within(form).getByLabelText('模型'), '1001');
-    expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科訓練');
+    await waitFor(() => expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科訓練'));
     await first.user.type(within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）'), 'md01');
     await first.user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
     await screen.findByText(/^已把「心臟科訓練」分享給 md01/);
     first.unmount();
 
-    const second = await renderApp('/inference', 'md01');
+    const second = await renderApp('/models', 'md01');
     const models = await screen.findByRole('table', { name: '模型清單' });
     const row = within(models).getByRole('row', { name: /心臟科訓練（模型名稱：心臟科訓練-run1）/ });
     expect(row).toHaveTextContent('pi01 分享給你');
-    expect(within(row).getByRole('button', { name: '已選擇' })).toBeDisabled();
-    await second.user.click(screen.getByRole('button', { name: '多位病人一起預測' }));
+    await second.user.click(within(row).getByRole('link'));
+    await second.user.click(await screen.findByRole('link', { name: '預測新資料' }));
+    await second.user.click(await screen.findByRole('button', { name: '多位病人一起預測' }));
     expect(await screen.findByTestId('table-summary', {}, { timeout: 10_000 })).toHaveTextContent(/^共 20 位/);
   });
 
-  it('users with Prediction but no Training see the models but no deploy or download actions', async () => {
-    await renderApp('/deployment', 'vw01');
-    const table = await screen.findByRole('table', { name: '可部署的模型' });
-    expect(within(table).getByRole('row', { name: /diagnosis-rf-run1/ })).toBeInTheDocument();
-    expect(screen.getByText(/分享模型、下載模型需要 Training 權限/)).toBeInTheDocument();
+  it('users with Prediction but no Training see the model but no share or download actions', async () => {
+    const first = await renderApp('/models/101/share', 'vw01');
+    expect(await screen.findByText(/分享模型、下載模型需要 Training 權限/)).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: '分享給同事使用' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^下載模型/ })).toBeNull();
     expect(screen.queryByRole('table', { name: '已分享的模型' })).toBeNull();
+    first.unmount();
+    await renderApp('/models/101/download', 'vw01');
+    expect(await screen.findByText(/下載模型檔需要 Training 權限/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^下載模型/ })).toBeNull();
   });
 });

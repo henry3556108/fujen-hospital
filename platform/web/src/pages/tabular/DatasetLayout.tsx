@@ -5,7 +5,7 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { Tabs } from '../../components/Tabs';
-import { CreateTrainingLink } from '../training/CreateTrainingLink';
+import { useProjectAccess } from '../data/access';
 import type { CatalogueItem, DatasetDetail, Step, TargetFeature } from './types';
 
 export interface DatasetContext {
@@ -13,7 +13,7 @@ export interface DatasetContext {
   /** API 路徑前綴：/api/projects/{pid}/tabular/datasets/{id} */
   base: string;
   catalogue: CatalogueItem[];
-  /** 目前編輯中的前處理步驟；「前處理」「Target／Feature」「統計分析」共用 */
+  /** 目前編輯中的整理步驟；「整理資料」「統計分析」共用 */
   steps: Step[];
   setSteps: (steps: Step[]) => void;
   saved: TargetFeature | null;
@@ -22,19 +22,17 @@ export interface DatasetContext {
 
 export const useDataset = () => useOutletContext<DatasetContext>();
 
-/** 資料集分頁與一行說明（「描述統計」與「統計分析」名稱相近，用說明分清楚）。 */
+/** 資料集的三個分頁與一行說明。 */
 export const TABS = [
-  { path: 'describe', label: '描述統計', hint: '每一欄的平均、範圍與分布，先看資料長什麼樣子。' },
-  { path: 'preview', label: '預覽', hint: '逐列看原始資料。' },
-  { path: 'target', label: 'Target／Feature', hint: '選要預測的結果與用來預測的資料，之後可以直接建立訓練。' },
-  { path: 'preprocess', label: '前處理', hint: '進階：轉換或清理欄位。大多數人不需要，Target／Feature 會自動處理類別欄位與缺值。' },
-  { path: 'correlation', label: '相關與散佈圖', hint: '看兩個數字欄位是否一起變高或變低。' },
-  { path: 'stats', label: '統計分析', hint: '找出哪些因素和結果有關（邏輯斯／線性迴歸、存活分析、Cox 模型），附 p 值與信賴區間；和訓練模型無關。' },
+  { path: 'view', label: '查看資料', hint: '逐列預覽、每一欄的平均與分布、欄位之間的相關。' },
+  { path: 'prepare', label: '整理資料', hint: '選想預測的欄位與用來預測的欄位，處理缺值與格式，在本頁儲存。' },
+  { path: 'stats', label: '統計分析', hint: '找出哪些因素和結果有關（邏輯斯／線性迴歸、存活分析、Cox 模型），附 p 值與信賴區間；和建立模型無關。' },
 ] as const;
 
-/** 單一資料集的外框：載入欄位資訊、前處理方法清單與已儲存的 Target／Feature 設定。 */
+/** 單一資料集的外框：頁首固定顯示名稱、筆數、欄數；載入欄位資訊、整理方法清單與已儲存的設定。 */
 export function DatasetLayout() {
   const { api, project } = useSession();
+  const { can } = useProjectAccess();
   const { datasetId = '' } = useParams();
   const { pathname } = useLocation();
   const pid = project!.id;
@@ -64,7 +62,7 @@ export function DatasetLayout() {
   return (
     <>
       <p>
-        <Link to="/data/tabular">回資料集列表</Link>
+        <Link to="/data/tabular">回表格資料清單</Link>
       </p>
       <ApiErrorAlert error={dataset.error} />
       <ApiErrorAlert error={catalogue.error} />
@@ -72,11 +70,20 @@ export function DatasetLayout() {
       {!dataset.error && !ready && <p role="status">載入中…</p>}
       {ready && !dataset.error && (
         <>
-          <h2>資料集：{d.name}</h2>
-          <p className="text-muted">
-            {d.valid_rows} 列、{d.columns.length} 欄（上傳時拒絕 {d.rejected_rows} 列）。資料集上傳後不可修改，前處理只作用在副本上。
-          </p>
-          <CreateTrainingLink datasetId={d.id} />
+          <header className="row-actions dataset-head" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h2>資料集：{d.name}</h2>
+              <p className="text-muted" data-testid="dataset-size">
+                {d.valid_rows} 筆・{d.columns.length} 個欄位
+                {d.rejected_rows ? `（上傳時拒絕 ${d.rejected_rows} 列）` : ''}。原始資料不會被修改，整理步驟只套用在副本上。
+              </p>
+            </div>
+            {can('training') && (
+              <Link className="btn btn--secondary" to={`/training/new?tabular=${d.id}`}>
+                用這份資料建立模型
+              </Link>
+            )}
+          </header>
           <Tabs label="資料集分頁" items={tabs} />
           {current ? (
             <p className="text-muted tab-hint" data-testid="tab-hint">

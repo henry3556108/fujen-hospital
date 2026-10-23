@@ -28,6 +28,8 @@ export interface Model {
   format: 'h5' | 'pkl';
   sha256: string;
   filename: string;
+  /** 產生這個模型的訓練（使用模型頁的網址用訓練編號）；舊版 mock 可能沒有 */
+  run_id?: number | null;
   created_by: string;
   created_at: string;
   /** 有人把這個模型分享給目前的使用者（部署的授權帳號包含他）；舊版 API 沒有 */

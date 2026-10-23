@@ -1,6 +1,6 @@
 // 影像標註的 API 呼叫。頁面只透過 useLabelingApi() 取用，不直接組路徑。
 import { useMemo } from 'react';
-import { ApiError, type ApiClient } from '../../api/client';
+import { ApiError, withQuery, type ApiClient } from '../../api/client';
 import { useSession } from '../../auth/SessionContext';
 import { createDicomwebClient, type DicomwebClient } from './dicomweb';
 import type {
@@ -12,8 +12,12 @@ import type {
   AutolabelRun,
   CsvKey,
   CsvResult,
+  LabelDataset,
+  LabelDatasetItems,
+  LabelDatasetVersion,
   LabelSummary,
   NewAnnotation,
+  NewLabelDataset,
 } from './types';
 import { platformEnv } from '../../runtimeConfig';
 
@@ -70,6 +74,9 @@ export interface AnnotationFilter {
   source?: AnnotationSource;
 }
 
+/** CSV 匯入診斷時寫到哪一份標註資料集：加入既有（datasetId）或建立新的（datasetName）。 */
+export type CsvDatasetTarget = { datasetId: number } | { datasetName: string };
+
 export interface LabelingApi {
   projectId: number;
   dicomweb: DicomwebClient;
@@ -80,7 +87,16 @@ export interface LabelingApi {
   update(id: number, payload: AnnotationPayload): Promise<Annotation>;
   rate(id: number, rating: number | null): Promise<Annotation>;
   remove(id: number): Promise<void>;
-  classifyCsv(file: File, key: CsvKey, keyColumn?: string, labelColumn?: string): Promise<CsvResult>;
+  classifyCsv(file: File, key: CsvKey, keyColumn?: string, labelColumn?: string, target?: CsvDatasetTarget): Promise<CsvResult>;
+  /** 把自動標註的草稿標成已確認 */
+  confirm(id: number): Promise<Annotation>;
+  datasets(): Promise<LabelDataset[]>;
+  dataset(id: number): Promise<LabelDataset>;
+  createDataset(body: NewLabelDataset): Promise<LabelDataset>;
+  updateDataset(id: number, body: Partial<NewLabelDataset>): Promise<LabelDataset>;
+  removeDataset(id: number): Promise<void>;
+  datasetItems(id: number, offset: number, limit: number): Promise<LabelDatasetItems>;
+  datasetVersions(id: number): Promise<LabelDatasetVersion[]>;
   models(): Promise<AutolabelModel[]>;
   runs(): Promise<AutolabelRun[]>;
   autolabel(model: string, studyUid: string, sopUid: string): Promise<{ run: AutolabelRun; annotation: Annotation }>;
@@ -156,11 +172,21 @@ export function createLabelingApi(
     autolabel: (model, studyUid, sopUid) =>
       api.post(`${root}/autolabel`, { model, study_instance_uid: studyUid, sop_instance_uid: sopUid }),
     train: (request) => createTrainingJob(api, projectId, request),
-    async classifyCsv(file, key, keyColumn, labelColumn) {
+    confirm: (id) => api.post(`${root}/annotations/${id}/confirm`, {}),
+    datasets: () => api.get(`${root}/datasets`),
+    dataset: (id) => api.get(`${root}/datasets/${id}`),
+    createDataset: (body) => api.post(`${root}/datasets`, body),
+    updateDataset: (id, body) => api.put(`${root}/datasets/${id}`, body),
+    removeDataset: (id) => api.delete(`${root}/datasets/${id}`),
+    datasetItems: (id, offset, limit) => api.get(withQuery(`${root}/datasets/${id}/items`, { offset, limit })),
+    datasetVersions: (id) => api.get(`${root}/datasets/${id}/versions`),
+    async classifyCsv(file, key, keyColumn, labelColumn, target) {
       // 檔案上傳用 multipart，共用的 ApiClient 只送 JSON，所以這裡自己組請求
       const fields: [string, string][] = [['key', key]];
       if (keyColumn) fields.push(['key_column', keyColumn]);
       if (labelColumn) fields.push(['label_column', labelColumn]);
+      if (target && 'datasetId' in target) fields.push(['dataset_id', String(target.datasetId)]);
+      if (target && 'datasetName' in target) fields.push(['dataset_name', target.datasetName]);
       const { body, contentType } = multipart(fields, 'file', file.name, new Uint8Array(await file.arrayBuffer()));
       const token = await getToken();
       let res: Response;

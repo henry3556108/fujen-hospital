@@ -11,6 +11,7 @@ from app.audit import AuditCategory
 from app.imaging.models import ImagingInstance, ImagingSeries, ImagingStudy
 from app.imaging.service import allowlist, find_accessible_study
 from app.labeling import csv_labels, formats
+from app.labeling import datasets as label_datasets
 from app.labeling.autolabel import AutolabelClient, AutolabelRejected, AutolabelUnavailable
 from app.labeling.models import Annotation, AutolabelRun
 from app.labeling.payloads import KINDS, MAX_LABEL, InvalidPayload, labels_of, normalize
@@ -32,6 +33,8 @@ def annotation_out(a: Annotation) -> dict:
         "kind": a.kind, "payload": a.payload, "source": a.source, "rating": a.rating, "version": a.version,
         "autolabel_run_id": a.autolabel_run_id, "created_by": a.created_by, "updated_by": a.updated_by,
         "created_at": _iso(a.created_at), "updated_at": _iso(a.updated_at),
+        "status": a.status or "confirmed", "confirmed_by": a.confirmed_by,
+        "confirmed_at": _iso(a.confirmed_at) if a.confirmed_at else None,
     }
 
 
@@ -39,7 +42,13 @@ def _audit(session: Session, a: Annotation, action: str, *, actor: str, source_i
     audit.record(session, actor=actor, category=AuditCategory.DATASET, action=action,
                  target=f"project:{a.project_id}/annotation:{a.id}", source_ip=source_ip,
                  detail={"kind": a.kind, "source": a.source, "study_instance_uid": a.study_instance_uid,
-                         "sop_instance_uid": a.sop_instance_uid, "version": a.version, **detail})
+                         "sop_instance_uid": a.sop_instance_uid, "version": a.version,
+                         "status": a.status or "confirmed", **detail})
+
+
+def _confirm(a: Annotation, actor: str) -> None:
+    """標成已確認，記下確認的人與時間。"""
+    a.status, a.confirmed_by, a.confirmed_at = "confirmed", actor, utcnow()
 
 
 def resolve_target(session: Session, project_id: int, study_uid: str, series_uid: str | None,
@@ -103,9 +112,21 @@ def new_annotation(session: Session, *, project_id: int, actor: str, study_uid: 
     a = Annotation(project_id=project_id, study_instance_uid=study_uid, series_instance_uid=series_uid,
                    sop_instance_uid=sop_uid, kind=kind, payload=clean, source=source,
                    created_by=actor, updated_by=actor)
+    if source == "autolabel":
+        a.status = "draft"
+    else:                                    # 人工與診斷表：有 Labeling 權限的人存檔即確認
+        _confirm(a, actor)
+    first = _first_of_kind(session, project_id, kind)
     session.add(a)
     session.flush()
+    if first:
+        label_datasets.ensure_default(session, project_id, kind, actor)
     return a
+
+
+def _first_of_kind(session: Session, project_id: int, kind: str) -> bool:
+    return session.scalar(select(Annotation.id).where(Annotation.project_id == project_id,
+                                                      Annotation.kind == kind).limit(1)) is None
 
 
 def create_annotation(session: Session, *, project_id: int, actor: str, source_ip: str | None, study_uid: str,
@@ -123,8 +144,23 @@ def update_annotation(session: Session, *, project_id: int, annotation_id: int, 
     a.payload = normalize(a.kind, payload)
     a.version += 1
     a.updated_by, a.updated_at = actor, utcnow()
-    _audit(session, a, "annotation.update", actor=actor, source_ip=source_ip)
+    was_draft = a.status == "draft"
+    if was_draft:                            # 修改待確認的標註＝確認
+        _confirm(a, actor)
+    _audit(session, a, "annotation.update", actor=actor, source_ip=source_ip, confirmed=was_draft)
     session.commit()
+    return a
+
+
+def confirm_annotation(session: Session, *, project_id: int, annotation_id: int, actor: str,
+                       source_ip: str | None) -> Annotation:
+    """直接確認（內容不變、version 不變）。已確認的再按一次不改紀錄。"""
+    a = get_annotation(session, project_id, annotation_id)
+    if a.status == "draft":
+        _confirm(a, actor)
+        a.updated_by, a.updated_at = actor, utcnow()
+        _audit(session, a, "annotation.confirm", actor=actor, source_ip=source_ip)
+        session.commit()
     return a
 
 
@@ -155,11 +191,17 @@ def summary(session: Session, project_id: int) -> dict:
                                           .order_by(ImagingStudy.id))
                if not allowed or s.accession_number in allowed]
     per_study = {s.study_instance_uid: {k: 0 for k in KINDS} for s in studies}
+    drafts = {uid: 0 for uid in per_study}
+    confirmed = {uid: 0 for uid in per_study}
     labels: dict[str, dict[str, int]] = {k: {} for k in KINDS}
     # 研究清單直接顯示分類結果，不必點進工作台才知道標了什麼
     classes: dict[str, set[str]] = {uid: set() for uid in per_study}
     for a in rows:
         per_study[a.study_instance_uid][a.kind] += 1
+        if a.status == "draft":
+            drafts[a.study_instance_uid] += 1
+        else:
+            confirmed[a.study_instance_uid] += 1
         if a.kind == "classification":
             classes[a.study_instance_uid].add(a.payload["label"])
         for label in labels_of(a.kind, a.payload):
@@ -170,12 +212,17 @@ def summary(session: Session, project_id: int) -> dict:
         "by_kind": {k: sum(1 for a in rows if a.kind == k) for k in KINDS},
         "by_source": {s: sum(1 for a in rows if a.source == s) for s in SOURCES},
         "labels": {k: dict(sorted(v.items())) for k, v in labels.items()},
+        # 待處理＝還沒有已確認標註的研究＋待確認的標註；已確認＝有已確認標註的研究
+        "pending": sum(1 for uid in per_study if not confirmed[uid]) + sum(drafts.values()),
+        "confirmed": sum(1 for uid in per_study if confirmed[uid]),
         "studies": [{"study_instance_uid": s.study_instance_uid, "accession_number": s.accession_number,
                      "patient_id": s.patient_id, "study_date": s.study_date,
                      "study_description": s.study_description,
                      "annotations": sum(per_study[s.study_instance_uid].values()),
                      "by_kind": per_study[s.study_instance_uid],
-                     "classification_labels": sorted(classes[s.study_instance_uid])} for s in studies],
+                     "classification_labels": sorted(classes[s.study_instance_uid]),
+                     "drafts": drafts[s.study_instance_uid],
+                     "confirmed": confirmed[s.study_instance_uid]} for s in studies],
     }
 
 
@@ -183,10 +230,16 @@ def summary(session: Session, project_id: int) -> dict:
 
 def classify_from_csv(session: Session, *, project_id: int, actor: str, source_ip: str | None, filename: str,
                       data: bytes, key: str, key_column: str | None = None,
-                      label_column: str | None = None) -> dict:
+                      label_column: str | None = None, dataset_id: int | None = None,
+                      dataset_name: str | None = None) -> dict:
     """每個對到的研究一筆 source=csv 的研究層級分類標註；同一研究重傳時更新，不重複建立。
     逐列回報 matched／unmatched／conflict／invalid；只有 matched 會寫入。"""
     rows = csv_labels.parse(data, key=key, key_column=key_column, label_column=label_column)
+    if dataset_id is not None:               # 加入既有資料集：先確認存在、是分類資料集
+        target = label_datasets.get_dataset(session, project_id, dataset_id)
+        if target.task != "classification":
+            raise InvalidPayload("診斷表只能加入分類標註資料集")
+    first = _first_of_kind(session, project_id, "classification")
     column = ImagingStudy.patient_id if key == "patient_id" else ImagingStudy.accession_number
     allowed = allowlist(session, project_id)
     by_key: dict[str, list[str]] = {}
@@ -229,6 +282,7 @@ def classify_from_csv(session: Session, *, project_id: int, actor: str, source_i
                     if a is None:
                         a = Annotation(project_id=project_id, study_instance_uid=study_uid, kind="classification",
                                        payload={"label": r.label}, source="csv", created_by=actor, updated_by=actor)
+                        _confirm(a, actor)          # 診斷表就是醫師既有的判讀
                         session.add(a)
                         session.flush()
                         existing[study_uid] = a
@@ -247,13 +301,18 @@ def classify_from_csv(session: Session, *, project_id: int, actor: str, source_i
 
     tally = {s: sum(1 for i in results if i["status"] == s) for s in ("matched", "unmatched", "conflict", "invalid")}
     annotation_ids = sorted({i for ids in written.values() for i in ids})
+    used_labels = sorted({r.label for r in rows if r.key in written})
+    if first and annotation_ids:
+        label_datasets.ensure_default(session, project_id, "classification", actor)
+    dataset = label_datasets.attach_csv(session, project_id=project_id, actor=actor, dataset_id=dataset_id,
+                                        dataset_name=dataset_name, labels=used_labels, source_ip=source_ip)
     audit.record(session, actor=actor, category=AuditCategory.DATASET, action="annotation.csv_classification",
                  target=f"project:{project_id}", source_ip=source_ip,
                  detail={"filename": filename, "key": key, "rows": len(rows), **tally, **counts,
-                         "annotation_ids": annotation_ids})
+                         "annotation_ids": annotation_ids, "dataset_id": dataset.id if dataset else None})
     session.commit()
     return {"key": key, "rows": len(rows), **tally, **counts, "annotated_studies": len(annotation_ids),
-            "results": results}
+            "results": results, "dataset_id": dataset.id if dataset else None}
 
 
 # ---------- 自動標註 ----------
@@ -325,7 +384,8 @@ def submit_autolabel(session: Session, client: AutolabelClient, *, project_id: i
     duration_ms = int((time.monotonic() - started) * 1000)
     annotation = Annotation(project_id=project_id, study_instance_uid=study_uid, series_instance_uid=series_uid,
                             sop_instance_uid=sop_uid, kind=model_type, payload=payload, source="autolabel",
-                            created_by=actor, updated_by=actor)
+                            created_by=actor, updated_by=actor, status="draft")   # 待確認
+    first = _first_of_kind(session, project_id, model_type)
     session.add(annotation)
     session.flush()
     run = AutolabelRun(project_id=project_id, model=model, model_type=model_type, study_instance_uid=study_uid,
@@ -334,6 +394,8 @@ def submit_autolabel(session: Session, client: AutolabelClient, *, project_id: i
     session.add(run)
     session.flush()
     annotation.autolabel_run_id = run.id
+    if first:
+        label_datasets.ensure_default(session, project_id, model_type, actor)
     audit.record(session, actor=actor, category=AuditCategory.DATASET, action="autolabel.submit", target=target,
                  source_ip=source_ip,
                  detail={"model": model, "model_type": model_type, "study_instance_uid": study_uid,

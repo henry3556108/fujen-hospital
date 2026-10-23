@@ -18,7 +18,7 @@ export function PromptsPage() {
     try {
       const tags = form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
       const p = await llm!.createPrompt({ ...form, tags });
-      setDone(`已新增 Prompt「${p.title}」`);
+      setDone(`已新增問答範本「${p.title}」`);
       setForm({ title: '', content: '', tags: '', visibility: 'personal' });
       list.reload();
     } catch (err) {
@@ -28,7 +28,7 @@ export function PromptsPage() {
 
   return (
     <>
-      <form role="search" aria-label="搜尋 Prompt" className="card section row-actions" onSubmit={(e) => { e.preventDefault(); setApplied(query); }}>
+      <form role="search" aria-label="搜尋問答範本" className="card section row-actions" onSubmit={(e) => { e.preventDefault(); setApplied(query); }}>
         <div className="field">
           <label htmlFor="prompt-q">搜尋（標題、內容、tag）</label>
           <input id="prompt-q" className="input" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -37,7 +37,7 @@ export function PromptsPage() {
       </form>
       <ApiErrorAlert error={list.error} />
       <div className="table-wrap section">
-        <table aria-label="Prompt 範本">
+        <table aria-label="問答範本">
           <thead><tr><th>標題</th><th>tag</th><th>可見範圍</th><th>建立者</th><th>操作</th></tr></thead>
           <tbody>
             {(list.data ?? []).map((p) => (
@@ -49,8 +49,8 @@ export function PromptsPage() {
           </tbody>
         </table>
       </div>
-      <form aria-label="新增 Prompt" className="card section" onSubmit={create} noValidate>
-        <h2>新增 Prompt</h2>
+      <form aria-label="新增問答範本" className="card section" onSubmit={create} noValidate>
+        <h2>新增問答範本（Prompt）</h2>
         {done && <Alert tone="success">{done}</Alert>}
         <ApiErrorAlert error={error} />
         <div className="form-grid">
@@ -74,7 +74,7 @@ export function PromptsPage() {
           <label htmlFor="prompt-content">內容（必填，可用 {'{input}'} 代表使用者輸入）</label>
           <textarea id="prompt-content" className="input" rows={4} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
         </div>
-        <button type="submit" className="btn btn--primary">新增 Prompt</button>
+        <button type="submit" className="btn btn--primary">新增問答範本</button>
       </form>
     </>
   );

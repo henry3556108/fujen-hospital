@@ -50,6 +50,14 @@ def test_tc_b05_01_image_classification_trains(classification_dataset, tmp_path,
     assert card["keras_backend"] == backend["KERAS_BACKEND"] and card["device"]
     assert card["metrics"]["samples"] == {"train": 60, "validation": 20, "test": 20}
     assert card["metrics"]["training_samples"] == 120, "原始 60 筆＋增強 60 筆"
+    test = card["metrics"]["test"]
+    assert "accuracy" in test and ("sensitivity" in test or "specificity" in test), "二分類補敏感度、特異度"
+    if "sensitivity" in test and "specificity" in test:
+        assert 0 <= test["auc"] <= 1 and test["roc"]["positive"] == "MR"
+        assert len(test["roc"]["fpr"]) == len(test["roc"]["tpr"]) <= 200
+    charts = json.loads((tmp_path / "out" / "charts.json").read_text())
+    assert charts["subset"] == "test" and charts["confusion_matrix"]["labels"] == ["CT", "MR"]
+    assert sum(map(sum, charts["confusion_matrix"]["matrix"])) == 20
     splits = json.loads((tmp_path / "out" / "splits.json").read_text())
     groups = splits["groups"]
     assert len(groups["train"]) == 12 and len(groups["validation"]) == len(groups["test"]) == 4

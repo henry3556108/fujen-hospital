@@ -1,0 +1,239 @@
+/* 專案首頁：只引用 Token，不寫色碼。 */
+.home-subtitle {
+  margin: -0.75rem 0 0;
+}
+
+.home-hero {
+  margin-top: 1.5rem;
+}
+
+.home-hero__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.home-hero__head p {
+  margin: 0.25rem 0 0;
+}
+
+.home-hero__title {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.btn--large {
+  min-height: 3rem;
+  padding: 0.625rem 1.5rem;
+  font-size: 1.0625rem;
+}
+
+.home-progress {
+  margin-top: 1.25rem;
+}
+
+.home-progress__count {
+  margin: 0 0 0.375rem;
+}
+
+.home-progress__bar {
+  height: 0.625rem;
+  border-radius: 999px;
+  background: var(--progress-track);
+  overflow: hidden;
+}
+
+.home-progress__bar span {
+  display: block;
+  height: 100%;
+  background: var(--progress-fill);
+}
+
+.home-steps {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  text-align: center;
+}
+
+.home-steps__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.home-steps__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border-strong);
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.home-steps__item--done .home-steps__dot {
+  border-color: var(--color-secondary);
+  color: var(--color-secondary);
+}
+
+.home-steps__label {
+  font-weight: 700;
+}
+
+.home-steps__detail {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.home-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.home-card-head h2 {
+  margin: 0;
+}
+
+.home-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.home-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.home-list li:last-child {
+  border-bottom: none;
+}
+
+.home-cando {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.home-cando__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.home-cando__item:hover {
+  border-color: var(--card-border-hover);
+  background: var(--color-bg-hover);
+}
+
+.home-cando__item .icon {
+  color: var(--color-text-link);
+  flex: none;
+}
+
+.home-cando__title {
+  display: block;
+  font-weight: 700;
+  color: var(--color-text-link);
+}
+
+.home-cando__desc {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* 選擇專案、功能目錄、個人設定 */
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.picker-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-item:hover {
+  border-color: var(--card-border-hover);
+  background: var(--color-bg-hover);
+}
+
+.picker-item[aria-current='true'] {
+  border-color: var(--color-border-selected);
+  background: var(--color-bg-selected);
+}
+
+.picker-item__name {
+  font-weight: 700;
+}
+
+.narrow {
+  max-width: 48rem;
+}
+
+.dl-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.dl-grid dt {
+  color: var(--color-text-secondary);
+}
+
+.dl-grid dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  .home-steps {
+    grid-template-columns: 1fr;
+  }
+}

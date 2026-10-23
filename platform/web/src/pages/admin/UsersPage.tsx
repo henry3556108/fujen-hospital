@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
-import { ACCOUNT_TYPE_LABELS, type AccountType, type User } from '../../api/types';
+import { Link } from 'react-router-dom';
+import { ACCOUNT_TYPE_LABELS, ROLE_LABELS, type AccountType, type MemberRow, type Project, type User } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
@@ -133,9 +134,30 @@ function ResetPasswordForm({ target, onDone, onCancel }: { target: User; onDone:
   );
 }
 
+/** 每個帳號所屬的專案：逐一讀各專案成員（專案數不多）；讀不到就不顯示這一欄的內容。 */
+function useUserProjects(nonce: unknown) {
+  const { api } = useSession();
+  return useResource(async () => {
+    const projects = await api.get<Project[]>('/api/admin/projects');
+    const lists = await Promise.all(
+      projects.map(async (p) => ({ p, members: await api.get<MemberRow[]>(`/api/admin/projects/${p.id}/members`) })),
+    );
+    const out = new Map<number, { id: number; name: string; role: string }[]>();
+    for (const { p, members } of lists) {
+      for (const m of members) {
+        const list = out.get(m.user_id) ?? [];
+        list.push({ id: p.id, name: p.name, role: ROLE_LABELS[m.role] ?? m.role });
+        out.set(m.user_id, list);
+      }
+    }
+    return out;
+  }, [nonce]);
+}
+
 export function UsersPage() {
   const { api } = useSession();
   const users = useResource(() => api.get<User[]>('/api/admin/users'));
+  const memberships = useUserProjects(users.data);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [resetting, setResetting] = useState<User | null>(null);
@@ -177,9 +199,9 @@ export function UsersPage() {
 
   return (
     <div className="section">
-      <h2>Account（帳號）</h2>
+      <h1>帳號</h1>
       <p className="text-muted">
-        平台的所有帳號與帳號類型（Admin／User）；可新增帳號、變更類型、重設密碼與刪除。帳號在各專案的角色請到「專案成員」設定。
+        平台的所有帳號與帳號類型（Admin／User）；可新增帳號、變更類型、重設密碼與刪除。帳號在各專案的角色請到「專案」頁的「成員與權限」設定。
       </p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={error} />
@@ -190,13 +212,14 @@ export function UsersPage() {
             <tr>
               <th scope="col">帳號</th>
               <th scope="col">帳號類型</th>
+              <th scope="col">所屬專案</th>
               <th scope="col">操作</th>
             </tr>
           </thead>
           <tbody>
             {users.loading && !users.data && (
               <tr>
-                <td colSpan={3} role="status">
+                <td colSpan={4} role="status">
                   載入中…
                 </td>
               </tr>
@@ -214,6 +237,22 @@ export function UsersPage() {
                     <option value="user">{ACCOUNT_TYPE_LABELS.user}</option>
                     <option value="admin">{ACCOUNT_TYPE_LABELS.admin}</option>
                   </select>
+                </td>
+                <td>
+                  {memberships.data ? (
+                    (memberships.data.get(u.id) ?? []).length === 0 ? (
+                      <span className="text-muted">{u.account_type === 'admin' ? '（Admin 可檢視全部）' : '未加入'}</span>
+                    ) : (
+                      (memberships.data.get(u.id) ?? []).map((m, i) => (
+                        <span key={m.id}>
+                          {i > 0 && '、'}
+                          <Link to={`/admin/projects/${m.id}`}>{m.name}</Link>（{m.role}）
+                        </span>
+                      ))
+                    )
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
                 </td>
                 <td>
                   <div className="row-actions">

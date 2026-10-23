@@ -104,7 +104,10 @@ function Inference({ inference }: { inference: InferenceApi }) {
   );
 }
 
-function ModelPanel({ inference, model }: { inference: InferenceApi; model: Model }) {
+/** part：使用模型頁的分頁只顯示「預測新資料」或「預測紀錄」；不給時全部顯示。 */
+export function ModelPanel({ inference, model, part }: { inference: InferenceApi; model: Model; part?: 'predict' | 'history' }) {
+  const predict = part !== 'history';
+  const past = part !== 'predict';
   const history = useResource(() => inference.history(model.id), [inference, model.id]);
   const [result, setResult] = useState<InferenceRecord | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -197,6 +200,7 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
   const tabular = !image;
   return (
     <>
+      {predict ? (<>
       <section className="card section stack" aria-labelledby="run-title">
         <h2 id="run-title">預測：{displayName(model)}</h2>
         <p className="text-muted">
@@ -205,7 +209,7 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
         </p>
         <ApiErrorAlert error={error} />
       </section>
-      {tabular ? <TryPredict models={[model]} initial={model.id} fixed onDone={history.reload} /> : null}
+      {predict && tabular ? <TryPredict models={[model]} initial={model.id} fixed onDone={history.reload} /> : null}
       <section className="card section stack" aria-labelledby="many-title">
         <h2 id="many-title">{image ? '多張影像一起預測' : '多位病人一起預測'}</h2>
         <p className="field__hint">
@@ -246,9 +250,12 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
         </div>
         {busy ? <p role="status">預測中…</p> : null}
       </section>
+      </>) : null}
+      {!predict && error ? <ApiErrorAlert error={error} /> : null}
       {result ? (
         <ResultView record={result} model={model} onDownload={download} onCancel={cancel} />
       ) : null}
+      {past ? (
       <section className="card section" aria-labelledby="history-title">
         <h2 id="history-title">預測紀錄：{displayName(model)}</h2>
         <ApiErrorAlert error={history.error} />
@@ -305,6 +312,7 @@ function ModelPanel({ inference, model }: { inference: InferenceApi; model: Mode
           </div>
         ) : null}
       </section>
+      ) : null}
     </>
   );
 }

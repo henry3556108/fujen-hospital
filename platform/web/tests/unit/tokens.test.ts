@@ -49,6 +49,10 @@ const PAIRS: [string, string, number][] = [
   ['--color-focus-ring', '--color-bg-subtle', UI],
   ['--color-action-primary', '--color-bg-surface', UI],
   ['--color-border-selected', '--color-bg-surface', UI],
+  ['--color-sidebar-text', '--color-sidebar-bg', TEXT],
+  ['--color-sidebar-text-muted', '--color-sidebar-bg', TEXT],
+  ['--color-sidebar-text', '--color-sidebar-bg-hover', TEXT],
+  ['--color-sidebar-text-selected', '--color-sidebar-bg-selected', TEXT],
 ];
 
 describe('design tokens', () => {
@@ -66,11 +70,25 @@ describe('design tokens', () => {
     }
   });
 
-  it('dark theme under prefers-color-scheme matches the manual [data-theme=dark] theme', () => {
-    expect(themes.rawDarkMedia).toEqual(themes.rawDark);
+  it('only a light theme is defined (03 規格 4.3：拿掉主題切換)', () => {
+    expect(themes.rawDarkMedia).toEqual({});
+    expect(themes.rawDark).toEqual({});
   });
 
-  for (const theme of ['light', 'dark'] as const) {
+  it('uses the proposal palette', () => {
+    const t = themes.light;
+    expect(t['--color-action-primary']).toBe('#2458c6');
+    expect(t['--color-secondary']).toBe('#087f78');
+    expect(t['--color-text-primary']).toBe('#172b4d');
+    expect(t['--color-text-secondary']).toBe('#526176');
+    expect(t['--color-bg-page']).toBe('#f4f7fb');
+    expect(t['--color-bg-surface']).toBe('#ffffff');
+    expect(t['--color-border-default']).toBe('#dce3ed');
+    expect(t['--color-status-warning-icon']).toBe('#9a5800');
+    expect(t['--color-status-error-icon']).toBe('#b42318');
+  });
+
+  for (const theme of ['light'] as const) {
     it.each(PAIRS)(`${theme}: %s on %s ≥ %s:1`, (fg, bg, min) => {
       const t = themes[theme];
       expect(t[fg], `${fg} 未定義`).toBeDefined();

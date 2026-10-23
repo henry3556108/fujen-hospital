@@ -302,7 +302,7 @@ def data_text(data: dict | None) -> str:
 
 
 PRIMARY = {"tabular_classification": ("auc", "accuracy"), "tabular_regression": ("r2",),
-           "image_classification": ("accuracy",), "image_segmentation": ("dice", "pixel_accuracy"),
+           "image_classification": ("auc", "accuracy"), "image_segmentation": ("dice", "pixel_accuracy"),
            "image_detection": ("mean_iou",)}
 PERCENT = {"accuracy", "sensitivity", "specificity", "baseline_accuracy", "pixel_accuracy"}
 

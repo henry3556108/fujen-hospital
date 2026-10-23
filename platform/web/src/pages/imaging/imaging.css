@@ -1,0 +1,10 @@
+/* 加入資料：來源選擇卡片，選中的加框 */
+.import-sources .entry-card {
+  inline-size: 100%;
+  text-align: start;
+  cursor: pointer;
+}
+.import-sources .entry-card[aria-pressed='true'] {
+  outline: 2px solid var(--button-primary-bg);
+  outline-offset: -2px;
+}

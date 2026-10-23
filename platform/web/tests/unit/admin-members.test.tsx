@@ -11,11 +11,12 @@ function checkedPerms(form: HTMLElement) {
   return PERMS.filter((p) => (within(form).getByRole('checkbox', { name: new RegExp(`^${p}`) }) as HTMLInputElement).checked);
 }
 
-async function openPage() {
-  const r = await renderApp('/admin/members');
-  await screen.findByRole('option', { name: 'P1-lung-ct' });
+// 成員頁在管理區的單一專案頁（/admin/projects/:id/members），專案由路由決定
+async function openPage(projectId = 1) {
+  const r = await renderApp(`/admin/projects/${projectId}/members`);
   const table = await screen.findByRole('table', { name: '目前的專案成員' });
-  await within(table).findByRole('row', { name: /ra01/ });
+  if (projectId === 1) await within(table).findByRole('row', { name: /ra01/ });
+  else await within(table).findByText('這個專案還沒有成員。');
   const form = screen.getByRole('form', { name: '設定專案成員' });
   return { ...r, form, table };
 }
@@ -106,8 +107,7 @@ describe('admin project members', () => {
   });
 
   it('adds a new member with Viewer defaults and edited permissions', async () => {
-    const { user, form } = await openPage();
-    await user.selectOptions(screen.getByLabelText('專案'), 'P2-tabular');
+    const { user, form } = await openPage(2);
     const table = screen.getByRole('table', { name: '目前的專案成員' });
     expect(await within(table).findByText('這個專案還沒有成員。')).toBeInTheDocument();
     await user.selectOptions(within(form).getByLabelText('帳號'), 'md01');

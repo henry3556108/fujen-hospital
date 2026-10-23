@@ -6,6 +6,9 @@
   augmentation         旋轉、長寬位移、Shear、Zoom、水平翻轉、垂直翻轉
   hyperparameters      epochs、batch_size、learning_rate、filters、augmentation_copies
   split、seed          訓練／驗證／測試比例與亂數種子（以研究為單位切分）
+
+指標（metrics.json 的 train／validation／test）：accuracy；二分類另有 sensitivity、specificity、auc、
+roc {positive, fpr, tpr}（陽性＝labels 的第二個）；多分類另有 recall_per_class。charts.json：混淆矩陣、ROC。
 """
 from pathlib import Path
 
@@ -51,10 +54,17 @@ def train(config: dict, data_dir: Path, out_dir: Path) -> dict:
               batch_size=int(hp["batch_size"]), shuffle=True, verbose=2)
 
     metrics = {"samples": {name: len(part) for name, part in parts.items()}, "training_samples": len(training)}
+    outputs = {}
     for name, part in parts.items():
         if part:
-            predicted = model.predict(imagekit.stack(part), verbose=0).argmax(axis=1)
-            metrics[name] = {"accuracy": float((predicted == target(part)).mean())}
+            probs = model.predict(imagekit.stack(part), verbose=0)
+            outputs[name] = (target(part), probs)
+            metrics[name] = imagekit.classification_metrics(target(part), probs, labels)
+    # 圖表用的資料：測試集有資料用測試集，否則驗證集，再否則訓練集
+    subset = next((name for name in ("test", "validation", "train") if name in outputs), None)
+    if subset is not None:
+        runtime.write_json(Path(out_dir) / "charts.json", imagekit.classification_charts(
+            config["kind"], subset, *outputs[subset], labels, metrics[subset]))
     imagekit.save_h5(model, out_dir)
     return runtime.finish(out_dir, config=config, manifest=manifest, model_file="model.h5", model_format="h5",
                           metrics=metrics, splits=splits, libraries=imagekit.LIBRARIES,

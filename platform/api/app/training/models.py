@@ -70,6 +70,11 @@ class TrainingRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    # 用到的標註資料集與版本號（label_datasets.id 不設外鍵：資料集刪除後紀錄仍保留版本號）；
+    # 測試集筆數在訓練成功時由 splits.json 算出。三欄由 db_init 補到既有資料庫
+    label_dataset_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    label_dataset_version: Mapped[int | None] = mapped_column(Integer, default=None)
+    test_count: Mapped[int | None] = mapped_column(Integer, default=None)
     # 送出時由匯入檔控制的環節（只讀的關聯，不是欄位）
     imported: Mapped["RunStages | None"] = relationship(uselist=False, viewonly=True, lazy="selectin")
 

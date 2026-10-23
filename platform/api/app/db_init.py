@@ -77,6 +77,14 @@ ADDED_COLUMNS = (
     ("llm_model_whitelist", "files", "JSON NOT NULL DEFAULT '[]'"),
     ("llm_model_downloads", "progress", "JSON"),
     ("llm_call_records", "prompt_id", "INTEGER"),
+    # 標註狀態：舊資料一律視為已確認
+    ("label_annotations", "status", "VARCHAR(16) NOT NULL DEFAULT 'confirmed'"),
+    ("label_annotations", "confirmed_by", "VARCHAR(64)"),
+    ("label_annotations", "confirmed_at", "TIMESTAMP WITH TIME ZONE"),
+    # 訓練用的標註資料集版本、測試集筆數
+    ("training_runs", "label_dataset_id", "INTEGER"),
+    ("training_runs", "label_dataset_version", "INTEGER"),
+    ("training_runs", "test_count", "INTEGER"),
 )
 
 

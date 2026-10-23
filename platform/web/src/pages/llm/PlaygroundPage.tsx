@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
+import { useUnsavedChanges } from '../../components/unsaved';
 import { PARAM_FIELDS, isRetryable, type ChatMessage, type GenerationParams } from './api';
 import { useLlm } from './useLlm';
 
@@ -20,11 +21,15 @@ function ParamsForm() {
   const [saveError, setSaveError] = useState<unknown>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 改了生成參數或回答規則還沒按「儲存設定」：離開前提醒
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(dirty, '對話設定還沒儲存。');
   if (error) return <ApiErrorAlert error={error} />;
   if (!data) return <p role="status" className="loading">載入生成參數…</p>;
 
   const set = (key: keyof GenerationParams, value: string | number) => {
     setSaved(false);
+    setDirty(true);
     setData({ ...data, [key]: value });
   };
 
@@ -35,6 +40,7 @@ function ParamsForm() {
     try {
       setData(await llm!.putParams(data!));
       setSaved(true);
+      setDirty(false);
     } catch (err) {
       setSaveError(err);
     } finally {
@@ -43,8 +49,8 @@ function ParamsForm() {
   }
 
   return (
-    <form aria-label="生成參數" className="card section" onSubmit={submit} noValidate>
-      <h2>生成參數</h2>
+    <form aria-label="生成參數" className="stack" onSubmit={submit} noValidate>
+      <h3>生成參數</h3>
       <ApiErrorAlert error={saveError} />
       {saved && <Alert tone="success">已儲存生成參數</Alert>}
       <div className="form-grid">
@@ -65,11 +71,11 @@ function ParamsForm() {
         ))}
       </div>
       <div className="field">
-        <label htmlFor="param-system">System Prompt</label>
+        <label htmlFor="param-system">回答規則（System Prompt）</label>
         <textarea id="param-system" className="input" rows={3} value={data.system_prompt} onChange={(e) => set('system_prompt', e.target.value)} />
       </div>
       <button type="submit" className="btn btn--secondary" disabled={busy}>
-        儲存生成參數
+        儲存設定
       </button>
     </form>
   );
@@ -137,18 +143,18 @@ export function PlaygroundPage() {
   return (
     <>
       <section className="card section" aria-labelledby="playground-title">
-        <h2 id="playground-title">Playground</h2>
+        <h2 id="playground-title">對話測試</h2>
         <div className="form-grid">
           <div className="field">
             <label htmlFor="chat-mode">對話模式</label>
             <select id="chat-mode" className="select" value={mode} onChange={(e) => newConversation(e.target.value as Mode, kbId)}>
-              <option value="free">Free Chat</option>
-              <option value="kb">Chat with Knowledge Base</option>
+              <option value="free">自由對話</option>
+              <option value="kb">根據文件回答</option>
             </select>
           </div>
           {mode === 'kb' && (
             <div className="field">
-              <label htmlFor="chat-kb">知識庫</label>
+              <label htmlFor="chat-kb">參考文件</label>
               <select
                 id="chat-kb"
                 className="select"
@@ -165,7 +171,7 @@ export function PlaygroundPage() {
             </div>
           )}
           <div className="field">
-            <label htmlFor="chat-prompt">Prompt 範本</label>
+            <label htmlFor="chat-prompt">問答範本</label>
             <select id="chat-prompt" className="select" value={promptId ?? ''} onChange={(e) => setPromptId(e.target.value ? Number(e.target.value) : null)}>
               <option value="">不使用</option>
               {(prompts.data ?? []).map((p) => (
@@ -240,7 +246,7 @@ export function PlaygroundPage() {
             />
             <p className="field__hint">Enter 送出，Shift + Enter 換行。</p>
           </div>
-          {needsKb && <Alert tone="info">請先選擇知識庫。</Alert>}
+          {needsKb && <Alert tone="info">請先選擇參考文件。</Alert>}
           <div className="row-actions">
             <button type="submit" className="btn btn--primary" disabled={pending !== null || needsKb || !draft.trim()}>
               送出
@@ -251,7 +257,11 @@ export function PlaygroundPage() {
           </div>
         </form>
       </section>
-      <ParamsForm />
+      <details className="card section llm-settings" data-testid="chat-settings">
+        <summary>對話設定：生成參數與回答規則</summary>
+        <p className="field__hint">模型的載入、量化與資源在「模型」分頁設定。</p>
+        <ParamsForm />
+      </details>
     </>
   );
 }

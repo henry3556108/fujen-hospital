@@ -11,7 +11,7 @@ const row = (table: HTMLElement, name: string | RegExp) => within(table).getByRo
 
 describe('GPU 群組', () => {
   it('TC-C01-02 lists the two seed groups', async () => {
-    await renderApp('/admin/scheduling/groups');
+    await renderApp('/admin/compute/groups');
     const table = await groupTable();
     await within(table).findByRole('rowheader', { name: 'gpu-exclusive' });
     expect(row(table, '^gpu-exclusive')).toHaveTextContent('獨占');
@@ -19,7 +19,7 @@ describe('GPU 群組', () => {
   });
 
   it('TC-C01-02 creates 2 groups and they are still there after reload', async () => {
-    const { user, unmount } = await renderApp('/admin/scheduling/groups');
+    const { user, unmount } = await renderApp('/admin/compute/groups');
     await within(await groupTable()).findByRole('rowheader', { name: 'gpu-shared' });
     for (const [name, pool, count] of [
       ['team-a', 'gpu-exclusive', '2'],
@@ -35,7 +35,7 @@ describe('GPU 群組', () => {
       expect(await screen.findByText(`已新增 GPU 群組「${name}」`)).toBeInTheDocument();
     }
     unmount();
-    await renderApp('/admin/scheduling/groups');
+    await renderApp('/admin/compute/groups');
     const table = await groupTable();
     await within(table).findByRole('rowheader', { name: 'team-a' });
     expect(row(table, '^team-a')).toHaveTextContent('gpu-exclusive');
@@ -44,7 +44,7 @@ describe('GPU 群組', () => {
   });
 
   it('edits the GPU count', async () => {
-    const { user } = await renderApp('/admin/scheduling/groups');
+    const { user } = await renderApp('/admin/compute/groups');
     const table = await groupTable();
     await within(table).findByRole('rowheader', { name: 'gpu-shared' });
     await user.click(within(table).getByRole('button', { name: '編輯 gpu-shared' }));
@@ -59,7 +59,7 @@ describe('GPU 群組', () => {
   });
 
   it('409 duplicate name and 422 empty name are shown inline', async () => {
-    const { user } = await renderApp('/admin/scheduling/groups');
+    const { user } = await renderApp('/admin/compute/groups');
     await within(await groupTable()).findByRole('rowheader', { name: 'gpu-shared' });
     const form = screen.getByRole('form', { name: '新增 GPU 群組' });
     await user.click(within(form).getByRole('button', { name: '新增群組' }));
@@ -70,7 +70,7 @@ describe('GPU 群組', () => {
   });
 
   it('a group still bound to a project cannot be deleted (409); an unbound one can', async () => {
-    const { user } = await renderApp('/admin/scheduling/groups');
+    const { user } = await renderApp('/admin/compute/groups');
     const table = await groupTable();
     await within(table).findByRole('rowheader', { name: 'gpu-exclusive' });
     await user.click(within(table).getByRole('button', { name: '刪除 gpu-exclusive' }));
@@ -82,7 +82,7 @@ describe('GPU 群組', () => {
 
 describe('叢集節點', () => {
   it('TC-C01-01 lists every node with pool, readiness and GPU counts', async () => {
-    await renderApp('/admin/scheduling/nodes');
+    await renderApp('/admin/compute/nodes');
     const table = await screen.findByRole('table', { name: '叢集節點列表' });
     await within(table).findByRole('rowheader', { name: 'ai-platform-worker3' });
     expect(within(table).getAllByRole('row')).toHaveLength(6);
@@ -98,14 +98,14 @@ describe('叢集節點', () => {
 
   it('503 when the scheduler backend is not configured', async () => {
     setSchedulingAvailable(false);
-    await renderApp('/admin/scheduling/nodes');
+    await renderApp('/admin/compute/nodes');
     expect(await screen.findByRole('alert')).toHaveTextContent('排程服務尚未設定');
   });
 });
 
 describe('專案工作', () => {
   it('TC-A02-05 submits a training job and follows queued → running → succeeded', async () => {
-    const { user } = await renderApp('/training/jobs', 'pi01');
+    const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     const d = within(form).getByLabelText(/^執行秒數/);
     await user.clear(d);
@@ -115,7 +115,7 @@ describe('專案工作', () => {
     const table = screen.getByRole('table', { name: '工作列表' });
     await waitFor(() => expect(row(table, '^1 ')).toHaveTextContent('執行中'));
     expect(row(table, '^1 ')).toHaveTextContent('訓練（GPU）');
-    expect(row(table, '^1 ')).toHaveTextContent('pi01');
+    expect(row(table, '^1 ')).toHaveTextContent('admin01');
     advanceMockClock(31);
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(row(table, '^1 ')).toHaveTextContent('已完成'));
@@ -124,7 +124,7 @@ describe('專案工作', () => {
   });
 
   it('TC-C01-05 / TC-C01-08 exclusive pool runs 2 at a time in order; cancelling a queued job lets the next one run', async () => {
-    const { user } = await renderApp('/training/jobs', 'pi01');
+    const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     for (let i = 1; i <= 4; i++) {
       await user.click(within(form).getByRole('button', { name: '送出工作' }));
@@ -156,7 +156,7 @@ describe('專案工作', () => {
   });
 
   it('a failing job shows 失敗 with the reason', async () => {
-    const { user } = await renderApp('/training/jobs', 'pi01');
+    const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     await user.click(within(form).getByLabelText(/以失敗結束/));
     await user.click(within(form).getByRole('button', { name: '送出工作' }));
@@ -169,7 +169,7 @@ describe('專案工作', () => {
   });
 
   it('data-cleaning jobs go to the CPU queue without a GPU group', async () => {
-    const { user } = await renderApp('/training/jobs', 'pi01');
+    const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     await user.selectOptions(within(form).getByLabelText('工作種類'), 'data-cleaning');
     await user.click(within(form).getByRole('button', { name: '送出工作' }));
@@ -184,7 +184,7 @@ describe('專案工作', () => {
     server.use(http.get('*/api/projects/:pid/jobs', () => HttpResponse.json([
       job(1, 'inference', 'gpu-exclusive', 'gpu-exclusive'), job(2, 'inference-cpu', 'cpu-data', null),
     ])));
-    await renderApp('/training/jobs', 'pi01');
+    await renderApp('/admin/compute/jobs', 'admin01');
     const table = await screen.findByRole('table', { name: '工作列表' });
     await waitFor(() => expect(row(table, '^1 ')).toHaveTextContent('批次推論（GPU）'));
     expect(row(table, '^2 ')).toHaveTextContent('批次推論（CPU）');
@@ -192,7 +192,7 @@ describe('專案工作', () => {
   });
 
   it('422 and 409 are shown inline', async () => {
-    const { user } = await renderApp('/training/jobs', 'admin01');
+    const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     const d = within(form).getByLabelText(/^執行秒數/);
     await user.clear(d);
@@ -203,21 +203,21 @@ describe('專案工作', () => {
 
     await user.clear(d);
     await user.type(d, '5');
-    await user.selectOptions(screen.getByLabelText('目前專案'), 'P2-tabular');
+    await user.selectOptions(screen.getByLabelText('送出到專案'), 'P2-tabular');
     await user.click(within(form).getByRole('button', { name: '送出工作' }));
     await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('專案「P2-tabular」尚未綁定 GPU 群組'));
   });
 
-  it('TC-A03-05 users without Training permission are denied by URL', async () => {
-    await renderApp('/training/jobs', 'vw01');
+  it('TC-A03-05 non-admin users are denied the test-job page by URL', async () => {
+    await renderApp('/admin/compute/jobs', 'vw01');
     expect(await screen.findByRole('heading', { name: '無法存取此功能' })).toBeInTheDocument();
-    expect(screen.getByText(/沒有 Training 權限/)).toBeInTheDocument();
+    expect(screen.getByText(/需要 Admin 帳號類型/)).toBeInTheDocument();
   });
 });
 
 describe('GPU Dashboard', () => {
   it('TC-C01-04 shows Project ID, Training ID and user of 3 running jobs exactly as the API reports', async () => {
-    const jobs = await renderApp('/training/jobs', 'pi01');
+    const jobs = await renderApp('/admin/compute/jobs', 'admin01');
     const form = await screen.findByRole('form', { name: '送出工作' });
     for (let i = 1; i <= 3; i++) {
       await jobs.user.click(within(form).getByRole('button', { name: '送出工作' }));
@@ -225,7 +225,7 @@ describe('GPU Dashboard', () => {
     }
     jobs.unmount();
 
-    await renderApp('/admin/scheduling/gpu-dashboard', 'admin01');
+    await renderApp('/admin/compute/gpu', 'admin01');
     const table = await screen.findByRole('table', { name: '執行中的 GPU 工作' });
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(3));
     const cells = within(table)
@@ -234,24 +234,24 @@ describe('GPU Dashboard', () => {
       .map((r) => within(r).getAllByRole('cell').map((c) => c.textContent));
     // 節點, GPU 編號, 時間片, 專案, Project ID, Job ID, Training ID, 使用者, K8s
     expect(cells.map((c) => c.slice(0, 8))).toEqual([
-      ['ai-platform-worker3', '0', '0', 'P1-lung-ct', '1', '1', '1', 'pi01'],
-      ['ai-platform-worker3', '1', '0', 'P1-lung-ct', '1', '2', '2', 'pi01'],
+      ['ai-platform-worker3', '0', '0', 'P1-lung-ct', '1', '1', '1', 'admin01'],
+      ['ai-platform-worker3', '1', '0', 'P1-lung-ct', '1', '2', '2', 'admin01'],
     ]);
     const board = screen.getByRole('list', { name: 'GPU 使用狀況' });
     expect(board).toHaveTextContent('gpu-exclusive · GPU 0');
-    expect(board).toHaveTextContent('工作 1（pi01）');
+    expect(board).toHaveTextContent('工作 1（admin01）');
     expect(board).toHaveTextContent('使用中 0／4 份');
   });
 
   it('shows an empty state when nothing is running', async () => {
-    await renderApp('/admin/scheduling/gpu-dashboard', 'admin01');
+    await renderApp('/admin/compute/gpu', 'admin01');
     expect(await screen.findByText('目前沒有執行中的 GPU 工作')).toBeInTheDocument();
   });
 });
 
 describe('監控儀表板', () => {
   it('links to Grafana, Prometheus, Alertmanager and Mailpit in a new tab', async () => {
-    await renderApp('/admin/scheduling/monitoring', 'admin01');
+    await renderApp('/admin/monitoring', 'admin01');
     const tools = await screen.findByRole('list', { name: '監控工具' });
     const links = within(tools).getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual([

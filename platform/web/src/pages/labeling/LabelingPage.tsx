@@ -1,21 +1,22 @@
-// 影像標註首頁：研究清單（含標註數）、CSV 自動分類標註、標註後直接訓練。
-import { useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+// 影像標註首頁＝待處理清單：進度、繼續標註、篩選（文字、狀態、資料範圍）、分頁。
+// CSV 診斷匯入搬到「標註資料集」；訓練改由建立模型精靈處理。
+import { useMemo } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { useLabelingApi, type LabelingApi, type TrainingJob } from './api';
+import { StatusBadge } from '../../components/StatusBadge';
+import { useLabelingApi, type LabelingApi } from './api';
+import { LabelingNav } from './LabelingNav';
 import { formatDate } from './parts';
-import { KIND_LABELS, type AnnotationKind, type CsvKey, type CsvResult, type CsvRowStatus, type LabelSummary } from './types';
+import { isPendingStudy, nextPendingStudy, progressOf, useScopeStudyUids, useScopes, workbenchPath } from './pending';
+import type { StudySummary } from './types';
 import './labeling.css';
-import { FileInput } from '../../components/FileInput';
 
-const STATUS_LABELS: Record<CsvRowStatus, string> = {
-  matched: '已標註',
-  unmatched: '找不到研究',
-  conflict: '診斷衝突',
-  invalid: '資料不完整',
-};
+/** 每頁研究數 */
+export const PENDING_PAGE = 20;
+
+type StatusFilter = '' | 'pending' | 'confirmed';
 
 export function LabelingPage() {
   const labeling = useLabelingApi();
@@ -30,320 +31,199 @@ export function LabelingPage() {
   return <Labeling key={labeling.projectId} labeling={labeling} />;
 }
 
+
 function Labeling({ labeling }: { labeling: LabelingApi }) {
   const { project } = useSession();
+  const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
   const summary = useResource(() => labeling.summary(), [labeling]);
+  const scopes = useScopes();
+  const scopeId = Number(search.get('scope')) || null;
+  const scopeUids = useScopeStudyUids(scopeId);
+  const text = search.get('q') ?? '';
+  const status = (search.get('status') ?? '') as StatusFilter;
+  const page = Math.max(1, Number(search.get('page')) || 1);
   const data = summary.data;
+
+  const inScope = useMemo(() => {
+    const all = data?.studies ?? [];
+    return scopeUids.data ? all.filter((s) => scopeUids.data!.has(s.study_instance_uid)) : all;
+  }, [data, scopeUids.data]);
+  const filtered = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    return inScope.filter(
+      (s) =>
+        (!q || [s.accession_number, s.patient_id, s.study_description].some((v) => v?.toLowerCase().includes(q))) &&
+        (status === '' || (status === 'pending') === isPendingStudy(s)),
+    );
+  }, [inScope, text, status]);
+  const lastPage = Math.max(1, Math.ceil(filtered.length / PENDING_PAGE));
+  const shown = filtered.slice((page - 1) * PENDING_PAGE, page * PENDING_PAGE);
+  // 有選資料範圍時進度只算範圍內；沒選就用 API 的數字
+  const progress = scopeId !== null ? progressOf(inScope) : progressOf(inScope, data?.pending, data?.confirmed);
+  const next = nextPendingStudy(inScope, null);
+
+  const update = (changes: Record<string, string>) => {
+    const q = new URLSearchParams(search);
+    for (const [k, v] of Object.entries(changes)) {
+      if (v) q.set(k, v);
+      else q.delete(k);
+    }
+    if (!('page' in changes)) q.delete('page');
+    setSearch(q, { replace: true });
+  };
+
   return (
     <>
       <h1>影像標註</h1>
+      <LabelingNav />
       <p className="text-muted">
-        專案：<strong>{project?.name}</strong>。選一個研究開啟標註工作台；也可以用 CSV 診斷結果一次完成分類標註。
+        專案：<strong>{project?.name}</strong>。待處理包括還沒標的影像，以及自動標註後等你確認的草稿。
       </p>
-      <ApiErrorAlert error={summary.error} />
+      <ApiErrorAlert error={summary.error ?? scopeUids.error} />
       {data ? (
-        <p data-testid="label-totals">
-          共 {data.studies.length} 個研究、{data.total} 筆標註（分類 {data.by_kind.classification}、分割 {data.by_kind.segmentation}、偵測{' '}
-          {data.by_kind.detection}），已評分 {data.rated} 筆。
-        </p>
-      ) : null}
-      {data && data.studies.length > 0 ? (
-        <p data-testid="label-progress">
-          <strong>
-            已標註 {data.studies.filter((s) => s.annotations > 0).length}／共 {data.studies.length} 個研究
-          </strong>
-          。「分類」欄是這個研究標過的類別，空白代表還沒有分類標註。
-        </p>
+        <div className="card section stack" data-testid="label-progress">
+          <p>
+            <strong>
+              已確認 {progress.confirmed}／共 {progress.total} 個研究
+            </strong>
+            　待處理 <strong data-testid="pending-count">{progress.pending}</strong>
+          </p>
+          <p className="text-muted" data-testid="label-totals">
+            共 {data.studies.length} 個研究、{data.total} 筆標註（分類 {data.by_kind.classification}、分割 {data.by_kind.segmentation}、偵測{' '}
+            {data.by_kind.detection}），已評分 {data.rated} 筆。
+          </p>
+          <div className="row-actions">
+            {next ? (
+              <button type="button" className="btn btn--primary" onClick={() => navigate(workbenchPath(next.study_instance_uid, scopeId))}>
+                繼續標註
+              </button>
+            ) : data.studies.length > 0 ? (
+              <span>目前沒有待處理的影像。</span>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       <section className="section" aria-labelledby="studies-title">
-        <h2 id="studies-title">研究清單</h2>
+        <h2 id="studies-title">待處理清單</h2>
+        <form className="form-grid" aria-label="篩選研究" onSubmit={(e) => e.preventDefault()}>
+          <div className="field">
+            <label htmlFor="pending-q">搜尋</label>
+            <input
+              id="pending-q"
+              className="input"
+              value={text}
+              placeholder="影像編號、病歷號或檢查說明"
+              onChange={(e) => update({ q: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="pending-status">標註狀態</label>
+            <select id="pending-status" className="select" value={status} onChange={(e) => update({ status: e.target.value })}>
+              <option value="">全部</option>
+              <option value="pending">待處理</option>
+              <option value="confirmed">已確認</option>
+            </select>
+          </div>
+          {(scopes.data?.length ?? 0) > 0 ? (
+            <div className="field">
+              <label htmlFor="pending-scope">資料範圍</label>
+              <select id="pending-scope" className="select" value={scopeId ?? ''} onChange={(e) => update({ scope: e.target.value })}>
+                <option value="">全部影像</option>
+                {scopes.data!.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}（{s.study_count} 筆）
+                  </option>
+                ))}
+              </select>
+              <span className="field__hint">
+                範圍在「研究資料 → 影像清單」篩選後儲存。<Link to="/data/imaging">去設定</Link>
+              </span>
+            </div>
+          ) : null}
+        </form>
+
         {summary.loading && !data ? (
           <p role="status" className="loading">
             載入中…
           </p>
         ) : data && data.studies.length === 0 ? (
-          <Alert tone="info">這個專案還沒有影像。請先到「數據管理」匯入影像。</Alert>
+          <Alert tone="info">
+            專案「{project?.name}」還沒有影像。請先到 <Link to="/data/imaging/import">研究資料 → 加入資料</Link> 匯入影像。
+          </Alert>
         ) : data ? (
-          <div className="table-wrap">
-            <table aria-label="研究清單">
-              <thead>
-                <tr>
-                  <th scope="col">影像編號</th>
-                  <th scope="col">病歷號</th>
-                  <th scope="col">檢查日期</th>
-                  <th scope="col">檢查說明</th>
-                  <th scope="col">分類</th>
-                  <th scope="col">分割</th>
-                  <th scope="col">偵測</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.studies.map((s) => (
-                  <tr key={s.study_instance_uid} data-study={s.study_instance_uid}>
-                    <th scope="row">{s.accession_number || '（無）'}</th>
-                    <td>{s.patient_id}</td>
-                    <td>{formatDate(s.study_date)}</td>
-                    <td>{s.study_description}</td>
-                    <td data-testid="study-classes">{s.classification_labels.join('、') || '—'}</td>
-                    <td>{s.by_kind.segmentation}</td>
-                    <td>{s.by_kind.detection}</td>
-                    <td>
-                      <Link to={`/labeling/studies/${s.study_instance_uid}`} aria-label={`開啟 ${s.accession_number || s.study_instance_uid} 的標註工作台`}>
-                        開啟標註
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <p className="text-muted" role="status">
+              符合條件 {filtered.length} 個研究{filtered.length > PENDING_PAGE ? `，第 ${page}／${lastPage} 頁` : ''}
+            </p>
+            <StudyTable studies={shown} scopeId={scopeId} />
+            {filtered.length > PENDING_PAGE ? (
+              <div className="row-actions section">
+                <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>
+                  上一頁
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--small"
+                  disabled={page >= lastPage}
+                  onClick={() => update({ page: String(page + 1) })}
+                >
+                  下一頁
+                </button>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </section>
-
-      <CsvPanel labeling={labeling} onDone={summary.reload} />
-      <TrainingPanel labeling={labeling} summary={data} />
     </>
   );
 }
 
-function CsvPanel({ labeling, onDone }: { labeling: LabelingApi; onDone: () => void }) {
-  const [key, setKey] = useState<CsvKey>('patient_id');
-  const [result, setResult] = useState<CsvResult | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const file = fileRef.current?.files?.[0];
-    if (!file || file.size === 0) {
-      setError(new Error('請先選擇 CSV 檔'));
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      const keyColumn = String(form.get('key_column') ?? '').trim();
-      const labelColumn = String(form.get('label_column') ?? '').trim();
-      setResult(await labeling.classifyCsv(file, key, keyColumn || undefined, labelColumn || undefined));
-      onDone();
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const problems = result?.results.filter((r) => r.status !== 'matched') ?? [];
+function StudyTable({ studies, scopeId }: { studies: StudySummary[]; scopeId: number | null }) {
   return (
-    <section className="card section" aria-labelledby="csv-title">
-      <h2 id="csv-title">以 CSV 診斷結果自動分類標註</h2>
-      <p className="text-muted">
-        CSV 第一列是欄名，需有一個鍵欄（病歷號或影像編號）與一個診斷欄（diagnosis、診斷、診斷結果）。每個對到的研究會得到一筆研究層級的分類標註；重新上傳會更新，不會重複。
-      </p>
-      <ApiErrorAlert error={error} />
-      <form aria-label="CSV 自動分類標註" onSubmit={submit} noValidate>
-        <div className="form-grid">
-          <div className="field">
-            <label htmlFor="csv-file">CSV 檔（必填）</label>
-            <FileInput id="csv-file" ref={fileRef} name="file" accept=".csv,text/csv" aria-required="true" onFiles={() => undefined} />
-          </div>
-          <div className="field">
-            <label htmlFor="csv-key">對齊依據</label>
-            <select id="csv-key" className="select" value={key} onChange={(e) => setKey(e.target.value as CsvKey)}>
-              <option value="patient_id">病歷號（Patient ID）</option>
-              <option value="accession_number">影像編號（Accession Number）</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="csv-key-column">鍵欄名稱</label>
-            <input id="csv-key-column" name="key_column" className="input" aria-describedby="csv-key-column-hint" />
-            <span id="csv-key-column-hint" className="field__hint">
-              留空則自動辨識
-            </span>
-          </div>
-          <div className="field">
-            <label htmlFor="csv-label-column">診斷欄名稱</label>
-            <input id="csv-label-column" name="label_column" className="input" aria-describedby="csv-label-column-hint" />
-            <span id="csv-label-column-hint" className="field__hint">
-              留空則自動辨識
-            </span>
-          </div>
-        </div>
-        <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '處理中…' : '上傳並標註'}
-        </button>
-      </form>
-      {result ? (
-        <div className="stack" data-testid="csv-result">
-          <Alert tone={problems.length === 0 ? 'success' : 'warning'}>
-            共 {result.rows} 列：已標註 {result.matched} 列（{result.annotated_studies} 個研究；新增 {result.created}、更新 {result.updated}、未變動{' '}
-            {result.unchanged}），找不到研究 {result.unmatched} 列，診斷衝突 {result.conflict} 列，資料不完整 {result.invalid} 列。
-          </Alert>
-          {problems.length > 0 ? (
-            <div className="table-wrap">
-              <table aria-label="未標註的資料列">
-                <thead>
-                  <tr>
-                    <th scope="col">行號</th>
-                    <th scope="col">鍵值</th>
-                    <th scope="col">診斷</th>
-                    <th scope="col">狀態</th>
-                    <th scope="col">原因</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {problems.map((r) => (
-                    <tr key={r.row}>
-                      <th scope="row">{r.row}</th>
-                      <td>{r.key || '（空白）'}</td>
-                      <td>{r.label || '（空白）'}</td>
-                      <td>{STATUS_LABELS[r.status]}</td>
-                      <td>{r.reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function TrainingPanel({ labeling, summary }: { labeling: LabelingApi; summary: LabelSummary | null }) {
-  const { project } = useSession();
-  const canTrain = project?.permissions.includes('training') ?? false;
-  const [type, setType] = useState<AnnotationKind>('classification');
-  const [jobs, setJobs] = useState<TrainingJob[]>([]);
-  const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
-  const available = Object.keys(summary?.labels[type] ?? {});
-  const count = summary?.by_kind[type] ?? 0;
-
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const labels = form.getAll('labels').map(String);
-    const resize = Number(form.get('resize'));
-    const validation = Number(form.get('validation'));
-    const test = Number(form.get('test'));
-    const seed = Number(form.get('seed'));
-    if (labels.length === 0) return setError(new Error('請至少選一個 Label'));
-    if (type === 'classification' && labels.length < 2)
-      return setError(new Error(`影像分類至少要 2 種 Label（例如 normal 與 abnormal），目前只選了 ${labels.length} 種。`));
-    if (!Number.isInteger(resize) || resize < 16 || resize > 1024) return setError(new Error('Resize 必須是 16 到 1024 的整數'));
-    if (!(validation >= 0 && test >= 0 && validation + test < 100)) return setError(new Error('驗證與測試比例合計必須小於 100%'));
-    if (!Number.isInteger(seed) || seed < 0) return setError(new Error('隨機種子必須是 0 以上的整數'));
-    setBusy(true);
-    setError(null);
-    try {
-      const job = await labeling.train({
-        trainingType: type,
-        labels,
-        resize,
-        validationSplit: validation / 100,
-        testSplit: test / 100,
-        seed,
-      });
-      setJobs((list) => [...list, job]);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="card section" id="training" aria-labelledby="training-title">
-      <h2 id="training-title">標註後直接訓練</h2>
-      {!canTrain ? (
-        <Alert tone="info">建立訓練任務需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。</Alert>
-      ) : (
-        <>
-          <p className="text-muted">選訓練型態與參數後送出，不需要寫程式。任務會進入專案綁定的 GPU 群組排隊，進度在「建模管理」查看。</p>
-          <ApiErrorAlert error={error} />
-          <form aria-label="建立訓練任務" onSubmit={submit} noValidate key={type}>
-            <div className="form-grid">
-              <div className="field">
-                <label htmlFor="train-type">訓練型態</label>
-                <select id="train-type" className="select" value={type} onChange={(e) => setType(e.target.value as AnnotationKind)}>
-                  <option value="classification">影像分類</option>
-                  <option value="segmentation">影像分割</option>
-                  <option value="detection">物件偵測</option>
-                </select>
-                <span className="field__hint">
-                  目前有 {count} 筆{KIND_LABELS[type]}標註
-                </span>
-              </div>
-              <div className="field">
-                <label htmlFor="train-resize">Resize（像素）</label>
-                <input id="train-resize" name="resize" className="input" type="number" min={16} max={1024} step={1} defaultValue={224} />
-              </div>
-              <div className="field">
-                <label htmlFor="train-validation">驗證資料比例（%）</label>
-                <input id="train-validation" name="validation" className="input" type="number" min={0} max={90} step={1} defaultValue={20} />
-              </div>
-              <div className="field">
-                <label htmlFor="train-test">測試資料比例（%）</label>
-                <input id="train-test" name="test" className="input" type="number" min={0} max={90} step={1} defaultValue={10} />
-              </div>
-              <div className="field">
-                <label htmlFor="train-seed">隨機種子</label>
-                <input id="train-seed" name="seed" className="input" type="number" min={0} step={1} defaultValue={42} />
-              </div>
-            </div>
-            <fieldset className="field">
-              <legend>Label</legend>
-              {available.length === 0 ? (
-                <span className="field__hint">還沒有{KIND_LABELS[type]}標註，請先標註。</span>
-              ) : (
-                <>
-                  {type === 'classification' && available.length < 2 ? (
-                    <Alert tone="warning">
-                      目前只有 1 種分類標籤（{available[0]}）。影像分類至少要 2 種，請先在工作台把其他研究標成另一個類別，例如 normal 與 abnormal。
-                    </Alert>
-                  ) : null}
-                  {available.map((l) => (
-                    <label key={l} className="checkbox-row">
-                      <input type="checkbox" className="checkbox" name="labels" value={l} defaultChecked />
-                      {l}（{summary?.labels[type][l]} 筆）
-                    </label>
-                  ))}
-                </>
-              )}
-            </fieldset>
-            <button type="submit" className="btn btn--primary" disabled={busy || available.length === 0 || (type === 'classification' && available.length < 2)}>
-              {busy ? '建立中…' : '建立訓練任務'}
-            </button>
-          </form>
-          {jobs.length > 0 ? (
-            <div className="table-wrap section">
-              <table aria-label="已建立的訓練任務">
-                <thead>
-                  <tr>
-                    <th scope="col">任務編號</th>
-                    <th scope="col">狀態</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((j) => (
-                    <tr key={j.id}>
-                      <th scope="row">#{j.id}</th>
-                      <td>{j.status === 'queued' ? '排隊中' : j.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </>
-      )}
-    </section>
+    <div className="table-wrap">
+      <table aria-label="研究清單">
+        <thead>
+          <tr>
+            <th scope="col">影像編號</th>
+            <th scope="col">病歷號</th>
+            <th scope="col">檢查日期</th>
+            <th scope="col">檢查說明</th>
+            <th scope="col">類別</th>
+            <th scope="col">分割</th>
+            <th scope="col">偵測</th>
+            <th scope="col">待確認草稿</th>
+            <th scope="col">狀態</th>
+            <th scope="col">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {studies.map((s) => {
+            const pending = isPendingStudy(s);
+            return (
+              <tr key={s.study_instance_uid} data-study={s.study_instance_uid}>
+                <th scope="row">{s.accession_number || '（無）'}</th>
+                <td>{s.patient_id}</td>
+                <td>{formatDate(s.study_date)}</td>
+                <td>{s.study_description}</td>
+                <td data-testid="study-classes">{s.classification_labels.join('、') || '—'}</td>
+                <td>{s.by_kind.segmentation}</td>
+                <td>{s.by_kind.detection}</td>
+                <td>{s.drafts ?? 0}</td>
+                <td>
+                  <StatusBadge tone={pending ? 'warning' : 'success'}>{pending ? '待處理' : '已確認'}</StatusBadge>
+                </td>
+                <td>
+                  <Link to={workbenchPath(s.study_instance_uid, scopeId)} aria-label={`開啟 ${s.accession_number || s.study_instance_uid} 的標註工作台`}>
+                    開啟標註
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

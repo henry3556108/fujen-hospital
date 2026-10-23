@@ -14,6 +14,10 @@ interface SessionValue {
   /** API 回 401 後為 true，登入頁據此顯示「登入已失效」 */
   expired: boolean;
   project: MeProject | null;
+  /** 專案是使用者選的（或上次選過、記在瀏覽器）；false 代表系統自動帶第一個專案。Admin 未選專案時首頁轉到管理區。 */
+  projectChosen: boolean;
+  /** 最近使用的專案 id（新到舊） */
+  recentProjectIds: number[];
   selectProject: (id: number) => void;
   login: (options?: { username?: string; returnTo?: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -25,6 +29,16 @@ interface SessionValue {
 const SessionContext = createContext<SessionValue | null>(null);
 
 const projectKey = (username: string) => `ai-platform.project.${username}`;
+const recentKey = (username: string) => `ai-platform.recent-projects.${username}`;
+
+function readRecent(username: string): number[] {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(recentKey(username)) ?? '[]') as unknown;
+    return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+  } catch {
+    return [];
+  }
+}
 
 export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter; apiBase: string; children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
@@ -32,6 +46,8 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
   const [loadError, setLoadError] = useState<unknown>(null);
   const [expired, setExpired] = useState(false);
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [projectChosen, setProjectChosen] = useState(false);
+  const [recentProjectIds, setRecentProjectIds] = useState<number[]>([]);
   const [nonce, setNonce] = useState(0);
   const authRef = useRef(auth);
   authRef.current = auth;
@@ -75,6 +91,8 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
         }
         const valid = data.projects.some((p) => p.id === stored);
         setProjectId(valid ? stored : (data.projects[0]?.id ?? null));
+        setProjectChosen(valid);
+        setRecentProjectIds(readRecent(data.username));
         setStatus('ready');
       } catch (e) {
         if (cancelled) return;
@@ -122,9 +140,13 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
   const selectProject = useCallback(
     (id: number) => {
       setProjectId(id);
+      setProjectChosen(true);
       if (me) {
+        const recent = [id, ...readRecent(me.username).filter((x) => x !== id)].slice(0, 5);
+        setRecentProjectIds(recent);
         try {
           window.localStorage.setItem(projectKey(me.username), String(id));
+          window.localStorage.setItem(recentKey(me.username), JSON.stringify(recent));
         } catch {
           /* 忽略 */
         }
@@ -158,6 +180,8 @@ export function SessionProvider({ auth, apiBase, children }: { auth: AuthAdapter
     loadError,
     expired,
     project,
+    projectChosen,
+    recentProjectIds,
     selectProject,
     login,
     logout,

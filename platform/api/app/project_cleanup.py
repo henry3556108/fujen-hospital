@@ -26,7 +26,8 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 from app.audit import AuditCategory, record
 from app.fhir.client import fhir_from_env
 from app.imaging.models import (AccessionAllowlist, ImagingFile, ImagingInstance, ImagingInstanceSource,
-                                ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
+                                ImagingScope, ImagingSeries, ImagingStudy, ImportFileResult, ImportJob)
+from app.labeling.models import LabelDataset, LabelDatasetVersion
 from app.llm.models import (ChatMessage, ChatSession, GenerationSettings, KbChunk, KbDocument, KnowledgeBase,
                              LlmCallRecord, ModelDownload, PromptTemplate, PublishedService, WikiPageLink, Workflow,
                              WorkflowNodeRecord, WorkflowRun)
@@ -137,6 +138,9 @@ def stage(session: Session, project_id: int, *, fhir: bool = False, inference: b
         delete(ImportFileResult).where(ImportFileResult.job_id.in_(jobs)),
         delete(ImportJob).where(ImportJob.project_id == project_id),
         delete(ImagingFile).where(ImagingFile.project_id == project_id),
+        delete(LabelDatasetVersion).where(LabelDatasetVersion.project_id == project_id),
+        delete(LabelDataset).where(LabelDataset.project_id == project_id),
+        delete(ImagingScope).where(ImagingScope.project_id == project_id),
         delete(TabularTargetFeature).where(TabularTargetFeature.dataset_id.in_(datasets)),
         delete(TabularColumnView).where(TabularColumnView.dataset_id.in_(datasets)),
         delete(TabularDataset).where(TabularDataset.project_id == project_id),

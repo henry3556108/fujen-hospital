@@ -11,6 +11,7 @@ import { trainingStageHandlers } from './trainingStages';
 import { mockStudyCounts } from './imaging';
 import { mockGpuGroupCount, mockJobs } from './scheduling';
 import { mockDatasetCounts } from './tabular';
+import { createOverviewHandlers } from './overview';
 
 let db: MockDb = seedDb();
 export function resetMockDb(): void {
@@ -424,4 +425,5 @@ export const handlers = [
   // WP5b 推論服務管理：定義在 mocks/inference.ts
   ...createInferenceHandlers(() => db),
   ...llmHandlers, // WP7
+  ...createOverviewHandlers(() => db), // 專案首頁
 ];

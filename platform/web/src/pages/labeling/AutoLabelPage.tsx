@@ -7,6 +7,7 @@ import { useLabelingApi, type LabelingApi } from './api';
 import type { InstanceInfo } from './dicomweb';
 import { formatDate } from './parts';
 import { KIND_LABELS, type Annotation, type AutolabelRun } from './types';
+import { LabelingNav } from './LabelingNav';
 import './labeling.css';
 
 export function AutoLabelPage() {
@@ -14,7 +15,7 @@ export function AutoLabelPage() {
   if (!labeling) {
     return (
       <>
-        <h1>自動影像分類標註</h1>
+        <h1>影像標註</h1>
         <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>
       </>
     );
@@ -75,8 +76,10 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
 
   return (
     <>
-      <h1>自動影像分類標註</h1>
-      <p className="text-muted">把影像送給自動標註服務，結果會存回平台。自動標註只是初稿，請到標註工作台審核修正。</p>
+      <h1>影像標註</h1>
+      <LabelingNav />
+      <h2>自動標註</h2>
+      <p className="text-muted">把影像送給自動標註服務，結果以「待確認」的草稿存回平台，並列入待處理清單。草稿要有人在標註工作台確認或修正後，才會用在訓練。</p>
       <ApiErrorAlert error={models.error ?? summary.error} />
       {imageError ? (
         <Alert tone="error" title="無法載入影像">

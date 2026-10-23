@@ -57,11 +57,13 @@ def test_delete_removes_row_and_objects_and_is_audited(client, dataset, store, s
     assert entry.detail["valid_rows"] == 100 and entry.detail["project_id"] == pid
 
 
-def test_viewer_can_list_and_delete(client, dataset, member):
+def test_viewer_can_list_but_not_delete(client, dataset, member):
     pid, _, did = dataset
     _, viewer = member("vw01", PROJECT_ONLY)
     assert client.get(_url(pid), headers=viewer).status_code == 200
-    assert client.delete(_url(pid, did), headers=viewer).status_code == 204
+    response = client.delete(_url(pid, did), headers=viewer)
+    assert response.status_code == 403 and response.json()["detail"]["permission"] == "training"
+    assert client.get(_url(pid, did), headers=viewer).status_code == 200
 
 
 def test_non_member_cannot_read(client, dataset, add_user):

@@ -1,6 +1,6 @@
 // 模擬 platform/api 的影像 API（app/imaging）。上傳的 DICOM 會真的解析標頭（Explicit VR Little Endian）。
 import { http } from 'msw';
-import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, PairedStudy, Study } from '../pages/imaging/types';
+import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, PairedStudy, Scope, ScopeFilters, Study } from '../pages/imaging/types';
 import { API, detail, isoNow, json, jsonBody, moduleState, requireProject, validation } from './support';
 
 interface DicomInfo {
@@ -33,6 +33,9 @@ interface State {
   jobs: (ImportJob & { projectId: number; files: ImportFileResult[] })[];
   allowlists: Record<number, string[]>;
   pacs: DicomInfo[];
+  /** 資料範圍（存篩選條件）；舊的持久化狀態可能沒有這欄 */
+  scopes?: (Omit<Scope, 'study_count'> & { projectId: number })[];
+  nextScopeId?: number;
   nextJobId: number;
   nextFileId: number;
 }
@@ -359,6 +362,49 @@ const BASE = `${API}/projects/:pid/imaging`;
 const DATE = /^(\d{8})$|^(\d{8})?-(\d{8})?$/;
 const like = (value: string | null, needle: string) => (value ?? '').toUpperCase().includes(needle.trim().toUpperCase());
 
+const FILTER_KEYS = ['modality', 'patient_sex', 'study_description', 'study_date', 'series_description'] as const;
+
+/** 研究列表的五個篩選條件（資料範圍存的也是同樣的 key） */
+function filterStudies(input: Study[], f: ScopeFilters): Study[] | Response {
+  let list = input;
+  const modality = f.modality;
+  const sex = f.patient_sex;
+  const studyDescription = f.study_description;
+  const seriesDescription = f.series_description;
+  const date = f.study_date;
+  if (modality) list = list.filter((st) => st.series.some((x) => (x.modality ?? '').toUpperCase() === modality.trim().toUpperCase()));
+  if (sex) list = list.filter((st) => (st.patient_sex ?? '').toUpperCase() === sex.trim().toUpperCase());
+  if (studyDescription) list = list.filter((st) => like(st.study_description, studyDescription));
+  if (seriesDescription) list = list.filter((st) => st.series.some((x) => like(x.series_description, seriesDescription)));
+  if (date) {
+    const hit = DATE.exec(date.trim());
+    if (!hit) return detail(422, 'study_date 格式需為 YYYYMMDD 或 YYYYMMDD-YYYYMMDD');
+    if (hit[1]) list = list.filter((st) => st.study_date === hit[1]);
+    else {
+      if (hit[2]) list = list.filter((st) => (st.study_date ?? '') >= hit[2]);
+      if (hit[3]) list = list.filter((st) => (st.study_date ?? '') <= hit[3]);
+    }
+  }
+  return list;
+}
+
+function scopesOf(s: State, pid: number) {
+  s.scopes ??= [];
+  return s.scopes.filter((x) => x.projectId === pid);
+}
+
+function scopeOut(s: State, scope: NonNullable<State['scopes']>[number]): Scope {
+  const hit = filterStudies(studiesOf(s, scope.projectId), scope.filters);
+  const { projectId: _p, ...rest } = scope;
+  return { ...rest, study_count: hit instanceof Response ? 0 : hit.length };
+}
+
+/** body.filters 只留研究列表認得的 key、字串值 */
+function cleanFilters(raw: unknown): ScopeFilters {
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return Object.fromEntries(FILTER_KEYS.filter((k) => typeof src[k] === 'string' && (src[k] as string).trim()).map((k) => [k, (src[k] as string).trim()]));
+}
+
 export const imagingHandlers = [
   http.post(`${BASE}/dicom`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'labeling');
@@ -464,30 +510,66 @@ export const imagingHandlers = [
     if (ctx instanceof Response) return ctx;
     const q = new URL(request.url).searchParams;
     let list = studiesOf(state(), ctx.project.id);
-    const modality = q.get('modality');
-    const sex = q.get('patient_sex');
-    const studyDescription = q.get('study_description');
-    const seriesDescription = q.get('series_description');
-    const date = q.get('study_date');
-    if (modality) list = list.filter((st) => st.series.some((x) => (x.modality ?? '').toUpperCase() === modality.trim().toUpperCase()));
-    if (sex) list = list.filter((st) => (st.patient_sex ?? '').toUpperCase() === sex.trim().toUpperCase());
-    if (studyDescription) list = list.filter((st) => like(st.study_description, studyDescription));
-    if (seriesDescription) list = list.filter((st) => st.series.some((x) => like(x.series_description, seriesDescription)));
-    if (date) {
-      const hit = DATE.exec(date.trim());
-      if (!hit) return detail(422, 'study_date 格式需為 YYYYMMDD 或 YYYYMMDD-YYYYMMDD');
-      if (hit[1]) list = list.filter((st) => st.study_date === hit[1]);
-      else {
-        if (hit[2]) list = list.filter((st) => (st.study_date ?? '') >= hit[2]);
-        if (hit[3]) list = list.filter((st) => (st.study_date ?? '') <= hit[3]);
-      }
+    const scopeId = q.get('scope_id');
+    if (scopeId) {
+      const scope = scopesOf(state(), ctx.project.id).find((x) => x.id === Number(scopeId));
+      if (!scope) return detail(404, `找不到資料範圍 ${scopeId}`);
+      const scoped = filterStudies(list, scope.filters);
+      if (scoped instanceof Response) return scoped;
+      list = scoped;
     }
+    const filtered = filterStudies(list, Object.fromEntries(FILTER_KEYS.map((k) => [k, q.get(k) ?? ''])));
+    if (filtered instanceof Response) return filtered;
+    list = filtered;
     if (!q.has('limit')) return json(list); // 不帶 limit：完整陣列（既有行為）
     const limit = Number(q.get('limit'));
     const offset = Number(q.get('offset') ?? 0);
     if (!Number.isInteger(limit) || limit < 1 || limit > 500) return validation('limit', 'Input should be between 1 and 500', 'less_than_equal', q.get('limit'));
     if (!Number.isInteger(offset) || offset < 0) return validation('offset', 'Input should be >= 0', 'greater_than_equal', q.get('offset'));
     return json({ items: list.slice(offset, offset + limit), total: list.length, offset, limit });
+  }),
+
+  http.get(`${BASE}/scopes`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const s = state();
+    return json(scopesOf(s, ctx.project.id).map((x) => scopeOut(s, x)));
+  }),
+
+  http.post(`${BASE}/scopes`, async ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const b = await jsonBody(request);
+    const name = typeof b.name === 'string' ? b.name.trim() : '';
+    if (!name) return validation('name', 'String should have at least 1 character', 'string_too_short', b.name ?? null);
+    const s = state();
+    if (scopesOf(s, ctx.project.id).some((x) => x.name === name)) return detail(409, `已有名為「${name}」的資料範圍`);
+    s.nextScopeId ??= 1;
+    const scope = { id: s.nextScopeId++, projectId: ctx.project.id, name, filters: cleanFilters(b.filters), created_by: ctx.user.username, created_at: isoNow() };
+    s.scopes!.push(scope);
+    return json(scopeOut(s, scope), 201);
+  }),
+
+  http.put(`${BASE}/scopes/:sid`, async ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const s = state();
+    const scope = scopesOf(s, ctx.project.id).find((x) => x.id === Number(params.sid));
+    if (!scope) return detail(404, `找不到資料範圍 ${params.sid}`);
+    const b = await jsonBody(request);
+    if (typeof b.name === 'string' && b.name.trim()) scope.name = b.name.trim();
+    if (b.filters !== undefined) scope.filters = cleanFilters(b.filters);
+    return json(scopeOut(s, scope));
+  }),
+
+  http.delete(`${BASE}/scopes/:sid`, ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'labeling');
+    if (ctx instanceof Response) return ctx;
+    const s = state();
+    const scope = scopesOf(s, ctx.project.id).find((x) => x.id === Number(params.sid));
+    if (!scope) return detail(404, `找不到資料範圍 ${params.sid}`);
+    s.scopes = s.scopes!.filter((x) => x !== scope);
+    return new Response(null, { status: 204 });
   }),
 
   http.get(`${BASE}/studies/:uid`, ({ request, params }) => {

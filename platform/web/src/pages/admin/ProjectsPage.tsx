@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import type { Project } from '../../api/types';
 import { useResource } from '../../api/useResource';
@@ -7,7 +8,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { GpuGroup } from '../scheduling/types';
 
-interface FormValues {
+export interface FormValues {
   name: string;
   description: string;
   gpu_group: string;
@@ -30,7 +31,7 @@ function invalid(error: unknown, field: string): boolean {
   return error instanceof ApiError && error.fieldErrors.some((f) => f.field === field);
 }
 
-function ProjectForm({
+export function ProjectForm({
   title,
   initial,
   submitLabel,
@@ -38,6 +39,7 @@ function ProjectForm({
   onCancel,
   groups,
   groupsError,
+  keepValues = false,
 }: {
   title: string;
   initial: FormValues;
@@ -46,6 +48,8 @@ function ProjectForm({
   onCancel?: () => void;
   groups: GpuGroup[] | null;
   groupsError: unknown;
+  /** 儲存後保留欄位內容（單一專案頁） */
+  keepValues?: boolean;
 }) {
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<unknown>(null);
@@ -58,7 +62,7 @@ function ProjectForm({
     setError(null);
     try {
       await onSubmit(values);
-      if (!onCancel) setValues(EMPTY);
+      if (!onCancel && !keepValues) setValues(EMPTY);
     } catch (err) {
       setError(err);
     } finally {
@@ -106,7 +110,7 @@ function ProjectForm({
             ))}
           </select>
           <span id={`${idp}-gpu-hint`} className="field__hint">
-            群組在「共享排程設定 › GPU 群組」分頁定義
+            群組在「運算資源 › GPU 群組」定義
           </span>
         </div>
       </div>
@@ -175,7 +179,8 @@ export function ProjectsPage() {
 
   return (
     <div className="section">
-      <h2>專案</h2>
+      <h1>專案</h1>
+      <p className="text-muted">點專案名稱設定 GPU 群組、成員與權限、標註群組、影像存取清單。</p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />
       <ApiErrorAlert error={projects.error} />
@@ -199,7 +204,9 @@ export function ProjectsPage() {
             )}
             {projects.data?.map((p) => (
               <tr key={p.id}>
-                <th scope="row">{p.name}</th>
+                <th scope="row">
+                  <Link to={`/admin/projects/${p.id}`}>{p.name}</Link>
+                </th>
                 <td>{p.description || '—'}</td>
                 <td>{p.gpu_group ?? '未綁定'}</td>
                 <td>

@@ -33,15 +33,24 @@ export function DeploymentPage() {
   );
 }
 
-function Deployments({ api }: { api: TrainingApi }) {
+/** 使用模型 › 分享與服務：只處理一個模型（modelId）的分享、授權、端點與試呼叫。 */
+export function SharePanel({ modelId }: { modelId: number }) {
+  const api = useTrainingApi();
+  return api ? <Deployments key={`${api.projectId}-${modelId}`} api={api} modelId={modelId} /> : null;
+}
+
+function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
   const canTrain = useHasPermission('training');
   const lookup = useUserLookup();
   const models = useResource(() => api.models(), [api]);
-  const deployments = useResource(() => (canTrain ? api.deployments() : Promise.resolve([])), [api, canTrain]);
+  const deployments = useResource(
+    () => (canTrain ? api.deployments().then((list) => (modelId ? list.filter((d) => d.model_id === modelId) : list)) : Promise.resolve([])),
+    [api, canTrain, modelId],
+  );
   const [done, setDone] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [params] = useSearchParams();
-  const wanted = Number(params.get('model')) || null;
+  const wanted = modelId ?? (Number(params.get('model')) || null);
   const [form, setForm] = useState({ model: wanted ? String(wanted) : '', title: '', users: '' });
   const formRef = useRef<HTMLFormElement>(null);
   const [prefilled, setPrefilled] = useState(false);
@@ -111,18 +120,19 @@ function Deployments({ api }: { api: TrainingApi }) {
       await api.undeploy(target.id);
       deployments.reload();
       models.reload();
-      return `已停止分享「${titleOf(target)}」。專案成員仍可在「推論服務管理」使用這個模型，但程式呼叫的端點不再接受呼叫。`;
+      return `已停止分享「${titleOf(target)}」。專案成員仍可在「使用模型」使用這個模型，但程式呼叫的端點不再接受呼叫。`;
     });
   }
 
   return (
     <div className="stack">
       {!canTrain ? (
-        <Alert tone="info">分享模型、下載模型需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。要用模型預測，請到左側「推論服務管理」。</Alert>
+        <Alert tone="info">分享模型、下載模型需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。要用模型預測，請到「預測新資料」。</Alert>
       ) : null}
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
 
+      {modelId ? null : (
       <section className="card section" aria-labelledby="dep-models-title">
         <h2 id="dep-models-title">模型</h2>
         {models.data.length === 0 ? (
@@ -164,17 +174,19 @@ function Deployments({ api }: { api: TrainingApi }) {
           </div>
         )}
       </section>
+      )}
 
       {canTrain && models.data.length > 0 ? (
         <form ref={formRef} aria-label="分享給同事使用" className="card section stack" onSubmit={deploy} noValidate>
           <h2>分享給同事使用</h2>
-          {prefilled ? <Alert tone="info">已選好剛訓練完成的模型「{selected ? displayName(selected) : ''}」，請填要分享的同事帳號後按「分享給同事使用」。</Alert> : null}
+          {prefilled && !modelId ? <Alert tone="info">已選好剛訓練完成的模型「{selected ? displayName(selected) : ''}」，請填要分享的同事帳號後按「分享給同事使用」。</Alert> : null}
           <p data-testid="share-explain">
-            分享後，同事（例如 md01）登入平台，點左側「推論服務管理」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「分享給你」）按「選擇」，
+            分享後，同事（例如 md01）登入平台，點左側「使用模型」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「分享給你」）打開，
             就能預測一位病人或多位病人。
           </p>
           <p className="field__hint">同一個專案中有「推論」權限的成員都看得到這個專案的模型；分享會把模型標示為「分享給你」，並允許資訊人員用程式呼叫。</p>
           <div className="form-grid">
+            {modelId ? null : (
             <div className="field">
               <label htmlFor="dep-model">模型</label>
               <select id="dep-model" className="select" value={selected ? String(selected.id) : ''}
@@ -189,6 +201,7 @@ function Deployments({ api }: { api: TrainingApi }) {
                 ))}
               </select>
             </div>
+            )}
             <div className="field">
               <label htmlFor="dep-title">顯示名稱（同事看到的名稱，可用中文）</label>
               <input id="dep-title" className="input" value={form.title} maxLength={128} placeholder={selected ? suggestTitle(selected.name) : ''}
@@ -207,7 +220,7 @@ function Deployments({ api }: { api: TrainingApi }) {
         </form>
       ) : null}
 
-      <TryPredict models={models.data} initial={wanted ?? undefined} />
+      {modelId ? null : <TryPredict models={models.data} initial={wanted ?? undefined} />}
 
       {canTrain ? (
         <section className="card section" aria-labelledby="dep-list-title">
@@ -325,7 +338,7 @@ function Deployments({ api }: { api: TrainingApi }) {
 
       {removing ? (
         <ConfirmDialog title="停止分享" confirmLabel="停止分享" onConfirm={undeploy} onCancel={() => setRemoving(null)}>
-          確定要停止分享「{titleOf(removing)}」嗎？專案成員仍可在「推論服務管理」使用這個模型，但程式呼叫的端點會立即停止接受呼叫。
+          確定要停止分享「{titleOf(removing)}」嗎？專案成員仍可在「使用模型」使用這個模型，但程式呼叫的端點會立即停止接受呼叫。
         </ConfirmDialog>
       ) : null}
     </div>
@@ -336,13 +349,13 @@ const titleOf = (d?: Deployment) => (d ? d.title || d.name : '');
 
 function outsideNote(d: Deployment): string {
   return d.cannot_use_in_platform?.length
-    ? `注意：${d.cannot_use_in_platform.join('、')} 不是本專案有推論權限的成員，登入後在「推論服務管理」看不到這個模型；需要時請專案負責人把他加入專案。`
+    ? `注意：${d.cannot_use_in_platform.join('、')} 不是本專案有推論權限的成員，登入後在「使用模型」看不到這個模型；需要時請專案負責人把他加入專案。`
     : '';
 }
 
 function sharedMessage(d: Deployment): string {
   const people = d.allowed_users.join('、');
-  return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「推論服務管理」，選模型「${titleOf(d)}」就能預測。` + outsideNote(d);
+  return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「使用模型」，打開模型「${titleOf(d)}」就能預測。` + outsideNote(d);
 }
 
 /** 呼叫方式範例：結構式送 JSON rows，影像以 multipart 上傳 files。 */

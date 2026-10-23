@@ -57,21 +57,22 @@ describe('B1 從資料集建立訓練', () => {
   it('the dataset page links to a prefilled training form with the kind chosen from the target', async () => {
     await saveTargetFeature('diagnosis', ['age', 'sex', 'smoker']);   // 數字編碼的 0／1 → 分類
     const first = await renderApp('/data/tabular/2', 'pi01');
-    const link = await screen.findByRole('link', { name: '用這份資料建立訓練' }, { timeout: 10_000 });
-    expect(link).toHaveAttribute('href', '/training?dataset=2');
+    const link = await screen.findByRole('link', { name: '用這份資料建立模型' }, { timeout: 10_000 });
+    expect(link).toHaveAttribute('href', '/training/new?tabular=2');
     await first.user.click(link);
 
-    const form = await screen.findByRole('form', { name: '新增訓練設定' });
-    expect(screen.getByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
-    expect(screen.getByText(/預選「結構式分類」/)).toBeInTheDocument();
-    expect(within(form).getByLabelText('訓練種類')).toHaveValue('tabular_classification');
+    // 建立訓練精靈直接到「確認資料」，研究目的依 Target 預選為分類
+    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '確認資料：表格資料：分類' })).toBeInTheDocument();
+    await first.user.click(screen.getByRole('button', { name: '下一步：確認並送出' }));
+    const form = await screen.findByRole('form', { name: '確認並送出' });
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
     await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toHaveValue('diagnosis'));
     const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
     expect(within(features).getByRole('checkbox', { name: 'sex' })).toBeChecked();
     expect(within(form).getByTestId('text-features')).toHaveTextContent('「sex、smoker」是文字或類別欄位，訓練時會自動轉成 0／1 欄位');
-    await first.user.click(within(form).getByRole('button', { name: '儲存設定' }));
-    await screen.findByText('已新增訓練設定「lung-clinical 訓練」。');
+    await first.user.click(within(form).getByRole('button', { name: '確認並送出訓練' }));
+    await screen.findByText(/訓練 #\d+（lung-clinical 訓練）/);
     expect(trainingMock().settings[0].config).toMatchObject({ kind: 'tabular_classification', source: { dataset_id: 2 },
       tabular: { target: 'diagnosis', features: ['age', 'sex', 'smoker'] } });
   });
@@ -79,7 +80,7 @@ describe('B1 從資料集建立訓練', () => {
   it('users without Training do not see the link', async () => {
     await renderApp('/data/tabular/2', 'md01');
     await screen.findByRole('heading', { name: /資料集：/ }, { timeout: 10_000 });
-    expect(screen.queryByRole('link', { name: '用這份資料建立訓練' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
   });
 
   it('numeric targets with many values suggest regression', () => {
@@ -91,7 +92,7 @@ describe('B1 從資料集建立訓練', () => {
 
 describe('B2 超參數說明與 B3 K 折', () => {
   it('each hyperparameter has a plain explanation; rarely tuned ones are under advanced settings', async () => {
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
     expect(within(form).getByLabelText('訓練回合數')).toHaveAccessibleDescription(/看過幾遍.*預設 3/);
@@ -105,7 +106,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
   });
 
   it('TC-B05-02 a K-fold setting is saved and read back identical; only the test share is asked', async () => {
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
     await user.type(within(form).getByLabelText('設定名稱'), 'kfold');
@@ -125,7 +126,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
     expect(config.validation).toEqual({ method: 'kfold', folds: 4 });
     expect(config.split).toEqual({ train: 0.8, validation: 0, test: 0.2 });
 
-    await user.click(screen.getByRole('button', { name: '編輯「kfold」' }));
+    await user.click(screen.getByRole('button', { name: '修改「kfold」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「kfold」' });
     expect(within(edit).getByRole('radio', { name: 'K 折交叉驗證' })).toBeChecked();
     expect(within(edit).getByLabelText('交叉驗證折數（K）')).toHaveValue(4);
@@ -136,8 +137,8 @@ describe('B2 超參數說明與 B3 K 折', () => {
 
   it('an old setting without validation opens as fixed split and still saves and runs', async () => {
     seed('old', tabularConfig('tabular_classification'));
-    const { user } = await renderApp('/training', 'pi01');
-    await user.click(await screen.findByRole('button', { name: '編輯「old」' }));
+    const { user } = await renderApp('/training/settings', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '修改「old」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「old」' });
     expect(within(edit).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
     await user.click(within(edit).getByRole('button', { name: '儲存設定' }));
@@ -156,7 +157,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
 
   it('a finished K-fold classification shows plain metrics, baseline, warnings, charts and a report', async () => {
     seed('cls', tabularConfig('tabular_classification', { split: { train: 0.8, validation: 0, test: 0.2 }, validation: { method: 'kfold', folds: 5 } }));
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「cls」' }));
     const steps = await screen.findByRole('list', { name: '訓練 #1 的進度' });
     expect(within(steps).getByText('排隊中').closest('li')).toHaveAttribute('aria-current', 'step');
@@ -180,19 +181,19 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('9 人（82%），正確');
     expect(screen.getByText(/ROC 曲線（測試集，陽性＝「1」）/)).toBeInTheDocument();
     expect(screen.getByText('特徵重要性（打亂後分數下降多少）')).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: '訓練清單' })).toHaveTextContent(/（AUC 0\.\d\d，5 折平均）/);
-
     await user.click(screen.getByRole('button', { name: '下載報表（可列印）' }));
     await screen.findByText('已下載 training-run-1-report.html');
     expect(saved).toEqual(['training-run-1-report.html']);
 
     const deploy = screen.getByRole('link', { name: '分享給同事使用' });
-    expect(deploy.getAttribute('href')).toMatch(/^\/deployment\?model=\d+$/);
+    expect(deploy.getAttribute('href')).toBe('/models/1/share');
+    await user.click(screen.getByRole('link', { name: '訓練紀錄' }));
+    expect(await screen.findByRole('table', { name: '訓練清單' })).toHaveTextContent(/（AUC 0\.\d\d，5 折平均）/);
   });
 
   it('regression shows R², RMSE against the predict-the-mean baseline and the scatter and residual charts', async () => {
     seed('reg', tabularConfig('tabular_regression'));
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, 'reg');
     expect(screen.getByRole('list', { name: '訓練 #1 的重點指標' })).toHaveTextContent('R²（解釋量）');
     expect(screen.getByTestId('baseline')).toHaveTextContent('比較基準：每次都猜平均值，RMSE 是 16.2；模型的 RMSE 要明顯低於它才有用。');
@@ -200,38 +201,33 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(screen.getByText('殘差分布（實際值 − 預測值）')).toBeInTheDocument();
   });
 
-  it('the run list sorts by main score, expands one run at a time and defaults to my runs', async () => {
+  it('the run list shows everyone, newest first, and filters by creator and status', async () => {
     seed('a', tabularConfig('tabular_classification'));
     seed('b', tabularConfig('tabular_classification'));
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, 'a');
+    await user.click(screen.getByRole('link', { name: '已存設定' }));
     await finish(user, 'b');
     const run = (id: number) => trainingMock().runs.find((r) => r.id === id)!;
-    (run(1).metrics.test as Record<string, number>).auc = 0.9;
-    (run(2).metrics.test as Record<string, number>).auc = 0.6;
     trainingMock().runs.push({ ...run(1), id: 99, name: '別人的訓練', created_by: 'ra01' });
-    await user.click(screen.getByRole('button', { name: '重新整理' }));
-    const table = screen.getByRole('table', { name: '訓練清單' });
-    const order = () => within(table).getAllByRole('button', { name: /^(展開|收合)訓練 #/ }).map((b) => b.textContent);
-    await waitFor(() => expect(order()).toEqual(['收合訓練 #2', '展開訓練 #1']));
-    await user.click(within(table).getByRole('button', { name: '主要分數（依分數排序）' }));
-    expect(order()).toEqual(['展開訓練 #1', '收合訓練 #2']);
-    expect(within(table).getByRole('columnheader', { name: '主要分數（依分數排序）' })).toHaveAttribute('aria-sort', 'descending');
-    await user.click(within(table).getByRole('button', { name: '展開訓練 #1' }));
-    expect(order()).toEqual(['收合訓練 #1', '展開訓練 #2']);
-    expect(screen.getAllByRole('heading', { name: /^訓練 #\d+：/ })).toHaveLength(1);
-    await user.click(screen.getByRole('checkbox', { name: '只看我送出的' }));
-    await waitFor(() => expect(order()).toHaveLength(3));   // 「只看我送出的」由伺服器篩選，重新載入這一頁
+    await user.click(screen.getByRole('link', { name: '訓練紀錄' }));
+    const order = () => within(screen.getByRole('table', { name: '訓練清單' })).getAllByRole('link', { name: /^查看(結果|進度) #/ }).map((b) => b.textContent);
+    await waitFor(() => expect(order()).toEqual(['查看結果 #99', '查看結果 #2', '查看結果 #1']));
+    await user.type(screen.getByLabelText('建立者'), 'ra01');
+    await waitFor(() => expect(order()).toEqual(['查看結果 #99']));
+    await user.click(screen.getByRole('button', { name: '清除篩選' }));
+    await user.selectOptions(screen.getByLabelText('狀態'), 'failed');
+    expect(await screen.findByText('沒有符合篩選條件的訓練。')).toBeInTheDocument();
   });
 
   it('a failure shows the Chinese reason, a fix link and collapsed technical details', async () => {
     seed('會失敗', tabularConfig('tabular_classification'));
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「會失敗」' }));
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('失敗'));
-    expect(screen.getByRole('link', { name: '前往修正：資料集的 Target／Feature 設定' })).toHaveAttribute('href', '/data/tabular/2/target');
+    expect(screen.getByRole('link', { name: '前往修正：資料集的整理資料' })).toHaveAttribute('href', '/data/tabular/2/prepare');
   });
 });
 
@@ -239,11 +235,11 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
   it('a setting whose dataset Target/Feature changed offers to apply the new ones', async () => {
     seed('舊的', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'smoker_current'], steps: [], algorithm: 'random_forest' } }));
     await saveTargetFeature('diagnosis', ['age', 'smoker']);
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     expect(await screen.findByText('與資料集設定不同')).toBeInTheDocument();
     expect(screen.getByTestId('setting-difference')).toHaveTextContent('與資料集目前的設定不同：Feature 多了 smoker_current，少了 smoker。');
     await user.click(screen.getByRole('button', { name: '套用資料集設定到「舊的」' }));
-    await screen.findByText('已把資料集目前的 Target、Feature 與前處理套用到「舊的」。');
+    await screen.findByText('已把資料集目前的欄位與前處理套用到「舊的」。');
     expect(trainingMock().settings[0].config.tabular!.features).toEqual(['age', 'smoker']);
     await waitFor(() => expect(screen.queryByText('與資料集設定不同')).toBeNull());
   });
@@ -251,26 +247,25 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
   it('only administrators see the fake-trainer option; settings default to mine', async () => {
     seed('mine', tabularConfig('tabular_classification'));
     seed('theirs', tabularConfig('tabular_classification'), 'ra01');
-    await renderApp('/training', 'pi01');
+    await renderApp('/training/settings', 'pi01');
     expect(await screen.findByRole('button', { name: '送出訓練「mine」' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '送出訓練「theirs」' })).toBeNull();
     expect(screen.getByText('（另有 1 份其他人的設定）')).toBeInTheDocument();
     expect(screen.queryByLabelText('執行方式')).toBeNull();
   });
 
-  it('deploy shortcut preselects the model and suggests a name; try-out prediction shows the probability of diagnosis＝1', async () => {
+  it('share shortcut opens that model and suggests a name; try-out prediction shows the probability of diagnosis＝1', async () => {
     seed('心臟科確診預測', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'sex'], steps: [], algorithm: 'random_forest' } }));
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, '心臟科確診預測');
     await user.click(screen.getByRole('link', { name: '分享給同事使用' }));
     const form = await screen.findByRole('form', { name: '分享給同事使用' });
-    const modelId = String(trainingMock().runs[0].model_id);
-    await waitFor(() => expect(within(form).getByLabelText('模型')).toHaveValue(modelId));
-    expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科確診預測');
-    expect(within(form).getByText(/已選好剛訓練完成的模型/)).toBeInTheDocument();
+    await waitFor(() => expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科確診預測'));
 
-    const tryForm = screen.getByRole('form', { name: '試用預測' });
-    expect(within(tryForm).getByLabelText('模型')).toHaveValue(modelId);
+    // 預測新資料分頁：模型已選好，填一位病人
+    await user.click(screen.getByRole('link', { name: '預測新資料' }));
+    const tryForm = await screen.findByRole('form', { name: '一位病人' });
+    expect(within(tryForm).queryByLabelText('模型')).toBeNull();
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
     expect(await within(tryForm).findByRole('alert')).toHaveTextContent('請填寫：age、sex');
     await user.type(within(tryForm).getByLabelText('age'), '61');

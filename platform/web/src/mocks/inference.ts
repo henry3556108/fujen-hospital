@@ -25,11 +25,11 @@ const FEATURES = ['age', 'bmi', 'glucose', 'sbp'];
 export function models(projectId: number): Model[] {
   const base = { sha256: 'f'.repeat(64), created_by: 'pi01', created_at: '2026-09-29T01:00:00Z' };
   return [
-    { ...base, id: projectId * 100 + 1, name: 'diagnosis-rf-run1', kind: 'tabular_classification', format: 'pkl',
+    { ...base, id: projectId * 100 + 1, run_id: projectId * 100 + 1, name: 'diagnosis-rf-run1', kind: 'tabular_classification', format: 'pkl',
       filename: 'diagnosis-rf-run1.pkl', card: { target: 'diagnosis', features: FEATURES, classes: ['0', '1'] } },
-    { ...base, id: projectId * 100 + 2, name: 'modality-cnn-run2', kind: 'image_classification', format: 'h5',
+    { ...base, id: projectId * 100 + 2, run_id: projectId * 100 + 2, name: 'modality-cnn-run2', kind: 'image_classification', format: 'h5',
       filename: 'modality-cnn-run2.h5', card: { label_names: ['CT', 'MR'], input: { resize: [32, 32] } } },
-    { ...base, id: projectId * 100 + 3, name: 'nodule-det-run3', kind: 'image_detection', format: 'h5',
+    { ...base, id: projectId * 100 + 3, run_id: projectId * 100 + 3, name: 'nodule-det-run3', kind: 'image_detection', format: 'h5',
       filename: 'nodule-det-run3.h5', card: { label_names: ['nodule'], input: { resize: [32, 32] } } },
     ...trainedModels(projectId),
   ];

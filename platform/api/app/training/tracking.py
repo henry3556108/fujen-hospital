@@ -4,6 +4,7 @@ MLFLOW_TRACKING_URI 未設定時不記錄。MLflow 連不上不會讓訓練失�
 """
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Mapping
 from typing import Any, Protocol
@@ -34,9 +35,13 @@ def params_of(config: dict[str, Any]) -> dict[str, str]:
     return {k: str(v)[:500] for k, v in sorted(flatten(config).items()) if v is not None}
 
 
+_METRIC_KEY = re.compile(r"^[\w\-. /]+$", re.ASCII)
+
+
 def metrics_of(metrics: dict[str, Any]) -> dict[str, float]:
+    """MLflow 只收英數等字元的指標名稱；各類別召回率的 key 含類別名（可能是中文），不合的略過，免得整批被拒。"""
     return {k: float(v) for k, v in sorted(flatten(metrics).items())
-            if isinstance(v, (int, float)) and not isinstance(v, bool)}
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and _METRIC_KEY.match(k)}
 
 
 class InMemoryTracker:

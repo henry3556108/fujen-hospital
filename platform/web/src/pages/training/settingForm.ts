@@ -27,6 +27,8 @@ export interface FormState {
   resizeW: string;
   labels: string;
   augmentation: Record<string, string | boolean>;
+  /** 影像：使用的標註資料集（空字串＝不指定，沿用標註來源） */
+  labelDatasetId: string;
   // 結構式
   datasetId: string;
   target: string;
@@ -90,6 +92,7 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
     resizeW: '32',
     labels: '',
     augmentation: Object.fromEntries(catalogue.augmentation.map((a) => [a.name, paramValue(a, undefined)])),
+    labelDatasetId: '',
     datasetId: '',
     target: '',
     features: [],
@@ -153,6 +156,7 @@ export function formFromSetting(catalogue: Catalogue, setting: TrainingSetting):
     form.resizeW = String(c.image.resize[1]);
     form.labels = (c.image.labels ?? []).join(', ');
   }
+  if (c.label_dataset_id) form.labelDatasetId = String(c.label_dataset_id);
   if (c.augmentation) {
     form.augmentation = Object.fromEntries(catalogue.augmentation.map((a) => [a.name, paramValue(a, c.augmentation![a.name])]));
   }
@@ -215,6 +219,7 @@ export function configFromForm(catalogue: Catalogue, form: FormState): TrainingC
     ...base,
     source,
     image: { resize: [Number(form.resizeH), Number(form.resizeW)], labels: labels.length ? labels : null },
+    ...(form.labelDatasetId ? { label_dataset_id: Number(form.labelDatasetId) } : {}),
     augmentation,
   };
 }

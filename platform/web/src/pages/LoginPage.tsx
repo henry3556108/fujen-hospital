@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionContext';
 import { Alert } from '../components/Alert';
+import { keycloakResetPasswordUrl } from './global/keycloak';
 
 // test 模式可選的種子帳號（對應驗收基線）
 const TEST_USERS = ['admin01', 'pi01', 'md01', 'ra01', 'ca01', 'vw01', 'user01', 'user02'];
@@ -59,6 +60,10 @@ export function LoginPage() {
             {busy ? '登入中…' : '登入'}
           </button>
         </form>
+        <p className="login__links">
+          <a href={keycloakResetPasswordUrl()}>忘記密碼</a>
+          <span className="text-muted">（前往醫院統一身分重設密碼）</span>
+        </p>
       </div>
     </main>
   );

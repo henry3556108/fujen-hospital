@@ -35,9 +35,9 @@ function seed(name = '糖尿病預測', config: TrainingConfig = TABULAR) {
 }
 
 async function openFlow(name = '糖尿病預測', username = 'pi01') {
-  const app = await renderApp('/training', username);
+  const app = await renderApp('/training/settings', username);
   if (username !== 'pi01') await app.user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
-  await app.user.click(await screen.findByRole('button', { name: `流程程式碼「${name}」` }));
+  await app.user.click(await screen.findByRole('link', { name: `流程程式碼「${name}」` }));
   const panel = await screen.findByRole('region', { name: `流程程式碼「${name}」` });
   await within(panel).findByRole('table', { name: '流程環節' });
   return { ...app, panel };
@@ -108,6 +108,7 @@ describe('流程程式碼面板', () => {
     expect(lockedStages(row.id)).toEqual(['train']);
     expect(within(panel).getByText('匯入檔控制')).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: '改回用介面設定「訓練」' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '已存設定' }));
     expect(await screen.findByTestId('locked-stages')).toHaveTextContent('匯入控制：訓練');
   });
 
@@ -207,8 +208,8 @@ describe('鎖定後的訓練設定', () => {
   it('disables the fields of locked stages and still saves the other fields', async () => {
     const row = seed();
     await lock('train', row.id);
-    const { user } = await renderApp('/training', 'pi01');
-    await user.click(await screen.findByRole('button', { name: '編輯「糖尿病預測」' }));
+    const { user } = await renderApp('/training/settings', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByTestId('stage-locks')).toHaveTextContent('「訓練」由匯入的檔案控制：train.json、train.py');
     expect(within(form).getByLabelText('亂數種子')).toBeDisabled();
@@ -227,10 +228,10 @@ describe('鎖定後的訓練設定', () => {
   it('locked labels disable the dataset fields and hide the button that applies the dataset settings', async () => {
     const row = seed();
     await lock('labels', row.id);
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     expect(await screen.findByTestId('locked-stages')).toHaveTextContent('匯入控制：標註');
     expect(screen.queryByRole('button', { name: /套用資料集設定/ })).toBeNull();
-    await user.click(screen.getByRole('button', { name: '編輯「糖尿病預測」' }));
+    await user.click(screen.getByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByLabelText('資料集')).toBeDisabled();
     expect(within(form).getByLabelText('要預測的結果（Target）')).toBeDisabled();
@@ -240,8 +241,9 @@ describe('鎖定後的訓練設定', () => {
   it('the run list marks runs that used imported programs', async () => {
     const row = seed();
     await lock('train', row.id);
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「糖尿病預測」' }));
+    await user.click(await screen.findByRole('link', { name: '訓練紀錄' }));
     expect(await screen.findByText('（使用匯入的程式：訓練）')).toBeInTheDocument();
   });
 });

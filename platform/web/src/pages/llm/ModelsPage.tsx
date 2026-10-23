@@ -116,10 +116,10 @@ export function ModelsPage() {
   const { llm } = useLlm();
   const catalog = useResource(() => llm!.catalog(), [llm]);
   const downloads = useResource(() => llm!.downloads(), [llm]);
-  const pending = useResource(() => (me.account_type === 'admin' ? llm!.adminDownloads() : Promise.resolve([])), [llm]);
+
   const [token, setToken] = useState('');
   const [error, setError] = useState<unknown>(null);
-  const reload = () => { catalog.reload(); downloads.reload(); pending.reload(); };
+  const reload = () => { catalog.reload(); downloads.reload(); };
   async function act(work: () => Promise<unknown>) {
     setError(null);
     try {
@@ -143,7 +143,7 @@ export function ModelsPage() {
     <>
       <section className="card section" aria-labelledby="catalog-title">
         <h2 id="catalog-title">可下載模型（白名單）</h2>
-        <p className="text-muted">只有白名單內的模型可以下載；下載前需管理者核准，夾帶程式碼的模型需另外核准才能載入。</p>
+        <p className="text-muted">只有白名單內的模型可以下載；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
         <ApiErrorAlert error={catalog.error ?? error} />
         <div className="field">
           <label htmlFor="model-token">下載 Token（需要時填寫，不會被儲存）</label>
@@ -178,20 +178,6 @@ export function ModelsPage() {
           </table>
         </div>
       </section>
-      {me.account_type === 'admin' && (pending.data ?? []).some((d) => d.status === 'pending') && (
-        <section className="card section" aria-labelledby="review-title">
-          <h2 id="review-title">待審核的下載申請</h2>
-          <ul>
-            {(pending.data ?? []).filter((d) => d.status === 'pending').map((d) => (
-              <li key={d.id} className="row-actions">
-                {d.name}（申請人 {d.user}）
-                <button type="button" className="btn btn--small btn--primary" onClick={() => void act(() => llm!.review(d.id, true))}>核准</button>
-                <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.review(d.id, false))}>駁回</button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       <section className="card section" aria-labelledby="records-title">
         <h2 id="records-title">下載紀錄</h2>
         <div className="table-wrap">

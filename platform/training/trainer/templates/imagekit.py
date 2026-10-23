@@ -348,3 +348,70 @@ def image_config(config: dict) -> tuple[tuple[int, int], dict[str, Any]]:
     image = config.get("image") or {}
     size = tuple(int(v) for v in image.get("resize", (32, 32)))
     return size, normalise_augmentation(config.get("augmentation"))
+
+
+# --------------------------------------------------------------------------- 分類指標（只用 numpy，匯出原始碼也能跑）
+
+MAX_ROC_POINTS = 200
+
+
+def _evenly(n: int, limit: int) -> list[int]:
+    """n 個點超過 limit 時以固定間隔取樣（含頭尾），結果只跟 n 有關。"""
+    if n <= limit:
+        return list(range(n))
+    return sorted({int(i) for i in np.linspace(0, n - 1, limit).round()})
+
+
+def roc_curve(positive: np.ndarray, score: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """ROC 曲線的 (偽陽性率, 真陽性率)，由 (0, 0) 開始；同分數視為同一個門檻。需要兩類都有資料。"""
+    order = np.argsort(-np.asarray(score, dtype="float64"), kind="mergesort")
+    s, y = np.asarray(score, dtype="float64")[order], np.asarray(positive, dtype=bool)[order]
+    idx = np.r_[np.where(np.diff(s))[0], len(y) - 1]
+    tps = np.cumsum(y)[idx]
+    fps = idx + 1 - tps
+    tps, fps = np.r_[0, tps], np.r_[0, fps]
+    return fps / fps[-1], tps / tps[-1]
+
+
+def auc_of(fpr: np.ndarray, tpr: np.ndarray) -> float:
+    return float(np.sum(np.diff(fpr) * (tpr[1:] + tpr[:-1]) / 2))
+
+
+def classification_metrics(truth: np.ndarray, probs: np.ndarray, labels: list[str]) -> dict[str, Any]:
+    """準確率；二分類另有敏感度、特異度、AUC 與 ROC（陽性＝labels 的第二個，最多 200 點）；
+    多分類另有各類別召回率（recall_per_class，該類在這份資料沒有影像時為 None）。"""
+    truth = np.asarray(truth, dtype="int64")
+    probs = np.asarray(probs, dtype="float64")
+    predicted = probs.argmax(axis=1)
+    out: dict[str, Any] = {"accuracy": float((predicted == truth).mean())}
+    if len(labels) == 2:
+        positive, hit = truth == 1, predicted == 1
+        if positive.any():
+            out["sensitivity"] = float((hit & positive).sum() / positive.sum())
+        if (~positive).any():
+            out["specificity"] = float((~hit & ~positive).sum() / (~positive).sum())
+        if positive.any() and (~positive).any():
+            fpr, tpr = roc_curve(positive, probs[:, 1])
+            out["auc"] = auc_of(fpr, tpr)
+            keep = _evenly(len(fpr), MAX_ROC_POINTS)
+            out["roc"] = {"positive": labels[1], "fpr": [round(float(fpr[i]), 6) for i in keep],
+                          "tpr": [round(float(tpr[i]), 6) for i in keep]}
+    else:
+        out["recall_per_class"] = {
+            label: (float((predicted[truth == k] == k).mean()) if (truth == k).any() else None)
+            for k, label in enumerate(labels)}
+    return out
+
+
+def classification_charts(kind: str, subset: str, truth: np.ndarray, probs: np.ndarray, labels: list[str],
+                          metrics: dict[str, Any]) -> dict[str, Any]:
+    """結果圖表（charts.json，格式與表格範本相同）：混淆矩陣、二分類的 ROC。"""
+    truth = np.asarray(truth, dtype="int64")
+    predicted = np.asarray(probs).argmax(axis=1)
+    matrix = [[int(((truth == i) & (predicted == j)).sum()) for j in range(len(labels))] for i in range(len(labels))]
+    roc = metrics.get("roc")
+    return {"version": 1, "kind": kind, "subset": subset, "rows": int(len(truth)),
+            "confusion_matrix": {"labels": list(labels), "matrix": matrix},
+            "roc": ({"positive": roc["positive"], "auc": round(float(metrics["auc"]), 6),
+                     "points": [[x, y] for x, y in zip(roc["fpr"], roc["tpr"])]} if roc else None),
+            "feature_importance": None, "regression": None}

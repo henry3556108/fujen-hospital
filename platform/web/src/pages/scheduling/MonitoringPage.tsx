@@ -41,7 +41,7 @@ export function monitoringLinks(env: Record<string, string | undefined> = platfo
 /** TC-C02-03 的入口：儀表板本身在 Grafana 內編輯與保存。 */
 export function MonitoringPage() {
   return (
-    <SchedulingPage title="監控儀表板">
+    <SchedulingPage title="系統監控" tabs={false}>
       <p className="text-muted">監控工具在新分頁開啟，需使用各工具自己的帳號登入。</p>
       <ul className="entry-grid section" aria-label="監控工具">
         {monitoringLinks().map((l) => (

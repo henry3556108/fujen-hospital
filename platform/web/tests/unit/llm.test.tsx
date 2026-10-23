@@ -13,11 +13,11 @@ async function send(user: ReturnType<typeof import('@testing-library/user-event'
 }
 
 describe('LLM No-code 開發', () => {
-  it('/llm opens the Playground tab for a coder', async () => {
+  it('/llm opens the 對話 tab for a coder', async () => {
     await renderApp('/llm', 'ca01');
-    expect(await screen.findByRole('heading', { level: 1, name: 'LLM No-code 開發' })).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Playground' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Playground' })).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByRole('heading', { level: 1, name: '語言模型' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '對話測試' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '對話' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('TC-A03-05 viewer typing /llm/playground is denied', async () => {
@@ -33,8 +33,8 @@ describe('LLM No-code 開發', () => {
     expect(await within(log).findByText('[fake-llm] echo: 你好')).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('對話模式'), 'kb');
     expect(within(log).queryByText('[fake-llm] echo: 你好')).toBeNull();          // 換模式開新對話
-    expect(screen.getByText('請先選擇知識庫。')).toBeInTheDocument();
-    await user.selectOptions(await screen.findByLabelText('知識庫'), '1');
+    expect(screen.getByText('請先選擇參考文件。')).toBeInTheDocument();
+    await user.selectOptions(await screen.findByLabelText('參考文件'), '1');
     await send(user, '門診時間');
     expect(await within(log).findByText('出處：outpatient_hours.pdf')).toBeInTheDocument();
   });
@@ -68,14 +68,14 @@ describe('LLM No-code 開發', () => {
     const temp = within(form).getByLabelText('Temperature');
     await user.clear(temp);
     await user.type(temp, '0.35');
-    await user.type(within(form).getByLabelText('System Prompt'), '院內助理');
-    await user.click(within(form).getByRole('button', { name: '儲存生成參數' }));
+    await user.type(within(form).getByLabelText('回答規則（System Prompt）'), '院內助理');
+    await user.click(within(form).getByRole('button', { name: '儲存設定' }));
     expect(await within(form).findByText('已儲存生成參數')).toBeInTheDocument();
     unmount();
     await renderApp('/llm/playground', 'ca01');
     const again = await screen.findByRole('form', { name: '生成參數' });
     await waitFor(() => expect(within(again).getByLabelText('Temperature')).toHaveValue(0.35));
-    expect(within(again).getByLabelText('System Prompt')).toHaveValue('院內助理');
+    expect(within(again).getByLabelText('回答規則（System Prompt）')).toHaveValue('院內助理');
   });
 
   it('TC-B07-06 uploading documents sends every file and shows per-file results', async () => {
@@ -89,31 +89,31 @@ describe('LLM No-code 開發', () => {
           { filename: 'bad.exe', status: 'failed', reason: '不支援的檔案格式', document: null }] }, { status: 201 });
       }),
     );
-    const { user } = await renderApp('/llm/knowledge', 'ca01');
-    const table = await screen.findByRole('table', { name: '知識庫列表' });
+    const { user } = await renderApp('/llm/docs', 'ca01');
+    const table = await screen.findByRole('table', { name: '參考文件集' });
     await user.click(within(await within(table).findByRole('row', { name: /院內作業規範/ })).getByRole('button', { name: '管理文件' }));
     const input = await screen.findByLabelText(/選擇檔案/);
     // 直接觸發 change：瀏覽器的 accept 只是提示，使用者仍可選到其他格式，要由伺服器擋下
     fireEvent.change(input, { target: { files: [new File(['門診'], 'a.txt', { type: 'text/plain' }), new File(['MZ'], 'bad.exe')] } });
-    await user.click(screen.getByRole('button', { name: '上傳並建立向量' }));
-    expect(await screen.findByText('寫入 1 份、重複 0 份、失敗 1 份')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '加入文件' }));
+    expect(await screen.findByText('可使用 1 份、重複 0 份、未完成 1 份')).toBeInTheDocument();
     expect(parts).toBe(2);
     const results = screen.getByRole('list', { name: '上傳結果' });
-    expect(within(results).getByText('bad.exe：失敗（不支援的檔案格式）')).toBeInTheDocument();
-    expect(within(results).getByText('a.txt：已寫入')).toBeInTheDocument();
+    expect(within(results).getByText('bad.exe：未完成（不支援的檔案格式）')).toBeInTheDocument();
+    expect(within(results).getByText('a.txt：可使用')).toBeInTheDocument();
   });
 
   it('TC-B07-02 creates and searches prompts', async () => {
     const { user } = await renderApp('/llm/prompts', 'ca01');
-    const form = await screen.findByRole('form', { name: '新增 Prompt' });
+    const form = await screen.findByRole('form', { name: '新增問答範本' });
     await user.type(within(form).getByLabelText('標題（必填）'), '衛教單張');
     await user.type(within(form).getByLabelText(/^內容/), '請寫衛教單張');
     await user.type(within(form).getByLabelText(/^tag/), '衛教, 病人');
-    await user.click(within(form).getByRole('button', { name: '新增 Prompt' }));
-    expect(await within(form).findByText('已新增 Prompt「衛教單張」')).toBeInTheDocument();
+    await user.click(within(form).getByRole('button', { name: '新增問答範本' }));
+    expect(await within(form).findByText('已新增問答範本「衛教單張」')).toBeInTheDocument();
     await user.type(screen.getByLabelText('搜尋（標題、內容、tag）'), '衛教');
     await user.click(screen.getByRole('button', { name: '搜尋' }));
-    const table = screen.getByRole('table', { name: 'Prompt 範本' });
+    const table = screen.getByRole('table', { name: '問答範本' });
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2));
     expect(within(table).getByText('病人', { exact: false })).toBeInTheDocument();
   });

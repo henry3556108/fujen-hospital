@@ -1,12 +1,15 @@
 // 影像標註頁面（元件層級，模擬 API）。畫布上的操作由 Playwright 測（e2e/labeling.spec.ts）。
+// 兩區路由直接渲染（area-render），不經過 App 外框；權限守門那一則仍走整個 App。
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HOTKEYS } from '../../src/pages/labeling/WorkbenchPage';
 import { createTrainingJob, trainingSetting } from '../../src/pages/labeling/api';
+import { nextPendingStudy } from '../../src/pages/labeling/pending';
 import { hotkeyId } from '../../src/pages/labeling/useHotkeys';
+import type { Annotation } from '../../src/pages/labeling/types';
 import { MOCK_STUDIES, MOCK_STUDY_COUNT, labelingMock } from '../../src/mocks/labeling';
-import { trainingMock } from '../../src/mocks/training';
 import { renderApp } from '../render';
+import { renderArea } from './area-render';
 
 const STUDY = MOCK_STUDIES[0];
 const workbench = `/labeling/studies/${STUDY.study_instance_uid}`;
@@ -16,15 +19,25 @@ async function status(text: string | RegExp) {
 }
 
 async function openWorkbench(username = 'md01', path = workbench) {
-  const utils = await renderApp(path, username);
+  const utils = await renderArea(path, username);
   await screen.findByRole('heading', { level: 1, name: '影像標註工作台' });
   await waitFor(() => expect(screen.getByTestId('image-position')).toHaveTextContent('第 1 / 3 張'));
   return utils;
 }
 
-describe('labeling index', () => {
+function studyLabel(label: string, study = STUDY, extra: Partial<Annotation> = {}) {
+  const s = labelingMock();
+  s.annotations.push({
+    id: s.nextAnnotationId++, project_id: 1, study_instance_uid: study.study_instance_uid, series_instance_uid: null,
+    sop_instance_uid: null, kind: 'classification', payload: { label }, source: 'manual', rating: null, version: 1,
+    autolabel_run_id: null, created_by: 'ra01', updated_by: 'ra01', created_at: '2026-09-29T00:00:00Z', updated_at: '2026-09-29T00:00:00Z',
+    status: 'confirmed', ...extra,
+  });
+}
+
+describe('pending list', () => {
   it('lists the studies of the selected project with annotation counts', async () => {
-    await renderApp('/labeling', 'md01');
+    await renderArea('/labeling', 'md01');
     const table = await screen.findByRole('table', { name: '研究清單' });
     expect(within(table).getAllByRole('row')).toHaveLength(MOCK_STUDY_COUNT + 1);
     expect(within(table).getByRole('row', { name: /ACC0001.*PAT0001.*2024-02-15/ })).toBeInTheDocument();
@@ -35,17 +48,65 @@ describe('labeling index', () => {
     await renderApp('/labeling', 'vw01');
     expect(await screen.findByRole('heading', { name: '無法存取此功能' })).toBeInTheDocument();
     expect(screen.getByText(/沒有 Labeling 權限/)).toBeInTheDocument();
-    await renderApp(workbench, 'vw01');
-    expect((await screen.findAllByRole('heading', { name: '無法存取此功能' })).length).toBeGreaterThan(0);
   });
 
-  it('TC-B02-05 CSV by patient ID labels 10 studies and reports rows that did not match', async () => {
-    const { user } = await renderApp('/labeling', 'md01');
+  it('shows confirmed / total, pending count, drafts per study and the classes', async () => {
+    studyLabel('abnormal');
+    studyLabel('nodule', MOCK_STUDIES[1], { source: 'autolabel', status: 'draft' });
+    await renderArea('/labeling', 'ra01');
+    const progress = await screen.findByTestId('label-progress');
+    expect(progress).toHaveTextContent(`已確認 1／共 ${MOCK_STUDY_COUNT} 個研究`);
+    // 9 個沒有已確認標註的研究＋1 筆草稿
+    expect(screen.getByTestId('pending-count')).toHaveTextContent('10');
+    expect(screen.getAllByTestId('study-classes')[0]).toHaveTextContent('abnormal');
+    expect(screen.getByRole('row', { name: /ACC0002/ })).toHaveTextContent('待處理');
+    expect(screen.getByRole('row', { name: /ACC0001/ })).toHaveTextContent('已確認');
+  });
+
+  it('繼續標註 opens the first pending study', async () => {
+    studyLabel('abnormal');
+    const { user } = await renderArea('/labeling', 'ra01');
+    await user.click(await screen.findByRole('button', { name: '繼續標註' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/labeling/studies/${MOCK_STUDIES[1].study_instance_uid}`));
+  });
+
+  it('filters by status and text', async () => {
+    studyLabel('abnormal');
+    const { user } = await renderArea('/labeling', 'ra01');
     await screen.findByRole('table', { name: '研究清單' });
+    await user.selectOptions(screen.getByLabelText('標註狀態'), 'confirmed');
+    await waitFor(() => expect(within(screen.getByRole('table', { name: '研究清單' })).getAllByRole('row')).toHaveLength(2));
+    await user.selectOptions(screen.getByLabelText('標註狀態'), '');
+    await user.type(screen.getByLabelText('搜尋'), 'PAT0003');
+    await waitFor(() => expect(within(screen.getByRole('table', { name: '研究清單' })).getAllByRole('row')).toHaveLength(2));
+    expect(screen.queryByRole('button', { name: '下一頁' })).toBeNull();
+  });
+
+  it('nextPendingStudy goes forward, wraps around and skips the current study', () => {
+    const studies = MOCK_STUDIES.slice(0, 3).map((s, i) => ({
+      study_instance_uid: s.study_instance_uid, accession_number: s.accession_number, patient_id: s.patient_id, study_date: s.study_date,
+      study_description: s.study_description, annotations: i === 1 ? 1 : 0, confirmed: i === 1 ? 1 : 0, drafts: 0,
+      by_kind: { classification: 0, segmentation: 0, detection: 0 }, classification_labels: [],
+    }));
+    expect(nextPendingStudy(studies, studies[0].study_instance_uid)?.study_instance_uid).toBe(studies[2].study_instance_uid);
+    expect(nextPendingStudy(studies, studies[2].study_instance_uid)?.study_instance_uid).toBe(studies[0].study_instance_uid);
+    expect(nextPendingStudy(studies.slice(1, 2), null)).toBeNull();
+  });
+});
+
+describe('label datasets', () => {
+  it('TC-B02-05 importing diagnoses by patient ID labels 10 studies into a new named dataset', async () => {
+    const { user } = await renderArea('/labeling/datasets', 'md01');
+    await screen.findByRole('heading', { name: '匯入診斷結果' });
     const rows = MOCK_STUDIES.map((s, i) => `${s.patient_id},${['nodule', 'normal'][i % 2]}`);
     const csv = ['病歷號,診斷結果', ...rows, 'PAT9999,nodule', ',normal'].join('\n');
     await user.upload(screen.getByLabelText(/^CSV 檔/), new File([csv], 'diagnosis.csv', { type: 'text/csv' }));
-    await user.click(screen.getByRole('button', { name: '上傳並標註' }));
+    const preview = await screen.findByTestId('csv-preview');
+    expect(preview).toHaveTextContent('共 12 列，可配對 10 列，找不到研究 1 列');
+    expect(preview).toHaveTextContent('目前專案是「');
+    expect(preview).toHaveTextContent('這個專案有 10 筆影像');
+    expect(screen.getByLabelText('新資料集名稱')).toHaveValue('diagnosis');
+    await user.click(screen.getByRole('button', { name: '匯入' }));
     const result = await screen.findByTestId('csv-result');
     expect(result).toHaveTextContent('共 12 列：已標註 10 列（10 個研究；新增 10、更新 0、未變動 0），找不到研究 1 列，診斷衝突 0 列，資料不完整 1 列');
     const problems = within(result).getByRole('table', { name: '未標註的資料列' });
@@ -55,77 +116,57 @@ describe('labeling index', () => {
     expect(saved).toHaveLength(10);
     MOCK_STUDIES.forEach((s, i) => {
       const a = saved.find((x) => x.study_instance_uid === s.study_instance_uid)!;
-      expect(a).toMatchObject({ source: 'csv', kind: 'classification', sop_instance_uid: null, payload: { label: ['nodule', 'normal'][i % 2] } });
+      expect(a).toMatchObject({ source: 'csv', status: 'confirmed', kind: 'classification', sop_instance_uid: null, payload: { label: ['nodule', 'normal'][i % 2] } });
     });
-    await waitFor(() => expect(screen.getByTestId('label-totals')).toHaveTextContent('10 筆標註（分類 10'));
+    const named = labelingMock().datasets.find((d) => d.name === 'diagnosis')!;
+    expect(named.classes).toEqual(['nodule', 'normal']);
+    expect(within(result).getByRole('link', { name: '查看這份標註資料集' })).toHaveAttribute('href', `/labeling/datasets/${named.id}`);
+    // 第一次有分類標註時，系統也自動建了專案的分類資料集
+    await waitFor(() => expect(screen.getByRole('table', { name: '標註資料集' })).toHaveTextContent('分類標註'));
   });
 
   it('CSV without the needed columns shows the server message', async () => {
-    const { user } = await renderApp('/labeling', 'md01');
-    await screen.findByRole('table', { name: '研究清單' });
+    const { user } = await renderArea('/labeling/datasets', 'md01');
+    await screen.findByRole('heading', { name: '匯入診斷結果' });
     await user.upload(screen.getByLabelText(/^CSV 檔/), new File(['a,b\n1,2\n'], 'x.csv', { type: 'text/csv' }));
-    await user.click(screen.getByRole('button', { name: '上傳並標註' }));
+    await user.click(screen.getByRole('button', { name: '匯入' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('CSV 找不到鍵欄位');
     expect(labelingMock().annotations).toHaveLength(0);
   });
 
-  it('TC-B02-06 training panel needs Training permission', async () => {
-    await renderApp('/labeling', 'md01');
-    await screen.findByRole('table', { name: '研究清單' });
-    expect(screen.getByText(/建立訓練任務需要 Training 權限/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '建立訓練任務' })).toBeNull();
-  });
-
-  function studyLabel(label: string) {
-    const s = labelingMock();
-    s.annotations.push({
-      id: s.nextAnnotationId++, project_id: 1, study_instance_uid: STUDY.study_instance_uid, series_instance_uid: null,
-      sop_instance_uid: null, kind: 'classification', payload: { label }, source: 'manual', rating: null, version: 1,
-      autolabel_run_id: null, created_by: 'ra01', updated_by: 'ra01', created_at: '2026-09-29T00:00:00Z', updated_at: '2026-09-29T00:00:00Z',
-    });
-  }
-
-  it('TC-B02-06 one classification label is not enough: the page says so before submitting', async () => {
-    studyLabel('nodule');
-    await renderApp('/labeling', 'ra01');
-    const form = await screen.findByRole('form', { name: '建立訓練任務' });
-    await within(form).findByLabelText(/nodule/);
-    expect(within(form).getByText(/目前只有 1 種分類標籤（nodule）/)).toBeInTheDocument();
-    expect(within(form).getByRole('button', { name: '建立訓練任務' })).toBeDisabled();
-    expect(trainingMock().runs).toHaveLength(0);
-  });
-
-  it('two classification labels but only one ticked is stopped before it reaches the server', async () => {
-    studyLabel('nodule');
-    studyLabel('normal');
-    const { user } = await renderApp('/labeling', 'ra01');
-    const form = await screen.findByRole('form', { name: '建立訓練任務' });
-    await user.click(await within(form).findByLabelText(/normal/));
-    await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('影像分類至少要 2 種 Label');
-    expect(trainingMock().runs).toHaveLength(0);
-  });
-
-  it('study list shows the classification labels and how many studies are labelled', async () => {
+  it('creates a dataset and its page shows distribution, drafts and items', async () => {
     studyLabel('abnormal');
-    await renderApp('/labeling', 'ra01');
-    expect(await screen.findByTestId('label-progress')).toHaveTextContent(`已標註 1／共 ${MOCK_STUDY_COUNT} 個研究`);
-    expect(screen.getAllByTestId('study-classes')[0]).toHaveTextContent('abnormal');
+    studyLabel('normal', MOCK_STUDIES[1], { source: 'csv' });
+    studyLabel('abnormal', MOCK_STUDIES[2], { source: 'autolabel', status: 'draft' });
+    const { user } = await renderArea('/labeling/datasets', 'ra01');
+    await screen.findByRole('heading', { name: '標註資料集' });
+    await user.click(screen.getByText('建立標註資料集'));
+    await user.type(screen.getByLabelText('名稱（必填）'), '肺結節研究');
+    await user.click(screen.getByRole('button', { name: '建立' }));
+    await user.click(await screen.findByRole('link', { name: '開啟這份資料集' }));
+    const summary = await screen.findByTestId('dataset-summary');
+    expect(summary).toHaveTextContent('影像分類');
+    expect(summary).toHaveTextContent('2 筆、2 個研究');
+    expect(summary).toHaveTextContent('abnormal 1、normal 1');
+    expect(summary).toHaveTextContent('手動 1、CSV 匯入 1');
+    expect(summary).toHaveTextContent('1 筆（訓練不會用到');
+    const items = await screen.findByRole('table', { name: '資料集內的標註' });
+    expect(within(items).getAllByRole('row')).toHaveLength(4);
+    expect(within(items).getByRole('row', { name: /#3.*ACC0003.*自動標註.*待確認/ })).toBeInTheDocument();
+    // ra01 有 Training 權限
+    expect(screen.getByRole('link', { name: '用這份資料建立模型' })).toHaveAttribute('href', expect.stringMatching(/^\/training\/new\?labelDataset=\d+$/));
   });
 
-  it('TC-B02-06 creates a training task from the labeling page with type and parameters', async () => {
-    studyLabel('nodule');
-    studyLabel('normal');
-    const { user } = await renderApp('/labeling', 'ra01');
-    const form = await screen.findByRole('form', { name: '建立訓練任務' });
-    await within(form).findByLabelText(/nodule/);
-    await user.clear(within(form).getByLabelText('隨機種子'));
-    await user.type(within(form).getByLabelText('隨機種子'), '7');
-    await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
-    const table = await screen.findByRole('table', { name: '已建立的訓練任務' });
-    expect(within(table).getByRole('row', { name: /#1.*排隊中/ })).toBeInTheDocument();
-    expect(trainingMock().runs).toEqual([expect.objectContaining({ kind: 'image_classification', created_by: 'ra01', project_id: 1, status: 'queued' })]);
-    expect(trainingMock().runs[0].config).toMatchObject({ seed: 7, source: { label_source: { provider: 'annotations' } } });
+  it('without Training permission the dataset page has no 建立模型 button', async () => {
+    studyLabel('abnormal');
+    labelingMock().datasets.push({
+      id: 77, project_id: 1, name: 'md 資料集', task: 'classification', scope_id: null, classes: [], created_by: 'md01',
+      created_at: '2026-09-29T00:00:00Z', versions: [],
+    } as never);
+    await renderArea('/labeling/datasets/77', 'md01');
+    await screen.findByTestId('dataset-summary');
+    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
+    expect(screen.getByText(/建立模型需要 Training 權限/)).toBeInTheDocument();
   });
 
   it('createTrainingJob saves a training setting from the labels and submits a training run (WP5b)', async () => {
@@ -228,7 +269,7 @@ describe('workbench', () => {
     const { user, unmount } = await openWorkbench();
     await user.clear(screen.getByLabelText('標籤'));
     await user.type(screen.getByLabelText('標籤'), 'pneumonia');
-    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存分類標註 #1：pneumonia');
     // 分類預設是整個研究，並且直接標在影像左上角
     expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toHaveTextContent('整個研究：pneumonia');
@@ -240,7 +281,7 @@ describe('workbench', () => {
     }
     await user.click(within(form).getByRole('button', { name: '新增框' }));
     expect(within(screen.getByRole('list', { name: '草稿中的框' })).getByText('[4, 6, 20, 30]')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '儲存偵測標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存偵測標註 #2（1 個框，版本 1）');
 
     unmount();
@@ -262,13 +303,13 @@ describe('workbench', () => {
     }
     await user.click(within(form).getByRole('button', { name: '新增框' }));
     await status('0 ≤ x1 < x2 ≤ 64');
-    expect(screen.getByRole('button', { name: '儲存偵測標註' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '只儲存' })).toBeDisabled();
   });
 
   it('TC-B02-03 rating is saved and shown again after reload; pressing it again clears it', async () => {
     const { user, unmount } = await openWorkbench();
     await user.type(screen.getByLabelText('標籤'), 'nodule');
-    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存分類標註 #1');
     const rating = await screen.findByRole('group', { name: '標註 #1 的評分' });
     await user.click(within(rating).getByRole('button', { name: '4 分' }));
@@ -286,10 +327,10 @@ describe('workbench', () => {
   it('classification needs a label typed first; no label is filled in for the user', async () => {
     const { user } = await openWorkbench();
     expect(screen.getByLabelText('標籤')).toHaveValue('');
-    expect(screen.getByRole('button', { name: '儲存分類標註' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '只儲存' })).toBeDisabled();
     await user.type(screen.getByLabelText('標籤'), 'normal');
     await user.click(screen.getByLabelText('這張影像'));
-    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存分類標註 #1：normal');
     expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toHaveTextContent('這張影像：normal');
     expect(labelingMock().annotations[0].sop_instance_uid).not.toBeNull();
@@ -308,7 +349,7 @@ describe('workbench', () => {
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    await user.click(screen.getByRole('link', { name: '← 回研究清單' }));
+    await user.click(screen.getByRole('link', { name: '← 回待處理清單' }));
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('尚未儲存的標註'));
     expect(screen.getByRole('heading', { level: 1, name: '影像標註工作台' })).toBeInTheDocument();
     confirm.mockRestore();
@@ -317,12 +358,12 @@ describe('workbench', () => {
   it('edits and deletes an annotation', async () => {
     const { user } = await openWorkbench();
     await user.type(screen.getByLabelText('標籤'), 'nodule');
-    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存分類標註 #1');
     await user.click(await screen.findByRole('button', { name: '編輯標註 #1' }));
     await user.clear(screen.getByLabelText('標籤'));
     await user.type(screen.getByLabelText('標籤'), 'normal');
-    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已更新分類標註 #1：normal（版本 2）');
     await user.click(screen.getByRole('button', { name: '刪除標註 #1' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '刪除' }));
@@ -331,15 +372,15 @@ describe('workbench', () => {
   });
 
   it('a study outside the project shows a clear message', async () => {
-    await renderApp('/labeling/studies/1.2.3.404', 'md01');
+    await renderArea('/labeling/studies/1.2.3.404', 'md01');
     expect(await screen.findByText('你沒有權限檢視這個研究，或研究不在本專案的 Accession 清單內')).toBeInTheDocument();
   });
 });
 
 describe('auto labeling', () => {
   it('TC-B03-01 / TC-B03-03 submits, stores, and opens the result for editing', async () => {
-    const { user, unmount } = await renderApp('/auto-labeling', 'md01');
-    await screen.findByRole('heading', { level: 1, name: '自動影像分類標註' });
+    const { user, unmount } = await renderArea('/labeling/auto', 'md01');
+    await screen.findByRole('heading', { level: 1, name: '影像標註' });
     await waitFor(() => expect(screen.getByLabelText('影像')).not.toBeDisabled());
     await user.selectOptions(screen.getByLabelText('模型'), 'fake_detection');
     await user.click(screen.getByRole('button', { name: '送出自動標註' }));
@@ -352,22 +393,43 @@ describe('auto labeling', () => {
 
     unmount();
     const opened = await openWorkbench('md01', `${workbench}?annotation=1`);
-    await status('編輯標註 #1（偵測，自動標註）');
+    await status('編輯標註 #1（偵測，自動標註，待確認');
     const boxes = within(screen.getByRole('list', { name: '草稿中的框' })).getAllByRole('listitem');
     expect(boxes).toHaveLength(2);
     await opened.user.click(screen.getByRole('button', { name: '刪除第 2 個框' }));
-    await opened.user.click(screen.getByRole('button', { name: '儲存偵測標註' }));
+    await opened.user.click(screen.getByRole('button', { name: '只儲存' }));
     await status('已儲存偵測標註 #1（1 個框，版本 2）');
-    expect(labelingMock().annotations[0]).toMatchObject({ source: 'autolabel', version: 2, autolabel_run_id: 1 });
+    expect(labelingMock().annotations[0]).toMatchObject({ source: 'autolabel', version: 2, autolabel_run_id: 1, status: 'confirmed', confirmed_by: 'md01' });
   });
 
   it('TC-B03-05 shows the service error and stores nothing when the service is offline', async () => {
-    const { user } = await renderApp('/auto-labeling', 'md01');
+    const { user } = await renderArea('/labeling/auto', 'md01');
     await waitFor(() => expect(screen.getByLabelText('影像')).not.toBeDisabled());
     labelingMock().autolabelOffline = true;
     await user.click(screen.getByRole('button', { name: '送出自動標註' }));
     expect(await screen.findByText('自動標註服務目前無法連線，請稍後再試')).toBeInTheDocument();
     expect(labelingMock().annotations).toHaveLength(0);
     expect(labelingMock().runs).toHaveLength(0);
+  });
+});
+
+describe('workbench: pending flow', () => {
+  it('儲存並開啟下一筆 saves and opens the next pending study', async () => {
+    const { user } = await openWorkbench('ra01');
+    await user.type(screen.getByLabelText('標籤'), 'normal');
+    await user.click(screen.getByRole('button', { name: '儲存並開啟下一筆' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/labeling/studies/${MOCK_STUDIES[1].study_instance_uid}`));
+    expect(labelingMock().annotations[0]).toMatchObject({ study_instance_uid: STUDY.study_instance_uid, status: 'confirmed', payload: { label: 'normal' } });
+  });
+
+  it('an autolabel draft shows 待確認 and the 確認 button confirms it', async () => {
+    studyLabel('nodule', STUDY, { source: 'autolabel', status: 'draft', confirmed_by: null, confirmed_at: null });
+    const { user } = await openWorkbench('ra01');
+    const table = await screen.findByRole('table', { name: '標註清單' });
+    expect(within(table).getByRole('row', { name: /#1.*自動標註.*待確認/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '確認標註 #1' }));
+    await status('已確認標註 #1');
+    expect(labelingMock().annotations[0]).toMatchObject({ status: 'confirmed', confirmed_by: 'ra01' });
+    await waitFor(() => expect(screen.queryByRole('button', { name: '確認標註 #1' })).toBeNull());
   });
 });

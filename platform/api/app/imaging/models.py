@@ -115,3 +115,16 @@ class ImagingFile(Base):
     pairing: Mapped[str] = mapped_column(String(16), default="unpaired")   # paired | unpaired | n/a
     pairing_note: Mapped[str] = mapped_column(String(512), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ImagingScope(Base):
+    """資料範圍：存篩選條件（與研究列表查詢參數同名），不存影像清單；之後新匯入的影像符合條件就算在內。
+    與 Accession 清單是兩回事：清單決定看得到哪些影像，範圍是在看得到的影像裡再挑。"""
+    __tablename__ = "imaging_scopes"
+    __table_args__ = (UniqueConstraint("project_id", "name"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", **_PROJECT_FK), index=True)
+    name: Mapped[str] = mapped_column(String(128))
+    filters: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

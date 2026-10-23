@@ -64,7 +64,8 @@ describe('chart colours', () => {
   const mix = (a: string, b: string, t: number) =>
     `#${rgb(a).map((c, i) => Math.round(c * t + rgb(b)[i] * (1 - t)).toString(16).padStart(2, '0')).join('')}`;
 
-  for (const theme of ['light', 'dark'] as const) {
+  // 只做淺色主題（03 規格 4.3）
+  for (const theme of ['light'] as const) {
     it(`${theme}: heatmap text stays ≥ 4.5:1 on every cell colour`, () => {
       const t = themes[theme];
       for (const pole of ['--chart-negative', '--chart-positive']) {
@@ -82,9 +83,7 @@ describe('chart colours', () => {
     });
   }
 
-  it('dark: every series colour is ≥ 3:1 on the surface; light relies on legend and table view for series 3', () => {
-    const dark = themes.dark;
-    for (const n of [1, 2, 3]) expect(contrastRatio(dark[`--chart-series-${n}`], dark['--chart-surface'])).toBeGreaterThanOrEqual(3);
+  it('light: series 1 and 2 are ≥ 3:1 on the surface; series 3 relies on legend and table view', () => {
     const light = themes.light;
     for (const n of [1, 2]) expect(contrastRatio(light[`--chart-series-${n}`], light['--chart-surface'])).toBeGreaterThanOrEqual(3);
   });

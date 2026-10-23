@@ -15,8 +15,8 @@ afterEach(() => {
 async function openModel(name: RegExp | string, username = 'vw01') {
   const utils = await renderApp('/inference', username);
   const table = await screen.findByRole('table', { name: '模型清單' });
-  const button = within(table).queryByRole('button', { name: `選擇 ${name}` });
-  if (button) await utils.user.click(button);
+  await utils.user.click(within(table).getByRole('link', { name: typeof name === 'string' ? new RegExp(name) : name }));
+  await utils.user.click(await screen.findByRole('link', { name: '預測新資料' }));
   await screen.findByRole('heading', { name: `預測：${name}` });
   return utils;
 }
@@ -77,6 +77,7 @@ describe('inference page', () => {
       await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
       await screen.findByRole('heading', { name: new RegExp(`^預測結果 #${i + 1}（20 筆）`) });
     }
+    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
     const history = await screen.findByRole('table', { name: '預測紀錄' });
     await waitFor(() => expect(within(history).getAllByRole('row')).toHaveLength(4));
     await user.click(within(history).getByRole('button', { name: '檢視 #1' }));
@@ -106,6 +107,7 @@ describe('inference page', () => {
     expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次預測排隊中…在背景執行');
     expect(screen.getByRole('heading', { name: /^預測結果 #1（20 筆）/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '下載結果' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
     const history = await screen.findByRole('table', { name: '預測紀錄' });
     await waitFor(() => expect(within(history).getByRole('row', { name: /#1.*批次.*排隊中/ })).toBeInTheDocument());
     // 從歷史重新檢視會繼續輪詢：模擬 API 每查一次往前一步（排隊中 → 執行中）
@@ -124,6 +126,7 @@ describe('inference page', () => {
 
     await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
     await screen.findByRole('heading', { name: /^預測結果 #2（20 筆）/ });
+    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
     const history = await screen.findByRole('table', { name: '預測紀錄' });
     await user.click(await within(history).findByRole('button', { name: '取消 #2' }));
     await waitFor(() => expect(within(history).getByRole('row', { name: /#2.*已取消/ })).toBeInTheDocument());
@@ -144,7 +147,9 @@ describe('inference page', () => {
   });
 
   it('needs Prediction permission', async () => {
-    await renderApp('/inference', 'user01');
-    expect(await screen.findByRole('heading', { name: '無法存取此功能' })).toBeInTheDocument();
+    await renderApp('/models', 'user01');
+    // 沒有專案（也就沒有 Prediction）：外框先擋下，不會進到模型清單
+    expect(await screen.findByText('你還沒有加入任何專案')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: '模型清單' })).toBeNull();
   });
 });

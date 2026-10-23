@@ -1,10 +1,11 @@
 // 影像標註工作台：檢視工具列（排列、旋轉、WW/WC、器官窗）、快捷鍵、三種標註、評分。
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { StatusBadge } from '../../components/StatusBadge';
 import { ohifUrl, useLabelingApi, type LabelingApi } from './api';
 import { colorIndexes } from './colors';
 import type { InstanceInfo } from './dicomweb';
@@ -25,10 +26,13 @@ import {
   type WindowSetting,
 } from './imaging';
 import { DEFAULT_LABELS, LabelPicker, Legend, Rating } from './parts';
+import { nextPendingStudy, useScopeStudyUids, workbenchPath } from './pending';
 import type { Badge } from './Viewport';
 import {
   KIND_LABELS,
   SOURCE_LABELS,
+  STATUS_LABELS,
+  isDraft,
   isClassification,
   isDetection,
   isSegmentation,
@@ -92,12 +96,28 @@ export function WorkbenchPage() {
   const labeling = useLabelingApi();
   if (!labeling) return <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>;
   const open = Number(search.get('annotation')) || null;
-  return <Workbench key={`${labeling.projectId}/${studyUid}`} labeling={labeling} studyUid={studyUid} openAnnotation={open} />;
+  const scopeId = Number(search.get('scope')) || null;
+  return (
+    <Workbench key={`${labeling.projectId}/${studyUid}`} labeling={labeling} studyUid={studyUid} openAnnotation={open} scopeId={scopeId} />
+  );
 }
 
-function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingApi; studyUid: string; openAnnotation: number | null }) {
+function Workbench({
+  labeling,
+  studyUid,
+  openAnnotation,
+  scopeId,
+}: {
+  labeling: LabelingApi;
+  studyUid: string;
+  openAnnotation: number | null;
+  /** 從待處理清單帶來的資料範圍；「下一筆」只在範圍內找 */
+  scopeId: number | null;
+}) {
   const { project } = useSession();
-  const canTrain = project?.permissions.includes('training') ?? false;
+  const navigate = useNavigate();
+  const scopeUids = useScopeStudyUids(scopeId);
+  const listPath = scopeId !== null ? `/labeling?scope=${scopeId}` : '/labeling';
 
   // ---------- 資料 ----------
   const series = useResource(() => labeling.dicomweb.series(studyUid), [labeling, studyUid]);
@@ -279,7 +299,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
         setTool('brush');
       }
       setError(null);
-      setMessage(`編輯標註 #${a.id}（${KIND_LABELS[a.kind]}，${SOURCE_LABELS[a.source]}）`);
+      setMessage(`編輯標註 #${a.id}（${KIND_LABELS[a.kind]}，${SOURCE_LABELS[a.source]}${isDraft(a) ? '，待確認，存檔後即確認' : ''}）`);
     },
     [list, index],
   );
@@ -318,7 +338,8 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
   }, [opened, openAnnotation, list.length, annotations.data, edit]);
 
   // ---------- 儲存 ----------
-  async function run(action: () => Promise<string>) {
+  /** 執行寫入並重新載入；成功回 true。 */
+  async function run(action: () => Promise<string>): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
@@ -326,9 +347,11 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
       annotations.reload();
       summary.reload();
       setMessage(text);
+      return true;
     } catch (e) {
       setError(e);
       setMessage('');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -339,9 +362,12 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
       ? { study_instance_uid: studyUid, series_instance_uid: current.seriesInstanceUid, sop_instance_uid: current.sopInstanceUid }
       : { study_instance_uid: studyUid };
 
-  function saveClassification() {
+  function saveClassification(): Promise<boolean> {
     const text = label.trim();
-    if (!text) return setMessage('請先填寫標籤。');
+    if (!text) {
+      setMessage('請先填寫標籤。');
+      return Promise.resolve(false);
+    }
     return run(async () => {
       if (classDraft.editingId !== null) {
         const a = await labeling.update(classDraft.editingId, { label: text });
@@ -353,8 +379,11 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     });
   }
 
-  function saveDetection() {
-    if (!boxDraft || boxDraft.boxes.length === 0) return setMessage('還沒有畫任何框。');
+  function saveDetection(): Promise<boolean> {
+    if (!boxDraft || boxDraft.boxes.length === 0) {
+      setMessage('還沒有畫任何框。');
+      return Promise.resolve(false);
+    }
     const payload = { shape: boxDraft.shape, box_format: 'xyxy' as const, boxes: boxDraft.boxes };
     return run(async () => {
       const a =
@@ -366,8 +395,11 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     });
   }
 
-  function saveSegmentation() {
-    if (!maskDraft || !maskDraft.mask.some((v) => v !== 0)) return setMessage('遮罩是空的，請先用筆刷塗抹。');
+  function saveSegmentation(): Promise<boolean> {
+    if (!maskDraft || !maskDraft.mask.some((v) => v !== 0)) {
+      setMessage('遮罩是空的，請先用筆刷塗抹。');
+      return Promise.resolve(false);
+    }
     const payload = {
       shape: maskDraft.shape,
       encoding: 'rle' as const,
@@ -384,11 +416,39 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     });
   }
 
-  function saveCurrent() {
+  function saveCurrent(): Promise<boolean> {
+    if (busy) return Promise.resolve(false);
+    if (mode === 'classification') return saveClassification();
+    if (mode === 'detection') return saveDetection();
+    return saveSegmentation();
+  }
+
+  /** 目前的標註種類有沒有可以存的內容 */
+  const canSave =
+    mode === 'classification'
+      ? Boolean(current && label.trim())
+      : mode === 'detection'
+        ? Boolean(boxDraft && boxDraft.boxes.length > 0)
+        : Boolean(maskDraft);
+  /** 有內容就先存，存成功（或沒有要存的）就開清單中下一筆待處理研究 */
+  async function saveAndNext() {
     if (busy) return;
-    if (mode === 'classification') void saveClassification();
-    else if (mode === 'detection') void saveDetection();
-    else void saveSegmentation();
+    if (canSave && !(await saveCurrent())) return;
+    // 存檔後重新抓一次清單，剛存的這筆就不再算待處理
+    const fresh = await labeling.summary().catch(() => summary.data);
+    const studies = (fresh?.studies ?? []).filter((s) => !scopeUids.data || scopeUids.data.has(s.study_instance_uid));
+    const next = nextPendingStudy(studies, studyUid);
+    if (next) navigate(workbenchPath(next.study_instance_uid, scopeId));
+    else {
+      setMessage(`已儲存。${scopeId !== null ? '這個資料範圍' : '這個專案'}已經沒有待處理的影像了。`);
+    }
+  }
+
+  function confirmDraft(a: Annotation) {
+    return run(async () => {
+      await labeling.confirm(a.id);
+      return `已確認標註 #${a.id}`;
+    });
   }
 
   useHotkeys({
@@ -410,7 +470,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
       setTool('none');
       setMessage('已放下標註工具');
     },
-    'ctrl+s': saveCurrent,
+    'ctrl+s': () => void saveCurrent(),
   });
 
   // ---------- 顯示 ----------
@@ -502,7 +562,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     <>
       <h1>影像標註工作台</h1>
       <p className="text-muted">
-        <Link to="/labeling">← 回研究清單</Link>　研究 <span className="mono">{studyUid}</span>
+        <Link to={listPath}>← 回待處理清單</Link>　專案 <strong>{project?.name}</strong>　研究 <span className="mono">{studyUid}</span>
         　
         <a href={ohifUrl(labeling.projectId, studyUid)} target="_blank" rel="noreferrer">
           在 OHIF 檢視器開啟（新分頁）
@@ -699,16 +759,13 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                 </fieldset>
                 {classDraft.editingId !== null ? <p className="field__hint">正在編輯標註 #{classDraft.editingId}</p> : null}
                 {!label.trim() ? <p className="field__hint">先在「標籤」輸入類別（例如 normal、abnormal），才能儲存。</p> : null}
-                <div className="row-actions">
-                  <button type="button" className="btn btn--primary" disabled={busy || !current || !label.trim()} onClick={() => void saveClassification()}>
-                    儲存分類標註
-                  </button>
-                  {classDraft.editingId !== null ? (
+                {classDraft.editingId !== null ? (
+                  <div className="row-actions">
                     <button type="button" className="btn btn--secondary" onClick={discard}>
                       取消編輯
                     </button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -752,9 +809,6 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                 </ul>
                 {boxDraft?.editingId ? <p className="field__hint">正在編輯標註 #{boxDraft.editingId}</p> : null}
                 <div className="row-actions">
-                  <button type="button" className="btn btn--primary" disabled={busy || !boxDraft || boxDraft.boxes.length === 0} onClick={() => void saveDetection()}>
-                    儲存偵測標註
-                  </button>
                   <button type="button" className="btn btn--secondary" disabled={!boxDraft} onClick={discard}>
                     捨棄草稿
                   </button>
@@ -783,15 +837,22 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                 </p>
                 {maskDraft?.editingId ? <p className="field__hint">正在編輯標註 #{maskDraft.editingId}</p> : null}
                 <div className="row-actions">
-                  <button type="button" className="btn btn--primary" disabled={busy || !maskDraft} onClick={() => void saveSegmentation()}>
-                    儲存分割標註
-                  </button>
                   <button type="button" className="btn btn--secondary" disabled={!maskDraft} onClick={discard}>
                     捨棄草稿
                   </button>
                 </div>
               </div>
             ) : null}
+
+            {/* 主要動作：存完直接開下一筆待處理，不用回清單 */}
+            <div className="row-actions workbench-actions" data-testid="workbench-actions">
+              <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void saveAndNext()}>
+                {canSave ? '儲存並開啟下一筆' : '開啟下一筆'}
+              </button>
+              <button type="button" className="btn btn--secondary" disabled={busy || !canSave} onClick={() => void saveCurrent()}>
+                只儲存
+              </button>
+            </div>
           </div>
 
           <div className="card section">
@@ -816,6 +877,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                       <th scope="col">對象</th>
                       <th scope="col">標籤</th>
                       <th scope="col">來源</th>
+                      <th scope="col">狀態</th>
                       <th scope="col">版本</th>
                       <th scope="col">評分</th>
                       <th scope="col">操作</th>
@@ -829,6 +891,9 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                         <td>{imageNo(a)}</td>
                         <td>{labelsText(a)}</td>
                         <td>{SOURCE_LABELS[a.source]}</td>
+                        <td>
+                          <StatusBadge tone={isDraft(a) ? 'warning' : 'success'}>{STATUS_LABELS[a.status ?? 'confirmed']}</StatusBadge>
+                        </td>
                         <td>{a.version}</td>
                         <td>
                           <Rating
@@ -845,6 +910,17 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                         </td>
                         <td>
                           <div className="row-actions">
+                            {isDraft(a) ? (
+                              <button
+                                type="button"
+                                className="btn btn--small btn--secondary"
+                                aria-label={`確認標註 #${a.id}`}
+                                disabled={busy}
+                                onClick={() => void confirmDraft(a)}
+                              >
+                                確認
+                              </button>
+                            ) : null}
                             <button type="button" className="btn btn--small btn--secondary" aria-label={`編輯標註 #${a.id}`} disabled={dirty} onClick={() => edit(a)}>
                               編輯
                             </button>
@@ -858,17 +934,6 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-
-          <div className="card section">
-            <h2>下一步</h2>
-            {canTrain ? (
-              <p>
-                <Link to="/labeling#training">以這個專案的標註建立訓練任務</Link>
-              </p>
-            ) : (
-              <p className="text-muted">建立訓練任務需要 Training 權限；如需使用，請聯絡專案負責人。</p>
             )}
           </div>
         </section>

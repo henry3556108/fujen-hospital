@@ -82,10 +82,17 @@ function ParamField({ id, name, spec, value, onChange }: { id: string; name: str
   );
 }
 
-/** 大多數使用者不需要自己加步驟：Target／Feature 分頁會自動處理類別欄位（One-Hot）與缺值。 */
+/** 大多數使用者不需要自己加步驟：上方欄位表會自動處理類別欄位（One-Hot）與缺值。 */
 export const NOT_NEEDED =
-  '大多數人不需要這一步：類別欄位（例如 sex）在「Target／Feature」按「全部轉成 One-Hot」或打開「當作類別」，缺值在「有缺值的病人怎麼處理」選擇就好。' +
+  '大多數人不需要自己加步驟：類別欄位（例如 sex）在上方欄位表打開「當作類別」，缺值在「有缺值的病人怎麼處理」選擇就好。' +
   '只有要做標準化、離散化、K 近鄰補值等特別處理時才需要自己加步驟。';
+
+/** 搜尋整理方法：比對中文名稱、代號與分類名稱（不分大小寫）。 */
+export function matchMethod(item: CatalogueItem, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [item.name_zh, item.id, item.category_zh].some((t) => t.toLowerCase().includes(q));
+}
 
 /** 前處理步驟編輯器：依序套用；方法清單來自 API（TC-B04-06）。 */
 export function StepsEditor({
@@ -107,9 +114,11 @@ export function StepsEditor({
 }) {
   const categories = [...new Map(catalogue.map((c) => [c.category, c.category_zh])).entries()];
   const [category, setCategory] = useState(categories[0]?.[0] ?? '');
-  const inCategory = catalogue.filter((c) => c.category === category);
+  const [search, setSearch] = useState('');
+  // 有搜尋字時跨分類列出符合的方法；沒有時列出目前分類的方法
+  const inCategory = search.trim() ? catalogue.filter((c) => matchMethod(c, search)) : catalogue.filter((c) => c.category === category);
   const [methodId, setMethodId] = useState(inCategory[0]?.id ?? '');
-  const method = catalogue.find((c) => c.id === methodId) ?? inCategory[0];
+  const method = inCategory.find((c) => c.id === methodId) ?? inCategory[0];
   const [picked, setPicked] = useState<string[]>([]);
   const [extra, setExtra] = useState('');
   const [params, setParams] = useState<Record<string, string>>({});
@@ -160,8 +169,8 @@ export function StepsEditor({
   const candidates = method ? columns.filter((c) => fits(method, c)) : [];
 
   return (
-    <section aria-label="前處理步驟">
-      <h3>前處理步驟</h3>
+    <section aria-label="整理步驟">
+      <h3>整理步驟</h3>
       {!readOnly ? <p className="field__hint" data-testid="steps-not-needed">{NOT_NEEDED}</p> : null}
       {steps.length === 0 ? (
         <p className="text-muted">尚未加入步驟。</p>
@@ -199,25 +208,56 @@ export function StepsEditor({
         </ol>
       )}
 
-      {!readOnly && method && folded ? (
+      {!readOnly && folded ? (
         <details className="training-details" data-testid="steps-advanced">
-          <summary>進階：自己加前處理步驟（大多數人不需要）</summary>
+          <summary>進階：自己加整理步驟（大多數人不需要）</summary>
           {form()}
         </details>
       ) : null}
-      {!readOnly && method && !folded ? form() : null}
+      {!readOnly && !folded ? form() : null}
     </section>
   );
 
+  function searchField() {
+    return (
+      <div className="field">
+        <label htmlFor="step-search">搜尋方法</label>
+        <input
+          id="step-search"
+          type="search"
+          className="input"
+          placeholder="例如：補值、標準化、onehot"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPicked([]);
+            setParams({});
+            setError(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   function form() {
-    if (!method) return null;
+    if (!method) {
+      return (
+        <form aria-label="加入前處理步驟" className="card section" onSubmit={(e) => e.preventDefault()} noValidate>
+          {/* 與下方表單同樣的子元素位置，打字時搜尋框不會被重建而失去焦點 */}
+          {null}
+          <div className="form-grid">{searchField()}</div>
+          <p role="status">找不到符合「{search.trim()}」的方法，請換個關鍵字。</p>
+        </form>
+      );
+    }
     return (
         <form aria-label="加入前處理步驟" className="card section" onSubmit={add} noValidate>
           {error && <Alert tone="error">{error}</Alert>}
           <div className="form-grid">
+            {searchField()}
             <div className="field">
               <label htmlFor="step-category">類別</label>
-              <select id="step-category" className="select" value={category} onChange={(e) => chooseCategory(e.target.value)}>
+              <select id="step-category" className="select" value={category} disabled={!!search.trim()} onChange={(e) => chooseCategory(e.target.value)}>
                 {categories.map(([id, label]) => (
                   <option key={id} value={id}>
                     {label}（{catalogue.filter((c) => c.category === id).length}）

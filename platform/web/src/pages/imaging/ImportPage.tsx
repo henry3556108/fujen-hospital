@@ -1,54 +1,82 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { useProjectAccess } from '../data/access';
-import { ImportResult } from './ImportResult';
-import type { ImportJob } from './types';
 import { FileInput } from '../../components/FileInput';
+import { useProjectAccess } from '../data/access';
+import { ImagingNav } from './ImagingNav';
+import { ImportResult } from './ImportResult';
+import { PacsPage } from './PacsPage';
+import type { ImportJob } from './types';
+import './imaging.css';
 
 /** 檔案在使用者電腦上的相對路徑；選資料夾時保留資料夾結構（makesense 標註靠路徑配對）。 */
 function sourcePath(file: File): string {
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
+/** NIfTI／ITK／makesense 走 /files，其餘（.dcm、沒有副檔名…）走 /dicom，由後端判斷是否為 DICOM */
+const OTHER_FORMAT = /\.(nii|nii\.gz|gz|mha|json)$/i;
+export function endpointOf(file: File): 'dicom' | 'files' {
+  return OTHER_FORMAT.test(file.name) ? 'files' : 'dicom';
+}
+
+interface Batch {
+  endpoint: 'dicom' | 'files';
+  files: File[];
+  job: ImportJob;
+}
+
+const RESULT_TITLE: Record<Batch['endpoint'], string> = { dicom: 'DICOM 匯入結果', files: '影像與標註檔匯入結果' };
+
 function UploadForm({
+  id,
   title,
   hint,
   accept,
-  endpoint,
-  resultTitle,
   allowFolder,
+  route,
 }: {
+  id: string;
   title: string;
   hint: string;
   accept: string;
-  endpoint: string;
-  resultTitle: string;
   allowFolder: boolean;
+  /** 每個檔案送到哪個匯入 API */
+  route: (file: File) => Batch['endpoint'];
 }) {
   const { api } = useSession();
+  const { project } = useProjectAccess();
+  const base = `/api/projects/${project!.id}/imaging`;
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [folder, setFolder] = useState(false);
-  const [job, setJob] = useState<ImportJob | null>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const id = endpoint.replace(/\W+/g, '-');
+  const [retrying, setRetrying] = useState<number | null>(null);
+
+  async function send(endpoint: Batch['endpoint'], list: File[]): Promise<Batch> {
+    const form = new FormData();
+    for (const f of list) form.append('files', f, sourcePath(f));
+    return { endpoint, files: list, job: await api.postForm<ImportJob>(`${base}/${endpoint}`, form) };
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setJob(null);
+    setBatches([]);
     if (files.length === 0) {
       setError(new Error('請先選擇檔案'));
       return;
     }
-    const form = new FormData();
-    for (const f of files) form.append('files', f, sourcePath(f));
+    const groups = new Map<Batch['endpoint'], File[]>();
+    for (const f of files) groups.set(route(f), [...(groups.get(route(f)) ?? []), f]);
     setBusy(true);
     try {
-      setJob(await api.postForm<ImportJob>(endpoint, form));
+      const done: Batch[] = [];
+      for (const [endpoint, list] of groups) done.push(await send(endpoint, list));
+      setBatches(done);
       setFiles([]);
       if (input.current) input.current.value = '';
     } catch (err) {
@@ -58,6 +86,26 @@ function UploadForm({
     }
   }
 
+  /** 只重傳失敗的檔案：依結果的檔名找回瀏覽器裡的檔案 */
+  async function retry(index: number) {
+    const batch = batches[index];
+    const failed = new Set((batch.job.files ?? []).filter((f) => f.status === 'failed').map((f) => f.filename));
+    const list = batch.files.filter((f) => failed.has(sourcePath(f)) || failed.has(f.name));
+    if (list.length === 0) return;
+    setRetrying(index);
+    setError(null);
+    try {
+      const next = await send(batch.endpoint, list);
+      setBatches((all) => all.map((b, i) => (i === index ? next : b)));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setRetrying(null);
+    }
+  }
+
+  const done = batches.length > 0;
+  const added = batches.reduce((n, b) => n + b.job.counts.imported, 0);
   return (
     <form aria-label={title} className="card section" onSubmit={submit} noValidate>
       <h3>{title}</h3>
@@ -94,57 +142,109 @@ function UploadForm({
         </label>
       )}
       <p role="status" className="text-muted">
-        {files.length ? `已選擇 ${files.length} 個檔案` : '尚未選擇檔案'}
+        {files.length ? `已選擇 ${files.length} 個檔案，將加入專案「${project!.name}」` : '尚未選擇檔案'}
       </p>
       <div className="row-actions">
-        <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '上傳中…' : `上傳${title}`}
+        <button type="submit" className={done ? 'btn btn--secondary' : 'btn btn--primary'} disabled={busy}>
+          {busy ? '上傳中…' : `上傳到「${project!.name}」`}
         </button>
       </div>
-      {job && (
-        <>
-          <ImportResult job={job} title={resultTitle} />
-          <p>
-            <Link to="/data/imaging">到研究列表查看</Link>　<Link to="/data/imaging/files">到檔案與配對查看</Link>
-          </p>
-        </>
+      {batches.map((b, i) => (
+        <ImportResult
+          key={`${b.endpoint}-${b.job.id}`}
+          job={b.job}
+          title={RESULT_TITLE[b.endpoint]}
+          onRetryFailed={() => void retry(i)}
+          retrying={retrying === i}
+        />
+      ))}
+      {done && (
+        <div className="row-actions section">
+          {added > 0 && (
+            <Link to="/labeling" className="btn btn--primary">
+              開始標註
+            </Link>
+          )}
+          <Link to="/data/imaging">到影像清單查看</Link>
+          <Link to="/data/imaging/jobs">看匯入紀錄</Link>
+          {batches.some((b) => b.endpoint === 'files') && <Link to="/data/imaging/files">看檔案與配對</Link>}
+        </div>
       )}
     </form>
   );
 }
 
-/** TC-B01-02～06：DICOM 與 NIfTI／ITK／makesense 上傳；需要 Labeling 權限。 */
+type Source = 'upload' | 'pacs' | 'bundle';
+const SOURCES: { key: Source; title: string; desc: string }[] = [
+  { key: 'upload', title: '從電腦上傳', desc: 'DICOM（單檔或整個資料夾）、NIfTI、ITK、makesense。' },
+  { key: 'pacs', title: '從院內影像系統取得', desc: '向院內影像系統（PACS）查詢，挑選後取回。' },
+  { key: 'bundle', title: '匯入影像與標註檔', desc: '影像和對應的標註檔一起匯入，例如 NIfTI 的 _image／_label、makesense 匯出。' },
+];
+
+/** TC-B01-02～07 加入資料：三種來源；需要 Labeling 權限。 */
 export function ImportPage() {
   const { project, can, missing } = useProjectAccess();
-  const base = `/api/projects/${project!.id}/imaging`;
+  const [params, setParams] = useSearchParams();
+  const source = (SOURCES.find((s) => s.key === params.get('source'))?.key ?? 'upload') as Source;
   return (
     <>
-      <h2>匯入影像</h2>
+      <ImagingNav />
+      <h2>加入資料</h2>
       {can('labeling') ? (
         <>
+          <Alert tone="info" title="目標專案">
+            加入的影像只會進到專案「<strong>{project!.name}</strong>」。要加到別的專案，請先在頂端切換專案。
+          </Alert>
+          <ul className="entry-grid section import-sources" aria-label="資料來源">
+            {SOURCES.map((s) => (
+              <li key={s.key}>
+                <button
+                  type="button"
+                  className="card entry-card"
+                  aria-pressed={source === s.key}
+                  onClick={() => setParams(s.key === 'upload' ? {} : { source: s.key }, { replace: true })}
+                >
+                  <span className="entry-card__title">{s.title}</span>
+                  <span className="entry-card__desc">{s.desc}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
           <p className="text-muted">
             單一檔案失敗不影響其他檔案。同一專案內以 SOP Instance UID 判斷重複，重複的影像不會再存一份。大量匯入請使用批次匯入程式。
           </p>
-          <UploadForm
-            title="DICOM"
-            hint="副檔名 .dcm、.dicom、.ima 或沒有副檔名"
-            accept=".dcm,.dicom,.ima"
-            endpoint={`${base}/dicom`}
-            resultTitle="DICOM 匯入結果"
-            allowFolder
-          />
-          <UploadForm
-            title="NIfTI、ITK、makesense"
-            hint="NIfTI（.nii、.nii.gz）、ITK MetaImage（.mha）、makesense 匯出（.json）。檔名以 _image、_label 結尾會自動配對"
-            accept=".nii,.gz,.mha,.json"
-            endpoint={`${base}/files`}
-            resultTitle="檔案匯入結果"
-            allowFolder={false}
-          />
+          {source === 'upload' && (
+            <UploadForm
+              key="upload"
+              id="upload"
+              title="從電腦上傳"
+              hint="DICOM（.dcm、.dicom、.ima 或沒有副檔名）、NIfTI（.nii、.nii.gz）、ITK MetaImage（.mha）、makesense 匯出（.json）"
+              accept=".dcm,.dicom,.ima,.nii,.gz,.mha,.json"
+              allowFolder
+              route={endpointOf}
+            />
+          )}
+          {source === 'bundle' && (
+            <UploadForm
+              key="bundle"
+              id="bundle"
+              title="匯入影像與標註檔"
+              hint="檔名以 _image、_label 結尾會自動配對；makesense 標註會依檔名配到已匯入的 DICOM。配對結果可到「檔案與配對」查看。"
+              accept=".nii,.gz,.mha,.json"
+              allowFolder={false}
+              route={() => 'files'}
+            />
+          )}
+          {source === 'pacs' && (
+            <section className="card section" aria-label="從院內影像系統取得">
+              <h3>從院內影像系統取得</h3>
+              <PacsPage embedded />
+            </section>
+          )}
         </>
       ) : (
         <Alert tone="warning" title="沒有權限">
-          {missing('labeling', '匯入影像')}
+          {missing('labeling', '加入影像')}
         </Alert>
       )}
     </>

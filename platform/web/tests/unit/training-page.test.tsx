@@ -61,14 +61,14 @@ function formValues(form: HTMLElement) {
 
 describe('建模管理：訓練設定', () => {
   it('shows the five training kinds without file formats in the labels', async () => {
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     const options = within(within(form).getByLabelText('訓練種類')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['影像分類', '影像分割', '物件偵測', '結構式分類', '結構式迴歸']);
   });
 
   it('TC-B05-02 / 03 image range, label, resize, split, seed and six augmentations are saved and read back identical', async () => {
-    const first = await renderApp('/training', 'ra01');
+    const first = await renderApp('/training/settings', 'ra01');
     const form = await openForm(first.user);
     await fillImageSetting(first.user, form);
     await first.user.click(within(form).getByRole('button', { name: '儲存設定' }));
@@ -85,8 +85,8 @@ describe('建模管理：訓練設定', () => {
 
     // 「重新載入」：卸載後重新渲染整個 App，打開編輯表單逐欄比對
     first.unmount();
-    const { user } = await renderApp('/training', 'ra01');
-    await user.click(await screen.findByRole('button', { name: '編輯「胸部 CT 分類」' }));
+    const { user } = await renderApp('/training/settings', 'ra01');
+    await user.click(await screen.findByRole('button', { name: '修改「胸部 CT 分類」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「胸部 CT 分類」' });
     expect(formValues(edit)).toEqual({
       name: '胸部 CT 分類', kind: 'image_classification', labels: 'nodule, normal', resize: ['64', '48'], split: ['70', '20', '10'], seed: '7',
@@ -103,7 +103,7 @@ describe('建模管理：訓練設定', () => {
   }, 30_000); // 逐欄輸入較多，整套平行執行時放寬時限
 
   it('server validation messages are shown (split must add up to 100%)', async () => {
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     await fill(user, form, '設定名稱', 'bad');
     await fill(user, form, '訓練集（%）', '50');
@@ -113,7 +113,7 @@ describe('建模管理：訓練設定', () => {
   });
 
   it('segmentation requires labels and offers NIfTI／ITK sources', async () => {
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     await fill(user, form, '設定名稱', 'seg');
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'image_segmentation');
@@ -127,7 +127,7 @@ describe('建模管理：訓練設定', () => {
   });
 
   it('tabular regression: dataset, target, features and algorithm hyperparameters', async () => {
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     await fill(user, form, '設定名稱', 'sbp 迴歸');
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_regression');
@@ -151,7 +151,7 @@ describe('建模管理：訓練設定', () => {
   });
 
   it('deletes a setting after confirmation', async () => {
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     await fill(user, form, '設定名稱', 'tmp');
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
@@ -162,7 +162,7 @@ describe('建模管理：訓練設定', () => {
   });
 
   it('users without Training see the access-denied page', async () => {
-    await renderApp('/training', 'md01');
+    await renderApp('/training/settings', 'md01');
     expect(await screen.findByRole('heading', { name: '無法存取此功能' })).toBeInTheDocument();
     expect(screen.getByText(/沒有 Training 權限/)).toBeInTheDocument();
   });
@@ -187,13 +187,16 @@ describe('建模管理：送出訓練與狀態', () => {
   it('TC-B05-01 five kinds each go queued → running → succeeded with metrics', async () => {
     const kinds: TrainingKind[] = ['image_classification', 'image_segmentation', 'image_detection', 'tabular_classification', 'tabular_regression'];
     kinds.forEach((k) => seedSetting(k, `run-${k}`));
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     for (const k of kinds) {
       await user.click(await screen.findByRole('button', { name: `送出訓練「run-${k}」` }));
+      // 送出後進入該次訓練頁，再回已存設定送下一個
       await screen.findByText(new RegExp(`已送出訓練 #\\d+（run-${k}），目前排隊中`));
+      await user.click(screen.getByRole('link', { name: '已存設定' }));
     }
+    await user.click(screen.getByRole('link', { name: '訓練紀錄' }));
     const table = await screen.findByRole('table', { name: '訓練清單' });
-    await waitFor(() => expect(within(table).getAllByRole('button', { name: /^(展開|收合)訓練 #/ })).toHaveLength(5));
+    await waitFor(() => expect(within(table).getAllByRole('link', { name: /^查看(進度|結果) #/ })).toHaveLength(5));
     const refresh = screen.getByRole('button', { name: '重新整理' });
     await user.click(refresh);
     await user.click(refresh);
@@ -206,7 +209,7 @@ describe('建模管理：送出訓練與狀態', () => {
   it('a run detail follows the status and shows metrics, the log and a failure reason', async () => {
     seedSetting('image_classification', 'ok');
     seedSetting('image_detection', '會失敗的設定');
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「ok」' }));
     const status = await screen.findByTestId('run-status');
     expect(status).toHaveTextContent('排隊中');
@@ -218,7 +221,8 @@ describe('建模管理：送出訓練與狀態', () => {
     await user.click(screen.getByRole('button', { name: '檢視訓練輸出' }));
     expect(await screen.findByLabelText('訓練 #1 的輸出')).toHaveTextContent('完成，輸出 model.h5');
 
-    await user.click(screen.getByRole('button', { name: '送出訓練「會失敗的設定」' }));
+    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(await screen.findByRole('button', { name: '送出訓練「會失敗的設定」' }));
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('失敗'));
@@ -232,12 +236,12 @@ describe('建模管理：送出訓練與狀態', () => {
 
   it('cancels a queued run and reruns a finished one with the same seed', async () => {
     seedSetting('tabular_classification', 'cls');
-    const { user } = await renderApp('/training', 'ra01');
+    const { user } = await renderApp('/training/settings', 'ra01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「cls」' }));
     await user.click(await screen.findByRole('button', { name: '取消訓練' }));
     await user.click(within(screen.getByRole('dialog', { name: '取消訓練' })).getByRole('button', { name: '確定取消訓練' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已取消'));
-    await user.click(screen.getByRole('button', { name: '以同一資料版本與種子重跑' }));
+    await user.click(screen.getByRole('button', { name: '依原版本重跑' }));
     await screen.findByRole('heading', { name: '訓練 #2：cls' });
     expect(trainingMock().runs[1]).toMatchObject({ parent_run_id: 1, seed: 1, dataset_version_id: 1 });
   });
@@ -258,7 +262,7 @@ describe('模型匯出', () => {
 
   async function finishedRun(username: string, kind: TrainingKind, name: string) {
     seedSetting(kind, name, username);
-    const utils = await renderApp('/training', username);
+    const utils = await renderApp('/training/settings', username);
     await utils.user.click(await screen.findByRole('button', { name: `送出訓練「${name}」` }));
     await utils.user.click(await screen.findByRole('button', { name: '重新整理' }));
     await utils.user.click(screen.getByRole('button', { name: '重新整理' }));

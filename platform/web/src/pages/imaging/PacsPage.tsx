@@ -11,7 +11,7 @@ import { SEX_LABELS, type ImportJob, type PacsAnswer } from './types';
 const EMPTY = { Modality: '', PatientID: '', AccessionNumber: '', StudyDescription: '', PatientSex: '', from: '', to: '' };
 
 /** TC-B01-07 PACS 查詢取像：C-FIND 查詢（Study 層級）後，逐一 C-MOVE 取回到平台節點。需要 Labeling 權限。 */
-export function PacsPage() {
+export function PacsPage({ embedded = false }: { embedded?: boolean }) {
   const { api } = useSession();
   const { project, can, missing } = useProjectAccess();
   const base = `/api/projects/${project!.id}/imaging/pacs`;
@@ -27,7 +27,7 @@ export function PacsPage() {
   if (!can('labeling')) {
     return (
       <>
-        <h2>PACS 查詢取像</h2>
+        {!embedded && <h2>PACS 查詢取像</h2>}
         <Alert tone="warning" title="沒有權限">
           {missing('labeling', '向 PACS 查詢或取回影像')}
         </Alert>
@@ -78,8 +78,8 @@ export function PacsPage() {
 
   return (
     <>
-      <h2>PACS 查詢取像</h2>
-      <p className="text-muted">專案有 Accession 清單時，只會列出清單內的研究。</p>
+      {!embedded && <h2>PACS 查詢取像</h2>}
+      <p className="text-muted">專案有影像存取清單時，只會列出清單內的影像。</p>
       <form aria-label="查詢 PACS" className="card" onSubmit={query} noValidate>
         <ApiErrorAlert error={error} />
         <div className="form-grid">
@@ -131,7 +131,10 @@ export function PacsPage() {
         <>
           <ImportResult job={job} title="PACS 取像結果" />
           <p>
-            <Link to="/data/imaging">到研究列表查看</Link>
+            <Link to="/labeling" className="btn btn--primary">
+              開始標註
+            </Link>{' '}
+            <Link to="/data/imaging">到影像清單查看</Link>
           </p>
         </>
       )}

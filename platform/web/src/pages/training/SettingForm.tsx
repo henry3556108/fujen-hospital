@@ -1,5 +1,5 @@
 // 訓練設定表單：5 種訓練；影像範圍、Label、Resize、切分、亂數種子、6 項資料增強、超參數；結構式的資料集、Target、Feature、演算法。
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { Icon } from '../../components/Icon';
@@ -46,9 +46,11 @@ interface Props {
   onCancel: () => void;
   /** 由匯入檔控制的環節（流程程式碼）：對應的欄位停用 */
   locks?: StageLock[];
+  /** 建立訓練精靈的第三步：不顯示種類（第一步已選），資料來源、增強與超參數收在「進階設定」，按鈕改成送出 */
+  wizard?: { submitLabel: string; title: string; extra?: ReactNode; check?: (form: FormState) => string | null };
 }
 
-export function SettingForm({ api, catalogue, initial, editing, onSaved, onCancel, locks = [] }: Props) {
+export function SettingForm({ api, catalogue, initial, editing, onSaved, onCancel, locks = [], wizard }: Props) {
   const lockedIds = locks.map((l) => l.stage);
   const labelsLocked = lockedIds.includes('labels');
   const preprocessLocked = lockedIds.includes('preprocess');
@@ -82,6 +84,8 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
     if (image && form.sourceType === 'dicom' && form.studiesMode === 'selected' && form.studies.length === 0) {
       return setError(new Error('請至少勾選一個研究，或改選「全部研究」'));
     }
+    const problem = wizard?.check?.(form);
+    if (problem) return setError(new Error(problem));
     setBusy(true);
     try {
       const formConfig = configFromForm(catalogue, form);
@@ -96,8 +100,8 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
   }
 
   return (
-    <form aria-label={editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'} className="card section stack" onSubmit={submit} noValidate>
-      <h2>{editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'}</h2>
+    <form aria-label={wizard ? wizard.title : editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'} className="card section stack" onSubmit={submit} noValidate>
+      <h2>{wizard ? wizard.title : editing ? `修改訓練設定「${editing.name}」` : '新增訓練設定'}</h2>
       <ApiErrorAlert error={error} />
       {locks.length ? (
         <Alert tone="info" title="匯入控制">
@@ -116,7 +120,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
           <label htmlFor="ts-name">設定名稱</label>
           <input id="ts-name" className="input" value={form.name} maxLength={128} onChange={(e) => set('name', e.target.value)} />
         </div>
-        <div className="field">
+        {wizard ? null : <div className="field">
           <label htmlFor="ts-kind">訓練種類</label>
           <select id="ts-kind" className="select" value={form.kind} disabled={locks.length > 0} onChange={(e) => setForm(changeKind(catalogue, form, e.target.value as TrainingKind))}>
             {catalogue.kinds.map((k) => (
@@ -125,12 +129,14 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
               </option>
             ))}
           </select>
-        </div>
+        </div>}
       </div>
 
+      <Advanced on={Boolean(wizard)} summary="進階設定：影像範圍、Label、Resize、欄位與演算法">
       {image ? <ImageSource api={api} form={form} set={set} sourceTypes={kindEntry?.source_types ?? ['dicom']} labelsLocked={labelsLocked} preprocessLocked={preprocessLocked} sourceLocked={sourceLocked} /> : null}
       {!image ? <TabularSource api={api} form={form} setForm={setForm} catalogue={catalogue} processed={processed} onRows={setRows}
         disabled={labelsLocked || preprocessLocked} sourceLocked={sourceLocked} algorithmLocked={trainLocked} /> : null}
+      </Advanced>
 
       {!image && kindEntry?.validation_methods ? (
         <fieldset disabled={trainLocked}>
@@ -181,6 +187,7 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         </p>
       </fieldset>
 
+      <Advanced on={Boolean(wizard)} summary="進階設定：訓練回合、學習率、資料增強與其他超參數">
       {image ? (
         <fieldset disabled={preprocessLocked}>
           <legend>資料增強（只套用在訓練資料）</legend>
@@ -193,16 +200,29 @@ export function SettingForm({ api, catalogue, initial, editing, onSaved, onCance
         <p className="field__hint">每個欄位都有建議值，不確定就保留預設值。</p>
         <ParamFields prefix="ts-hp" specs={hyperSpecs(catalogue, form.kind, form.algorithm)} values={form.hyper} onChange={(v) => set('hyper', v)} />
       </fieldset>
+      {wizard?.extra}
+      </Advanced>
 
       <div className="row-actions">
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '儲存中…' : '儲存設定'}
+          {wizard ? (busy ? '送出中…' : wizard.submitLabel) : busy ? '儲存中…' : '儲存設定'}
         </button>
         <button type="button" className="btn btn--secondary" onClick={onCancel}>
           取消
         </button>
       </div>
     </form>
+  );
+}
+
+/** on 時收進可展開的「進階設定」，否則照原樣顯示。 */
+function Advanced({ on, summary, children }: { on: boolean; summary: string; children: ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <details className="training-details">
+      <summary>{summary}</summary>
+      <div className="stack">{children}</div>
+    </details>
   );
 }
 

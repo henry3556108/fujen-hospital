@@ -1,6 +1,7 @@
-import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, Route, useParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { Alert } from '../../components/Alert';
+import { ProjectPicker } from '../../components/ProjectPicker';
 import { AlertsPage } from './AlertsPage';
 import { GatewayRoutesPage } from './GatewayRoutesPage';
 import { GraphPage } from './GraphPage';
@@ -21,7 +22,7 @@ const TABS = [
 /** 需要選定專案（＝FHIR 租戶）的分頁 */
 function RequireProject() {
   const { project } = useSession();
-  if (!project) return <Alert tone="info">請先在上方選擇專案。每個專案是一個獨立的 FHIR 租戶。</Alert>;
+  if (!project) return <Alert tone="info">請先在上方選擇租戶專案。每個專案是一個獨立的 FHIR 租戶。</Alert>;
   return <Outlet />;
 }
 
@@ -34,9 +35,10 @@ function FhirLayout() {
         模組代碼：C-03。目前租戶：<strong>{project ? `${project.name}（專案 ${project.id}）` : '未選擇'}</strong>
         。外部系統經 Gateway 的 <span className="fhir-code">/fhir/projects/{project?.id ?? '{專案}'}/</span> 存取。
       </p>
+      <ProjectPicker id="fhir-tenant" label="租戶專案" />
       <nav aria-label="FHIR 分頁" className="tabs">
         {TABS.map(([path, label]) => (
-          <NavLink key={path} to={`/fhir/${path}`} className="tabs__item">
+          <NavLink key={path} to={`/admin/fhir/${path}`} className="tabs__item">
             {label}
           </NavLink>
         ))}
@@ -46,21 +48,25 @@ function FhirLayout() {
   );
 }
 
-/** /fhir/* 的子路由；外層由 App.tsx 以 Admin 入口規則守門。 */
-export function FhirRoutes() {
+/** /admin/fhir/* 的子路由（相對路徑）；外層由 App.tsx 以 Admin 規則守門。 */
+export function fhirRoutes() {
   return (
-    <Routes>
-      <Route element={<FhirLayout />}>
-        <Route index element={<Navigate to="/fhir/resources" replace />} />
-        <Route path="gateway" element={<GatewayRoutesPage />} />
-        <Route element={<RequireProject />}>
-          <Route path="resources" element={<ResourcesPage />} />
-          <Route path="sources" element={<SourcesPage />} />
-          <Route path="schedules" element={<SchedulesPage />} />
-          <Route path="graph" element={<GraphPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
-        </Route>
+    <Route element={<FhirLayout />}>
+      <Route index element={<Navigate to="/admin/fhir/resources" replace />} />
+      <Route path="gateway" element={<GatewayRoutesPage />} />
+      <Route element={<RequireProject />}>
+        <Route path="resources" element={<ResourcesPage />} />
+        <Route path="sources" element={<SourcesPage />} />
+        <Route path="schedules" element={<SchedulesPage />} />
+        <Route path="graph" element={<GraphPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
       </Route>
-    </Routes>
+    </Route>
   );
+}
+
+/** 舊網址 /fhir/* → /admin/fhir/* */
+export function LegacyFhirRedirect() {
+  const rest = useParams()['*'] ?? '';
+  return <Navigate to={`/admin/fhir${rest ? `/${rest}` : ''}`} replace />;
 }

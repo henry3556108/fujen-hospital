@@ -89,25 +89,25 @@ describe('缺陷 1：機率一律是陽性類別的機率', () => {
 describe('缺陷 2：送出訓練的訊息跟著狀態更新', () => {
   it('replaces 「目前排隊中」 with 訓練中 and then 已完成', async () => {
     seed('心臟科');
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「心臟科」' }));
     const id = trainingMock().runs[0].id;
     expect(await screen.findByText(`已送出訓練 #${id}（心臟科），目前排隊中。`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '重新整理' }));
-    expect(await screen.findByText(`訓練 #${id}（心臟科）訓練中，完成後下方會顯示結果。`)).toBeInTheDocument();
+    expect(await screen.findByText(`訓練 #${id}（心臟科）訓練中，完成後會顯示結果。`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '重新整理' }));
-    expect(await screen.findByText(`訓練 #${id}（心臟科）已完成，結果在下方「訓練紀錄」。`)).toBeInTheDocument();
+    expect(await screen.findByText(`訓練 #${id}（心臟科）已完成。`)).toBeInTheDocument();
     expect(screen.queryByText(/目前排隊中/)).toBeNull();
   });
 
   it('says so when the run fails', async () => {
     seed('會失敗的設定');
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「會失敗的設定」' }));
     const id = trainingMock().runs[0].id;
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
-    await waitFor(() => expect(screen.getByText(`訓練 #${id}（會失敗的設定）失敗，原因在下方「訓練紀錄」。`)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(`訓練 #${id}（會失敗的設定）失敗，原因在下方。`)).toBeInTheDocument());
     expect(screen.queryByText(/目前排隊中/)).toBeNull();
   });
 });
@@ -121,7 +121,7 @@ describe('缺陷 3：資料少時預選 K 折', () => {
   });
 
   it('a new setting on a 100-row dataset starts with K-fold (K = 5) and says why; an explicit choice is kept', async () => {
-    const { user } = await renderApp('/training', 'pi01');
+    const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
@@ -143,8 +143,8 @@ describe('缺陷 3：資料少時預選 K 折', () => {
 
   it('opening a saved fixed-split setting on small data keeps the fixed split', async () => {
     seed('舊設定');
-    const { user } = await renderApp('/training', 'pi01');
-    await user.click(await screen.findByRole('button', { name: '編輯「舊設定」' }));
+    const { user } = await renderApp('/training/settings', 'pi01');
+    await user.click(await screen.findByRole('button', { name: '修改「舊設定」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「舊設定」' });
     await within(edit).findByRole('option', { name: /^lung-clinical/ });
     expect(within(edit).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
