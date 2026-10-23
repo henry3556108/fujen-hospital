@@ -180,3 +180,27 @@ def test_source_needs_coding_permission(client, pi, member, project, backend, tr
     assert client.post(url(child, "/rerun"), headers=assistant).status_code == 403
     assert client.post(url(child, "/rerun"), headers=coder).status_code == 201
     assert client.post(url(trained, "/rerun"), headers=assistant).status_code == 201
+
+
+def test_export_of_custom_source_run_includes_this_run_config(client, pi, project, backend, trained):
+    """用修改後的程式跑的訓練：匯出的 zip 也有這次的 config.json；上傳檔裡原有的改名為 config.original.json。"""
+    files = unzip(client.get(url(trained, "/source"), headers=pi).content)
+    config = json.loads(files["config.json"])
+    config["hyperparameters"]["n_estimators"] = 7
+    files["config.json"] = json.dumps(config).encode()
+    child = ok(submit_source(client, pi, trained, rezip(files)), 201)
+    exported = unzip(client.get(url(child, "/source"), headers=pi).content)
+    expected = {k: v for k, v in child["config"].items() if k != "executor"}
+    assert json.loads(exported["config.json"]) == expected
+    assert expected["hyperparameters"]["n_estimators"] == 7
+    assert exported["config.original.json"] == files["config.json"]
+    assert exported["train.py"] == files["train.py"]
+
+    # 上傳檔沒有 config.json、整包放在資料夾內：加在 train.py 同一層，沒有 config.original.json
+    del files["config.json"]
+    child = ok(submit_source(client, pi, trained, rezip(files, prefix="my-training/")), 201)
+    exported = unzip(client.get(url(child, "/source"), headers=pi).content)
+    assert json.loads(exported["my-training/config.json"]) == {k: v for k, v in child["config"].items()
+                                                                if k != "executor"}
+    assert json.loads(exported["my-training/config.json"])["hyperparameters"]["n_estimators"] == 20
+    assert not any(name.endswith("config.original.json") for name in exported)

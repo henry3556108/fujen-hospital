@@ -120,6 +120,21 @@ def export_source(kind: str, config: dict[str, Any]) -> bytes:
     return buffer.getvalue()
 
 
+def with_run_config(data: bytes, config: dict[str, Any]) -> bytes:
+    """在存起來的原始碼 zip 加上這次訓練的 config.json（與一般匯出相同內容），讓使用者看得到這次的設定。
+    zip 裡已有 config.json 時以這次的設定覆蓋，原檔改名為 config.original.json。整包在單一資料夾內時放在同一層。"""
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        files = {e.filename: archive.read(e) for e in archive.infolist() if not e.is_dir()}
+    tops = {name.split("/", 1)[0] for name in files}
+    prefix = ""
+    if "train.py" not in files and len(tops) == 1 and all("/" in name for name in files):
+        prefix = next(iter(tops)) + "/"
+    if prefix + "config.json" in files:
+        files[prefix + "config.original.json"] = files[prefix + "config.json"]
+    files[prefix + "config.json"] = _json(config)
+    return write_zip(files)
+
+
 def read_source(data: bytes) -> dict[str, bytes]:
     """檢查使用者上傳的原始碼 zip，回傳（路徑 → 內容）。"""
     files = read_zip(data, "train.py")

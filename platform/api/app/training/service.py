@@ -713,10 +713,12 @@ def get_version(session: Session, project_id: int, version_id: int) -> DatasetVe
 
 
 def export_source(ctx: ProjectContext, state, run: TrainingRun, *, source_ip: str | None) -> bytes:
+    config = {k: v for k, v in run.config.items() if k != "executor"}
     if run.source_key:
-        data = state.store.get(run.source_key)        # 這次訓練用的就是使用者的版本
+        # 這次訓練用的就是使用者的版本；另加這次的 config.json（原有的改名為 config.original.json）
+        data = bundle.with_run_config(state.store.get(run.source_key), config)
     else:
-        data = bundle.export_source(run.kind, {k: v for k, v in run.config.items() if k != "executor"})
+        data = bundle.export_source(run.kind, config)
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training.export_source",
            target=f"training_run:{run.id}", source_ip=source_ip,
            detail={"project_id": run.project_id, "sha256": hashlib.sha256(data).hexdigest()})
