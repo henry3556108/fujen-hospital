@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, type Browser, type Page } from '@playwright/test';
 import { EVIDENCE_DIR, shot } from './helpers';
-import { adminTab, psql, q } from './ops';
+import { PROJECT_TABS, adminTab, projectTab, psql, q } from './ops';
 
 // M1 補拍（M1補拍\01～13）共用：網址列入鏡截圖、指定密碼登入、登出、成功訊息、稽核查詢。
 
@@ -67,13 +67,25 @@ export async function loginFails(page: Page, username: string, password: string)
 }
 
 export async function logout(page: Page) {
-  await page.getByRole('button', { name: '登出', exact: true }).click();
+  // 頂端的「登出」（沒有專案的說明頁、個人設定頁另有登出按鈕）
+  await page.locator('.topbar').getByRole('button', { name: '登出', exact: true }).click();
   await expect(page.getByRole('heading', { name: '登入', level: 1 })).toBeVisible({ timeout: 15_000 });
 }
 
-/** 右上角「帳號（角色）」文字 */
+/**
+ * 頂端「帳號（身分）」文字：帳號取自右上角，身分取自「我的身分（…）」；
+ * Admin 在管理區顯示「系統管理區」；沒有專案時只回帳號（頂端改顯示「尚未加入任何專案」）。
+ */
 export async function headerUser(page: Page) {
-  return (await page.locator('.topbar__user').innerText()).replace(/\s+/g, '');
+  const user = (await page.locator('.topbar__username').innerText()).trim();
+  const role = page.getByTestId('header-role');
+  if (await role.count()) {
+    const m = /（(.+)）/.exec((await role.innerText()).replace(/\s+/g, ''));
+    if (m) return `${user}（${m[1]}）`;
+  }
+  const area = page.locator('.topbar__area');
+  if (await area.count()) return `${user}（${(await area.innerText()).trim()}）`;
+  return user;
 }
 
 /** 綠色成功訊息「完成：…」，捲到可見處 */
@@ -89,6 +101,26 @@ export async function freshPage(browser: Browser) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   return { ctx, page };
+}
+
+/** 管理區「專案」→ 專案頁「成員與權限」分頁（取代舊 /admin/members 的專案下拉） */
+export async function membersOf(page: Page, project: string) {
+  await projectTab(page, project, PROJECT_TABS.members);
+  // 專案頁內的專案下拉是隱藏的（專案由網址決定）；舊版頁面才需要選
+  const sel = page.locator('select#member-project');
+  if (await sel.isVisible().catch(() => false)) await sel.selectOption({ label: project });
+  await expect(page.getByRole('table', { name: '目前的專案成員' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+}
+
+/** 管理區「專案」→ 專案頁「標註群組」分頁 */
+export async function labelGroupsOf(page: Page, project: string) {
+  await projectTab(page, project, PROJECT_TABS.labelGroups);
+  // 專案頁內的專案下拉是隱藏的（專案由網址決定）；舊版頁面才需要選
+  const sel = page.locator('select#group-project');
+  if (await sel.isVisible().catch(() => false)) await sel.selectOption({ label: project });
+  await expect(page.getByRole('table', { name: '標註群組列表' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
 }
 
 export async function gotoAdmin(page: Page, tab: string) {

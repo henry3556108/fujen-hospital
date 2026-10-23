@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { note, shot } from './helpers';
-import { adminTab } from './ops';
+import { PROJECT_TABS, adminTab, projectTab } from './ops';
 import { CSV80, Checks, DEMO_CSV, DS, DS80, PA, PB, begin, flat, gotoTabular, loadState, openAs, saveState, statusMsg, step, switchProject } from './m2-common';
 
 // M2 驗證 00 前置（M2驗證\00-驗證清單.md「前置」）。可重跑：專案、成員已存在就沿用；資料集已存在就不重複上傳。
@@ -33,7 +33,9 @@ async function ensureProject(page: Page, c: Checks, name: string) {
 
 async function ensureMember(page: Page, c: Checks, project: string, user: string, role: string) {
   const members = page.getByRole('table', { name: '目前的專案成員' });
-  const row = members.getByRole('row').filter({ has: page.getByRole('rowheader', { name: user, exact: true }) });
+  // 成員表載入完（有成員列或「還沒有成員」）才判斷
+  await expect(members.getByRole('rowheader').first().or(members.getByText('這個專案還沒有成員。'))).toBeVisible();
+  const row =members.getByRole('row').filter({ has: page.getByRole('rowheader', { name: user, exact: true }) });
   const current = (await row.count()) ? flat(await row.getByRole('cell').first().innerText()) : null;
   if (current === role) {
     note(TC, `${project}：${user} 已是 ${role}，沿用`);
@@ -83,7 +85,7 @@ test('M2 00 前置：專案、成員、資料集', async ({ browser }) => {
   if (!loadState().setupAt) saveState({ setupAt: new Date().toISOString() });
 
   // 1. admin01 新增兩個專案（gpu-shared）與成員
-  step(TC, 1, `admin01「帳號管理」→「專案」新增 ${PA}、${PB}（GPU 群組 gpu-shared），再設定成員`);
+  step(TC, 1, `admin01 管理區「專案」新增 ${PA}、${PB}（GPU 群組 gpu-shared），再到各專案頁「成員與權限」設定成員`);
   const admin = await openAs(browser, 'admin01');
   const page = admin.page;
   await adminTab(page, '專案');
@@ -91,9 +93,9 @@ test('M2 00 前置：專案、成員、資料集', async ({ browser }) => {
   for (const p of [PA, PB]) await ensureProject(page, c, p);
   await page.getByRole('table', { name: '專案列表' }).getByRole('rowheader', { name: PB, exact: true }).scrollIntoViewIfNeeded();
   await shot(page, TC, '01-專案');
-  await adminTab(page, '專案成員');
   for (const p of [PA, PB]) {
-    await page.getByLabel('專案', { exact: true }).selectOption({ label: p });
+    await projectTab(page, p, PROJECT_TABS.members);
+    await expect(page.getByRole('table', { name: '目前的專案成員' })).toBeVisible();
     await page.waitForLoadState('networkidle');
     for (const [u, role] of MEMBERS[p]) await ensureMember(page, c, p, u, role);
     note(TC, `${p} 成員：${flat(await page.getByRole('table', { name: '目前的專案成員' }).innerText())}`);

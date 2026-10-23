@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { Scenario, REPO, api, contentHash, dc, llmBase, llmTab, okMsg, oneLine, outcome, resetModel, rowOf } from './n-bc-common';
+import { Scenario, REPO, api, contentHash, dc, llmApprovals, llmBase, llmTab, okMsg, oneLine, outcome, resetModel, rowOf } from './n-bc-common';
 
 // 新功能情境 B1–B4（docs/05-新增功能使用情境.md）：LLM 真模型的引進、離線預載、量化與資源、新環境預設模型。
 // 角色：ca01（P1-lung-ct 的 Coding 權限）、admin01。B1 會真的從 Hugging Face 下載 nomic-embed-text-v1.5 的 Q4_K_M（約 84 MB）。
@@ -37,15 +37,14 @@ async function requestApproveDownload(s: Scenario, ca: Page, adm: Page, name: st
     await s.step(ca, n(2), 'ca01-重新進入模型管理後的列', { line: oneLine(await row.innerText()), focus: row });
   }
 
-  // 第 3 步：Admin 在「待審核的下載申請」看到「模型名稱（申請人 帳號）」，按「核准」
-  await modelsPage(adm);
-  const review = adm.getByRole('region', { name: '待審核的下載申請' });
-  const item = review.locator('li', { hasText: `${name}（申請人 ca01）` });
+  // 第 3 步：Admin 在管理區「稽核與審核 › 模型下載審核」看到「模型名稱｜申請人」，按「核准」
+  const review = await llmApprovals(adm);
+  const item = rowOf(review, name).filter({ hasText: 'ca01' });
   await expect(item).toBeVisible();
-  await s.step(adm, n(3), 'admin01-待審核的下載申請', { line: oneLine(await item.innerText()), focus: review });
+  await s.step(adm, n(3), 'admin01-模型下載審核-待審核的下載申請', { line: oneLine(await item.innerText()), focus: review });
   await item.getByRole('button', { name: '核准' }).click();
   await expect(item).toHaveCount(0);
-  await s.step(adm, n(3), 'admin01-已核准', { focus: adm.getByRole('table', { name: '白名單模型' }) });
+  await s.step(adm, n(3), 'admin01-模型下載審核-已核准', { focus: adm.locator('main') });
 
   // 第 4 步：研究員回到「模型管理」，狀態「已核准，待下載」，按「下載」
   await llmTab(ca, 'Playground');

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { note, shot } from './helpers';
 import { logout } from './r-common';
 import {
-  Checks, DS, PA, ROW, SETTING, WEB, begin, dirOf, download, flat, gotoTraining, openEditor, openFlow, openUnlock, openAs,
+  Checks, DS, PA, ROW, SETTING, WEB, begin, dirOf, download, editSetting, flat, gotoSettings, gotoTraining, openEditor, openFlow, openUnlock, openAs,
   stageRow, stageStates, statesText, statusMsg, step, textArea, zipList,
 } from './m2-common';
 
@@ -23,10 +23,13 @@ test('M2 04 資料匯入環節', async ({ browser }) => {
   let page = ra.page;
   await gotoTraining(page);
   const mine = page.getByRole('checkbox', { name: '只看我建立的', exact: true });
-  if ((await mine.count()) && (await mine.isChecked()) && !(await page.getByRole('button', { name: `流程程式碼「${SETTING}」`, exact: true }).count())) {
+  if ((await mine.count()) && (await mine.isChecked()) && !(await page.getByRole('link', { name: `流程程式碼「${SETTING}」`, exact: true }).count())) {
     await mine.uncheck();
     c.diff(`訓練設定清單預設勾「只看我建立的」，ra01 要先取消勾選才看得到 pi01 建立的「${SETTING}」`);
   }
+  // 研究助理沒有 Coding：仍要能打開流程程式碼操作設定檔環節（資料匯入、部署）
+  const flowLink = page.getByRole('link', { name: `流程程式碼「${SETTING}」`, exact: true });
+  if (!c.check(`步驟 1 ra01 在「已存設定」看得到「流程程式碼「${SETTING}」」`, (await flowLink.count()) > 0)) await shot(page, TC, '01-研究助理看不到流程程式碼');
   let panel = await openFlow(page, SETTING);
   const buttons: Record<string, string[]> = {};
   for (const n of Object.values(ROW)) {
@@ -72,6 +75,7 @@ test('M2 04 資料匯入環節', async ({ browser }) => {
   await shot(page, TC, '03-套用資料匯入');
   c.check('步驟 4 沒改內容直接套用就通過', ok4);
   c.check('步驟 4 資料匯入變成「匯入檔控制」', s4[ROW.import] === '匯入檔控制');
+  await gotoSettings(page); // 「資料」欄在「已存設定」分頁
   const dataCell = flat(await page.getByRole('table', { name: '訓練設定清單' }).getByRole('row')
     .filter({ has: page.getByRole('button', { name: `送出訓練「${SETTING}」`, exact: true }) }).getByRole('cell').nth(1).innerText());
   c.check(`步驟 4 資料集仍是 ${DS}（F-05，差異 0 欄）`, dataCell.startsWith(DS) && !dataCell.includes('匯入結構'), dataCell);
@@ -82,20 +86,18 @@ test('M2 04 資料匯入環節', async ({ browser }) => {
   await ra.ctx.close();
 
   // 6 pi01 編輯：資料集停用
-  step(TC, 6, `pi01 登入，「編輯「${SETTING}」」`);
+  step(TC, 6, `pi01 登入，「已存設定」按「修改「${SETTING}」」（原「編輯」）`);
   const pi = await openAs(browser, 'pi01', PA);
   page = pi.page;
   await gotoTraining(page);
-  await page.getByRole('button', { name: `編輯「${SETTING}」`, exact: true }).click();
-  const form = page.getByRole('form', { name: `修改訓練設定「${SETTING}」` });
-  await expect(form).toBeVisible();
+  const form = await editSetting(page, SETTING);
   const locks = flat(await form.getByTestId('stage-locks').innerText());
   const dsDisabled = await form.getByLabel('資料集', { exact: true }).isDisabled();
   const algoEnabled = await form.getByLabel('演算法', { exact: true }).isEnabled();
   const seedEnabled = await form.getByLabel('亂數種子', { exact: true }).isEnabled();
   note(TC, `表單上方：${locks}；資料集 ${dsDisabled ? '停用' : '可改'}、演算法 ${algoEnabled ? '可改' : '停用'}、亂數種子 ${seedEnabled ? '可改' : '停用'}`);
   await form.scrollIntoViewIfNeeded();
-  await shot(page, TC, '04-資料集停用');
+  await shot(page, TC, '04-已存設定修改-資料集停用');
   c.check('步驟 6 上方列出「「資料匯入」由匯入的檔案控制…ra01…」', locks.includes('「資料匯入」由匯入的檔案控制') && locks.includes('ra01'), locks);
   c.check('步驟 6 「資料集」停用', dsDisabled);
   c.check('步驟 6 演算法等其他欄位可改', algoEnabled && seedEnabled);

@@ -9,6 +9,7 @@ const NAMES = ['KIT-A-p1', 'KIT-A-p2', 'KIT-A-p3'];
 
 async function cleanup(page: Page) {
   await gotoAdmin(page, '專案');
+  await expect(page.getByRole('table', { name: '專案列表' }).getByRole('rowheader', { name: 'P1-lung-ct', exact: true })).toBeVisible();
   for (const n of NAMES) {
     const del = page.getByRole('button', { name: `刪除 ${n}`, exact: true });
     if (await del.count()) {

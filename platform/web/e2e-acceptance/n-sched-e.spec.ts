@@ -19,6 +19,8 @@ interface Model {
   name: string;
   title: string | null;
   kind: string;
+  /** 模型來自哪一次訓練；使用模型的網址用訓練編號（/models/:runId/...） */
+  run_id: number | null;
 }
 interface Deployment {
   id: number;
@@ -36,6 +38,24 @@ async function p1(): Promise<number> {
 }
 
 const display = (m: Model) => m.title || m.name;
+
+/**
+ * 功能目錄點契約入口（「AI 模型部署」或「推論服務管理」，都轉到「使用模型」）→ 模型清單打開該模型 → 頁內分頁。
+ */
+async function openModel(page: Page, entry: 'AI 模型部署' | '推論服務管理', model: Model, tab: '結果' | '預測新資料' | '預測紀錄' | '分享與服務' | '下載') {
+  await clickMenu(page, entry);
+  await expect(page).toHaveURL(/\/models(\?|$)/);
+  if (!model.run_id) throw new Error(`模型 #${model.id} 沒有對應的訓練編號，無法在「使用模型」打開`);
+  await page.locator(`table[aria-label="模型清單"] a[href$="/models/${model.run_id}/result"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/models/${model.run_id}/result$`));
+  await modelTab(page, tab);
+}
+
+/** 單一模型的頁內分頁 */
+async function modelTab(page: Page, tab: string) {
+  await page.getByRole('navigation', { name: '模型分頁' }).getByRole('link', { name: tab, exact: true }).click();
+  await page.waitForLoadState('networkidle');
+}
 
 async function closeAll(ctxs: BrowserContext[]) {
   for (const c of ctxs) await c.close().catch(() => undefined);
@@ -139,13 +159,13 @@ test('E1 研究結案：刪除專案時線上服務一併停止', async ({ brows
       s.log(`刪除前呼叫：HTTP ${code1}`);
       expect(code1).toBe('200');
 
-      // ===== 1. 帳號管理 → 專案 =====
+      // ===== 1. 管理區 › 專案（原「帳號管理 → 專案」） =====
       const ad = await openAs(browser, 'admin01');
       ctxs.push(ad.ctx);
       await adminTab(ad.page, '專案');
       const row = ad.page.getByRole('table', { name: '專案列表' }).locator('tbody tr').filter({ has: ad.page.getByRole('rowheader', { name: NAME, exact: true }) });
       await expect(row).toBeVisible();
-      await s.step(ad.page, '帳號管理-專案列表', `${NAME}（GPU 群組 gpu-shared）`, { focus: row });
+      await s.step(ad.page, '管理區-專案列表', `${NAME}（GPU 群組 gpu-shared）`, { focus: row });
       // 2～3. 刪除 → 確認視窗
       await row.getByRole('button', { name: `刪除 ${NAME}` }).click();
       const dialog = ad.page.getByRole('dialog');
@@ -206,15 +226,13 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       const batchName = image ? '多張影像一起預測' : '多位病人一起預測';
       s.log(`使用模型 #${model.id}「${display(model)}」（${model.kind}）`);
 
-      // 1. 推論服務管理 → 選擇模型
+      // 1. 功能目錄「推論服務管理」→ 使用模型 › 模型清單打開模型 →「預測新資料」
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await clickMenu(pi.page, '推論服務管理');
-      const choose = pi.page.getByRole('button', { name: `選擇 ${display(model)}`, exact: true });
-      if (await choose.count()) await choose.click();
+      await openModel(pi.page, '推論服務管理', model, '預測新資料');
       await expect(pi.page.getByRole('heading', { name: `預測：${display(model)}` })).toBeVisible({ timeout: 30_000 });
-      await s.step(pi.page, '推論服務管理-選擇模型', display(model), { focus: pi.page.getByRole('heading', { name: `預測：${display(model)}` }) });
+      await s.step(pi.page, '使用模型-預測新資料', display(model), { focus: pi.page.getByRole('heading', { name: `預測：${display(model)}` }) });
       // 2. 資料範圍選測試資料，送出
       const form = pi.page.getByRole('form', { name: batchName });
       await form.getByLabel('資料範圍').selectOption({ label: '測試資料' });
@@ -239,9 +257,10 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       const headText = (await head.innerText()).trim();
       await expect.soft(head).toHaveText(new RegExp(`預測結果 #${rid}（\\d+ 筆）`));
       await s.step(pi.page, '完成後自動顯示預測結果', headText, { focus: head });
+      await modelTab(pi.page, '預測紀錄');
       const hist = pi.page.getByRole('table', { name: '預測紀錄' }).locator('tbody tr').filter({ hasText: `#${rid}` }).first();
       await expect.soft(hist).toContainText('成功', { timeout: 30_000 });
-      await s.step(pi.page, '預測紀錄-結果欄', (await hist.innerText()).replace(/\s+/g, ' ').trim(), { focus: hist });
+      await s.step(pi.page, '使用模型-預測紀錄-結果欄', (await hist.innerText()).replace(/\s+/g, ' ').trim(), { focus: hist });
       const rec = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/inference/${rid}`);
       pendingRecord = null;
       s.log(`API：推論 #${rid} 狀態 ${rec.status}、${rec.count} 筆、排程工作 ${rec.job_id}`);
@@ -253,13 +272,15 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       );
       expect.soft(db.out).toContain('succeeded');
 
-      // 5. 建模管理 → 專案工作：種類與狀態（不按重新整理）
-      await gotoJobs(pi.page, P1_NAME);
-      const cells = await jobCells(pi.page, rec.job_id);
-      s.log(`專案工作 ${rec.job_id}：種類「${cells.kind}」、狀態「${cells.status}」、佇列 ${cells.queue}、結束 ${cells.finished}`);
+      // 5. 管理區「運算資源 › 測試工作」（原「專案工作」，改版後只有 Admin 看得到）：種類與狀態（不按重新整理）
+      const ad = await openAs(browser, 'admin01');
+      ctxs.push(ad.ctx);
+      await gotoJobs(ad.page, P1_NAME);
+      const cells = await jobCells(ad.page, rec.job_id);
+      s.log(`工作列表 ${rec.job_id}：種類「${cells.kind}」、狀態「${cells.status}」、佇列 ${cells.queue}、結束 ${cells.finished}`);
       expect.soft(cells.kind).toMatch(/^批次推論（(GPU|CPU)）$/);
       expect.soft(cells.status).toBe('已完成');
-      await s.step(pi.page, '專案工作-批次推論已完成', `${cells.kind}／${cells.status}`, { focus: jobRow(pi.page, rec.job_id) });
+      await s.step(ad.page, '運算資源-測試工作-批次推論已完成', `${cells.kind}／${cells.status}`, { focus: jobRow(ad.page, rec.job_id) });
       return `批次預測 #${rid} 自動顯示結果（${rec.count} 筆），工作 ${rec.job_id} 為「${cells.kind}」「${cells.status}」，資料庫同為 succeeded`;
     },
     async () => {
@@ -288,15 +309,14 @@ test('E3 分享模型給同事時直接挑帳號', async ({ browser }) => {
       const lookup = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/user-lookup?q=md`);
       s.log(`API：${RESEARCHER} 查詢帳號開頭「md」→ ${JSON.stringify(lookup)}（只回帳號與是否為本專案成員）`);
 
-      // 1. AI 模型部署 → 分享給同事使用
+      // 1. 功能目錄「AI 模型部署」→ 使用模型 › 打開模型 →「分享與服務」→ 分享給同事使用
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await clickMenu(pi.page, 'AI 模型部署');
+      await openModel(pi.page, 'AI 模型部署', model, '分享與服務');
       const form = pi.page.getByRole('form', { name: '分享給同事使用' });
       await expect(form).toBeVisible({ timeout: 30_000 });
-      // 2. 模型、顯示名稱
-      await form.getByLabel('模型').selectOption(String(model.id));
+      // 2. 模型（已由打開的模型決定）、顯示名稱
       await form.getByLabel('顯示名稱（同事看到的名稱，可用中文）').fill(TITLE);
       // 3～4. 輸入帳號開頭，點選建議
       const users = pi.page.locator('#dep-users');
@@ -318,7 +338,7 @@ test('E3 分享模型給同事時直接挑帳號', async ({ browser }) => {
       await s.step(pi.page, '點選後加入欄位', await users.inputValue(), { focus: form });
       // 5. 分享
       await form.getByRole('button', { name: '分享給同事使用', exact: true }).click();
-      const shared = notice(pi.page, `已把「${TITLE}」分享給 md01、${outsiderName}。他們登入後點左側「推論服務管理」，選模型「${TITLE}」就能預測。`);
+      const shared = notice(pi.page, `已把「${TITLE}」分享給 md01、${outsiderName}。他們登入後點左側「使用模型」，打開模型「${TITLE}」就能預測。`);
       await expect(shared).toBeVisible({ timeout: 30_000 });
       await expect.soft(shared).toContainText(`注意：${outsiderName} 不是本專案有推論權限的成員`);
       await s.step(pi.page, '分享給同事使用-已分享', (await shared.innerText()).trim(), { focus: shared });
@@ -370,11 +390,11 @@ test('E4 分享後先在網頁上試呼叫', async ({ browser }) => {
       const dep = (await apiOk(RESEARCHER, 'POST', `/api/projects/${pid}/deployments`, { model_id: model.id, title: TITLE, allowed_users: ['md01'] })) as Deployment;
       s.log(`準備：以 API 分享模型 #${model.id}「${display(model)}」為「${TITLE}」（${dep.name}），分享給 md01；端點 POST ${dep.endpoint}`);
 
-      // 1. AI 模型部署 → 已分享的模型（「模型」欄顯示實際的模型）
+      // 1. 功能目錄「AI 模型部署」→ 使用模型 › 打開模型 →「分享與服務」→ 已分享的模型
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await clickMenu(pi.page, 'AI 模型部署');
+      await openModel(pi.page, 'AI 模型部署', model, '分享與服務');
       const list = pi.page.getByRole('table', { name: '已分享的模型' });
       const row = list.locator('tbody tr').filter({ has: pi.page.getByRole('rowheader', { name: TITLE, exact: true }) });
       await expect(row).toBeVisible({ timeout: 30_000 });
@@ -453,20 +473,30 @@ test('E5 訓練紀錄翻頁查詢', async ({ browser }) => {
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
+      // 功能目錄「建模管理」→ 建立模型 › 訓練紀錄（全專案的訓練一張清單，可依建立者等篩選）
       await clickMenu(pi.page, '建模管理');
-      const box = pi.page.getByRole('checkbox', { name: '只看我送出的' });
+      const creator = pi.page.locator('#runs-creator');
       const range = pi.page.getByTestId('runs-range');
       const pager = pi.page.getByRole('navigation', { name: '訓練紀錄分頁' });
       const table = pi.page.getByRole('table', { name: '訓練清單' });
-      // 1. 預設勾選「只看我送出的」
-      await expect(box).toBeChecked({ timeout: 30_000 });
-      await expect(range).toContainText(`共 ${mine.total} 筆（只列你送出的）`);
-      await s.step(pi.page, '預設只看我送出的', (await range.innerText()).trim(), { focus: range });
-      // 2. 取消勾選，看全專案
-      await box.uncheck();
+      const rangeText = (n: number, from: number, to: number) => `共 ${n} 筆，這一頁是第 ${from}–${to} 筆（每頁 20 筆，由新到舊）`;
+      // 1. 只看自己送出的：篩選「建立者」填自己的帳號（取代原「只看我送出的」勾選）
+      await expect(table.or(pi.page.getByTestId('runs-empty'))).toBeVisible({ timeout: 30_000 });
+      await creator.fill(RESEARCHER);
+      if (mine.total > 0) await expect(range).toContainText(rangeText(mine.total, 1, Math.min(20, mine.total)));
+      await s.step(pi.page, '篩選建立者-只看我送出的', mine.total > 0 ? (await range.innerText()).trim() : '沒有自己送出的訓練', { focus: creator });
+      // 2. 清除篩選，看全專案
+      await pi.page.getByRole('button', { name: '清除篩選' }).click();
+      await expect(creator).toHaveValue('');
+      if (all.total === 0) {
+        await expect(pi.page.getByTestId('runs-empty')).toBeVisible();
+        await s.step(pi.page, '清除篩選-專案還沒有訓練', (await pi.page.getByTestId('runs-empty').innerText()).trim());
+        s.partial('P1 目前沒有任何訓練，只驗證了訓練紀錄頁、建立者篩選與空清單說明；翻頁、排序與單次訓練頁未驗證');
+        return '訓練紀錄頁與篩選正常（專案沒有訓練）';
+      }
       const first = Math.min(20, all.total);
-      await expect(range).toHaveText(`共 ${all.total} 筆，這一頁是第 1–${first} 筆（每頁 20 筆，由新到舊；依分數排序只排這一頁）。`);
-      await s.step(pi.page, '取消勾選-全專案範圍文字', (await range.innerText()).trim(), { focus: range });
+      await expect(range).toContainText(rangeText(all.total, 1, first));
+      await s.step(pi.page, '清除篩選-全專案範圍文字', (await range.innerText()).trim(), { focus: range });
       // 3. 超過 20 筆才有分頁
       const pages = Math.max(1, Math.ceil(all.total / 20));
       if (all.total <= 20) {
@@ -483,29 +513,31 @@ test('E5 訓練紀錄翻頁查詢', async ({ browser }) => {
         await pager.getByRole('button', { name: '上一頁' }).click();
         await expect(pager).toContainText(`第 1 / ${pages} 頁`);
       }
-      // 4. 依分數排序（只排這一頁）、再點反向、點編號回到依時間
-      const ids = async () => (await table.locator('tbody tr:not(.run-expanded) td:first-child').allInnerTexts()).map((t) => t.trim()).join(' ');
-      const scoreHead = pi.page.getByRole('columnheader', { name: '主要分數（依分數排序）' });
-      const idHead = pi.page.getByRole('columnheader', { name: '編號（依時間排序）' });
-      await expect(idHead).toHaveAttribute('aria-sort', 'descending');
+      // 4. 排序：清單固定依編號由新到舊；有可排序的欄位標題時才驗證依分數排序
+      const ids = async () => (await table.locator('tbody tr td:first-child').allInnerTexts()).map((t) => t.trim()).join(' ');
       const byTime = await ids();
-      await scoreHead.getByRole('button').click();
-      await expect(scoreHead).toHaveAttribute('aria-sort', 'descending');
-      await s.step(pi.page, '依分數排序-高到低', await ids(), { focus: table });
-      await scoreHead.getByRole('button').click();
-      await expect(scoreHead).toHaveAttribute('aria-sort', 'ascending');
-      await s.step(pi.page, '再點一次-低到高', await ids(), { focus: table });
-      await idHead.getByRole('button').click();
-      await expect(idHead).toHaveAttribute('aria-sort', 'descending');
-      expect.soft(await ids()).toBe(byTime);
-      await s.step(pi.page, '點編號-回到依時間', await ids(), { focus: table });
-      // 5. 展開訓練
-      const open = table.getByRole('button', { name: /^展開訓練 #\d+$/ }).first();
+      const nums = byTime.split(' ').map((t) => Number(t.replace('#', '')));
+      expect.soft(nums.every((n, i) => i === 0 || nums[i - 1] > n)).toBe(true);
+      const scoreHead = pi.page.getByRole('columnheader', { name: /主要分數/ });
+      if (await scoreHead.getByRole('button').count()) {
+        await scoreHead.getByRole('button').click();
+        await expect(scoreHead).toHaveAttribute('aria-sort', 'descending');
+        await s.step(pi.page, '依分數排序-高到低', await ids(), { focus: table });
+        await scoreHead.getByRole('button').click();
+        await expect(scoreHead).toHaveAttribute('aria-sort', 'ascending');
+        await s.step(pi.page, '再點一次-低到高', await ids(), { focus: table });
+      } else {
+        await s.step(pi.page, '清單依編號由新到舊', byTime, { focus: table });
+        s.partial('改版後訓練清單的「主要分數」欄沒有排序按鈕（清單固定依編號由新到舊），未驗證依分數排序');
+      }
+      // 5. 進入單次訓練頁查看細節
+      const open = table.getByRole('link', { name: /^(查看結果|查看進度) #\d+$/ }).first();
       const label = (await open.innerText()).trim();
       await open.click();
+      await expect(pi.page).toHaveURL(/\/training\/runs\/\d+$/);
       await expect(pi.page.getByTestId('run-status')).toBeVisible();
-      await s.step(pi.page, '展開訓練查看細節', label, { focus: pi.page.locator('.run-detail') });
-      return all.total > 20 ? `共 ${all.total} 筆分 ${pages} 頁可翻頁；排序與展開正常` : '範圍文字、排序與展開正常';
+      await s.step(pi.page, '進入單次訓練頁查看細節', label, { focus: pi.page.locator('.run-detail') });
+      return all.total > 20 ? `共 ${all.total} 筆分 ${pages} 頁可翻頁；篩選、排序與單次訓練頁正常` : '篩選、範圍文字、排序與單次訓練頁正常';
     },
     async () => {
       await closeAll(ctxs);

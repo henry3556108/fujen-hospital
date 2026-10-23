@@ -1,20 +1,20 @@
 import { expect, test } from '@playwright/test';
-import { note } from './helpers';
+import { note, sideNav } from './helpers';
 import { shotUrl } from './r-common';
 
 // M1 補拍 02：未登入開管理頁 10 次（通用條件：安全，TC-SS-02 的網頁部分）。
 const TC = 'TC-SS-02';
 const URLS: [string, string][] = [
-  ['/admin', '網頁-01-admin'],
-  ['/admin/projects', '網頁-02-admin-projects'],
-  ['/admin/users', '網頁-03-admin-users'],
-  ['/admin/members', '網頁-04-admin-members'],
-  ['/admin/scheduling', '網頁-05-admin-scheduling'],
-  ['/admin/scheduling/groups', '網頁-06-scheduling-groups'],
-  ['/admin/scheduling/nodes', '網頁-07-scheduling-nodes'],
-  ['/admin/scheduling/gpu-dashboard', '網頁-08-gpu-dashboard'],
-  ['/admin/scheduling/monitoring', '網頁-09-monitoring'],
-  ['/fhir', '網頁-10-fhir'],
+  ['/admin', '網頁-01-admin-總覽'],
+  ['/admin/projects', '網頁-02-admin-專案'],
+  ['/admin/users', '網頁-03-admin-帳號'],
+  ['/admin/members', '網頁-04-admin-members（舊網址）'],
+  ['/admin/compute/gpu', '網頁-05-運算資源-GPU使用對照'],
+  ['/admin/compute/groups', '網頁-06-運算資源-GPU群組'],
+  ['/admin/compute/nodes', '網頁-07-運算資源-節點'],
+  ['/admin/scheduling/gpu-dashboard', '網頁-08-gpu-dashboard（舊網址）'],
+  ['/admin/monitoring', '網頁-09-系統監控'],
+  ['/admin/fhir/resources', '網頁-10-資料交換-FHIR'],
 ];
 
 test('M1 補拍 02 未登入開管理頁 10 次（TC-SS-02 網頁）', async ({ browser }) => {
@@ -30,7 +30,7 @@ test('M1 補拍 02 未登入開管理頁 10 次（TC-SS-02 網頁）', async ({ 
       (await page.getByRole('heading', { name: '登入', level: 1 }).isVisible()) &&
       (await page.getByText('使用醫院統一身分（單一登入）登入，將前往登入頁面。').isVisible()) &&
       (await page.getByRole('button', { name: '登入' }).isVisible());
-    const inside = (await page.getByRole('navigation', { name: '功能選單' }).count()) > 0;
+    const inside = (await sideNav(page).count()) > 0;
     if (toLogin && ui) redirected++;
     if (inside) entered++;
     await shotUrl(page, TC, name);

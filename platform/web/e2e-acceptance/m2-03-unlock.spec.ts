@@ -3,8 +3,8 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { EVIDENCE_DIR, note, shot } from './helpers';
 import {
-  Checks, PA, ROW, SETTING, begin, chooseFile, dirOf, download, findNumber, flat, gotoTraining, loadState, lockBadge, openEditor, openFlow,
-  openUnlock, openAs, runsTable, stageStates, statesText, statusMsg, step, textArea, zipList, zipRead,
+  Checks, PA, ROW, SETTING, begin, chooseFile, dirOf, download, editSetting, findNumber, flat, gotoRuns, gotoTraining, loadState, lockBadge,
+  openEditor, openFlow, openRun, openUnlock, openAs, runsTable, stageStates, statesText, statusMsg, step, textArea, zipList, zipRead,
 } from './m2-common';
 
 // M2驗證\03-改回用介面設定.md（F-08）。帳號 pi01，專案 M2-FLOW-A，設定 FLOW-結構式（訓練環節為匯入檔控制）。
@@ -76,13 +76,14 @@ test('M2 03 改回用介面設定', async ({ browser }) => {
   const badge = await lockBadge(page, SETTING);
   note(TC, `五環節：${statesText(s4)}；名稱旁標籤：${badge || '（無）'}`);
   await page.getByRole('table', { name: '訓練設定清單' }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '04-改回介面設定');
+  await shot(page, TC, '04-已存設定-改回介面設定');
   c.check('步驟 4 訓練變回「介面設定」', s4[ROW.train] === '介面設定');
   c.check('步驟 4 名稱旁「匯入控制」標籤消失', badge === '', badge);
 
   // 5 設定回到匯入前
   step(TC, 5, '「檢視程式碼「訓練」」：n_estimators 回到原值、train.py 沒有「M2 驗證」註解');
-  const ed = await openEditor(panel, 'train');
+  // 名稱旁標籤在「已存設定」分頁，流程程式碼在「程式與專案包」分頁：再按一次「流程程式碼「…」」回來
+  const ed = await openEditor(await openFlow(page, SETTING), 'train');
   const nNow = findNumber(await textArea(ed, 'train.json').inputValue(), 'n_estimators');
   const hasComment = (await textArea(ed, 'train.py').inputValue()).includes('M2 驗證');
   const nOrig = originalN();
@@ -93,23 +94,22 @@ test('M2 03 改回用介面設定', async ({ browser }) => {
   await ed.getByRole('button', { name: '不套用，關閉', exact: true }).click();
 
   // 6 表單解鎖
-  step(TC, 6, `「編輯「${SETTING}」」：演算法、亂數種子可以改`);
-  await page.getByRole('button', { name: `編輯「${SETTING}」`, exact: true }).click();
-  const form = page.getByRole('form', { name: `修改訓練設定「${SETTING}」` });
-  await expect(form).toBeVisible();
+  step(TC, 6, `「已存設定」按「修改「${SETTING}」」（原「編輯」）：演算法、亂數種子可以改`);
+  const form = await editSetting(page, SETTING);
   const algo = await form.getByLabel('演算法', { exact: true }).isEnabled();
   const seed = await form.getByLabel('亂數種子', { exact: true }).isEnabled();
   const locks = await form.getByTestId('stage-locks').count();
   note(TC, `演算法 ${algo ? '可改' : '停用'}、亂數種子 ${seed ? '可改' : '停用'}；上方匯入控制說明 ${locks ? '有' : '無'}`);
   await form.scrollIntoViewIfNeeded();
-  await shot(page, TC, '06-表單解鎖');
+  await shot(page, TC, '06-已存設定修改-表單解鎖');
   c.check('步驟 6 演算法、亂數種子可以改', algo && seed);
   await form.getByRole('button', { name: '取消', exact: true }).click();
 
   // 7 訓練紀錄仍在
-  step(TC, 7, '「建模管理」訓練紀錄：01 的兩筆訓練與模型都還在');
+  step(TC, 7, '「建立模型」→「訓練紀錄」：01 的兩筆訓練與模型都還在');
   const st = loadState();
   const ids = [st.run_ui, st.run_import].filter((x): x is number => typeof x === 'number');
+  await gotoRuns(page);
   const runs = runsTable(page);
   await runs.scrollIntoViewIfNeeded();
   const found: string[] = [];
@@ -118,13 +118,12 @@ test('M2 03 改回用介面設定', async ({ browser }) => {
     found.push((await row.count()) ? `#${id} ${flat((await row.getByRole('cell').nth(3).innerText()))}` : `#${id} 不在第一頁`);
   }
   note(TC, `01 的訓練：${found.join('、') || '（01 沒有記下編號）'}；訓練清單：${flat(await runs.innerText()).slice(0, 400)}`);
-  await shot(page, TC, '07-訓練紀錄仍在');
+  await shot(page, TC, '07-訓練紀錄-01的訓練仍在');
   c.check('步驟 7 01 的兩筆訓練仍是已完成', ids.length === 2 && found.every((f) => f.endsWith('已完成')), found.join('、'));
   let models = 0;
   for (const id of ids) {
-    const open = page.getByRole('button', { name: `展開訓練 #${id}`, exact: true });
-    if (!(await open.count())) continue;
-    await open.click();
+    // 原「展開訓練 #N」改為打開單次訓練頁
+    await openRun(page, id);
     const exportSection = page.getByRole('region', { name: '模型匯出' });
     if (await exportSection.waitFor({ timeout: 10_000 }).then(() => true, () => false)) {
       models++;

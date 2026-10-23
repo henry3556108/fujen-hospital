@@ -51,8 +51,10 @@ async function ensureCt(s: Scenario) {
 const maskCount = async (page: Page) => Number(/已塗 (\d+) 個像素/.exec(await page.getByTestId('mask-info').innerText())?.[1] ?? 0);
 
 async function autolabelPage(page: Page) {
+  // 功能目錄點契約入口「自動影像分類標註」→ 影像標註 › 自動標註（/labeling/auto）
   await clickMenu(page, '自動影像分類標註');
-  await expect(page.getByRole('heading', { level: 1, name: '自動影像分類標註' })).toBeVisible();
+  await expect(page).toHaveURL(/\/labeling\/auto/);
+  await expect(page.getByRole('heading', { level: 1, name: /^(自動影像分類標註|自動標註|影像標註)$/ })).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
@@ -67,9 +69,9 @@ test('C1 用 MONAI Label 自動標出器官再由醫師修正', async ({ browser
       pid = ct.pid;
       const md = await s.open(browser, 'md01');
 
-      // 第 1 步：左側選單「自動影像分類標註」
+      // 第 1 步：功能目錄「自動影像分類標註」（影像標註 › 自動標註）
       await autolabelPage(md);
-      await s.step(md, '步驟 1', '自動影像分類標註頁');
+      await s.step(md, '步驟 1', '功能目錄進入-自動標註頁');
 
       // 第 2 步：模型 segmentation_spleen、研究（依 Accession）、影像「第 N 張」
       const form = md.getByRole('form', { name: '送出自動標註' });
@@ -90,14 +92,14 @@ test('C1 用 MONAI Label 自動標出器官再由醫師修正', async ({ browser
 
       // 第 4 步：「自動標註完成：已存為分割標註 #N（耗時 X 毫秒）。」→「在標註工作台開啟編輯」
       const result = md.getByTestId('autolabel-result');
-      await expect(result).toContainText(/自動標註完成：已存為分割標註 #\d+（耗時 \d+ 毫秒）/, { timeout: 120_000 });
+      await expect(result).toContainText(/自動標註完成：已存為.*分割標註 #\d+（耗時 \d+ 毫秒）/, { timeout: 120_000 });
       const text = oneLine(await result.innerText());
       annotationId = Number(/標註 #(\d+)/.exec(text)![1]);
       await s.step(md, '步驟 4', '自動標註完成', { line: text, focus: result });
       await result.getByRole('link', { name: '在標註工作台開啟編輯' }).click();
 
       // 第 5 步：「影像標註工作台」提示「正在編輯標註 #N」；用筆刷修正遮罩
-      await expect(md.getByRole('heading', { level: 1, name: '影像標註工作台' })).toBeVisible();
+      await expect(md.getByRole('heading', { level: 1, name: /工作台/ })).toBeVisible();
       await expect(md.getByText(`正在編輯標註 #${annotationId}`)).toBeVisible({ timeout: 60_000 });
       const vp = md.getByTestId('viewport').first();
       await expect(vp).toHaveAttribute('data-ready', '1', { timeout: 60_000 });
@@ -123,13 +125,13 @@ test('C1 用 MONAI Label 自動標出器官再由醫師修正', async ({ browser
       await s.step(md, '步驟 5', '筆刷修正後', { line: `已塗像素 ${before} → ${after}`, focus: vp });
       await s.soft('筆刷塗抹後遮罩像素增加', () => expect(after).toBeGreaterThan(before));
 
-      // 第 6 步：「儲存分割標註」→「已儲存分割標註 #N（…，版本 V）」
-      await md.getByRole('button', { name: '儲存分割標註' }).click();
+      // 第 6 步：工作台「只儲存」（原「儲存分割標註」；留在同一筆，另有「儲存並開啟下一筆」）→「已儲存分割標註 #N（…，版本 V）」
+      await md.getByRole('button', { name: '只儲存', exact: true }).click();
       const status = md.getByTestId('workbench-status');
       await expect(status).toContainText(new RegExp(`已儲存分割標註 #${annotationId}（.*，版本 \\d+）`), { timeout: 30_000 });
       await s.step(md, '步驟 6', '已儲存分割標註', { line: oneLine(await status.innerText()), focus: status });
 
-      // 第 7 步：「自動影像分類標註」下方「執行紀錄」點「開啟編輯」
+      // 第 7 步：功能目錄「自動影像分類標註」（影像標註 › 自動標註）下方「執行紀錄」點「開啟編輯」
       await autolabelPage(md);
       const runs = md.getByRole('table', { name: '自動標註執行紀錄' });
       // has: 要用相對於列的定位（不能用從 runs 起算的 locator，否則會找「列裡面的表格」）

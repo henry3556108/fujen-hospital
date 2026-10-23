@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { expect, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { EVIDENCE_DIR, P1, clickMenu, login, note, useProject } from './helpers';
+import { adminTab } from './ops';
 
 // 新功能情境 B（LLM）與 C（MONAI 自動標註）共用：情境紀錄與截圖、API 呼叫、終端機指令、docker compose。
 // 在 platform/web 執行；GATEWAY、KEYCLOAK 預設為本機 compose 環境（9080、8080）。
@@ -141,11 +142,37 @@ export class Scenario {
 
 // ---------------------------------------------------------------- 網頁操作
 
-/** 左側「LLM No-code 開發」→ 上方分頁 */
+/** 舊分頁名稱 → 改版後「語言模型」的分頁名稱 */
+const LLM_TAB_NEW: Record<string, string> = {
+  Playground: '對話',
+  模型管理: '模型',
+  'Prompt 範本': '問答範本',
+  知識庫: '參考文件',
+  '發布 API': '內部服務',
+  工作流: '工作流程',
+  Wiki: '團隊文件',
+};
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** 語言模型頁內分頁的 navigation 名稱（新舊都認得） */
+const LLM_NAV = /LLM 功能分頁|語言模型/;
+
+/**
+ * 語言模型的頁內分頁（沿用舊分頁名稱呼叫；新舊名稱都認得）。
+ * 不在 /llm 時先從「功能目錄」點契約入口「LLM No-code 開發」進入。
+ */
 export async function llmTab(page: Page, tab: string) {
-  await clickMenu(page, 'LLM No-code 開發');
-  await page.getByRole('navigation', { name: 'LLM 功能分頁' }).getByRole('link', { name: tab, exact: true }).click();
+  if (!/\/llm(\/|$)/.test(new URL(page.url()).pathname)) await clickMenu(page, 'LLM No-code 開發');
+  await expect(page).toHaveURL(/\/llm(\/|$)/);
+  const name = new RegExp(`^\\s*(${esc(LLM_TAB_NEW[tab] ?? tab)}|${esc(tab)})\\s*$`);
+  const nav = page.getByRole('navigation', { name: LLM_NAV });
+  await nav.getByRole('link', { name }).or(nav.getByRole('tab', { name })).first().click();
   await page.waitForLoadState('networkidle');
+}
+
+/** 管理區「稽核與審核」→「模型下載審核」：語言模型下載申請的待審核表格 */
+export async function llmApprovals(page: Page) {
+  await adminTab(page, '模型下載審核');
+  return page.getByRole('table', { name: '待審核的下載申請' });
 }
 
 /** 下拉選單選「文字包含 text」的選項（選項文字含有動態數字時用） */

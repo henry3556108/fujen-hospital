@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { clickMenu, note, shot } from './helpers';
+import { clickMenu, clickTab, note, shot } from './helpers';
 import {
   Checks, PA, ROW, SERVICE, SETTING, WEB, begin, dirOf, download, flat, gotoTraining, openEditor, openFlow, openUnlock, openAs,
   stageStates, statesText, statusMsg, step, textArea, zipList,
@@ -10,9 +10,18 @@ import {
 const TC = '05';
 const NAME = 'flow-test';
 
-async function gotoDeployments(page: Page) {
+/**
+ * 功能目錄「AI 模型部署」→ 使用模型的模型清單（帶「已併入」說明）→ 點訓練 #runId 的模型 → 分頁「分享與服務」，
+ * 回傳「已分享的模型」區塊（只列這個模型的分享）。
+ */
+async function gotoDeployments(page: Page, runId: number) {
   await clickMenu(page, 'AI 模型部署');
-  await expect(page.getByRole('heading', { level: 1, name: 'AI 模型部署' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '使用模型' })).toBeVisible();
+  await expect(page.getByTestId('entry-note')).toContainText('AI 模型部署');
+  const row = page.getByRole('table', { name: '模型清單' }).getByRole('row').filter({ has: page.getByRole('cell', { name: `訓練 #${runId}`, exact: true }) });
+  await row.getByRole('link').first().click();
+  await clickTab(page, '分享與服務', page.getByRole('navigation', { name: '模型分頁' }));
+  await expect(page).toHaveURL(new RegExp(`/models/${runId}/share$`));
   await page.waitForLoadState('networkidle');
   const section = page.getByRole('region', { name: '已分享的模型' });
   await expect(section).toBeVisible();
@@ -58,8 +67,6 @@ test('M2 05 部署環節', async ({ browser }) => {
   begin(TC, 'M2 05 部署環節');
   const c = new Checks(TC);
   const { ctx, page } = await openAs(browser, 'pi01', PA);
-  const pre = await serviceInfo(await gotoDeployments(page));
-  if (pre.count) c.diff(`開始前已有「${SERVICE}」（前一輪留下）：分享給 ${pre.users}${pre.lock ? `；${pre.lock}` : ''}。套用時會更新同名服務；若模型已不同會被擋下，請先在部署頁「停止分享」`);
   await gotoTraining(page);
 
   // 1 下載部署環節檔
@@ -78,6 +85,12 @@ test('M2 05 部署環節', async ({ browser }) => {
   await shot(page, TC, '01-部署設定檔');
   c.check('步驟 2 model.sha256 已帶入', Boolean(cfg.model?.sha256), `run_id ${cfg.model?.run_id ?? '—'}，sha256 ${cfg.model?.sha256?.slice(0, 12) ?? '—'}`);
   await ed.getByRole('button', { name: '不套用，關閉', exact: true }).click();
+  // 改版後分享列在各模型的「分享與服務」分頁：以 deploy.json 帶入的模型（訓練 #run_id）為準
+  const runId = Number(cfg.model?.run_id);
+  c.check('步驟 2 deploy.json 有 model.run_id（用來找到使用模型的那一個模型）', Number.isInteger(runId) && runId > 0, String(cfg.model?.run_id));
+  const pre = await serviceInfo(await gotoDeployments(page, runId));
+  if (pre.count) c.diff(`開始前已有「${SERVICE}」（前一輪留下）：分享給 ${pre.users}${pre.lock ? `；${pre.lock}` : ''}。套用時會更新同名服務；若模型已不同會被擋下，請先在「分享與服務」按「停止分享」`);
+  await gotoTraining(page);
 
   // 3 套用部署
   step(TC, 3, `deploy.json：deployment.name ${NAME}、title「${SERVICE}」、allowed_users ["pi01", "md01"]，按「套用「${WEB.deploy}」」`);
@@ -88,10 +101,10 @@ test('M2 05 部署環節', async ({ browser }) => {
   note(TC, `五環節：${statesText(await stageStates(panel))}`);
 
   // 4 部署頁鎖定
-  step(TC, 4, '左側「AI 模型部署」→「已分享的模型」');
-  const i4 = await serviceInfo(await gotoDeployments(page));
+  step(TC, 4, '功能目錄「AI 模型部署」→ 使用模型 → 該模型「分享與服務」→「已分享的模型」');
+  const i4 = await serviceInfo(await gotoDeployments(page, runId));
   note(TC, `「${SERVICE}」${i4.count} 列；分享給 ${i4.users}；${i4.lock || '（沒有匯入檔控制標示）'}；修改分享對象 ${i4.editEnabled ? '可按' : '停用'}`);
-  await shot(page, TC, '03-部署頁鎖定');
+  await shot(page, TC, '03-分享與服務-鎖定');
   c.check(`步驟 4 有「${SERVICE}」`, i4.count === 1, `${i4.count} 列`);
   c.check('步驟 4 標示「匯入檔控制」與「由 deploy.json 控制（pi01，…，訓練設定「FLOW-結構式」）」',
     i4.lock.includes('匯入檔控制') && /由 deploy\.json 控制（pi01，.+，訓練設定「FLOW-結構式」）/.test(i4.lock), i4.lock);
@@ -103,9 +116,9 @@ test('M2 05 部署環節', async ({ browser }) => {
   await gotoTraining(page);
   const a5 = await applyDeploy(page, '步驟 5 ', ['pi01']);
   c.check('步驟 5 再套用通過', a5.ok);
-  const i5 = await serviceInfo(await gotoDeployments(page));
+  const i5 = await serviceInfo(await gotoDeployments(page, runId));
   note(TC, `「${SERVICE}」${i5.count} 列；分享給 ${i5.users}`);
-  await shot(page, TC, '04-再套用只更新不新增');
+  await shot(page, TC, '04-分享與服務-再套用只更新不新增');
   c.check('步驟 5 仍只有一個「M2 驗證服務」', i5.count === 1, `${i5.count} 列`);
   c.check('步驟 5 分享對象只剩 pi01', i5.users === 'pi01', i5.users);
 
@@ -123,10 +136,10 @@ test('M2 05 部署環節', async ({ browser }) => {
   c.check(`步驟 6 ${ROW.deploy}改回「介面設定」`, s6[ROW.deploy] === '介面設定');
 
   // 7 服務仍在、標示消失
-  step(TC, 7, '「AI 模型部署」');
-  const i7 = await serviceInfo(await gotoDeployments(page));
+  step(TC, 7, '功能目錄「AI 模型部署」→ 該模型「分享與服務」');
+  const i7 = await serviceInfo(await gotoDeployments(page, runId));
   note(TC, `「${SERVICE}」${i7.count} 列；分享給 ${i7.users}；${i7.lock || '（沒有匯入檔控制標示）'}；修改分享對象 ${i7.editEnabled ? '可按' : '停用'}`);
-  await shot(page, TC, '06-服務仍在標示消失');
+  await shot(page, TC, '06-分享與服務-服務仍在標示消失');
   c.check('步驟 7 「M2 驗證服務」仍在', i7.count === 1);
   c.check('步驟 7 「匯入檔控制」標示消失', i7.lock === '');
   c.check('步驟 7 「修改分享對象」可以按', i7.editEnabled);

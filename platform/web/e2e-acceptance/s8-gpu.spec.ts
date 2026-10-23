@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { P1, note, shot } from './helpers';
+import { membersOf } from './r-common';
 import {
   adminTab,
   gotoJobs,
@@ -33,15 +34,25 @@ const PROJECTS = [
 
 const ok = (page: Page, text: string) => expect(page.getByRole('status').filter({ hasText: `完成：${text}` })).toBeVisible();
 
+/** 等列表載入完（點側欄換頁時 networkidle 可能早於資料請求，先等第一列出現且不是「載入中」） */
+async function tableLoaded(page: Page, name: string) {
+  const first = page.getByRole('table', { name }).locator('tbody tr').first();
+  await expect(first).toBeVisible();
+  await expect(first).not.toContainText('載入中');
+  await page.waitForLoadState('networkidle');
+}
+
 /** 依「驗收後清除」：移除成員 → 刪專案 → 刪 GPU 群組（只處理存在的） */
 async function cleanupKitC(page: Page, tc: string) {
-  await adminTab(page, '專案成員');
+  // 新版：管理區「專案」→ 點專案 →「成員與權限」分頁
   for (const p of PROJECTS) {
-    const sel = page.locator('#member-project');
-    if ((await sel.locator('option', { hasText: new RegExp(`^${p.name}$`) }).count()) === 0) continue;
-    await sel.selectOption({ label: p.name });
+    await adminTab(page, '專案');
+    await tableLoaded(page, '專案列表');
+    const exists = await page.getByRole('table', { name: '專案列表' }).getByRole('rowheader', { name: p.name, exact: true }).count();
+    if (!exists) continue;
+    await membersOf(page, p.name);
+    await tableLoaded(page, '目前的專案成員');
     const btn = page.getByRole('button', { name: `移除 ${p.user}`, exact: true });
-    await page.waitForLoadState('networkidle');
     if (await btn.count()) {
       await btn.click();
       await page.getByRole('dialog').getByRole('button', { name: '確認移除' }).click();
@@ -50,7 +61,7 @@ async function cleanupKitC(page: Page, tc: string) {
     }
   }
   await adminTab(page, '專案');
-  await page.waitForLoadState('networkidle');
+  await tableLoaded(page, '專案列表');
   for (const p of PROJECTS) {
     const btn = page.getByRole('button', { name: `刪除 ${p.name}`, exact: true });
     if (await btn.count()) {
@@ -61,7 +72,7 @@ async function cleanupKitC(page: Page, tc: string) {
     }
   }
   await schedulingTab(page, 'GPU 群組');
-  await page.waitForLoadState('networkidle');
+  await tableLoaded(page, 'GPU 群組列表');
   for (const g of GROUPS) {
     const btn = page.getByRole('button', { name: `刪除 ${g.name}`, exact: true });
     if (await btn.count()) {
@@ -73,10 +84,25 @@ async function cleanupKitC(page: Page, tc: string) {
   }
 }
 
+/**
+ * 以指定帳號的身分呼叫 API 送出一件測試工作（記憶體 16 MB），回傳工作編號與佇列。
+ * 新版「送出工作」測試表單只放在管理者畫面（研究者的訓練紀錄不列假工作），研究者帳號改用 API。
+ */
+function apiSubmitJob(tc: string, user: string, project: string, seconds: number) {
+  const pid = psql(`select id from projects where name='${project}'`);
+  const r = sh(
+    tc,
+    `${tc}-api-送出工作`,
+    String.raw`TOKEN=$(curl -s $KEYCLOAK/realms/ai-platform/protocol/openid-connect/token -d grant_type=password -d client_id=ai-platform-web -d username=${user} --data-urlencode 'password=Dev-Passw0rd!' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])'); curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"kind":"training","duration_seconds":${seconds},"memory_mb":16,"fail":false}' $GATEWAY/api/projects/${pid}/jobs; echo`,
+  );
+  const j = JSON.parse(r.out.trim().split(/\r?\n/).pop() ?? '{}') as { id: number; queue: string };
+  expect(j.id, `${user} 送出工作的 API 回應：${r.out.slice(0, 200)}`).toBeGreaterThan(0);
+  return { id: j.id, queue: j.queue, text: `已送出工作 ${j.id}，進入佇列 ${j.queue}（${user}，API）` };
+}
+
 async function tableRows(page: Page, name: string) {
   const rows = page.getByRole('table', { name }).locator('tbody tr');
-  await expect(rows.first()).toBeVisible(); // 列表是非同步載入的：等第一列出現再讀，否則會讀到空表
-  await page.waitForLoadState('networkidle');
+  await tableLoaded(page, name); // 列表是非同步載入的：等第一列出現且不是「載入中」再讀，否則會讀到空表
   const out: string[][] = [];
   for (const r of await rows.all()) out.push((await r.locator('th, td').allInnerTexts()).map((s) => s.trim()));
   return out;
@@ -201,7 +227,7 @@ test('TC-C01-03 專案綁定群組（3 個專案、工作進入群組佇列）',
     const j = await submitJob(page, { seconds: 60 });
     await expect(jobRow(page, j.id)).toBeVisible();
     const c = await jobCells(page, j.id);
-    await shot(page, tc, `0${i + 2}-${p.name}-專案工作`);
+    await shot(page, tc, `0${i + 2}-${p.name}-測試工作`);
     note(tc, `${p.name}：「${j.text}」；列表 GPU 群組 ${c.group}、佇列 ${c.queue}`);
     if (j.queue !== p.queue || c.group !== p.group || c.queue !== p.queue) bindDiff++;
     jobs.push({ p, id: j.id, queue: j.queue });
@@ -235,10 +261,8 @@ test('TC-C01-04 GPU Dashboard（3 個帳號各送 1 件）', async ({ browser })
   const admin = await userPage(browser, 'admin01');
   await waitIdle(admin.page);
   // 前置：把 ra01／ca01／pi01 加入 3 個專案
-  await adminTab(admin.page, '專案成員');
   for (const p of PROJECTS) {
-    await admin.page.locator('#member-project').selectOption({ label: p.name });
-    await admin.page.waitForLoadState('networkidle');
+    await membersOf(admin.page, p.name);
     const f = admin.page.getByRole('form', { name: '設定專案成員' });
     await f.getByLabel('帳號').selectOption({ label: p.user });
     await f.getByLabel('角色').selectOption({ label: p.role });
@@ -247,14 +271,15 @@ test('TC-C01-04 GPU Dashboard（3 個帳號各送 1 件）', async ({ browser })
     note(tc, (await admin.page.getByRole('status').filter({ hasText: '已將' }).innerText()).trim());
   }
   await shot(admin.page, tc, '00-加入成員');
-  const users = await Promise.all(PROJECTS.map((p) => userPage(browser, p.user)));
+  // 新版的「送出工作」測試表單只有管理者看得到（研究者的訓練紀錄不列假工作），3 個帳號各以自己的身分呼叫 API 送出，
+  // 再由 admin01 在「測試工作」看到各帳號送出的工作
   const ids: Record<string, number> = {};
-  for (const [i, p] of PROJECTS.entries()) {
-    const pg = users[i].page;
-    await gotoJobs(pg, p.name);
-    const j = await submitJob(pg, { seconds: 150 });
+  for (const p of PROJECTS) {
+    const j = apiSubmitJob(tc, p.user, p.name, 150);
     ids[p.user] = j.id;
-    await shot(pg, tc, `00-${p.user}送出工作`);
+    await gotoJobs(admin.page, p.name);
+    await expect(jobRow(admin.page, j.id)).toBeVisible();
+    await shot(admin.page, tc, `00-${p.user}送出工作`);
     note(tc, `${p.user}／${p.name}：${j.text}`);
   }
   await schedulingTab(admin.page, 'GPU Dashboard');
@@ -286,7 +311,6 @@ test('TC-C01-04 GPU Dashboard（3 個帳號各送 1 件）', async ({ browser })
   note(tc, `抽查 3 組，差異 ${diff}`);
   expect(rows.length).toBe(3);
   expect(diff).toBe(0);
-  for (const u of users) await u.ctx.close();
   await admin.ctx.close();
 });
 
@@ -442,22 +466,25 @@ test('TC-A02-05 GPU 獨占模式（pi01、P1-lung-ct）', async ({ browser }) =>
   await schedulingTab(admin.page, 'GPU Dashboard');
   await expect(admin.page.getByText('目前沒有執行中的 GPU 工作')).toBeVisible();
   await shot(admin.page, tc, '01-GPU-Dashboard-送出前');
-  const pi = await userPage(browser, 'pi01');
-  await gotoJobs(pi.page, P1);
-  const form = pi.page.getByRole('form', { name: '送出工作' });
+  // pi01 以自己的身分呼叫 API 送出（新版「送出工作」測試表單只有管理者看得到）；狀態在 admin01 的「測試工作」看
+  const jobsView = await userPage(browser, 'admin01'); // 第二個 admin01 視窗：看測試工作列表
+  await gotoJobs(jobsView.page, P1);
+  const form = jobsView.page.getByRole('form', { name: '送出工作' });
   await expect(form.getByLabel('記憶體（MB，1–256）')).toHaveValue('16');
-  const j = await submitJob(pi.page, { seconds: 60 });
-  await shot(pi.page, tc, '02-送出工作訊息');
+  const j = apiSubmitJob(tc, 'pi01', P1, 60);
+  await jobsView.page.getByRole('button', { name: '重新整理' }).click();
+  await expect(jobRow(jobsView.page, j.id)).toBeVisible();
+  await shot(jobsView.page, tc, '02-pi01送出的工作');
   note(tc, j.text);
   const seen: string[] = [];
   let dash = '';
   for (let i = 0; i < 40; i++) {
-    await pi.page.getByRole('button', { name: '重新整理' }).click();
-    await pi.page.waitForLoadState('networkidle');
-    const c = await jobCells(pi.page, j.id);
+    await jobsView.page.getByRole('button', { name: '重新整理' }).click();
+    await jobsView.page.waitForLoadState('networkidle');
+    const c = await jobCells(jobsView.page, j.id);
     if (seen[seen.length - 1] !== c.status) {
       seen.push(c.status);
-      await shot(pi.page, tc, `03-${seen.length}-狀態-${c.status}`);
+      await shot(jobsView.page, tc, `03-${seen.length}-狀態-${c.status}`);
       note(tc, `狀態：${c.status}（GPU 群組 ${c.group}、佇列 ${c.queue}）`);
     }
     if (c.status === '執行中' && !dash) {
@@ -472,10 +499,10 @@ test('TC-A02-05 GPU 獨占模式（pi01、P1-lung-ct）', async ({ browser }) =>
       expect(rows.length).toBe(1);
     }
     if (c.status === '已完成' || c.status === '失敗') break;
-    await pi.page.waitForTimeout(5000);
+    await jobsView.page.waitForTimeout(5000);
   }
-  const c = await jobCells(pi.page, j.id);
-  await shot(pi.page, tc, '05-已完成');
+  const c = await jobCells(jobsView.page, j.id);
+  await shot(jobsView.page, tc, '05-已完成');
   const t = jobTimes([j.id])[j.id];
   const node = q(`kubectl -n platform-jobs get pods -l platform/job-id=${j.id} -o jsonpath='{.items[0].spec.nodeName}'`);
   sh(tc, 'TC-A02-05-pods', `kubectl -n platform-jobs get pods -o wide -l platform/job-id=${j.id}; kubectl get node ${node} -L platform/pool`);
@@ -490,7 +517,7 @@ test('TC-A02-05 GPU 獨占模式（pi01、P1-lung-ct）', async ({ browser }) =>
   expect(dash).not.toBe('');
   expect(seen.filter((x) => x !== '排隊中')).toEqual(['執行中', '已完成']);
   expect(queuedEvidence).toBeTruthy();
-  await pi.ctx.close();
+  await jobsView.ctx.close();
   await admin.ctx.close();
 });
 

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { EVIDENCE_DIR, P1, note, shot } from './helpers';
-import { KIT, REPO, adminTab, psql, q, sh, userPage } from './ops';
+import { P1, note, shot } from './helpers';
+import { KIT, REPO, adminTab, psql, sh, userPage } from './ops';
+import { labelGroupsOf } from './r-common';
 
 // 情境 10：稽核與安全。A-03 的 TC-A03-09、10；通用條件的 TC-SS-02～07。
 // 終端機步驟照劇本執行並存檔；網頁步驟以 admin01 操作。
@@ -202,8 +203,7 @@ curl -s -H "Authorization: Bearer $ADM" "$G/api/admin/audit?page_size=1" | head 
 test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
   const tc = 'TC-A03-10';
   const { ctx, page } = await userPage(browser, 'admin01');
-  await adminTab(page, '標註群組');
-  await page.getByLabel('專案', { exact: true }).selectOption({ label: P1 });
+  await labelGroupsOf(page, P1);
   const table = page.getByRole('table', { name: '標註群組列表' });
   await page.waitForLoadState('networkidle');
   expect(await table.getByRole('rowheader', { name: 'KIT-A-g1', exact: true }).count()).toBe(0);
@@ -212,11 +212,11 @@ test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
   await form.getByLabel('說明').fill('驗收示範標註群組');
   await form.getByRole('checkbox', { name: 'md01（Medical Doctor）', exact: true }).check();
   await form.getByRole('checkbox', { name: 'ra01（Research Assistant）', exact: true }).check();
-  await shot(page, tc, '01-新增標註群組表單');
+  await shot(page, tc, '01-專案頁標註群組-新增表單');
   await form.getByRole('button', { name: '新增群組' }).click();
   await ok(page, '已新增標註群組「KIT-A-g1」');
   const row = (await table.locator('tbody tr').filter({ has: page.getByRole('rowheader', { name: 'KIT-A-g1', exact: true }) }).locator('th, td').allInnerTexts()).map((s) => s.trim());
-  await shot(page, tc, '02-標註群組已建立');
+  await shot(page, tc, '02-專案頁標註群組-已建立');
   note(tc, `標註群組列：${row.slice(0, 3).join('｜')}`);
   // Dashboard 總覽
   await adminTab(page, 'Dashboard 總覽');
@@ -233,7 +233,7 @@ test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
     ) as Record<string, string>;
   const web = await tiles('平台總覽');
   const status = await tiles('排程工作狀態');
-  await shot(page, tc, '03-Dashboard總覽');
+  await shot(page, tc, '03-管理區總覽');
   const db = sh(
     tc,
     'TC-A03-10-db',
@@ -260,12 +260,12 @@ test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
   note(tc, `Dashboard 與資料庫 ${pairs.length} 項，差異 ${diff.length}${diff.length ? `：${JSON.stringify(diff)}` : ''}；資料庫輸出存於 TC-A03-10-db.txt（${db.code === 0 ? '成功' : '失敗'}）`);
   // Account 帳號
   await adminTab(page, 'Account 帳號');
+  await expect(page.getByRole('table', { name: '帳號列表' }).getByRole('rowheader', { name: 'admin01', exact: true })).toBeVisible();
   const accounts = (await page.getByRole('table', { name: '帳號列表' }).locator('tbody tr').all()).length;
-  await shot(page, tc, '04-Account帳號');
+  await shot(page, tc, '04-管理區帳號');
   note(tc, `Account 帳號頁列出 ${accounts} 個帳號`);
   // 清理
-  await adminTab(page, '標註群組');
-  await page.getByLabel('專案', { exact: true }).selectOption({ label: P1 });
+  await labelGroupsOf(page, P1);
   await page.getByRole('button', { name: '刪除 KIT-A-g1', exact: true }).click();
   const dlg = page.getByRole('dialog');
   await expect(dlg).toContainText('確定要刪除標註群組「KIT-A-g1」嗎？成員仍留在專案中，只是不再屬於這個群組。');

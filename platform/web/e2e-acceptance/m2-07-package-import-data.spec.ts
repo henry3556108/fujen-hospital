@@ -3,7 +3,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { EVIDENCE_DIR, note, shot } from './helpers';
 import {
-  Checks, PA, PB, SETTING, begin, checkPackage, diffRows, dirOf, esc, flat, gotoTabular, gotoTraining, importedNotice, latestUiRun,
+  Checks, PA, PB, SETTING, begin, checkPackage, diffRows, dirOf, esc, flat, gotoSettings, gotoTabular, gotoTraining, importedNotice, latestUiRun,
   openAs, openPackageImport, planInfo, settingExists, step, submitTraining, switchProject, uiMetrics, waitRun,
 } from './m2-common';
 
@@ -24,7 +24,7 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   const { ctx, page } = await openAs(browser, 'pi01', PB);
   await gotoTraining(page);
   let region = await openPackageImport(page);
-  await shot(page, TC, '01-匯入專案包');
+  await shot(page, TC, '01-程式與專案包-匯入專案包');
 
   // 2、3 檢查專案包
   step(TC, 2, '「專案包（zip）」選 06\\專案包-附資料.zip，按「檢查專案包」');
@@ -68,14 +68,14 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   c.check(`步驟 6 清單有「${n1.setting}」`, await settingExists(page, n1.setting));
   const runB = await submitTraining(page, n1.setting);
   const stB = await waitRun(page, runB);
-  await page.getByRole('table', { name: '訓練清單' }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '05-訓練完成');
+  await page.getByTestId('run-status').scrollIntoViewIfNeeded(); // 送出後在單次訓練頁
+  await shot(page, TC, '05-單次訓練頁-訓練完成');
   c.check(`步驟 6 訓練 #${runB} 已完成`, stB === '已完成', stB);
 
   // 7 指標比對
   step(TC, 7, `展開訓練，指標與 ${PA} 那份設定（介面設定版本）最近一次訓練相同`);
   const mB = await uiMetrics(page, runB);
-  await shot(page, TC, '06-指標');
+  await shot(page, TC, '06-單次訓練頁-指標');
   await switchProject(page, PA);
   await gotoTraining(page);
   const runA = await latestUiRun(page, SETTING);
@@ -107,6 +107,7 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   await shot(page, TC, '07-重名加序號');
   c.check('步驟 8 重名自動加序號', new RegExp(`^${esc(SETTING)}（匯入 \\d+）$`).test(n2.setting), n2.setting);
   if (n2.setting !== `${SETTING}（匯入 1）`) c.diff(`重名時的名稱是「${n2.setting}」：原始碼從「（匯入 2）」開始編號（flow_import._unique_setting_name），不是「（匯入 1）」`);
+  await gotoSettings(page); // 匯入後的設定列在「已存設定」分頁
   await expect(page.getByRole('button', { name: `送出訓練「${n2.setting}」`, exact: true })).toBeVisible();
   await ctx.close();
   c.finish();

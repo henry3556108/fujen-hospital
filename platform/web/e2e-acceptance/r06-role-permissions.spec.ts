@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { P1, login, menuLabels, note, shot, useProject } from './helpers';
 import { sh } from './ops';
-import { freshPage, gotoAdmin } from './r-common';
+import { freshPage, membersOf } from './r-common';
 
-// M1 補拍 06：角色與權限一致（TC-A03-04）。只看不改：下拉選單、成員表格、各帳號選單、/api/me 四者對照。
+// M1 補拍 06：角色與權限一致（TC-A03-04）。只看不改：下拉選單、成員表格、各帳號選單（功能目錄）、/api/me 四者對照。成員管理在管理區專案頁「成員與權限」分頁。
 const TC = 'TC-A03-04';
 const ROLES: [string, string, string, string[]][] = [
   // [帳號, 角色代碼, 角色名稱, 權限]
@@ -30,8 +30,7 @@ test('M1 補拍 06 角色與權限一致（TC-A03-04）', async ({ browser }) =>
   const diffs = new Set<string>();
   const { ctx, page } = await freshPage(browser);
   await login(page, 'admin01');
-  await gotoAdmin(page, '專案成員');
-  await page.locator('#member-project').selectOption({ label: P1 });
+  await membersOf(page, P1);
   await expect(page.getByRole('table', { name: '目前的專案成員' }).locator('tbody tr').first()).toBeVisible();
   // 選一個不是 P1 成員的帳號，只為了讓「角色」下拉可操作；不按「加入專案」
   await page.locator('#member-user').selectOption({ label: 'user01' });
@@ -64,7 +63,7 @@ test('M1 補拍 06 角色與權限一致（TC-A03-04）', async ({ browser }) =>
   // 成員表格
   const table = page.getByRole('table', { name: '目前的專案成員' });
   await table.scrollIntoViewIfNeeded();
-  await shot(page, TC, '07-專案成員表格');
+  await shot(page, TC, '07-專案頁成員與權限表格');
   for (const [user, , label, perms] of ROLES) {
     const row = table.locator('tbody tr').filter({ has: page.getByRole('rowheader', { name: user, exact: true }) });
     const cells = (await row.locator('td').allInnerTexts()).map((s) => s.trim());
@@ -75,16 +74,16 @@ test('M1 補拍 06 角色與權限一致（TC-A03-04）', async ({ browser }) =>
   }
   await ctx.close();
 
-  // 各帳號左側選單
+  // 各帳號的選單：功能目錄依權限列出的契約入口原名稱
   for (const [i, [user, , , perms]] of ROLES.entries()) {
     const u = await freshPage(browser);
     await login(u.page, user);
     await useProject(u.page);
     const menu = await menuLabels(u.page);
-    await shot(u.page, TC, `${String(i + 8).padStart(2, '0')}-${user}-選單`);
+    await shot(u.page, TC, `${String(i + 8).padStart(2, '0')}-${user}-功能目錄`);
     const same = menu.join() === menuFor(perms).join();
     if (!same) diffs.add(user);
-    note(TC, `${user} 左側選單：${menu.join('、')} ${same ? '一致' : `不一致（應為 ${menuFor(perms).join('、')}）`}`);
+    note(TC, `${user} 功能目錄：${menu.join('、')} ${same ? '一致' : `不一致（應為 ${menuFor(perms).join('、')}）`}`);
     await u.ctx.close();
   }
 
@@ -107,6 +106,6 @@ done`,
     if (!same) diffs.add(user);
     note(TC, `/api/me ${user}：P1 role ${p.role}、permissions ${p.permissions.join(',')} ${same ? '一致' : '不一致'}`);
   }
-  note(TC, `下拉選單、成員表格、左側選單、/api/me 四者對照，差異 ${diffs.size}/5${diffs.size ? `：${[...diffs].join('、')}` : ''}`);
+  note(TC, `下拉選單、成員表格、功能目錄、/api/me 四者對照，差異 ${diffs.size}/5${diffs.size ? `：${[...diffs].join('、')}` : ''}`);
   expect(diffs.size).toBe(0);
 });

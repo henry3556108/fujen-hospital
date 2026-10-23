@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { EVIDENCE_DIR, clickMenu, login, note, useProject } from './helpers';
+import { ADMIN_SIDE, EVIDENCE_DIR, P1, SIDE, clickTab, login, note, sideNav } from './helpers';
 
 // 情境 8～10 共用：終端機指令存證、各帳號獨立瀏覽器、帳號管理分頁與專案工作頁的操作。
 
@@ -52,28 +52,92 @@ export async function userPage(browser: Browser, user: string): Promise<{ ctx: B
   return { ctx, page };
 }
 
-/** 左側「帳號管理」→ 上方分頁 */
-export async function adminTab(page: Page, tab: string) {
-  await clickMenu(page, '帳號管理');
-  await page.getByRole('navigation', { name: '帳號管理分頁' }).getByRole('link', { name: tab, exact: true }).click();
+/** 進入管理區並點側欄項目（在研究區時先按側欄底部「系統管理」） */
+export async function adminSide(page: Page, name: string) {
+  if (!/\/admin(\/|$)/.test(new URL(page.url() || 'about:blank', 'http://x').pathname)) {
+    const link = sideNav(page).getByRole('link', { name: SIDE.admin, exact: true });
+    if (await link.count()) await link.click();
+    else await page.goto('/admin');
+  }
+  await sideNav(page).getByRole('link', { name, exact: true }).click();
+  await page.waitForLoadState('networkidle').catch(() => undefined);
 }
 
-/** 左側「帳號管理」→「共享排程設定」→ 頁內分頁 */
+/** 舊「帳號管理」分頁名稱 → 新管理區位置 */
+const ADMIN_MAP: Record<string, { side: string; tab?: string }> = {
+  'Dashboard 總覽': { side: ADMIN_SIDE.overview },
+  'Account 帳號': { side: ADMIN_SIDE.users },
+  專案: { side: ADMIN_SIDE.projects },
+  稽核紀錄: { side: ADMIN_SIDE.audit, tab: '稽核紀錄' },
+  模型下載審核: { side: ADMIN_SIDE.audit, tab: '模型下載審核' },
+  共享排程設定: { side: ADMIN_SIDE.compute },
+  '資料交換（FHIR）': { side: ADMIN_SIDE.fhir },
+};
+
+/**
+ * 管理區頁面。沿用舊分頁名稱呼叫：「專案成員」「標註群組」改到專案頁的分頁（預設 P1，可傳 project）。
+ */
+export async function adminTab(page: Page, tab: string, project = P1) {
+  if (tab === '專案成員') return projectTab(page, project, PROJECT_TABS.members);
+  if (tab === '標註群組') return projectTab(page, project, PROJECT_TABS.labelGroups);
+  const m = ADMIN_MAP[tab] ?? { side: tab };
+  await adminSide(page, m.side);
+  if (m.tab) await clickTab(page, m.tab, page.locator('main'));
+}
+
+/** 專案頁的四個分頁 */
+export const PROJECT_TABS = {
+  basic: '基本資料與 GPU 群組',
+  members: '成員與權限',
+  labelGroups: '標註群組',
+  allowlist: '影像存取清單',
+} as const;
+
+/** 管理區「專案」→ 點專案名稱 → 專案頁分頁 */
+export async function projectTab(page: Page, project: string, tab: string) {
+  await adminSide(page, ADMIN_SIDE.projects);
+  const table = page.getByRole('table', { name: '專案列表' });
+  await table.getByRole('link', { name: project, exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/projects\/\d+/);
+  await clickTab(page, tab, page.locator('main'));
+}
+
+/** 舊「排程與叢集」分頁名稱 → 新「運算資源」分頁名稱與網址 */
+const COMPUTE_MAP: Record<string, { tab: string; path: string }> = {
+  'GPU Dashboard': { tab: 'GPU 使用對照', path: '/admin/compute/gpu' },
+  佇列順序: { tab: '排隊順序', path: '/admin/compute/queues' },
+  共享排程設定: { tab: '共享設定', path: '/admin/compute/shared' },
+  'GPU 群組': { tab: 'GPU 群組', path: '/admin/compute/groups' },
+  叢集節點: { tab: '節點', path: '/admin/compute/nodes' },
+};
+
+/** 管理區「運算資源」→ 頁內分頁（沿用舊分頁名稱呼叫）；「監控儀表板」改為側欄「系統監控」 */
 export async function schedulingTab(page: Page, tab: string) {
-  await adminTab(page, '共享排程設定');
-  await page.getByRole('navigation', { name: '排程與叢集分頁' }).getByRole('link', { name: tab, exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: tab })).toBeVisible();
+  if (tab === '監控儀表板') {
+    await adminSide(page, ADMIN_SIDE.monitoring);
+    await expect(page).toHaveURL(/\/admin\/monitoring/);
+    return;
+  }
+  const m = COMPUTE_MAP[tab] ?? { tab, path: '' };
+  await adminSide(page, ADMIN_SIDE.compute);
+  await clickTab(page, m.tab, page.locator('main'));
+  if (m.path) await expect(page).toHaveURL(new RegExp(`${m.path}$`));
 }
 
-/** 右上「目前專案」選專案 → 左側「建模管理」→ 卡片「專案工作」 */
+/**
+ * 原「專案工作」（送出工作表單＋工作列表）：改為 Admin 專用的管理區「運算資源 › 測試工作」（/admin/compute/jobs），
+ * 頁內「送出到專案」選專案。page 必須是 admin01 登入的頁面；研究者看不到假工作。
+ */
 export async function gotoJobs(page: Page, project: string) {
-  await page.goto('/');
-  await page.locator('#project-switcher').waitFor(); // 專案選單在 /api/me 回來後才出現；太早呼叫 useProject 會直接略過
-  await useProject(page, project);
-  await clickMenu(page, '建模管理');
-  await page.getByRole('link', { name: '專案工作' }).first().click();
-  await expect(page.getByRole('heading', { level: 1, name: '專案工作' })).toBeVisible();
+  await adminSide(page, ADMIN_SIDE.compute);
+  await clickTab(page, '測試工作', page.getByRole('navigation', { name: '運算資源分頁' }));
+  await expect(page).toHaveURL(/\/admin\/compute\/jobs/);
+  const picker = page.locator('#jobs-project');
+  await picker.waitFor();
+  if ((await picker.locator('option:checked').innerText()).trim() !== project) await picker.selectOption({ label: project });
+  await expect(picker.locator('option:checked')).toHaveText(project);
   await expect(page.getByText(`專案「${project}」的排程工作`)).toBeVisible();
+  await expect(page.getByRole('form', { name: '送出工作' })).toBeVisible();
 }
 
 /** 在「送出工作」表單送出一件工作，回傳畫面訊息中的工作編號與佇列 */

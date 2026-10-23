@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { login, note, shot } from './helpers';
 import { psql } from './ops';
-import { auditFilter, dbDump, freshPage, gotoAdmin, headerUser, loginFails, loginWith, logout, maxAuditId, ok } from './r-common';
+import { auditFilter, dbDump, freshPage, gotoAdmin, headerUser, loginFails, logout, maxAuditId, ok } from './r-common';
 
 // M1 補拍 09：重設密碼 3 次（TC-A03-08）。演練帳號 KIT-A-pw，不動種子帳號；最後刪除。
 const TC = 'TC-A03-08';
@@ -10,6 +10,8 @@ const PWS = ['Kit-A-Init-2026!', 'Kit-A-Reset-1!', 'Kit-A-Reset-2!', 'Kit-A-Rese
 
 async function removeUser(page: Page) {
   await gotoAdmin(page, 'Account 帳號');
+  // 等帳號列表載入（已在帳號頁時點側欄不會重新導覽）
+  await expect(page.getByRole('table', { name: '帳號列表' }).getByRole('rowheader', { name: 'admin01', exact: true })).toBeVisible();
   const del = page.getByRole('button', { name: `刪除 ${U}`, exact: true });
   if (!(await del.count())) return false;
   await del.click();
@@ -70,7 +72,7 @@ test('M1 補拍 09 重設密碼 3 次（TC-A03-08）', async ({ browser }) => {
       await w.page.locator('#kc-login').click();
       await expect(w.page.locator('.topbar__username')).toHaveText(U, { timeout: 15_000 });
       const h = await headerUser(w.page);
-      if (h === `${U}（一般使用者）`) newOk++;
+      if (h === U) newOk++; // 未加入專案：頂端只顯示帳號
       await shot(w.page, TC, `${String(n1 + 2).padStart(2, '0')}-第${round}次新密碼成功`);
       await logout(w.page);
       await w.ctx.close();

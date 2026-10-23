@@ -3,7 +3,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { EVIDENCE_DIR, note, shot } from './helpers';
 import {
-  Checks, DS80, PB, SETTING, begin, checkPackage, flat, gotoTraining, importedNotice, openAs, openPackageImport, planInfo,
+  Checks, DS80, PB, SETTING, begin, checkPackage, flat, gotoSettings, gotoTraining, importedNotice, openAs, openPackageImport, planInfo,
   selectByPrefix, settingRow, step, submitTraining, waitRun,
 } from './m2-common';
 
@@ -58,6 +58,7 @@ test('M2 08 專案包匯入（不附資料，自己選資料集）', async ({ br
 
   // 5 新設定的資料集、訓練
   step(TC, 5, `「建模管理」：新設定的資料集是 ${DS80}，送出訓練，等到「已完成」`);
+  await gotoSettings(page); // 匯入後的設定列在「已存設定」分頁
   const row = settingRow(page, n.setting);
   await expect(row).toBeVisible();
   const dataCell = flat(await row.getByRole('cell').nth(1).innerText());
@@ -65,8 +66,8 @@ test('M2 08 專案包匯入（不附資料，自己選資料集）', async ({ br
   c.check(`步驟 5 新設定的資料集是 ${DS80}`, dataCell.startsWith(DS80), dataCell);
   const run = await submitTraining(page, n.setting);
   const st = await waitRun(page, run);
-  await page.getByRole('table', { name: '訓練清單' }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '04-訓練完成');
+  await page.getByTestId('run-status').scrollIntoViewIfNeeded(); // 送出後在單次訓練頁
+  await shot(page, TC, '04-單次訓練頁-訓練完成');
   c.check(`步驟 5 訓練 #${run} 已完成`, st === '已完成', st);
   await ctx.close();
   c.finish();

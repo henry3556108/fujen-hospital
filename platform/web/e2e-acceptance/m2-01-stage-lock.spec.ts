@@ -3,7 +3,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { note, shot } from './helpers';
 import {
-  Checks, DS, FEATURES, PA, ROW, SETTING, WEB, begin, dirOf, download, expandRun, findNumber, flat, gotoTraining, lockBadge,
+  Checks, DS, FEATURES, PA, ROW, SETTING, WEB, begin, dirOf, download, editSetting, expandRun, findNumber, flat, gotoTraining, lockBadge,
   openDetails, openEditor, openFlow, openAs, runCells, saveState, selectByPrefix, setFeatures, settingExists, stageStates,
   statesText, statusMsg, step, submitTraining, textArea, uiMetrics, waitRun, zipList, zipRead, type Stage,
 } from './m2-common';
@@ -25,7 +25,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   step(TC, 1, `「新增訓練設定」：${SETTING}、結構式分類、${DS}、diagnosis、${FEATURES.join('、')}、隨機森林，按「儲存設定」`);
   if (await settingExists(page, SETTING)) {
     c.diff(`訓練設定「${SETTING}」已存在（前一輪留下），沿用，不重新建立；步驟 3 的「五個環節都是介面設定」以目前狀態為準`);
-    await shot(page, TC, '01-介面建立設定');
+    await shot(page, TC, '01-已存設定-介面建立設定');
   } else {
     await page.getByRole('button', { name: '新增訓練設定', exact: true }).click();
     const form = page.getByRole('form', { name: '新增訓練設定' });
@@ -42,7 +42,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
     note(TC, `資料集 ${ds}；勾選 ${checked.join('、')}；驗證方式（預設）${validation}`);
     if (await missing.count()) note(TC, `出現「有缺值的病人怎麼處理」，保留預設選項（md 未寫，照預設）`);
     await form.scrollIntoViewIfNeeded();
-    await shot(page, TC, '01-介面建立設定');
+    await shot(page, TC, '01-已存設定-介面建立設定');
     await form.getByRole('button', { name: '儲存設定', exact: true }).click();
     const saved = statusMsg(page, `已新增訓練設定「${SETTING}」。`);
     await expect(saved.or(page.getByRole('alert').first())).toBeVisible({ timeout: 15_000 });
@@ -56,7 +56,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   const m1 = await uiMetrics(page, run1);
   note(TC, `訓練 #${run1} ${st1}；重點指標：${m1.cards}`);
   await page.getByRole('heading', { name: new RegExp(`^訓練 #${run1}：`) }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '02-介面訓練完成');
+  await shot(page, TC, '02-單次訓練頁-介面訓練完成');
   c.check(`步驟 2 介面設定訓練 #${run1} 已完成（F-01）`, st1 === '已完成', st1);
   saveState({ run_ui: run1 });
 
@@ -65,7 +65,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   const panel = await openFlow(page, SETTING);
   const s3 = await stageStates(panel);
   note(TC, `五環節：${statesText(s3)}`);
-  await shot(page, TC, '03-流程程式碼五環節');
+  await shot(page, TC, '03-程式與專案包-流程程式碼五環節');
   c.check('步驟 3 五個環節都是「介面設定」', Object.values(s3).every((v) => v === '介面設定'), statesText(s3));
 
   // 4 下載三個環節檔
@@ -126,15 +126,13 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   const badge = await lockBadge(page, SETTING);
   note(TC, `五環節：${statesText(s7)}；名稱旁標籤：${badge || '（無）'}`);
   await page.getByRole('table', { name: '訓練設定清單' }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '07-訓練改為匯入檔控制');
+  await shot(page, TC, '07-已存設定-訓練改為匯入檔控制');
   c.check('步驟 7 訓練＝匯入檔控制', s7[ROW.train] === '匯入檔控制');
   c.check('步驟 7 名稱旁「匯入控制：訓練」', badge === '匯入控制：訓練', badge);
 
   // 8 表單鎖定
-  step(TC, 8, `按「編輯「${SETTING}」」`);
-  await page.getByRole('button', { name: `編輯「${SETTING}」`, exact: true }).click();
-  const form = page.getByRole('form', { name: `修改訓練設定「${SETTING}」` });
-  await expect(form).toBeVisible();
+  step(TC, 8, `「已存設定」按「修改「${SETTING}」」（原「編輯」）`);
+  const form = await editSetting(page, SETTING);
   const locks = flat(await form.getByTestId('stage-locks').innerText());
   note(TC, `表單上方：${locks}`);
   const field = async (label: string) => {
@@ -145,7 +143,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   for (const l of ['設定名稱', '訓練種類', '資料集', '演算法', '亂數種子', '交叉驗證折數（K）', '訓練集（%）', '驗證集（%）', '測試集（%）']) fields[l] = await field(l);
   note(TC, `欄位狀態：${Object.entries(fields).map(([k, v]) => `${k} ${v}`).join('、')}`);
   await form.scrollIntoViewIfNeeded();
-  await shot(page, TC, '08-表單鎖定');
+  await shot(page, TC, '08-已存設定修改-表單鎖定');
   c.check('步驟 8 上方列出「「訓練」由匯入的檔案控制…sha256…」', /「訓練」由匯入的檔案控制：train\.json、train\.py（pi01，.+sha256 [0-9a-f]{4}…）/.test(locks), locks);
   const splitFields = ['交叉驗證折數（K）', '訓練集（%）', '驗證集（%）', '測試集（%）'].filter((l) => fields[l] !== '（無此欄位）');
   c.check('步驟 8 亂數種子、演算法、切分比例停用（F-07）',
@@ -167,7 +165,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   const cells = await runCells(page, run2);
   note(TC, `訓練 #${run2}：${cells.slice(0, 5).join(' | ')}`);
   await page.getByRole('table', { name: '訓練清單' }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '09-匯入程式訓練完成');
+  await shot(page, TC, '09-訓練紀錄-匯入程式訓練完成');
   c.check('步驟 10 標示「（使用匯入的程式：訓練）」', cells[2]?.includes('（使用匯入的程式：訓練）') ?? false, cells[2]);
   c.check(`步驟 10 匯入程式訓練 #${run2} 已完成（F-03）`, st2 === '已完成', st2);
   saveState({ run_import: run2 });
@@ -197,7 +195,7 @@ test('M2 01 單一環節套用與鎖定', async ({ browser }) => {
   }
   note(TC, `訓練輸出中的 n_estimators：${nLog ?? '（輸出沒有列出）'}`);
   await page.getByRole('heading', { name: new RegExp(`^訓練 #${run2}：`) }).scrollIntoViewIfNeeded();
-  await shot(page, TC, '10-訓練紀錄設定');
+  await shot(page, TC, '10-單次訓練頁-設定');
   const n11 = nSrc ?? nLog;
   c.check('步驟 11 訓練紀錄的 n_estimators 是 7（F-03，差異 0 欄）', n11 === 7, `匯出原始碼 ${nSrc ?? '—'}、訓練輸出 ${nLog ?? '—'}`);
 

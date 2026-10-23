@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { P1, login, note, shot, useProject } from './helpers';
+import { membersOf } from './r-common';
 
 // 情境 4-5：把 md01 移出 P1，確認 10 秒內失去存取、不需重新登入；最後一定把 md01 以 Medical Doctor 加回（TC-A03-07）。
 const TC = 'TC-A03-07';
 
+/** 管理區「專案」→ P1 專案頁「成員與權限」 */
 async function openMembers(admin: Page) {
-  await admin.goto('/admin/members');
-  await admin.locator('#member-project').selectOption({ label: P1 });
-  await expect(admin.getByRole('table', { name: '目前的專案成員' })).toBeVisible();
+  await membersOf(admin, P1);
 }
 
 async function addBack(admin: Page) {
@@ -49,9 +49,15 @@ test('4-5 移出專案即時生效，並還原 md01（TC-A03-07）', async ({ br
     await shot(md, TC, '4-md01-立即被拒');
     note(TC, `移出後 ${sec} 秒 md01 存取資料集被拒（未重新登入）`);
 
+    // 重新整理：P1 不再出現在 md01 的專案中（md01 若只在 P1 就顯示「尚未加入任何專案」；還在其他專案時，頂端「目前專案」下拉已沒有 P1）
     await md.reload();
-    await expect(md.getByText('尚未加入任何專案').first()).toBeVisible();
+    await md.waitForLoadState('networkidle');
+    const sw = md.locator('select#project-switcher');
+    await expect(md.getByText('尚未加入任何專案').first().or(sw)).toBeVisible();
+    const options = (await sw.count()) ? (await sw.locator('option').allInnerTexts()).map((x) => x.trim()) : [];
     await shot(md, TC, '5-md01-重新整理後');
+    note(TC, `重新整理後 md01 的專案：${options.length ? options.join('、') : '尚未加入任何專案'}（有 ${P1}：${options.includes(P1) ? '是' : '否'}）`);
+    expect(options).not.toContain(P1);
   } finally {
     const restored = await addBack(admin);
     await shot(admin, TC, '6-還原為Medical-Doctor');

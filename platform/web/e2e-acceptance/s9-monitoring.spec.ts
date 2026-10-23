@@ -4,7 +4,7 @@ import { note, shot } from './helpers';
 import { KIT, REPO, q, schedulingTab, sh, userPage } from './ops';
 
 // 情境 9：系統監控（C-02 的 TC-C02-01～03）。不做 TC-C02-04（節點失聯、CPU 滿載告警，會動到叢集節點）。
-// 網頁部分：平台「監控儀表板」頁 → 開 Prometheus／Grafana，在瀏覽器裡操作；終端機部分照劇本執行並存檔。
+// 網頁部分：管理區「系統監控」頁 → 開 Prometheus／Grafana，在瀏覽器裡操作；終端機部分照劇本執行並存檔。
 // TC-C02-03 匯入的測試儀表板最後在 Grafana 介面刪除。
 
 const PROM = process.env.PROMETHEUS_URL || 'http://127.0.0.1:39090';
@@ -13,7 +13,7 @@ const GRAFANA_PW = process.env.GRAFANA_PASSWORD || 'Grafana-dev-01!';
 const DASH_UID = 'tc-c02-03-kit';
 const DASH_TITLE = 'TC-C02-03 驗收儀表板';
 
-/** 平台「監控儀表板」頁點卡片，開出監控工具的新分頁 */
+/** 管理區「系統監控」頁點卡片，開出監控工具的新分頁 */
 async function openTool(browserPage: Page, name: string) {
   await schedulingTab(browserPage, '監控儀表板');
   const [popup] = await Promise.all([
@@ -49,7 +49,7 @@ test('TC-C02-01 監控目標', async ({ browser }) => {
   test.setTimeout(6 * 60_000);
   const { ctx, page } = await userPage(browser, 'admin01');
   const prom = await openTool(page, 'Prometheus');
-  await shot(page, tc, '00-平台監控儀表板入口');
+  await shot(page, tc, '00-系統監控入口');
   // 上方「Status」→「Target health」
   await prom.getByRole('button', { name: /^Status/ }).first().click();
   await prom.getByRole('menuitem', { name: /Target health/ }).click();
@@ -210,7 +210,7 @@ test('TC-C02-03 客製儀表板（匯入、改更新頻率、重新載入一致�
   }
   const { ctx, page } = await userPage(browser, 'admin01');
   const g = await openTool(page, 'Grafana');
-  await shot(page, tc, '00-平台監控儀表板入口');
+  await shot(page, tc, '00-系統監控入口');
   await grafanaLogin(g);
   // 選做（TC-C02-02 步驟 9）：Dashboards → 資料夾「平台」→「平台叢集總覽」
   await g.goto(`${GRAFANA}/dashboards`);

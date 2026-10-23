@@ -165,8 +165,8 @@ test('M1 補拍 13 異常告警（TC-C02-04）', async ({ browser }) => {
       'docker unpause ai-platform-worker4; kubectl -n platform-web delete pod kit-cpu-burner --grace-period=0 --ignore-not-found; kubectl wait --for=condition=Ready node --all --timeout=180s; kubectl get nodes',
     );
     note(TC, `恢復：${r.out.trim().split('\n').filter((l) => /condition met|deleted|ai-platform-/.test(l)).length} 行輸出，結束碼 ${r.code}`);
-    await admin.goto('/admin/scheduling/nodes').catch(() => undefined);
-    if (/\/login$/.test(admin.url())) await login(admin, 'admin01').then(() => admin.goto('/admin/scheduling/nodes'));
+    await admin.goto('/admin/compute/nodes').catch(() => undefined);
+    if (/\/login$/.test(admin.url())) await login(admin, 'admin01').then(() => admin.goto('/admin/compute/nodes'));
     await admin.waitForLoadState('networkidle');
     const ready = (await admin.getByRole('table', { name: '叢集節點列表' }).getByText('就緒', { exact: true }).count()) as number;
     await shot(admin, TC, '08-節點恢復');

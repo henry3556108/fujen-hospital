@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test, type Page } from '@playwright/test';
-import { EVIDENCE_DIR, P1, note, shot } from './helpers';
+import { EVIDENCE_DIR, P1, note, shot, sideNav, useProject } from './helpers';
 import { psql } from './ops';
 
 // M1 補拍 10：Chrome、Edge 版面相容（TC-A02-08）。
@@ -137,66 +137,66 @@ test('M1 補拍 10 瀏覽器相容（TC-A02-08）', async () => {
   await page.locator('#password').fill('Admin01-dev!');
   await page.locator('#kc-login').click();
   await expect(page.locator('.topbar__username')).toHaveText('admin01', { timeout: 15_000 });
-  const sw = page.locator('#project-switcher');
-  await sw.selectOption({ label: P1 });
+  await useProject(page, P1); // Admin 登入後在管理區，從「選擇專案」進 P1
 
-  await doPage(2, '首頁', '/', '首頁', async () => {
-    const cards = await page.locator('main .entry-grid > li').count();
-    await page.locator('main .entry-grid a').first().hover();
-    return cards === 8 ? '8 張入口卡片皆顯示' : `失敗：入口卡片 ${cards} 張`;
+  await doPage(2, '專案首頁', '/', '專案首頁', async () => {
+    await expect(page.getByRole('heading', { level: 1, name: '專案首頁' })).toBeVisible();
+    const items = await sideNav(page).getByRole('link').count();
+    await sideNav(page).getByRole('link').first().hover();
+    return items >= 8 ? `側欄 ${items} 個項目皆顯示（含功能目錄、系統管理）` : `失敗：側欄項目 ${items} 個`;
   });
-  await doPage(3, '帳號管理 › 專案', '/admin/projects', '專案', async () => {
+  await doPage(3, '系統管理 › 專案', '/admin/projects', '專案', async () => {
     await page.getByRole('button', { name: `編輯 ${P1}`, exact: true }).click();
     await expect(page.getByRole('form', { name: '編輯專案' })).toBeVisible();
     await page.getByRole('form', { name: '編輯專案' }).getByRole('button', { name: '取消' }).click();
     await expect(page.getByRole('form', { name: '新增專案' }).getByRole('button', { name: '新增專案' })).toBeEnabled();
     return '「編輯」開啟編輯表單後取消；「新增專案」按鈕可按（未送出）';
   });
-  await doPage(4, '帳號管理 › 帳號', '/admin/users', '帳號', async () => {
+  await doPage(4, '系統管理 › 帳號', '/admin/users', '帳號', async () => {
     const r = await poke(page, page.getByLabel('admin01 的帳號類型'));
     return r.ok ? `「帳號類型」下拉可開啟（${r.n} 個選項），值未變更` : '失敗：帳號類型下拉';
   });
-  await doPage(5, '數據管理', '/data/imaging', '數據管理', async () => {
-    const t = await clickTabs(page, page.getByRole('navigation', { name: '數據管理分頁' }));
+  await doPage(5, '研究資料', '/data/imaging', '研究資料', async () => {
+    const t = await clickTabs(page, page.getByRole('navigation', { name: '研究資料分頁' }));
     return t.ok === 2 ? `兩個分頁切換正常（${t.names.join('、')}）` : `失敗：分頁 ${t.ok}/${t.total}`;
   });
-  await doPage(6, '描述統計', `/data/tabular/${ds}/describe`, '描述統計', async () => {
+  await doPage(6, '表格資料集', `/data/tabular/${ds}/view`, '表格資料集', async () => {
     const nav = page.getByRole('navigation', { name: '資料集分頁' });
     const t = await clickTabs(page, nav);
-    await nav.getByRole('link', { name: '描述統計' }).click();
+    await nav.getByRole('link', { name: '查看資料' }).click();
     await page.waitForLoadState('networkidle');
-    return t.ok === 6 ? `6 個分頁切換正常（${t.names.join('、')}），回到描述統計` : `失敗：分頁 ${t.ok}/${t.total}（${t.names.join('、')}）`;
+    return t.ok === 3 ? `3 個分頁切換正常（${t.names.join('、')}），回到查看資料` : `失敗：分頁 ${t.ok}/${t.total}（${t.names.join('、')}）`;
   });
   await doPage(7, '影像標註', '/labeling', '影像標註', async () => {
-    await expect(page.getByText('研究清單').first()).toBeVisible();
-    const rows = await page.locator('main table tbody tr').count();
-    return `研究清單顯示 ${rows} 列`;
+    await expect(page.getByRole('table', { name: '研究清單' })).toBeVisible();
+    const rows = await page.locator('main table[aria-label="研究清單"] tbody tr').count();
+    return `待處理清單顯示 ${rows} 列`;
   });
-  await doPage(8, '專案工作', '/training/jobs', '專案工作', async () => {
-    const r = await poke(page, page.getByRole('form', { name: '送出工作' }).getByLabel('工作種類'));
-    return r.ok ? `「工作種類」下拉可開啟（${r.n} 個選項），未送出` : '失敗：工作種類下拉';
+  await doPage(8, '建立模型 › 訓練紀錄', '/training', '訓練紀錄', async () => {
+    const r = await poke(page, page.locator('#runs-status'));
+    return r.ok ? `「狀態」篩選下拉可開啟（${r.n} 個選項），值未變更` : '失敗：狀態篩選下拉';
   });
-  await doPage(9, '推論服務管理', '/inference', '推論服務', async () => {
-    const btn = page.getByRole('button', { name: /^選擇 / }).first();
-    if (!(await btn.count())) {
+  await doPage(9, '使用模型', '/models', '使用模型', async () => {
+    const link = page.getByRole('table', { name: '模型清單' }).getByRole('link').first();
+    if (!(await link.count())) {
       const empty = await page.getByText('這個專案還沒有訓練完成的模型。').isVisible();
-      return empty ? '開發環境目前沒有訓練完成的模型，頁面顯示「這個專案還沒有訓練完成的模型。」，沒有可點的「選擇」（資料狀態，非介面問題）' : `模型 ${await page.locator('main table tbody tr').count()} 列皆已選擇`;
+      return empty ? '開發環境目前沒有訓練完成的模型，頁面顯示「這個專案還沒有訓練完成的模型。」（資料狀態，非介面問題）' : '失敗：模型清單沒有可點的模型';
     }
-    const label = (await btn.innerText()).trim();
-    await btn.click();
+    const label = (await link.innerText()).trim();
+    await link.click();
     await page.waitForLoadState('networkidle');
-    return `按「${label}」後該模型變成已選擇`;
+    const t = await clickTabs(page, page.getByRole('navigation', { name: '模型分頁' }));
+    return t.ok === t.total ? `開啟「${label}」，${t.total} 個分頁切換正常（${t.names.join('、')}）` : `失敗：模型分頁 ${t.ok}/${t.total}`;
   });
-  await doPage(10, 'LLM No-code 開發', '/llm/playground', 'LLM', async () => {
-    const t = await clickTabs(page, page.getByRole('navigation', { name: 'LLM 功能分頁' }));
-    await page.getByRole('navigation', { name: 'LLM 功能分頁' }).getByRole('link', { name: 'Playground' }).click();
+  await doPage(10, '語言模型', '/llm/chat', '語言模型', async () => {
+    const t = await clickTabs(page, page.getByRole('navigation', { name: '語言模型分頁' }));
+    await page.getByRole('navigation', { name: '語言模型分頁' }).getByRole('link', { name: '對話' }).click();
     await page.waitForLoadState('networkidle');
     const r = await poke(page, page.locator('#chat-mode'));
     return t.ok === 7 && r.ok ? `7 個分頁切換正常，「對話模式」下拉可開啟（${r.n} 個選項）` : `失敗：分頁 ${t.ok}/${t.total}、對話模式 ${r.ok}`;
   });
-  note(TC, `${LABEL} 10 頁：破版 ${broken}、無法操作 ${inoperable}`);
   // 登出，留下乾淨的狀態
-  await page.getByRole('button', { name: '登出', exact: true }).click().catch(() => undefined);
+  await page.locator('.topbar').getByRole('button', { name: '登出', exact: true }).click().catch(() => undefined);
   await browser.close().catch(() => undefined);
   expect(broken).toBe(0);
   expect(inoperable).toBe(0);

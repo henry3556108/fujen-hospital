@@ -17,9 +17,12 @@ import {
   queueCard,
   queueRow,
   queueTableOrder,
+  findRunRow,
+  openRun,
   refreshQueuePage,
-  runRow,
+  submitFromSetting,
   submitJobApi,
+  trainingTab,
   waitQueue,
 } from './n-sched-common';
 
@@ -31,6 +34,8 @@ import {
 
 const Q = 'gpu-exclusive';
 const RESEARCHER = 'pi01';
+/** 送測試工作（原「專案工作」表單，現為管理區「運算資源 › 測試工作」）的帳號：只有 Admin 看得到 */
+const TESTER = 'admin01';
 
 async function p1(): Promise<number> {
   const id = await projectId(P1_NAME);
@@ -39,7 +44,8 @@ async function p1(): Promise<number> {
 }
 
 const orderCell = (page: Page, id: number) => queueRow(page, Q, id).locator('td').first();
-const notice = (page: Page, text: string | RegExp) => page.getByRole('status').filter({ hasText: text });
+const notice = (page: Page, text: string | RegExp) => page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: text });
+const oneRow = (t: string) => t.replace(/\s+/g, ' ').trim();
 
 async function closeAll(ctxs: BrowserContext[]) {
   for (const c of ctxs) await c.close().catch(() => undefined);
@@ -70,16 +76,17 @@ test('A1 緊急工作插隊：Admin 調整 GPU 佇列順序', async ({ browser }
   await s.run(
     async () => {
       await ensureQueueIdle(s, Q);
-      // 準備：研究員在「建模管理 → 專案工作」送出 5 件「訓練（GPU）」（各 300 秒），2 件執行、3 件等待
-      const pi = await openAs(browser, RESEARCHER);
+      // 準備：在管理區「運算資源 › 測試工作」（原「專案工作」）送出 5 件「訓練（GPU）」（各 300 秒），2 件執行、3 件等待。
+      // 改版後測試工作只有 Admin 看得到（研究者看不到假工作），所以由 TESTER（admin01）送到 P1。
+      const pi = await openAs(browser, TESTER);
       ctxs.push(pi.ctx);
       await gotoJobs(pi.page, P1_NAME);
       for (let i = 0; i < 5; i++) {
         const j = await submitJob(pi.page, { seconds: 300 });
-        mine.push({ id: j.id, user: RESEARCHER });
+        mine.push({ id: j.id, user: TESTER });
         expect.soft(j.queue).toBe(Q);
       }
-      await s.step(pi.page, '準備-研究員送出5件訓練GPU工作', `${RESEARCHER} 送出工作 ${mine.map((j) => j.id).join('、')}，進入佇列 ${Q}`, {
+      await s.step(pi.page, '準備-運算資源-測試工作-送出5件訓練GPU工作', `${TESTER} 送出工作 ${mine.map((j) => j.id).join('、')}，進入佇列 ${Q}`, {
         focus: pi.page.getByRole('table', { name: '工作列表' }),
       });
       const q0 = await waitQueue(Q, (q) => q.running.length === 2 && q.waiting.length === 3, 120_000, '2 件執行、3 件等待');
@@ -87,7 +94,7 @@ test('A1 緊急工作插隊：Admin 調整 GPU 佇列順序', async ({ browser }
       const target = waiting[waiting.length - 1];
       s.log(`佇列 ${Q}：執行中 ${ids(q0.running).join('、')}；等待中 ${waiting.join('、')}；要插隊的是最後一位的工作 ${target}`);
 
-      // 1. 帳號管理 → 共享排程設定 → 佇列順序
+      // 1. 管理區 › 運算資源 › 排隊順序（原「帳號管理 → 共享排程設定 → 佇列順序」）
       const ad = await openAs(browser, 'admin01');
       ctxs.push(ad.ctx);
       await schedulingTab(ad.page, '佇列順序');
@@ -208,74 +215,77 @@ test('A2 研究員暫存與恢復排隊（專案工作頁與訓練紀錄）', as
       if (!setting) throw new Error('P1 沒有資料集仍存在的結構式訓練設定，可用 A2_SETTING 指定設定名稱');
       s.log(`要送出的訓練設定：#${setting.id}「${setting.name}」（${setting.kind}）`);
 
-      // ===== 從專案工作頁 =====
-      const pi = await openAs(browser, RESEARCHER);
-      ctxs.push(pi.ctx);
-      await gotoJobs(pi.page, P1_NAME);
+      // ===== 從管理區「運算資源 › 測試工作」（原「專案工作」頁；改版後只有 Admin 看得到） =====
+      const tj = await openAs(browser, TESTER);
+      ctxs.push(tj.ctx);
+      await gotoJobs(tj.page, P1_NAME);
       // 準備：先送 2 件 300 秒的工作佔滿 2 份 GPU，接著送的工作才會排隊
-      for (let i = 0; i < 2; i++) jobs.push({ id: (await submitJob(pi.page, { seconds: 300 })).id, user: RESEARCHER });
+      for (let i = 0; i < 2; i++) jobs.push({ id: (await submitJob(tj.page, { seconds: 300 })).id, user: TESTER });
       const [b1, b2] = jobs.map((j) => j.id);
-      for (const id of [b1, b2]) await expect.poll(() => jobStatus(pi.page, id), { timeout: 120_000 }).toBe('running');
-      const j3 = (await submitJob(pi.page, { seconds: 300 })).id;
-      jobs.push({ id: j3, user: RESEARCHER });
-      await expect.poll(() => jobStatus(pi.page, j3), { timeout: 30_000 }).toBe('queued');
-      await s.step(pi.page, '專案工作-兩件執行中第三件排隊中', `工作 ${b1}、${b2} 執行中，工作 ${j3} 排隊中`, { focus: jobRow(pi.page, j3) });
+      for (const id of [b1, b2]) await expect.poll(() => jobStatus(tj.page, id), { timeout: 120_000 }).toBe('running');
+      const j3 = (await submitJob(tj.page, { seconds: 300 })).id;
+      jobs.push({ id: j3, user: TESTER });
+      await expect.poll(() => jobStatus(tj.page, j3), { timeout: 30_000 }).toBe('queued');
+      await s.step(tj.page, '運算資源-測試工作-兩件執行中第三件排隊中', `工作 ${b1}、${b2} 執行中，工作 ${j3} 排隊中`, { focus: jobRow(tj.page, j3) });
       // 2. 暫存
-      await pi.page.getByRole('button', { name: `暫存工作 ${j3}` }).click();
-      await expect(notice(pi.page, `已暫存工作 ${j3}，之後按「恢復排隊」會排到佇列最後`)).toBeVisible();
-      await expect.poll(() => jobStatus(pi.page, j3), { timeout: 30_000 }).toBe('held');
-      expect.soft((await jobCells(pi.page, j3)).status).toBe('已暫存');
-      await s.step(pi.page, '專案工作-按暫存-已暫存工作', `已暫存工作 ${j3}，之後按「恢復排隊」會排到佇列最後；狀態「已暫存」`, { focus: jobRow(pi.page, j3) });
+      await tj.page.getByRole('button', { name: `暫存工作 ${j3}` }).click();
+      await expect(notice(tj.page, `已暫存工作 ${j3}，之後按「恢復排隊」會排到佇列最後`)).toBeVisible();
+      await expect.poll(() => jobStatus(tj.page, j3), { timeout: 30_000 }).toBe('held');
+      expect.soft((await jobCells(tj.page, j3)).status).toBe('已暫存');
+      await s.step(tj.page, '運算資源-測試工作-按暫存-已暫存工作', `已暫存工作 ${j3}，之後按「恢復排隊」會排到佇列最後；狀態「已暫存」`, { focus: jobRow(tj.page, j3) });
       // 3. 恢復排隊
-      await pi.page.getByRole('button', { name: `恢復排隊工作 ${j3}` }).click();
-      await expect(notice(pi.page, `工作 ${j3} 已恢復排隊（排在佇列最後）`)).toBeVisible();
-      await expect.poll(() => jobStatus(pi.page, j3), { timeout: 30_000 }).toBe('queued');
-      await s.step(pi.page, '專案工作-按恢復排隊-回到排隊中', `工作 ${j3} 已恢復排隊（排在佇列最後）`, { focus: jobRow(pi.page, j3) });
+      await tj.page.getByRole('button', { name: `恢復排隊工作 ${j3}` }).click();
+      await expect(notice(tj.page, `工作 ${j3} 已恢復排隊（排在佇列最後）`)).toBeVisible();
+      await expect.poll(() => jobStatus(tj.page, j3), { timeout: 30_000 }).toBe('queued');
+      await s.step(tj.page, '運算資源-測試工作-按恢復排隊-回到排隊中', `工作 ${j3} 已恢復排隊（排在佇列最後）`, { focus: jobRow(tj.page, j3) });
       // 要注意：已開始的工作不能暫存（畫面上執行中的工作沒有「暫存」按鈕；直接呼叫 API 會得到 409）
-      await expect.soft(jobRow(pi.page, b1).getByRole('button', { name: `暫存工作 ${b1}` })).toHaveCount(0);
-      const r409 = await api(RESEARCHER, 'POST', `/api/projects/${pid}/jobs/${b1}/hold`);
+      await expect.soft(jobRow(tj.page, b1).getByRole('button', { name: `暫存工作 ${b1}` })).toHaveCount(0);
+      const r409 = await api(TESTER, 'POST', `/api/projects/${pid}/jobs/${b1}/hold`);
       s.log(`對執行中的工作 ${b1} 暫存（API POST /jobs/${b1}/hold）：HTTP ${r409.status}「${r409.body?.detail}」`);
       expect.soft(r409.status).toBe(409);
       expect.soft(String(r409.body?.detail)).toContain(`工作 ${b1} 已在執行中，無法暫存（執行中的訓練無法中途保存進度，只能取消）`);
-      await s.step(pi.page, '專案工作-執行中的工作沒有暫存按鈕', `API 回 ${r409.status}：${r409.body?.detail}`, { focus: jobRow(pi.page, b1) });
+      await s.step(tj.page, '運算資源-測試工作-執行中的工作沒有暫存按鈕', `API 回 ${r409.status}：${r409.body?.detail}`, { focus: jobRow(tj.page, b1) });
 
-      // ===== 從訓練紀錄 =====
+      // ===== 從建立模型（研究員：已存設定 → 精靈送出 → 單次訓練頁） =====
+      const pi = await openAs(browser, RESEARCHER);
+      ctxs.push(pi.ctx);
+      await useProject(pi.page, P1_NAME);
       await clickMenu(pi.page, '建模管理');
-      await expect(pi.page.getByRole('table', { name: '訓練設定清單' })).toBeVisible({ timeout: 30_000 });
-      await pi.page.getByRole('button', { name: `送出訓練「${setting.name}」` }).click();
-      const sent = notice(pi.page, /已送出訓練 #\d+（/);
-      await expect(sent).toBeVisible({ timeout: 60_000 });
-      const rid = Number(/#(\d+)/.exec(await sent.innerText())![1]);
+      const rid = await submitFromSetting(pi.page, setting.name);
       runs.push(rid);
-      await s.step(pi.page, '從訓練設定送出訓練-佇列忙碌中排隊', (await sent.innerText()).trim(), { focus: sent });
-      // 1～2. 訓練紀錄找到排隊中的訓練，展開
-      const row = runRow(pi.page, rid);
-      await expect(row).toBeVisible({ timeout: 30_000 });
-      if (await row.getByRole('button', { name: `展開訓練 #${rid}` }).count()) await row.getByRole('button', { name: `展開訓練 #${rid}` }).click();
-      const status = pi.page.getByTestId('run-status');
-      await expect(status).toHaveText('目前狀態：排隊中：等待運算資源', { timeout: 30_000 });
-      await expect.soft(row).toContainText('排隊中');
-      await s.step(pi.page, '訓練紀錄-展開排隊中的訓練', `訓練 #${rid} 排隊中`, { focus: row });
+      const status = pi.page.locator('.run-detail').getByTestId('run-status');
+      // 單次訓練頁上方：「已送出訓練 #N（名稱），目前排隊中。」（狀態變了會改成「訓練 #N（名稱）訓練中…」）
+      const sent = notice(pi.page, `訓練 #${rid}（${setting.name}）`);
+      await expect.soft(sent).toBeVisible();
+      const sentText = `${(await sent.count()) ? (await sent.first().innerText()).trim() : '（沒有送出訊息）'}；訓練 #${rid}`;
+      await s.step(pi.page, '已存設定套用後送出訓練-進入單次訓練頁', `${sentText}；網址 /training/runs/${rid}`, { focus: status });
+      // 1～2. 這次訓練的頁面：排隊中
+      await expect(status).toContainText('目前狀態：排隊中：等待運算資源', { timeout: 30_000 });
+      await s.step(pi.page, '單次訓練頁-排隊中的訓練', `訓練 #${rid} ${(await status.innerText()).trim()}`, { focus: status });
       // 3. 暫存
       const detail = pi.page.locator('.run-detail');
       await detail.getByRole('button', { name: '暫存', exact: true }).click();
-      await expect(status).toHaveText('目前狀態：已暫存：移出佇列，按「恢復排隊」後重新排到最後', { timeout: 30_000 });
-      await expect.soft(row).toContainText('已暫存');
+      await expect(status).toContainText('目前狀態：已暫存：移出佇列，按「恢復排隊」後重新排到最後', { timeout: 30_000 });
       const held = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/training/runs/${rid}`);
       const qh = await queue(Q);
       s.log(`API：訓練 #${rid} 狀態 ${held.status}、工作 ${held.job_id}；佇列暫存區 ${ids(qh.held).join('、')}`);
       expect.soft(held.status).toBe('held');
       expect.soft(ids(qh.held)).toContain(held.job_id);
-      await s.step(pi.page, '訓練紀錄-按暫存-已暫存', '已暫存：移出佇列，按「恢復排隊」後重新排到最後', { focus: row });
+      await s.step(pi.page, '單次訓練頁-按暫存-已暫存', '已暫存：移出佇列，按「恢復排隊」後重新排到最後', { focus: status });
       // 4. 恢復排隊（排到最後）
       await detail.getByRole('button', { name: '恢復排隊', exact: true }).click();
-      await expect(status).toHaveText('目前狀態：排隊中：等待運算資源', { timeout: 30_000 });
+      await expect(status).toContainText('目前狀態：排隊中：等待運算資源', { timeout: 30_000 });
       const back = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/training/runs/${rid}`);
       const qr = await queue(Q);
       s.log(`API：訓練 #${rid} 狀態 ${back.status}；${Q} 等待順序 ${ids(qr.waiting).join('、')}（最後一位應是訓練 #${rid} 的工作 ${back.job_id}）`);
       expect.soft(back.status).toBe('queued');
       expect.soft(ids(qr.waiting).at(-1)).toBe(back.job_id);
-      await s.step(pi.page, '訓練紀錄-按恢復排隊-排隊中排在最後', `等待順序 ${ids(qr.waiting).join('、')}`, { focus: row });
+      await s.step(pi.page, '單次訓練頁-按恢復排隊-排隊中排在最後', `等待順序 ${ids(qr.waiting).join('、')}`, { focus: status });
+      // 訓練紀錄清單上的狀態
+      await trainingTab(pi.page, '訓練紀錄');
+      const row = await findRunRow(pi.page, rid);
+      await expect.soft(row).toContainText('排隊中');
+      await s.step(pi.page, '訓練紀錄-這次訓練排隊中', oneRow(await row.innerText()), { focus: row });
 
       // ===== 要注意：已開始訓練的按暫存會 409 =====
       // 先取消本情境的排隊與佔位工作，再重跑一次「快速測試」訓練（約 60 秒）讓它進入訓練中
@@ -298,12 +308,12 @@ test('A2 研究員暫存與恢復排隊（專案工作頁與訓練紀錄）', as
       s.log(`對訓練中的訓練 #${rr.id} 暫存（API）：HTTP ${h.status}「${h.body?.detail}」`);
       expect.soft(h.status).toBe(409);
       expect.soft(String(h.body?.detail)).toBe(`訓練 ${rr.id} 已開始訓練，無法暫存（訓練中無法中途保存進度，只能取消）`);
-      await pi.page.reload();
-      const rrRow = runRow(pi.page, rr.id);
-      await rrRow.getByRole('button', { name: `展開訓練 #${rr.id}` }).click();
-      await expect.soft(status).toHaveText('目前狀態：訓練中');
+      await trainingTab(pi.page, '訓練紀錄');
+      await findRunRow(pi.page, rr.id);
+      await openRun(pi.page, rr.id);
+      await expect.soft(status).toContainText('目前狀態：訓練中');
       await expect.soft(pi.page.locator('.run-detail').getByRole('button', { name: '暫存', exact: true })).toHaveCount(0);
-      await s.step(pi.page, '訓練中的訓練沒有暫存按鈕-API回409', `HTTP ${h.status}：${h.body?.detail}`, { focus: rrRow });
+      await s.step(pi.page, '單次訓練頁-訓練中沒有暫存按鈕-API回409', `HTTP ${h.status}：${h.body?.detail}`, { focus: status });
       return `專案工作與訓練紀錄的暫存、恢復排隊（排到最後）皆如文件；執行中工作與訓練中訓練暫存回 409`;
     },
     async () => {
@@ -325,12 +335,12 @@ test('A3 維護前先清空佇列：Admin 暫存全部等待中的工作再依�
   await s.run(
     async () => {
       await ensureQueueIdle(s, Q);
-      // 準備：研究員送出 2 件 150 秒（會先執行、維護前自然結束）＋ 3 件 300 秒（等待中）
-      const pi = await openAs(browser, RESEARCHER);
+      // 準備：在管理區「運算資源 › 測試工作」送出 2 件 150 秒（會先執行、維護前自然結束）＋ 3 件 300 秒（等待中）
+      const pi = await openAs(browser, TESTER);
       ctxs.push(pi.ctx);
       await gotoJobs(pi.page, P1_NAME);
-      for (const sec of [150, 150, 300, 300, 300]) mine.push({ id: (await submitJob(pi.page, { seconds: sec })).id, user: RESEARCHER });
-      await s.step(pi.page, '準備-研究員送出5件訓練GPU工作', `工作 ${mine.map((j) => j.id).join('、')}（前 2 件 150 秒、後 3 件 300 秒）`, {
+      for (const sec of [150, 150, 300, 300, 300]) mine.push({ id: (await submitJob(pi.page, { seconds: sec })).id, user: TESTER });
+      await s.step(pi.page, '準備-運算資源-測試工作-送出5件訓練GPU工作', `工作 ${mine.map((j) => j.id).join('、')}（前 2 件 150 秒、後 3 件 300 秒）`, {
         focus: pi.page.getByRole('table', { name: '工作列表' }),
       });
       const q0 = await waitQueue(Q, (q) => q.running.length === 2 && q.waiting.length === 3, 120_000, '2 件執行、3 件等待');
@@ -436,44 +446,34 @@ test('A4 用上次的訓練設定再跑一次（另存為訓練設定）', async
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      // 1. 建模管理 → 訓練紀錄；取消勾選「只看我送出的」，必要時翻頁
+      // 1. 功能目錄「建模管理」→ 建立模型 › 訓練紀錄（列出全專案的訓練），必要時翻頁
       await clickMenu(pi.page, '建模管理');
-      const mineBox = pi.page.getByRole('checkbox', { name: '只看我送出的' });
-      await expect(mineBox).toBeVisible({ timeout: 30_000 });
-      await mineBox.uncheck();
-      const row = runRow(pi.page, src.id);
-      for (let i = 0; i < 20 && (await row.count()) === 0; i++) {
-        const next = pi.page.getByRole('navigation', { name: '訓練紀錄分頁' }).getByRole('button', { name: '下一頁' });
-        if (!(await next.count()) || (await next.isDisabled())) break;
-        await next.click();
-        await pi.page.waitForLoadState('networkidle');
-      }
+      await expect(pi.page.getByRole('table', { name: '訓練清單' })).toBeVisible({ timeout: 30_000 });
+      const row = await findRunRow(pi.page, src.id);
       await expect(row).toBeVisible();
       await s.step(pi.page, '訓練紀錄-找到要重跑的訓練', `訓練 #${src.id}（已完成）`, { focus: row });
-      // 2. 展開 → 另存為訓練設定
-      await row.getByRole('button', { name: `展開訓練 #${src.id}` }).click();
-      await pi.page.locator('.run-detail').getByRole('button', { name: '另存為訓練設定' }).click();
+      // 2. 進入這次訓練的頁面 → 另存設定
+      const detail = await openRun(pi.page, src.id);
+      await detail.getByRole('button', { name: '另存設定', exact: true }).click();
       // 3. 新設定名稱預設「原名稱（訓練 #N）」
       const input = pi.page.locator(`#save-as-${src.id}`);
       await expect(input).toHaveValue(newName);
-      await s.step(pi.page, '另存為訓練設定-預設新設定名稱', `新設定名稱「${await input.inputValue()}」`, { focus: input });
+      await s.step(pi.page, '單次訓練頁-另存設定-預設新設定名稱', `新設定名稱「${await input.inputValue()}」`, { focus: input });
       await pi.page.getByRole('form', { name: `把訓練 #${src.id} 的設定另存為訓練設定` }).getByRole('button', { name: '儲存設定' }).click();
       // 4. 出現已另存訊息
-      const saved = notice(pi.page, `已另存為訓練設定「${newName}」，之後可在上方的訓練設定隨時送出訓練（會重新凍結當時的資料）。`);
+      const saved = notice(pi.page, `已另存為訓練設定「${newName}」`);
       await expect(saved).toBeVisible({ timeout: 30_000 });
       await s.step(pi.page, '按儲存設定-已另存為訓練設定', (await saved.innerText()).trim(), { focus: saved });
-      // 5. 上方訓練設定清單：新設定那一列按「送出訓練」
+      // 5. 已存設定：新設定那一列按「套用」→ 精靈「確認並送出訓練」
+      await trainingTab(pi.page, '已存設定');
       const settingsTable = pi.page.getByRole('table', { name: '訓練設定清單' });
-      const settingRow = settingsTable.locator('tbody tr').filter({ has: pi.page.getByRole('rowheader', { name: newName, exact: true }) });
+      const settingRow = settingsTable.locator('tbody tr').filter({ has: pi.page.getByRole('rowheader', { name: newName }) });
       await expect(settingRow).toBeVisible({ timeout: 30_000 });
-      await s.step(pi.page, '訓練設定清單出現新設定', newName, { focus: settingRow });
-      await settingRow.getByRole('button', { name: `送出訓練「${newName}」` }).click();
-      const sent = notice(pi.page, /已送出訓練 #\d+（/);
-      await expect(sent).toBeVisible({ timeout: 60_000 });
-      const rid = Number(/#(\d+)/.exec(await sent.innerText())![1]);
+      await s.step(pi.page, '已存設定清單出現新設定', newName, { focus: settingRow });
+      const rid = await submitFromSetting(pi.page, newName);
       runs.push(rid);
-      await expect.soft(sent).toContainText(`已送出訓練 #${rid}（${newName}），目前排隊中。`);
-      await s.step(pi.page, '從新設定送出訓練', (await sent.innerText()).trim(), { focus: sent });
+      await expect.soft(notice(pi.page, `訓練 #${rid}（${newName}）`)).toBeVisible();
+      await s.step(pi.page, '從新設定送出訓練-單次訓練頁', `訓練 #${rid}：${(await pi.page.locator('.run-detail').getByTestId('run-status').innerText()).trim()}`);
       // 確認：同一套參數；資料重新凍結
       const created = (await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/training/settings`)) as { id: number; name: string; config: Record<string, unknown> }[];
       const ns = created.find((x) => x.name === newName);

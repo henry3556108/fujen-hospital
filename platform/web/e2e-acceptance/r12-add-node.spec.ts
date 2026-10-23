@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { login, note, shot } from './helpers';
-import { q, sh } from './ops';
+import { q, schedulingTab, sh } from './ops';
 
 // M1 補拍 12：新增節點（TC-C01-07）。加入 ai-platform-extra-1（cpu-data），平台清單自動出現；最後一定移除。
 const TC = 'TC-C01-07';
@@ -29,11 +29,12 @@ test('M1 補拍 12 新增節點（TC-C01-07）', async ({ page }) => {
     sh(TC, 'TC-C01-07-前置清除', `platform/deploy/kind/remove-node.sh ${NODE}`);
   }
   await login(page, 'admin01');
-  await page.goto('/admin/scheduling/nodes');
-  await expect(page.getByRole('heading', { level: 1, name: '叢集節點' })).toBeVisible();
+  // 管理區「運算資源」→「節點」
+  await schedulingTab(page, '叢集節點');
+  await expect(page.getByRole('table', { name: '叢集節點列表' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   const s0 = await summary(page);
-  await shot(page, TC, '01-新增前');
+  await shot(page, TC, '01-運算資源-節點-新增前');
   note(TC, `新增前：節點數 ${s0['節點數']}、就緒 ${s0['就緒節點']}`);
   let s1: Record<string, string> = {};
   let row: string[] = [];
@@ -49,7 +50,7 @@ test('M1 補拍 12 新增節點（TC-C01-07）', async ({ page }) => {
     s1 = await summary(page);
     row = (await nodeRow(page).locator('th, td').allInnerTexts()).map((s) => s.trim());
     await nodeRow(page).scrollIntoViewIfNeeded();
-    await shot(page, TC, '02-新增節點後');
+    await shot(page, TC, '02-運算資源-節點-新增節點後');
     note(TC, `新增後：節點數 ${s1['節點數']}、就緒 ${s1['就緒節點']}；新列 ${row.join('｜')}（平台未做任何設定）`);
     nodeOut = sh(TC, 'TC-C01-07-node', `kubectl get node ${NODE} -L platform/pool`).out;
     flavor = sh(TC, 'TC-C01-07-node', `kubectl get resourceflavor cpu-data -o jsonpath='{.spec.nodeLabels}{"\\n"}'`).out.trim();
@@ -61,7 +62,7 @@ test('M1 補拍 12 新增節點（TC-C01-07）', async ({ page }) => {
     await expect(nodeRow(page)).toHaveCount(0);
     const s2 = await summary(page);
     await page.evaluate(() => window.scrollTo(0, 0));
-    await shot(page, TC, '03-移除節點後');
+    await shot(page, TC, '03-運算資源-節點-移除節點後');
     note(TC, `移除後：節點數 ${s2['節點數']}、就緒 ${s2['就緒節點']}；kubectl get nodes：${q('kubectl get nodes --no-headers | wc -l')} 個`);
     expect(r.out).toContain(`已移除 ${NODE}`);
     expect(s2['節點數']).toBe(s0['節點數']);

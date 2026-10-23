@@ -143,7 +143,7 @@ test('M2 06 專案包匯出與地端重做', async ({ browser }) => {
   let same = false;
   if (runId !== null && fs.existsSync(path.join(outDir, 'metrics.json'))) {
     const ui = await uiMetrics(page, runId);
-    await shot(page, TC, '06-平台指標');
+    await shot(page, TC, '06-單次訓練頁-平台指標');
     const raw = JSON.parse(fs.readFileSync(path.join(outDir, 'metrics.json'), 'utf8')) as Record<string, unknown>;
     const local = localMetricRows(raw);
     const d1 = diffRows(ui.rows, local.rows);

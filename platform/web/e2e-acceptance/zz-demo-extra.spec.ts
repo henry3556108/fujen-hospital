@@ -33,9 +33,10 @@ test('還原：刪除並重建 DEMO-一條龍', async ({ browser }) => {
   await form.getByRole('button', { name: '新增專案' }).click();
   await expect(status(page, `已新增專案「${PROJECT}」`)).toBeVisible();
   note(TC, `已新增專案 ${PROJECT}，GPU 群組 ${option}`);
-  await shot(page, TC, '01-專案');
-  await adminTab(page, '專案成員');
-  await page.locator('#member-project').selectOption({ label: PROJECT });
+  await shot(page, TC, '01-專案清單');
+  // 專案頁「成員與權限」分頁（原「專案成員」分頁的專案下拉改由網址決定）
+  await adminTab(page, '專案成員', PROJECT);
+  await expect(page.getByRole('table', { name: '目前的專案成員' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   for (const [user, role] of [['pi01', 'Principal Investigator'], ['md01', 'Medical Doctor']]) {
     const f = page.getByRole('form', { name: '設定專案成員' });
@@ -45,7 +46,7 @@ test('還原：刪除並重建 DEMO-一條龍', async ({ browser }) => {
     await expect(status(page, `已將「${user}」設定為`)).toBeVisible();
   }
   note(TC, `專案成員：${flat(await page.getByRole('table', { name: '目前的專案成員' }).innerText())}`);
-  await shot(page, TC, '02-專案成員');
+  await shot(page, TC, '02-專案頁-成員與權限');
   await ctx.close();
 });
 
@@ -66,10 +67,13 @@ test('第 3 段醫學統計數字', async ({ browser }) => {
   const { ctx, page } = await userPage(browser, 'pi01');
   await useProject(page, PROJECT);
   await clickMenu(page, '數據管理');
-  await page.getByRole('navigation', { name: '數據管理分頁' }).getByRole('link', { name: /^結構式資料/ }).click();
-  note(TC, `結構式資料頁：${flat(await page.locator('main').innerText()).slice(0, 600)}`);
+  // 研究資料 › 表格資料 → 資料集 → 查看資料 › 欄位統計（原「描述統計」分頁）
+  await page.getByRole('navigation', { name: '研究資料分頁' }).getByRole('link', { name: '表格資料', exact: true }).click();
+  await expect(page.getByRole('table', { name: '資料集列表' })).toBeVisible();
+  note(TC, `表格資料頁：${flat(await page.locator('main').innerText()).slice(0, 600)}`);
   await page.getByRole('link', { name: /^cohort_01/ }).first().click();
-  await page.getByRole('link', { name: '描述統計', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/data\/tabular\/\d+\/view/);
+  await page.getByRole('group', { name: '查看資料的段落' }).getByRole('button', { name: '欄位統計', exact: true }).click();
   await page.waitForTimeout(2000);
   const main = flat(await page.locator('main').innerText());
   note(TC, `描述統計頁（前 800 字）：${main.slice(0, 800)}`);
@@ -79,9 +83,9 @@ test('第 3 段醫學統計數字', async ({ browser }) => {
   const ageRow = table.getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'age', exact: true }) });
   const ageAlt = table.locator('tr').filter({ hasText: /^\s*age\b/ });
   note(TC, `age 列：${(await ageRow.count()) ? flat(await ageRow.first().innerText()) : (await ageAlt.count()) ? flat(await ageAlt.first().innerText()) : '找不到'}`);
-  await shot(page, TC, '01-描述統計');
+  await shot(page, TC, '01-查看資料-欄位統計');
 
-  await page.getByRole('link', { name: '統計分析', exact: true }).first().click();
+  await page.getByRole('navigation', { name: '資料集分頁' }).getByRole('link', { name: '統計分析', exact: true }).click();
   const model = page.locator('#stats-model');
   note(TC, `模型下拉 label：${await labelOf(page, 'stats-model')}；選項：${(await model.locator('option').allInnerTexts()).map(flat).join('／')}`);
   await pick(model, 'Logistic 迴歸');
@@ -99,7 +103,7 @@ test('第 3 段醫學統計數字', async ({ browser }) => {
   const lr = flat(await page.locator('main').innerText());
   note(TC, `Logistic 結果 AUC 附近：${(lr.match(/.{0,40}AUC.{0,60}/g) || []).join(' | ')}`);
   note(TC, `Logistic 有 ROC 字樣：${/ROC/.test(lr)}；有 0.8369：${lr.includes('0.8369')}`);
-  await shot(page, TC, '02-Logistic');
+  await shot(page, TC, '02-統計分析-Logistic');
 
   await pick(model, 'Kaplan-Meier');
   note(TC, `KM 選項文字：${flat(await model.locator('option:checked').innerText())}`);
@@ -113,7 +117,7 @@ test('第 3 段醫學統計數字', async ({ browser }) => {
   const km = flat(await page.locator('main').innerText());
   note(TC, `KM 結果 log-rank 附近：${(km.match(/.{0,40}[Ll]og-?rank.{0,60}/g) || []).join(' | ')}`);
   note(TC, `KM 有 0.3754：${km.includes('0.3754')}`);
-  await shot(page, TC, '03-KaplanMeier');
+  await shot(page, TC, '03-統計分析-KaplanMeier');
   await ctx.close();
 });
 
@@ -123,12 +127,22 @@ test('巨集功能按鈕存在（只看）', async ({ browser }) => {
   await useProject(page, PROJECT);
   await clickMenu(page, '建模管理');
   await page.waitForLoadState('networkidle');
-  const flowBtns = page.getByRole('button', { name: /^流程程式碼「.+」$/ });
-  const importBtn = page.getByRole('button', { name: '匯入專案包' });
+  // 建立模型 › 已存設定：每份設定的「流程程式碼「…」」；程式與專案包：「匯入專案包」
+  const tabs = page.getByRole('navigation', { name: '建立模型分頁' });
+  await tabs.getByRole('link', { name: '已存設定', exact: true }).click();
+  await page.waitForLoadState('networkidle');
+  const flowBtns = page.getByRole('link', { name: /^流程程式碼「.+」$/ }).or(page.getByRole('button', { name: /^流程程式碼「.+」$/ }));
+  await flowBtns.first().waitFor({ timeout: 15_000 }).catch(() => undefined); // 設定清單非同步載入
   note(TC, `流程程式碼按鈕 ${await flowBtns.count()} 個：${(await flowBtns.allInnerTexts()).map(flat).join('、')}`);
+  await shot(page, TC, '01-建立模型-已存設定');
+  const flowCount = await flowBtns.count();
+  await tabs.getByRole('link', { name: '程式與專案包', exact: true }).click();
+  await page.waitForLoadState('networkidle');
+  const importBtn = page.getByRole('button', { name: '匯入專案包' });
+  await importBtn.first().waitFor({ timeout: 15_000 }).catch(() => undefined);
   note(TC, `匯入專案包按鈕 ${await importBtn.count()} 個`);
-  await shot(page, TC, '01-建模管理');
+  await shot(page, TC, '02-建立模型-程式與專案包');
   expect(await importBtn.count()).toBeGreaterThan(0);
-  expect(await flowBtns.count()).toBeGreaterThan(0);
+  expect(flowCount).toBeGreaterThan(0);
   await ctx.close();
 });

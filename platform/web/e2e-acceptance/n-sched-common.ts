@@ -313,12 +313,57 @@ export async function refreshQueuePage(page: Page) {
   await page.waitForLoadState('networkidle');
 }
 
-/** 訓練紀錄：某次訓練的那一列（依「展開／收合訓練 #N」按鈕找） */
+/** 訓練紀錄頁「訓練清單」中某次訓練的連結（查看結果／查看進度 #N） */
+export function runLink(scope: Page | Locator, runId: number) {
+  return scope.getByRole('link', { name: new RegExp(`^(查看結果|查看進度) #${runId}$`) });
+}
+
+/** 訓練紀錄：某次訓練的那一列（依「查看結果／查看進度 #N」連結找） */
 export function runRow(page: Page, runId: number) {
-  return page
-    .getByRole('table', { name: '訓練清單' })
-    .locator('tbody tr')
-    .filter({ has: page.getByRole('button', { name: new RegExp(`^(展開|收合)訓練 #${runId}$`) }) });
+  return page.getByRole('table', { name: '訓練清單' }).locator('tbody tr').filter({ has: runLink(page, runId) });
+}
+
+/** 從訓練紀錄的那一列進入單次訓練頁（/training/runs/N），回傳頁上的細節區塊 */
+export async function openRun(page: Page, runId: number) {
+  await runLink(runRow(page, runId), runId).click();
+  await expect(page).toHaveURL(new RegExp(`/training/runs/${runId}$`));
+  const detail = page.locator('.run-detail');
+  await expect(detail.getByTestId('run-status')).toBeVisible({ timeout: 30_000 });
+  return detail;
+}
+
+/** 建立模型的頁內分頁（訓練紀錄／已存設定／程式與專案包） */
+export async function trainingTab(page: Page, tab: '訓練紀錄' | '已存設定' | '程式與專案包') {
+  await page.getByRole('navigation', { name: '建立模型分頁' }).getByRole('link', { name: tab, exact: true }).click();
+  await page.waitForLoadState('networkidle');
+}
+
+/**
+ * 建立模型 › 已存設定：該設定按「套用「名稱」」開啟建立訓練精靈（帶入設定，直接到「確認並送出」）
+ * → 按「確認並送出訓練」→ 進入這次訓練的頁面。回傳新訓練編號。
+ */
+export async function submitFromSetting(page: Page, name: string): Promise<number> {
+  await trainingTab(page, '已存設定');
+  const table = page.getByRole('table', { name: '訓練設定清單' });
+  await expect(table).toBeVisible({ timeout: 30_000 });
+  await table.getByRole('link', { name: `套用「${name}」`, exact: true }).click();
+  await expect(page).toHaveURL(/\/training\/new\?setting=\d+/);
+  await page.getByRole('button', { name: '確認並送出訓練' }).click();
+  await expect(page).toHaveURL(/\/training\/runs\/\d+$/, { timeout: 60_000 });
+  await expect(page.locator('.run-detail').getByTestId('run-status')).toBeVisible({ timeout: 30_000 });
+  return Number(/\/training\/runs\/(\d+)$/.exec(page.url())![1]);
+}
+
+/** 訓練紀錄翻頁直到看到某次訓練（最多 maxPages 頁） */
+export async function findRunRow(page: Page, runId: number, maxPages = 20) {
+  const row = runRow(page, runId);
+  for (let i = 0; i < maxPages && (await row.count()) === 0; i++) {
+    const next = page.getByRole('navigation', { name: '訓練紀錄分頁' }).getByRole('button', { name: '下一頁' });
+    if (!(await next.count()) || (await next.isDisabled())) break;
+    await next.click();
+    await page.waitForLoadState('networkidle');
+  }
+  return row;
 }
 
 export { expect };

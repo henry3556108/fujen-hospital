@@ -23,6 +23,7 @@ test('M1 補拍 04 帳號新增修改刪除（TC-A03-02）', async ({ browser })
   await gotoAdmin(page, 'Account 帳號');
   const table = page.getByRole('table', { name: '帳號列表' });
   const names = async () => (await table.locator('tbody th').allInnerTexts()).map((s) => s.trim());
+  await expect(table.getByRole('rowheader', { name: 'admin01', exact: true })).toBeVisible();
   for (const n of NAMES) if ((await names()).includes(n)) await deleteUser(page, n); // 上一輪殘留
   const before = await names();
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -109,7 +110,7 @@ test('M1 補拍 04 帳號新增修改刪除（TC-A03-02）', async ({ browser })
   note(TC, `新增 3、修改 3、刪除 3，成功 ${success}/9；登入同步 2/2（新帳號可登入、刪除後不能登入）`);
   expect(before).toEqual(SEED);
   expect(afterCreate.length).toBe(11);
-  expect(h1).toBe('KIT-A-u1（一般使用者）');
+  expect(h1).toBe('KIT-A-u1'); // 未加入專案：頂端只顯示帳號與「尚未加入任何專案」
   expect(types).toEqual(['Admin', 'Admin', 'Admin']);
   expect(after).toEqual(SEED);
   expect(counts).toBe('create|3、delete|3、update|3');

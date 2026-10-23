@@ -3,29 +3,31 @@ import { DENIED, P1, clickMenu, expectNotDenied, login, menuLabels, note, shot, 
 
 // 情境 5：首頁功能入口與專案隔離（TC-A02-01～04 的網頁部分）。全部唯讀，不改任何資料。
 
-const ENTRIES: { name: string; path: string; expectText: RegExp }[] = [
-  { name: '帳號管理', path: '/admin/dashboard', expectText: /Dashboard/ },
-  { name: '數據管理', path: '/data', expectText: /結構式資料（CSV 表格）/ },
-  { name: '影像標註', path: '/labeling', expectText: /研究清單/ },
-  { name: '自動影像分類標註', path: '/auto-labeling', expectText: /送出自動標註/ },
-  { name: '建模管理', path: '/training', expectText: /訓練設定/ },
-  { name: 'AI 模型部署', path: '/deployment', expectText: /模型/ },
-  { name: '推論服務管理', path: '/inference', expectText: /用模型預測病人/ },
-  { name: 'LLM No-code 開發', path: '/llm/playground', expectText: /Playground/ },
+// 改版後從「功能目錄」點契約原名稱進入；舊入口轉到新位置（網址與頁面標題為新位置）
+const ENTRIES: { name: string; url: RegExp; h1: string }[] = [
+  { name: '帳號管理', url: /\/admin$/, h1: '總覽' },
+  { name: '數據管理', url: /\/data\/imaging$/, h1: '研究資料' },
+  { name: '影像標註', url: /\/labeling$/, h1: '影像標註' },
+  { name: '自動影像分類標註', url: /\/labeling\/auto$/, h1: '影像標註' },
+  { name: '建模管理', url: /\/training$/, h1: '建立模型' },
+  { name: 'AI 模型部署', url: /\/models\?entry=deployment$/, h1: '使用模型' },
+  { name: '推論服務管理', url: /\/models\?entry=inference$/, h1: '使用模型' },
+  { name: 'LLM No-code 開發', url: /\/llm\/chat$/, h1: '語言模型' },
 ];
 
 test('5-1 admin01 從 8 個入口都能進入（TC-A02-01）', async ({ page }) => {
   const tc = 'TC-A02-01';
   await login(page, 'admin01');
   await useProject(page);
-  await expect(page.getByText(`目前專案：${P1}。以下為你可使用的功能。`)).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '專案首頁' })).toBeVisible();
+  await expect(page.locator('.home-subtitle')).toHaveText(P1);
   expect(await menuLabels(page)).toEqual(ENTRIES.map((e) => e.name));
-  await shot(page, tc, '01-首頁八個入口');
+  await shot(page, tc, '01-功能目錄八個入口');
   let ok = 0;
   for (const [i, e] of ENTRIES.entries()) {
     await clickMenu(page, e.name);
-    await expect(page).toHaveURL(new RegExp(`${e.path}$`));
-    await expect(page.getByText(e.expectText).first()).toBeVisible();
+    await expect(page).toHaveURL(e.url);
+    await expect(page.getByRole('heading', { level: 1, name: e.h1 })).toBeVisible();
     await expectNotDenied(page);
     await shot(page, tc, `${String(i + 2).padStart(2, '0')}-${e.name}`);
     ok++;
@@ -46,7 +48,7 @@ for (const [user, expected] of Object.entries(BY_ROLE)) {
     await useProject(page);
     const labels = await menuLabels(page);
     await shot(page, tc, user);
-    note(tc, `${user} 左側選單：${labels.join('、')}`);
+    note(tc, `${user} 功能目錄：${labels.join('、')}`);
     expect(labels).toEqual(expected);
   });
 }
@@ -59,27 +61,36 @@ const openDataset = async (p: Page) => {
 const tab = (name: string) => async (p: Page) => {
   await p.getByRole('link', { name, exact: true }).or(p.getByRole('tab', { name, exact: true })).first().click();
 };
+/** 查看資料頁的段落按鈕（資料預覽、欄位統計、相關與散佈圖） */
+const section = (name: string) => async (p: Page) => {
+  await p.getByRole('group', { name: '查看資料的段落' }).getByRole('button', { name, exact: true }).click();
+  await expect(p.getByRole('region', { name })).toBeVisible();
+};
+const runs = async (p: Page) => {
+  await clickMenu(p, '建模管理');
+  await expect(p.getByRole('heading', { level: 2, name: '訓練紀錄' })).toBeVisible();
+};
 const PLAN: Record<string, Step[]> = {
   pi01: [
     { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
-    { label: '結構式資料', run: tab('結構式資料（CSV 表格）') },
-    { label: '開啟資料集-描述統計', run: openDataset },
-    { label: '預覽', run: tab('預覽') },
-    { label: '專案工作', run: async (p) => { await clickMenu(p, '建模管理'); await p.getByRole('link', { name: '專案工作' }).first().click(); await expect(p.getByText('工作列表').first()).toBeVisible(); } },
+    { label: '表格資料', run: tab('表格資料') },
+    { label: '開啟資料集-查看資料', run: openDataset },
+    { label: '欄位統計', run: section('欄位統計') },
+    { label: '訓練紀錄', run: runs },
   ],
   md01: [
     { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
     { label: '影像標註', run: (p) => clickMenu(p, '影像標註') },
     { label: '自動影像分類標註', run: (p) => clickMenu(p, '自動影像分類標註') },
     { label: 'AI模型部署', run: (p) => clickMenu(p, 'AI 模型部署') },
-    { label: '推論服務管理', run: async (p) => { await clickMenu(p, '推論服務管理'); await expect(p.getByText('用模型預測病人').first()).toBeVisible(); } },
+    { label: '推論服務管理', run: async (p) => { await clickMenu(p, '推論服務管理'); await expect(p.getByRole('heading', { level: 1, name: '使用模型' })).toBeVisible(); } },
   ],
   ra01: [
     { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
-    { label: '開啟資料集', run: async (p) => { await tab('結構式資料（CSV 表格）')(p); await openDataset(p); } },
-    { label: '相關與散佈圖', run: tab('相關與散佈圖') },
+    { label: '開啟資料集', run: async (p) => { await tab('表格資料')(p); await openDataset(p); } },
+    { label: '相關與散佈圖', run: section('相關與散佈圖') },
     { label: '建模管理', run: (p) => clickMenu(p, '建模管理') },
-    { label: '專案工作', run: async (p) => { await p.getByRole('link', { name: '專案工作' }).first().click(); await expect(p.getByText('工作列表').first()).toBeVisible(); } },
+    { label: '訓練紀錄', run: runs },
   ],
 };
 
@@ -120,7 +131,8 @@ test('5-4 user01（未加入專案）直接輸入 10 個網址都被擋（TC-A02
   let denied = 0;
   for (const [i, url] of USER01_URLS.entries()) {
     await page.goto(url);
-    await expect(page.getByText(DENIED).first()).toBeVisible();
+    // 沒有任何專案：研究區一律顯示「你還沒有加入任何專案」說明頁（等同被擋）
+    await expect(page.getByText(DENIED).or(page.getByRole('heading', { level: 1, name: '你還沒有加入任何專案' })).first()).toBeVisible();
     await expect(page.getByText('cohort_02.csv')).toHaveCount(0);
     await shot(page, tc, `${String(i + 1).padStart(2, '0')}-${url.replaceAll('/', '_')}`);
     denied++;
