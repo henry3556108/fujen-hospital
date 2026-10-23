@@ -12,6 +12,8 @@ from app.scheduling.states import JobStatus
 
 LABEL_POOL = "platform/pool"
 LABEL_GPU_PHYSICAL = "platform/gpu-physical"
+# 節點的 GPU 來自 NVIDIA device plugin（值 device-plugin）。沒有這個標籤的 GPU 節點是 kind 的假 GPU
+LABEL_GPU_SOURCE = "platform/gpu-source"
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,8 @@ class NodeInfo:
     gpu_capacity: int = 0     # 可排程的 GPU 份數（共享池 = 實體張數 × 時間片份數）
     gpu_allocatable: int = 0
     gpu_physical: int = 0
+    # 份數由 NVIDIA device plugin 回報（真 GPU，標籤 platform/gpu-source=device-plugin）；否則是假 GPU 的 status patch
+    real_gpu: bool = False
 
 
 @dataclass(frozen=True)

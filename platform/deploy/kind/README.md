@@ -36,10 +36,37 @@
 | ai-platform-worker | `cpu-web` | — | 網頁服務（web-echo）、監控堆疊 |
 | ai-platform-worker2 | `cpu-data` | — | 資料清洗工作、結構式模型的批次推論 |
 | ai-platform-worker3 | `gpu-exclusive` | 2 | 獨占：一件工作一張卡，照順序排隊（影像訓練、LLM serving） |
-| ai-platform-worker4 | `gpu-shared` | 4 份 = 1 張 × 時間片 4 | 共享：推論、自動標註、結構式訓練、小模型 |
+| ai-platform-worker4 | `gpu-shared` | 4 份 = 1 張 × 時間片 4（WSL2 開發機上是**真 GPU**，見下方） | 共享：推論、自動標註、結構式訓練、小模型 |
 
 - **假 GPU**：`fake-gpus.sh` 以 node status patch 宣告 `nvidia.com/gpu`，並替 GPU 節點加上 `nvidia.com/gpu=present:NoSchedule` taint（只有 GPU 工作會排上去）。
   共享池的份數等同 NVIDIA time-slicing 的 `replicas`；平台的「共享排程設定」改份數時會同步改節點宣告與 Kueue 配額。
+  有 `platform/gpu-source=device-plugin` 標籤的節點（真 GPU）只加 taint，不 patch 份數。
+
+## 真 GPU（WSL2 開發機，共享池 ai-platform-worker4）
+
+Windows 開發機（WSL2 + Docker Engine + NVIDIA Container Toolkit）上，共享池節點接主機的 GPU，影像訓練 Job 真的用 GPU；
+獨占池（worker3）仍是假 GPU 2 張。節點名稱、標籤、taint、份數（1 張 × 時間片 4）都與假 GPU 時相同，Kueue 配額不變。
+不改主機的 Docker daemon 設定：GPU 只在節點容器內部處理。
+
+```bash
+./up.sh                                    # 有 /dev/dxg 與 nvidia-smi 時自動做下面兩步（REAL_GPU_NODE= ./up.sh 停用）
+# 手動：
+./remove-node.sh ai-platform-worker4
+REAL_GPU=1 ./add-node.sh ai-platform-worker4 gpu-shared 1   # 掛 /dev/dxg、/usr/lib/wsl，再執行 gpu-node.sh
+WITH_GPU_IMAGE=1 SKIP_BUILD=1 NODES=ai-platform-worker4 GPU_NODES=ai-platform-worker4 ./load-trainer-image.sh   # 重建後映像要重新載入
+```
+
+- `gpu-node.sh <節點>`（可重複執行）：節點內安裝與主機同版的 NVIDIA Container Toolkit（主機 `apt-get download`）、
+  `/usr/lib/wsl/lib` 加進 ldconfig、containerd 預設 runtime 改 nvidia；匯入 `nvcr.io/nvidia/k8s-device-plugin:v0.18.1`；
+  加標籤 `platform/gpu-source=device-plugin`；部署 `gpu/nvidia-device-plugin.yaml`（只排到有這個標籤的節點）與
+  `gpu/time-slicing.yaml`（ConfigMap `kube-system/nvdp-config`，replicas 4，只在不存在時建立）；等節點回報 `nvidia.com/gpu: 4`。
+- **改份數**：平台「共享排程設定」（`kube.py` `configure_shared`）在有真 GPU 節點時，改 `nvdp-config` 並以 Pod 範本註記
+  `platform/time-slice-replicas` 重啟 device plugin，同時改節點宣告與 Kueue 配額。plugin 重新註冊前（約 10–20 秒）kubelet 可能短暫回報舊值，
+  之後節點、plugin、Kueue 是同一個數字。平台在叢集內的 ServiceAccount 需要 `overlays/kind/rbac-fake-gpu.yaml` 的 kube-system Role。
+- **重開機**：節點容器內的安裝與 containerd 設定都在容器的檔案系統，`啟動平台.cmd`（`docker start`）後不必重做；device plugin 由 DaemonSet 重新啟動。
+- **限制**：WSL2 只有 `/dev/dxg` 一個裝置，不能指定給某張卡，節點容器內所有用 nvidia runtime 的容器都看得到 GPU
+  （沒有要求 `nvidia.com/gpu` 的 Pod 也看得到；平台的 Job 都有 limit，排程數字仍正確）。時間片只是排程份數，
+  不隔離記憶體與算力，與 compose 的 Ollama、MONAI Label 共用同一張卡。GPU Dashboard 的卡號仍依開始時間推算（沒有 DCGM）。
 - **Kueue v0.19.6**（`kueue/queues.yaml`）：每個池一個 ResourceFlavor、ClusterQueue（`StrictFIFO`）、`platform-jobs` 內同名 LocalQueue。
 - **調整順序與暫存**（平台「排程與叢集 → 佇列順序」，API `GET /api/admin/queues`、`PUT /api/admin/queues/{queue}/order`）：
   沒有優先權，Kueue 依 Workload 建立時間放行，所以平台把要往後移的等待中 Job（仍是 `suspend`）刪掉、以新名稱
@@ -54,7 +81,7 @@
 
 ```bash
 ./add-node.sh ai-platform-extra-1 cpu-data     # 啟動節點容器、kubeadm join、加標籤、等 Ready
-./remove-node.sh ai-platform-extra-1
+./remove-node.sh ai-platform-extra-1   # 連同節點的 /var volume（節點上的映像）一起刪
 ```
 
 kind 不支援擴充既有叢集，所以 `add-node.sh` 用與 kind worker 相同的容器參數啟動節點映像再 `kubeadm join`。平台節點清單直接讀 Kubernetes，不需要另外設定。

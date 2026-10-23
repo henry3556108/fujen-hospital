@@ -1,7 +1,7 @@
 // 單一影像視窗：把原始像素套上窗位、旋轉後畫到 canvas，再疊上標註。
 // 滑鼠在畫布上的位置會換算回影像座標，交給上層處理（畫框、塗遮罩）。
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { annotationRgb, css, readToken } from './colors';
+import { ANNOTATION_COLOR_COUNT, annotationRgb, css, readToken } from './colors';
 import type { DicomwebClient, InstanceInfo } from './dicomweb';
 import {
   boxFromPoints,
@@ -30,6 +30,14 @@ export interface Overlay {
   revision?: number;
 }
 
+/** 沒有形狀的標註（分類）在影像左上角顯示的文字 */
+export interface Badge {
+  id: number;
+  text: string;
+  /** 顏色序號，與圖例相同 */
+  color: number;
+}
+
 export interface ViewportProps {
   dicomweb: DicomwebClient;
   studyUid: string;
@@ -39,6 +47,7 @@ export interface ViewportProps {
   rotation: Rotation;
   invert: boolean;
   overlays: Overlay[];
+  badges?: Badge[];
   colorOf: Record<string, number>;
   active: boolean;
   tool: Tool;
@@ -249,6 +258,15 @@ export function Viewport(props: ViewportProps) {
           setPreview(null);
         }}
       />
+      {props.badges?.length ? (
+        <ul className="viewport__badges" aria-label="這張影像的分類標註">
+          {props.badges.map((b) => (
+            <li key={b.id} className={`viewport__badge viewport__badge--${((b.color - 1) % ANNOTATION_COLOR_COUNT) + 1}`}>
+              {b.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <figcaption className="viewport__caption">
         {error ? <span role="alert">無法顯示影像：{error}</span> : pixels ? description : '影像載入中…'}
       </figcaption>

@@ -75,3 +75,6 @@ def test_summary_counts_per_study_kind_and_label(client, lab):
     assert studies[study_uid(1)]["annotations"] == 3 and studies[study_uid(2)]["annotations"] == 2
     assert studies[study_uid(3)]["annotations"] == 0
     assert studies[study_uid(1)]["by_kind"] == {"classification": 2, "segmentation": 0, "detection": 1}
+    assert studies[study_uid(1)]["classification_labels"] == ["nodule", "normal"]
+    assert studies[study_uid(2)]["classification_labels"] == ["nodule"]          # 研究層級也算
+    assert studies[study_uid(3)]["classification_labels"] == []

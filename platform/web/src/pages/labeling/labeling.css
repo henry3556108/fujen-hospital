@@ -73,6 +73,7 @@
 }
 
 .viewport {
+  position: relative;
   margin: 0;
   background: var(--viewer-bg);
   color: var(--viewer-text);
@@ -189,3 +190,35 @@
   font-size: 0.875rem;
   word-break: break-all;
 }
+
+/* 分類標註：疊在影像左上角，深底亮字，左側色條對應圖例 */
+.viewport__badges {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.viewport__badge {
+  padding: 0.25rem 0.5rem;
+  border-left: 6px solid currentColor;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--viewer-bg) 85%, transparent);
+  color: var(--viewer-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.viewport__badge--1 { border-left-color: var(--annotation-color-1); }
+.viewport__badge--2 { border-left-color: var(--annotation-color-2); }
+.viewport__badge--3 { border-left-color: var(--annotation-color-3); }
+.viewport__badge--4 { border-left-color: var(--annotation-color-4); }
+.viewport__badge--5 { border-left-color: var(--annotation-color-5); }
+.viewport__badge--6 { border-left-color: var(--annotation-color-6); }

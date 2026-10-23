@@ -156,8 +156,12 @@ def summary(session: Session, project_id: int) -> dict:
                if not allowed or s.accession_number in allowed]
     per_study = {s.study_instance_uid: {k: 0 for k in KINDS} for s in studies}
     labels: dict[str, dict[str, int]] = {k: {} for k in KINDS}
+    # 研究清單直接顯示分類結果，不必點進工作台才知道標了什麼
+    classes: dict[str, set[str]] = {uid: set() for uid in per_study}
     for a in rows:
         per_study[a.study_instance_uid][a.kind] += 1
+        if a.kind == "classification":
+            classes[a.study_instance_uid].add(a.payload["label"])
         for label in labels_of(a.kind, a.payload):
             labels[a.kind][label] = labels[a.kind].get(label, 0) + 1
     return {
@@ -170,7 +174,8 @@ def summary(session: Session, project_id: int) -> dict:
                      "patient_id": s.patient_id, "study_date": s.study_date,
                      "study_description": s.study_description,
                      "annotations": sum(per_study[s.study_instance_uid].values()),
-                     "by_kind": per_study[s.study_instance_uid]} for s in studies],
+                     "by_kind": per_study[s.study_instance_uid],
+                     "classification_labels": sorted(classes[s.study_instance_uid])} for s in studies],
     }
 
 

@@ -9,13 +9,14 @@
   刪除時帶 resourceVersion 前置條件：Job 一旦被 Kueue 放行（解除 suspend）就刪不掉，不會誤刪即將執行的工作。
 """
 import copy
+import json
 import os
 import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable
 
-from app.scheduling.backend import (LABEL_GPU_PHYSICAL, LABEL_POOL, Allocation, BackendJob, JobSpec, NodeInfo,
+from app.scheduling.backend import (LABEL_GPU_PHYSICAL, LABEL_GPU_SOURCE, LABEL_POOL, Allocation, BackendJob, JobSpec, NodeInfo,
                                     NotWaiting, PartialReorder, slot_position)
 from app.scheduling.states import JobStatus
 
@@ -28,6 +29,11 @@ SAME_QUEUE_GAP_SECONDS = 1.05
 # Job controller 產生的標籤與 selector：重建時要拿掉，否則新 Job 會被拒絕（selector 對不上新的 uid）
 GENERATED_LABELS = frozenset({"controller-uid", "job-name", "batch.kubernetes.io/controller-uid",
                               "batch.kubernetes.io/job-name"})
+# 真 GPU 節點（platform/gpu-source=device-plugin）的時間片設定：platform/deploy/kind/gpu/ 的 ConfigMap 與 DaemonSet
+DEVICE_PLUGIN_CONFIG = "kube-system/nvdp-config"
+DEVICE_PLUGIN_DAEMONSET = "kube-system/nvidia-device-plugin-daemonset"
+DEVICE_PLUGIN_CONFIG_KEY = "config.yaml"
+REPLICAS_ANNOTATION = "platform/time-slice-replicas"
 
 _serializer = None
 
@@ -210,7 +216,8 @@ def node_info(node) -> NodeInfo:
     allocatable = node.status.allocatable or {}
     return NodeInfo(name=node.metadata.name, pool=labels.get(LABEL_POOL), ready=ready,
                     gpu_capacity=_qty(capacity.get(GPU)), gpu_allocatable=_qty(allocatable.get(GPU)),
-                    gpu_physical=_qty(labels.get(LABEL_GPU_PHYSICAL)))
+                    gpu_physical=_qty(labels.get(LABEL_GPU_PHYSICAL)),
+                    real_gpu=labels.get(LABEL_GPU_SOURCE) == "device-plugin")
 
 
 def _pod_gpus(pod) -> int:
@@ -219,8 +226,12 @@ def _pod_gpus(pod) -> int:
 
 class KubernetesJobBackend:
     def __init__(self, *, core, batch, custom, namespace: str, image: str, shared_reserved: int = 0,
-                 clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep):
-        self.core, self.batch, self.custom = core, batch, custom
+                 clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
+                 apps=None, gpu_plugin_config: str = DEVICE_PLUGIN_CONFIG,
+                 gpu_plugin_daemonset: str = DEVICE_PLUGIN_DAEMONSET):
+        self.core, self.batch, self.custom, self.apps = core, batch, custom, apps
+        # 真 GPU 節點的時間片份數：NVIDIA device plugin 的設定 ConfigMap 與 DaemonSet（<namespace>/<名稱>）
+        self.gpu_plugin_config, self.gpu_plugin_daemonset = gpu_plugin_config, gpu_plugin_daemonset
         self.namespace, self.image = namespace, image
         # 共享池裡不經 Kueue 的常駐服務（正式環境的 Ollama、MONAI Label）占用的份數，從配額扣掉
         self.shared_reserved = shared_reserved
@@ -237,9 +248,12 @@ class KubernetesJobBackend:
         except config.ConfigException:
             config.load_kube_config(context=os.environ.get("KUBE_CONTEXT") or None)
         return cls(core=client.CoreV1Api(), batch=client.BatchV1Api(), custom=client.CustomObjectsApi(),
+                   apps=client.AppsV1Api(),
                    namespace=os.environ.get("JOB_NAMESPACE", "platform-jobs"),
                    image=os.environ.get("JOB_IMAGE", "busybox:1.36"),
-                   shared_reserved=int(os.environ.get("GPU_SHARED_RESERVED", "0")))
+                   shared_reserved=int(os.environ.get("GPU_SHARED_RESERVED", "0")),
+                   gpu_plugin_config=os.environ.get("GPU_PLUGIN_CONFIG", DEVICE_PLUGIN_CONFIG),
+                   gpu_plugin_daemonset=os.environ.get("GPU_PLUGIN_DAEMONSET", DEVICE_PLUGIN_DAEMONSET))
 
     # --- JobBackend ---
     def submit(self, spec: JobSpec) -> None:
@@ -309,10 +323,14 @@ class KubernetesJobBackend:
 
     def configure_shared(self, replicas: int) -> None:
         # 等同甲方的 NVIDIA time-slicing replicas：節點宣告的 GPU 份數與 ClusterQueue 配額一起改
-        for n in self.nodes():
-            if n.pool == "gpu-shared":
-                physical = n.gpu_physical or 1
-                self.core.patch_node_status(n.name, {"status": {"capacity": {GPU: str(physical * replicas)}}})
+        shared = [n for n in self.nodes() if n.pool == "gpu-shared"]
+        if any(n.real_gpu for n in shared):
+            # 真 GPU 節點的份數由 device plugin 回報：改它的 time-slicing 設定並重啟 plugin，否則 kubelet 會把份數改回去
+            self._configure_device_plugin(replicas)
+        for n in shared:
+            physical = n.gpu_physical or 1
+            # 真 GPU 節點也先改節點宣告，讓畫面與 Kueue 立即一致；plugin 重新註冊後 kubelet 回報的是同一個數字
+            self.core.patch_node_status(n.name, {"status": {"capacity": {GPU: str(physical * replicas)}}})
         cq = self.custom.get_cluster_custom_object(KUEUE_GROUP, KUEUE_VERSION, "clusterqueues", "gpu-shared")
         groups = cq["spec"]["resourceGroups"]
         total = sum(max(1, n.gpu_physical) for n in self.nodes() if n.pool == "gpu-shared") * replicas
@@ -324,6 +342,22 @@ class KubernetesJobBackend:
                         resource["nominalQuota"] = str(total)
         self.custom.patch_cluster_custom_object(KUEUE_GROUP, KUEUE_VERSION, "clusterqueues", "gpu-shared",
                                                 {"spec": {"resourceGroups": groups}})
+
+    def _configure_device_plugin(self, replicas: int) -> None:
+        """改 NVIDIA device plugin 的 time-slicing 份數（ConfigMap），再以 Pod 範本註記觸發 DaemonSet 重啟。
+        plugin 只在啟動時讀設定；重啟後向 kubelet 重新註冊，節點份數約 10–20 秒後由 kubelet 回報為新值。"""
+        cm_ns, cm_name = self.gpu_plugin_config.split("/", 1)
+        ds_ns, ds_name = self.gpu_plugin_daemonset.split("/", 1)
+        # JSON 也是合法的 YAML；kind 的設定只有 time-slicing 這一項（platform/deploy/kind/gpu/time-slicing.yaml）
+        config = {"version": "v1", "sharing": {"timeSlicing": {"resources": [{"name": GPU, "replicas": replicas}]}}}
+        self.core.patch_namespaced_config_map(cm_name, cm_ns,
+                                              {"data": {DEVICE_PLUGIN_CONFIG_KEY: json.dumps(config, indent=2)}})
+        if self.apps is None:   # 沒有另外給：沿用 core 的連線設定（例如以 new_client_from_config 指定 context）
+            from kubernetes import client
+            self.apps = client.AppsV1Api(getattr(self.core, "api_client", None))
+        self.apps.patch_namespaced_daemon_set(
+            ds_name, ds_ns,
+            {"spec": {"template": {"metadata": {"annotations": {REPLICAS_ANNOTATION: str(replicas)}}}}})
 
     # --- 佇列順序與暫存 ---
     def order(self, queue: str) -> list[str]:

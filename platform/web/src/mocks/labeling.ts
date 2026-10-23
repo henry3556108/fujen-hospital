@@ -232,6 +232,9 @@ function summary(projectId: number): LabelSummary {
           AnnotationKind,
           number
         >,
+        classification_labels: [
+          ...new Set(mine.filter((a) => a.kind === 'classification').map((a) => (a.payload as { label: string }).label)),
+        ].sort(),
       };
     }),
   };

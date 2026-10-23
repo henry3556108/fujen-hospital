@@ -75,6 +75,8 @@ async function cleanupKitC(page: Page, tc: string) {
 
 async function tableRows(page: Page, name: string) {
   const rows = page.getByRole('table', { name }).locator('tbody tr');
+  await expect(rows.first()).toBeVisible(); // 列表是非同步載入的：等第一列出現再讀，否則會讀到空表
+  await page.waitForLoadState('networkidle');
   const out: string[][] = [];
   for (const r of await rows.all()) out.push((await r.locator('th, td').allInnerTexts()).map((s) => s.trim()));
   return out;

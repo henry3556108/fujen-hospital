@@ -75,10 +75,12 @@ def test_deadline_failure_message():
     assert state == JobStatus.FAILED and "時限" in message
 
 
-def node(name, pool, *, gpus=None, physical=None, ready="True"):
+def node(name, pool, *, gpus=None, physical=None, ready="True", real=False):
     labels = {"platform/pool": pool} if pool else {}
     if physical is not None:
         labels["platform/gpu-physical"] = str(physical)
+    if real:
+        labels["platform/gpu-source"] = "device-plugin"
     cap = {"cpu": "6"} | ({"nvidia.com/gpu": str(gpus)} if gpus is not None else {})
     return V1Node(metadata=V1ObjectMeta(name=name, labels=labels),
                   status=V1NodeStatus(capacity=cap, allocatable=cap,
@@ -90,6 +92,7 @@ def test_node_info():
     assert (info.name, info.pool, info.ready, info.gpu_capacity, info.gpu_physical) == ("w4", "gpu-shared", True, 4, 1)
     plain = node_info(node("cp", None, ready="False"))
     assert (plain.pool, plain.ready, plain.gpu_capacity, plain.gpu_physical) == (None, False, 0, 0)
+    assert not info.real_gpu and node_info(node("w4", "gpu-shared", gpus=4, physical=1, real=True)).real_gpu
 
 
 def pod(name, node_name, started, *, gpus=1, labels=None):
@@ -114,6 +117,17 @@ class FakeCore:
 
     def patch_node_status(self, name, body):
         self.patched.append((name, body))
+
+    def patch_namespaced_config_map(self, name, namespace, body):
+        self.patched.append((f"configmap/{namespace}/{name}", body))
+
+
+class FakeApps:
+    def __init__(self):
+        self.patched = []
+
+    def patch_namespaced_daemon_set(self, name, namespace, body):
+        self.patched.append((f"{namespace}/{name}", body))
 
 
 class FakeBatch:
@@ -149,9 +163,10 @@ class FakeCustom:
         self.patches.append((name, body))
 
 
-def make_backend(core=None, batch=None, custom=None, clock=None, sleeps=None):
+def make_backend(core=None, batch=None, custom=None, clock=None, sleeps=None, apps=None):
     t = clock or [0.0]
     return KubernetesJobBackend(core=core or FakeCore(), batch=batch or FakeBatch(), custom=custom or FakeCustom(),
+                                apps=apps or FakeApps(),
                                 namespace="platform-jobs", image="busybox:1.36",
                                 clock=lambda: t[0], sleep=(sleeps.append if sleeps is not None else lambda s: None))
 
@@ -222,6 +237,40 @@ def test_configure_shared_subtracts_resident_services():
     b.shared_reserved = 9
     b.configure_shared(4)
     assert quota() == "0"
+
+
+def test_configure_shared_fake_gpu_nodes_do_not_touch_device_plugin():
+    apps = FakeApps()
+    core = FakeCore(nodes=[node("w4", "gpu-shared", gpus=4, physical=1)])
+    make_backend(core=core, apps=apps).configure_shared(3)
+    assert [name for name, _ in core.patched] == ["w4"] and apps.patched == []
+
+
+def test_configure_shared_real_gpu_updates_device_plugin_config_and_restarts_it():
+    import json
+    apps, custom = FakeApps(), FakeCustom()
+    core = FakeCore(nodes=[node("w4", "gpu-shared", gpus=4, physical=1, real=True),
+                           node("w3", "gpu-exclusive", gpus=2, physical=2)])
+    make_backend(core=core, custom=custom, apps=apps).configure_shared(2)
+    (cm_name, cm_body), (node_name, node_body) = core.patched
+    assert cm_name == "configmap/kube-system/nvdp-config"
+    config = json.loads(cm_body["data"]["config.yaml"])
+    assert config["sharing"]["timeSlicing"]["resources"] == [{"name": "nvidia.com/gpu", "replicas": 2}]
+    # plugin 只在啟動時讀設定：改 Pod 範本註記讓 DaemonSet 重啟
+    assert apps.patched == [("kube-system/nvidia-device-plugin-daemonset",
+                             {"spec": {"template": {"metadata": {"annotations": {"platform/time-slice-replicas": "2"}}}}})]
+    # 節點宣告與 Kueue 配額同步改成同一個數字（1 張 × 2 份）
+    assert (node_name, node_body) == ("w4", {"status": {"capacity": {"nvidia.com/gpu": "2"}}})
+    gpu = custom.patches[-1][1]["spec"]["resourceGroups"][0]["flavors"][0]["resources"][1]
+    assert gpu["nominalQuota"] == "2"
+
+
+def test_configure_shared_device_plugin_names_are_configurable():
+    apps, core = FakeApps(), FakeCore(nodes=[node("g1", "gpu-shared", gpus=4, physical=1, real=True)])
+    b = make_backend(core=core, apps=apps)
+    b.gpu_plugin_config, b.gpu_plugin_daemonset = "gpu-operator/time-slicing", "gpu-operator/nvdp"
+    b.configure_shared(4)
+    assert core.patched[0][0] == "configmap/gpu-operator/time-slicing" and apps.patched[0][0] == "gpu-operator/nvdp"
 
 
 def test_backend_from_env(monkeypatch):

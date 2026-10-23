@@ -68,6 +68,7 @@ export async function schedulingTab(page: Page, tab: string) {
 /** 右上「目前專案」選專案 → 左側「建模管理」→ 卡片「專案工作」 */
 export async function gotoJobs(page: Page, project: string) {
   await page.goto('/');
+  await page.locator('#project-switcher').waitFor(); // 專案選單在 /api/me 回來後才出現；太早呼叫 useProject 會直接略過
   await useProject(page, project);
   await clickMenu(page, '建模管理');
   await page.getByRole('link', { name: '專案工作' }).first().click();

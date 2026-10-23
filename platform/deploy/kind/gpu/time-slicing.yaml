@@ -1,0 +1,15 @@
+# 真 GPU 節點的時間片份數（NVIDIA device plugin 的設定檔）。共享池 1 張 × 4 份，與 kueue/queues.yaml 的 gpu-shared 配額一致。
+# gpu-node.sh 只在 ConfigMap 不存在時建立（份數之後由平台「共享排程設定」改：kube.py configure_shared 改這裡並重啟 plugin）。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvdp-config
+  namespace: kube-system
+data:
+  config.yaml: |
+    version: v1
+    sharing:
+      timeSlicing:
+        resources:
+          - name: nvidia.com/gpu
+            replicas: 4

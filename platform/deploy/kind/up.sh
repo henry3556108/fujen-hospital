@@ -15,6 +15,23 @@ else
   echo "== 叢集 $CLUSTER 已存在，略過建立"
 fi
 
+# 真 GPU（WSL2 開發機）：共享池節點改接主機的 GPU（device plugin，1 張 × 時間片 4 份），獨占池仍是假 GPU。
+# 預設在有 /dev/dxg 與 nvidia-smi 的主機啟用；REAL_GPU_NODE= ./up.sh（空值）停用。
+REAL_GPU_NODE="${REAL_GPU_NODE-$( [ -e /dev/dxg ] && command -v nvidia-smi >/dev/null && echo "$CLUSTER-worker4" || true)}"
+if [ -n "$REAL_GPU_NODE" ]; then
+  echo "== 真 GPU 節點 $REAL_GPU_NODE"
+  if docker exec "$REAL_GPU_NODE" test -e /dev/dxg 2>/dev/null; then
+    ./gpu-node.sh "$REAL_GPU_NODE"
+  else
+    # kind-config.yaml 建立的節點沒有 GPU 掛載：以同名、同標籤重建（節點上的映像會一併清掉，之後要重新載入）
+    pool=$(k get node "$REAL_GPU_NODE" -o jsonpath='{.metadata.labels.platform/pool}')
+    physical=$(k get node "$REAL_GPU_NODE" -o jsonpath='{.metadata.labels.platform/gpu-physical}')
+    ./remove-node.sh "$REAL_GPU_NODE"
+    REAL_GPU=1 ./add-node.sh "$REAL_GPU_NODE" "${pool:-gpu-shared}" "${physical:-1}"
+    echo "  已重建 $REAL_GPU_NODE：訓練映像要重新載入（load-trainer-image.sh，WITH_GPU_IMAGE=1）"
+  fi
+fi
+
 echo "== 假 GPU"
 ./fake-gpus.sh
 

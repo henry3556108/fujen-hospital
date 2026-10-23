@@ -25,6 +25,7 @@ import {
   type WindowSetting,
 } from './imaging';
 import { DEFAULT_LABELS, LabelPicker, Legend, Rating } from './parts';
+import type { Badge } from './Viewport';
 import {
   KIND_LABELS,
   SOURCE_LABELS,
@@ -121,9 +122,10 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
   // ---------- 標註狀態 ----------
   const [mode, setMode] = useState<AnnotationKind>('classification');
   const [tool, setTool] = useState<Tool>('none');
-  const [label, setLabel] = useState(DEFAULT_LABELS[0]);
+  const [label, setLabel] = useState('');
   const [brush, setBrush] = useState(3);
-  const [classDraft, setClassDraft] = useState<ClassDraft>({ editingId: null, scope: 'image' });
+  // 預設整個研究：訓練時研究內每張影像都會用到這個類別；只標這張影像的話，其他張會被略過
+  const [classDraft, setClassDraft] = useState<ClassDraft>({ editingId: null, scope: 'study' });
   const [boxDraft, setBoxDraft] = useState<BoxDraft | null>(null);
   const [maskDraft, setMaskDraft] = useState<MaskDraft | null>(null);
   const [onlyCurrent, setOnlyCurrent] = useState(false);
@@ -241,7 +243,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
   function discard() {
     setBoxDraft(null);
     setMaskDraft(null);
-    setClassDraft({ editingId: null, scope: 'image' });
+    setClassDraft({ editingId: null, scope: 'study' });
     setTool('none');
     ok('已捨棄草稿');
   }
@@ -282,6 +284,30 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     [list, index],
   );
 
+  // 有沒存的框或遮罩時，關閉分頁、重新整理或點其他連結都先提醒，避免草稿直接遺失
+  useEffect(() => {
+    if (!dirty) return;
+    const LEAVE = '目前影像有尚未儲存的標註，離開後會遺失。確定要離開嗎？';
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = LEAVE;
+    };
+    const click = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href]');
+      if (!a || a.getAttribute('target') === '_blank') return;
+      if (!window.confirm(LEAVE)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    document.addEventListener('click', click, true);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      document.removeEventListener('click', click, true);
+    };
+  }, [dirty]);
+
   // 從自動標註頁帶 ?annotation=<id> 進來時，資料載入後直接開啟編輯
   useEffect(() => {
     if (opened || !openAnnotation || list.length === 0 || !annotations.data) return;
@@ -319,7 +345,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
     return run(async () => {
       if (classDraft.editingId !== null) {
         const a = await labeling.update(classDraft.editingId, { label: text });
-        setClassDraft({ editingId: null, scope: 'image' });
+        setClassDraft({ editingId: null, scope: 'study' });
         return `已更新分類標註 #${a.id}：${text}（版本 ${a.version}）`;
       }
       const a = await labeling.create({ ...target(classDraft.scope), kind: 'classification', payload: { label: text } });
@@ -417,6 +443,21 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
       return out;
     },
     [all, showAnnotations, boxDraft, maskDraft],
+  );
+
+  // 分類沒有形狀，改在影像左上角標出：研究層級與這張影像的類別
+  const badgesFor = useCallback(
+    (instance: InstanceInfo): Badge[] => {
+      if (!showAnnotations) return [];
+      const out: Badge[] = [];
+      for (const a of all) {
+        if (!isClassification(a)) continue;
+        if (a.sop_instance_uid === null) out.push({ id: a.id, text: `整個研究：${a.payload.label}`, color: colorOf[a.payload.label] ?? 1 });
+        else if (a.sop_instance_uid === instance.sopInstanceUid) out.push({ id: a.id, text: `這張影像：${a.payload.label}`, color: colorOf[a.payload.label] ?? 1 });
+      }
+      return out;
+    },
+    [all, showAnnotations, colorOf],
   );
 
   const cells = list.slice(index, index + layoutCells(layout));
@@ -590,6 +631,7 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                   rotation={rotation}
                   invert={invert}
                   overlays={overlaysFor(instance, cell)}
+                  badges={badgesFor(instance)}
                   colorOf={colorOf}
                   active={cell === 0}
                   tool={cell === 0 ? tool : 'none'}
@@ -656,8 +698,9 @@ function Workbench({ labeling, studyUid, openAnnotation }: { labeling: LabelingA
                   </label>
                 </fieldset>
                 {classDraft.editingId !== null ? <p className="field__hint">正在編輯標註 #{classDraft.editingId}</p> : null}
+                {!label.trim() ? <p className="field__hint">先在「標籤」輸入類別（例如 normal、abnormal），才能儲存。</p> : null}
                 <div className="row-actions">
-                  <button type="button" className="btn btn--primary" disabled={busy || !current} onClick={() => void saveClassification()}>
+                  <button type="button" className="btn btn--primary" disabled={busy || !current || !label.trim()} onClick={() => void saveClassification()}>
                     儲存分類標註
                   </button>
                   {classDraft.editingId !== null ? (

@@ -47,6 +47,14 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
           {data.by_kind.detection}），已評分 {data.rated} 筆。
         </p>
       ) : null}
+      {data && data.studies.length > 0 ? (
+        <p data-testid="label-progress">
+          <strong>
+            已標註 {data.studies.filter((s) => s.annotations > 0).length}／共 {data.studies.length} 個研究
+          </strong>
+          。「分類」欄是這個研究標過的類別，空白代表還沒有分類標註。
+        </p>
+      ) : null}
 
       <section className="section" aria-labelledby="studies-title">
         <h2 id="studies-title">研究清單</h2>
@@ -78,7 +86,7 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
                     <td>{s.patient_id}</td>
                     <td>{formatDate(s.study_date)}</td>
                     <td>{s.study_description}</td>
-                    <td>{s.by_kind.classification}</td>
+                    <td data-testid="study-classes">{s.classification_labels.join('、') || '—'}</td>
                     <td>{s.by_kind.segmentation}</td>
                     <td>{s.by_kind.detection}</td>
                     <td>
@@ -227,6 +235,8 @@ function TrainingPanel({ labeling, summary }: { labeling: LabelingApi; summary: 
     const test = Number(form.get('test'));
     const seed = Number(form.get('seed'));
     if (labels.length === 0) return setError(new Error('請至少選一個 Label'));
+    if (type === 'classification' && labels.length < 2)
+      return setError(new Error(`影像分類至少要 2 種 Label（例如 normal 與 abnormal），目前只選了 ${labels.length} 種。`));
     if (!Number.isInteger(resize) || resize < 16 || resize > 1024) return setError(new Error('Resize 必須是 16 到 1024 的整數'));
     if (!(validation >= 0 && test >= 0 && validation + test < 100)) return setError(new Error('驗證與測試比例合計必須小於 100%'));
     if (!Number.isInteger(seed) || seed < 0) return setError(new Error('隨機種子必須是 0 以上的整數'));
@@ -293,15 +303,22 @@ function TrainingPanel({ labeling, summary }: { labeling: LabelingApi; summary: 
               {available.length === 0 ? (
                 <span className="field__hint">還沒有{KIND_LABELS[type]}標註，請先標註。</span>
               ) : (
-                available.map((l) => (
-                  <label key={l} className="checkbox-row">
-                    <input type="checkbox" className="checkbox" name="labels" value={l} defaultChecked />
-                    {l}（{summary?.labels[type][l]} 筆）
-                  </label>
-                ))
+                <>
+                  {type === 'classification' && available.length < 2 ? (
+                    <Alert tone="warning">
+                      目前只有 1 種分類標籤（{available[0]}）。影像分類至少要 2 種，請先在工作台把其他研究標成另一個類別，例如 normal 與 abnormal。
+                    </Alert>
+                  ) : null}
+                  {available.map((l) => (
+                    <label key={l} className="checkbox-row">
+                      <input type="checkbox" className="checkbox" name="labels" value={l} defaultChecked />
+                      {l}（{summary?.labels[type][l]} 筆）
+                    </label>
+                  ))}
+                </>
               )}
             </fieldset>
-            <button type="submit" className="btn btn--primary" disabled={busy || available.length === 0}>
+            <button type="submit" className="btn btn--primary" disabled={busy || available.length === 0 || (type === 'classification' && available.length < 2)}>
               {busy ? '建立中…' : '建立訓練任務'}
             </button>
           </form>

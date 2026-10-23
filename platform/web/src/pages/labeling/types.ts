@@ -58,6 +58,8 @@ export interface StudySummary {
   study_description: string;
   annotations: number;
   by_kind: Record<AnnotationKind, number>;
+  /** 這個研究用到的分類標籤（研究層級與影像層級合併、排序） */
+  classification_labels: string[];
 }
 
 export interface LabelSummary {

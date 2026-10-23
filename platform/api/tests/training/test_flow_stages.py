@@ -150,6 +150,7 @@ def test_editor_apply_changes_value_and_code_then_locks(client, pi, tab, session
     out = ok(apply(client, pi, tab, "train", {"train.json": json.dumps(config), "train.py": code}))
     assert out["setting"]["config"]["hyperparameters"]["n_estimators"] == 7
     assert out["locked"] == ["train"]
+    assert out["can_code"] is True, "套用後的回應也要帶 can_code，網頁才不會把 PI 當成沒有 Coding"
     assert view(client, pi, tab, "train")["files"]["train.py"] == code
     assert session.query(StageOverride).one().code_changed is True
     assert audits(session, "flow.stage_import")[-1].detail["via"] == "editor"

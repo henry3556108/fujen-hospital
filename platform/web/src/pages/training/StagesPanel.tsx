@@ -57,7 +57,8 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
   const [includeData, setIncludeData] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadStage, setUploadStage] = useState<StageId | null>(null);
-  const canCode = overview?.can_code ?? false;
+  // 套用、上傳、改回的回應也帶 can_code；舊版回應沒有時沿用第一次載入的值，不要把有 Coding 的人當成沒有
+  const canCode = latest?.can_code ?? loaded.data?.can_code ?? false;
   const image = isImageKind(setting.kind);
 
   async function run(action: () => Promise<StageOverview | void>, done?: (out: StageOverview) => string) {

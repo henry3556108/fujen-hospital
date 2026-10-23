@@ -55,6 +55,8 @@ def test_config_is_in_sync_with_compose_sources():
 
 
 JOBS_POLICY = ("NetworkPolicy", "jobs-egress-api-only")
+# 只在 kind：WSL2 開發機的真 GPU 節點，改時間片份數要改 kube-system 的 device plugin 設定（overlays/kind/rbac-fake-gpu.yaml）
+GPU_PLUGIN_ROLE = "ai-platform-api-gpu-plugin"
 
 
 def test_every_resource_is_in_the_platform_namespace(rendered):
@@ -65,6 +67,8 @@ def test_every_resource_is_in_the_platform_namespace(rendered):
             continue
         jobs = d["kind"] in ("Role", "RoleBinding") or (d["kind"], d["metadata"]["name"]) == JOBS_POLICY
         expected = "platform-jobs" if jobs else "ai-platform"
+        if d["metadata"]["name"] == GPU_PLUGIN_ROLE:
+            expected = "kube-system"
         assert d["metadata"].get("namespace") == expected, (d["kind"], d["metadata"]["name"])
 
 
@@ -181,8 +185,14 @@ def test_api_rbac_is_least_privilege(rendered):
         assert "*" not in r["verbs"] and "*" not in r["resources"]
         assert "secrets" not in r["resources"]
     resources = sorted(res for _, _, r in rules for res in r["resources"])
-    expected = ["clusterqueues", "jobs", "nodes", "pods"] + (["nodes/status"] if overlay == "kind" else [])
+    # kind 另有：假 GPU 份數（nodes/status）、真 GPU 節點的 device plugin 設定（只限那一個 ConfigMap 與 DaemonSet）
+    kind_only = ["nodes/status", "configmaps", "daemonsets"]
+    expected = ["clusterqueues", "jobs", "nodes", "pods"] + (kind_only if overlay == "kind" else [])
     assert resources == sorted(expected)
+    for _, name, r in rules:
+        if name == GPU_PLUGIN_ROLE:
+            assert sorted(r["verbs"]) == ["get", "patch"]
+            assert r["resourceNames"] in (["nvdp-config"], ["nvidia-device-plugin-daemonset"])
     [cq] = [r for _, _, r in rules if r["resources"] == ["clusterqueues"]]
     assert cq["resourceNames"] == ["gpu-shared"] and sorted(cq["verbs"]) == ["get", "patch"]
 

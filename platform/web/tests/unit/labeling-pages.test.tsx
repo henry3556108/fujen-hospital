@@ -1,5 +1,5 @@
 // 影像標註頁面（元件層級，模擬 API）。畫布上的操作由 Playwright 測（e2e/labeling.spec.ts）。
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HOTKEYS } from '../../src/pages/labeling/WorkbenchPage';
 import { createTrainingJob, trainingSetting } from '../../src/pages/labeling/api';
@@ -85,14 +85,32 @@ describe('labeling index', () => {
     });
   }
 
-  it('TC-B02-06 one classification label is not enough: the server message is shown', async () => {
+  it('TC-B02-06 one classification label is not enough: the page says so before submitting', async () => {
     studyLabel('nodule');
-    const { user } = await renderApp('/labeling', 'ra01');
+    await renderApp('/labeling', 'ra01');
     const form = await screen.findByRole('form', { name: '建立訓練任務' });
     await within(form).findByLabelText(/nodule/);
-    await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('影像分類至少需要 2 種 Label');
+    expect(within(form).getByText(/目前只有 1 種分類標籤（nodule）/)).toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: '建立訓練任務' })).toBeDisabled();
     expect(trainingMock().runs).toHaveLength(0);
+  });
+
+  it('two classification labels but only one ticked is stopped before it reaches the server', async () => {
+    studyLabel('nodule');
+    studyLabel('normal');
+    const { user } = await renderApp('/labeling', 'ra01');
+    const form = await screen.findByRole('form', { name: '建立訓練任務' });
+    await user.click(await within(form).findByLabelText(/normal/));
+    await user.click(within(form).getByRole('button', { name: '建立訓練任務' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('影像分類至少要 2 種 Label');
+    expect(trainingMock().runs).toHaveLength(0);
+  });
+
+  it('study list shows the classification labels and how many studies are labelled', async () => {
+    studyLabel('abnormal');
+    await renderApp('/labeling', 'ra01');
+    expect(await screen.findByTestId('label-progress')).toHaveTextContent(`已標註 1／共 ${MOCK_STUDY_COUNT} 個研究`);
+    expect(screen.getAllByTestId('study-classes')[0]).toHaveTextContent('abnormal');
   });
 
   it('TC-B02-06 creates a training task from the labeling page with type and parameters', async () => {
@@ -212,6 +230,8 @@ describe('workbench', () => {
     await user.type(screen.getByLabelText('標籤'), 'pneumonia');
     await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
     await status('已儲存分類標註 #1：pneumonia');
+    // 分類預設是整個研究，並且直接標在影像左上角
+    expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toHaveTextContent('整個研究：pneumonia');
 
     await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: '偵測' }));
     const form = screen.getByRole('form', { name: '以座標新增框' });
@@ -226,7 +246,7 @@ describe('workbench', () => {
     unmount();
     await openWorkbench();
     const table = await screen.findByRole('table', { name: '標註清單' });
-    expect(within(table).getByRole('row', { name: /#1.*分類.*第 1 張.*pneumonia.*手動/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /#1.*分類.*整個研究.*pneumonia.*手動/ })).toBeInTheDocument();
     expect(within(table).getByRole('row', { name: /#2.*偵測.*第 1 張.*pneumonia.*手動/ })).toBeInTheDocument();
     expect(labelingMock().annotations[1].payload).toEqual({
       shape: [64, 64], box_format: 'xyxy', boxes: [{ label: 'pneumonia', box: [4, 6, 20, 30] }],
@@ -247,6 +267,7 @@ describe('workbench', () => {
 
   it('TC-B02-03 rating is saved and shown again after reload; pressing it again clears it', async () => {
     const { user, unmount } = await openWorkbench();
+    await user.type(screen.getByLabelText('標籤'), 'nodule');
     await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
     await status('已儲存分類標註 #1');
     const rating = await screen.findByRole('group', { name: '標註 #1 的評分' });
@@ -262,8 +283,40 @@ describe('workbench', () => {
     expect(labelingMock().annotations[0].rating).toBeNull();
   });
 
+  it('classification needs a label typed first; no label is filled in for the user', async () => {
+    const { user } = await openWorkbench();
+    expect(screen.getByLabelText('標籤')).toHaveValue('');
+    expect(screen.getByRole('button', { name: '儲存分類標註' })).toBeDisabled();
+    await user.type(screen.getByLabelText('標籤'), 'normal');
+    await user.click(screen.getByLabelText('這張影像'));
+    await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
+    await status('已儲存分類標註 #1：normal');
+    expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toHaveTextContent('這張影像：normal');
+    expect(labelingMock().annotations[0].sop_instance_uid).not.toBeNull();
+  });
+
+  it('warns before leaving the page with an unsaved box', async () => {
+    const { user } = await openWorkbench();
+    await user.type(screen.getByLabelText('標籤'), 'nodule');
+    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: '偵測' }));
+    const form = screen.getByRole('form', { name: '以座標新增框' });
+    for (const [name, value] of [['x1', '4'], ['y1', '6'], ['x2', '20'], ['y2', '30']]) {
+      await user.type(within(form).getByLabelText(name), value);
+    }
+    await user.click(within(form).getByRole('button', { name: '新增框' }));
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await user.click(screen.getByRole('link', { name: '← 回研究清單' }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('尚未儲存的標註'));
+    expect(screen.getByRole('heading', { level: 1, name: '影像標註工作台' })).toBeInTheDocument();
+    confirm.mockRestore();
+  });
+
   it('edits and deletes an annotation', async () => {
     const { user } = await openWorkbench();
+    await user.type(screen.getByLabelText('標籤'), 'nodule');
     await user.click(screen.getByRole('button', { name: '儲存分類標註' }));
     await status('已儲存分類標註 #1');
     await user.click(await screen.findByRole('button', { name: '編輯標註 #1' }));

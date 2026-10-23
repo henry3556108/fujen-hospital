@@ -147,7 +147,8 @@ def stage_apply(setting_id: int, stage: str, body: StageFilesIn, request: Reques
     with _errors():
         setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
         stages.apply_stage(ctx, request.app.state, setting, stage, files, source_ip=client_ip(request))
-        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting),
+                                                                           "can_code": Permission.CODING in _permissions(ctx)}
 
 
 @router.post(BASE + "/training/settings/{setting_id}/stages/{stage}/upload")
@@ -166,7 +167,8 @@ def stage_upload(setting_id: int, stage: str, request: Request, file: UploadFile
             stages._fail(ctx, setting, stage, data, exc.errors, client_ip(request))
             raise
         stages.apply_stage(ctx, request.app.state, setting, stage, files, source_ip=client_ip(request), upload=data)
-        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting),
+                                                                           "can_code": Permission.CODING in _permissions(ctx)}
 
 
 @router.delete(BASE + "/training/settings/{setting_id}/stages/{stage}")
@@ -175,7 +177,8 @@ def stage_unlock(setting_id: int, stage: str, request: Request, ctx: ProjectCont
     with _errors():
         setting = service.get_setting(ctx.session, ctx.project.id, setting_id)
         stages.unlock_stage(ctx, request.app.state, setting, stage, source_ip=client_ip(request))
-        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting)}
+        return stages.overview(ctx.session, request.app.state, setting) | {"setting": service.setting_out(setting),
+                                                                           "can_code": Permission.CODING in _permissions(ctx)}
 
 
 @router.get(BASE + "/training/settings/{setting_id}/package")
@@ -235,7 +238,8 @@ def package_import(request: Request, file: UploadFile = File(...), dataset_id: s
         setting, plan = flow_import.import_package(ctx, request.app.state, data, dataset_id=ds, studies=chosen,
                                                    source_ip=client_ip(request))
         return stages.overview(ctx.session, request.app.state, setting) | {
-            "setting": service.setting_out(setting), "mapping": plan["mapping"], "warnings": plan["warnings"]}
+            "setting": service.setting_out(setting), "mapping": plan["mapping"], "warnings": plan["warnings"],
+            "can_code": Permission.CODING in _permissions(ctx)}
 
 
 # ---------------------------------------------------------------- 訓練

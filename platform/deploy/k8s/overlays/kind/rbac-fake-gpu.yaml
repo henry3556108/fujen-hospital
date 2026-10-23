@@ -1,4 +1,4 @@
-# 只在 kind：假 GPU 的份數以 node status patch 宣告（kube.py configure_shared）。甲方由 NVIDIA device plugin 管，不給這個權限。
+# 只在 kind：假 GPU 的份數以 node status patch 宣告（kube.py configure_shared）；真 GPU 節點另改 device plugin 設定（下方 Role）。甲方由 NVIDIA device plugin 管，不給這些權限。
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -16,6 +16,37 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: ai-platform-api-fake-gpu
+subjects:
+  - kind: ServiceAccount
+    name: platform-api
+    namespace: ai-platform
+---
+# 只在 kind：WSL2 開發機的共享池接真 GPU（platform/deploy/kind/gpu-node.sh）。改時間片份數時，
+# configure_shared 改 NVIDIA device plugin 的設定 ConfigMap，並以 Pod 範本註記重啟 plugin DaemonSet。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-platform-api-gpu-plugin
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["nvdp-config"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    resourceNames: ["nvidia-device-plugin-daemonset"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-platform-api-gpu-plugin
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ai-platform-api-gpu-plugin
 subjects:
   - kind: ServiceAccount
     name: platform-api

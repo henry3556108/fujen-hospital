@@ -1,0 +1,55 @@
+# NVIDIA device plugin：只跑在接了真 GPU 的節點（標籤 platform/gpu-source=device-plugin，gpu-node.sh 加上）。
+# WSL2 上自動偵測（/dev/dxg + /usr/lib/wsl/lib 的 libnvidia-ml）；時間片份數讀 nvdp-config（time-slicing.yaml）。
+# plugin 只在啟動時讀設定：平台改份數時以 Pod 範本註記 platform/time-slice-replicas 觸發重啟（kube.py），
+# 所以這裡不寫那個註記，kubectl apply 才不會蓋掉。映像先在主機 docker pull 再匯入節點（gpu-node.sh）。
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-device-plugin-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: nvidia-device-plugin-ds
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: nvidia-device-plugin-ds
+    spec:
+      nodeSelector:
+        platform/gpu-source: device-plugin
+      tolerations:
+        - operator: Exists
+      priorityClassName: system-node-critical
+      containers:
+        - name: nvidia-device-plugin-ctr
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.18.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FAIL_ON_INIT_ERROR
+              value: "false"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+            - name: CONFIG_FILE
+              value: /config/config.yaml
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: config
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: config
+          configMap:
+            name: nvdp-config
