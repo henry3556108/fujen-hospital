@@ -63,6 +63,9 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   const imported = dicom.getByRole('region', { name: 'DICOM 匯入結果' });
   await expect(imported).toContainText(/新增 \d+、重複 \d+、失敗 \d+/, { timeout: 5 * 60_000 });
   note(TC, `步驟 1 影像匯入：${flat(await imported.innerText()).slice(0, 120)}`);
+  // 改版後「加入資料」是滑出面板，遮罩會擋住側欄：照使用者操作按「到影像清單查看」關閉面板
+  await dicom.getByRole('link', { name: '到影像清單查看' }).click();
+  await expect(page.getByTestId('slideover-backdrop')).toHaveCount(0);
 
   // 待處理清單：還沒標註
   await clickMenu(page, '影像標註');
@@ -146,7 +149,9 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   // 待處理清單：顯示類別與進度
   // 工作台不在「影像標註分頁」底下：用「← 回待處理清單」回去（都已存，不會跳提醒）
   await page.getByRole('link', { name: '← 回待處理清單' }).click();
-  await expect(progress).toContainText(`已確認 ${accOf.size}／共 ${accOf.size} 個研究`);
+  // 改版後進度卡：「已確認（共 N 個研究）」進度條＋「已確認數 / 總數」
+  await expect(progress).toContainText(new RegExp(`已確認（共 ${accOf.size} 個研究）\\s*${accOf.size} / ${accOf.size}`));
+  await expect(page.getByTestId('pending-count')).toHaveText('0');
   const classes = await page.getByTestId('study-classes').allInnerTexts();
   note(TC, `步驟 6 標註後：${flat(await progress.innerText())}；類別欄 ${classes.join(' / ')}`);
   await shot(page, TC, '06-待處理清單-類別與進度');

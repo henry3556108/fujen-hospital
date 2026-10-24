@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { login, note, shot } from './helpers';
+import { NO_PROJECT_LEAD, NO_PROJECT_TITLE, expectNoProjectPage, login, note, shot } from './helpers';
 import { psql } from './ops';
 import { auditFilter, dbDump, freshPage, gotoAdmin, headerUser, loginFails, loginWith, maxAuditId, ok } from './r-common';
 
@@ -49,10 +49,10 @@ test('M1 補拍 04 帳號新增修改刪除（TC-A03-02）', async ({ browser })
   // Keycloak 同步：新帳號可登入
   const u = await freshPage(browser);
   await loginWith(u.page, 'KIT-A-u1', INIT);
-  await expect(u.page.getByText('你尚未加入任何專案，請聯絡管理者將你加入專案。').first()).toBeVisible();
+  await expectNoProjectPage(u.page);
   const h1 = await headerUser(u.page);
   await shot(u.page, TC, '06-KIT-A-u1登入成功');
-  note(TC, `新帳號登入：右上角「${h1}」，首頁「你尚未加入任何專案，請聯絡管理者將你加入專案。」`);
+  note(TC, `新帳號登入：右上角「${h1}」，首頁「${NO_PROJECT_TITLE}」「${NO_PROJECT_LEAD}」`);
   await u.ctx.close();
 
   // 修改 3 次：帳號類型改為 Admin

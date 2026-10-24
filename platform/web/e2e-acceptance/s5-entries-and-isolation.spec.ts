@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { DENIED, P1, clickMenu, expectNotDenied, login, menuLabels, note, shot, useProject } from './helpers';
+import { DENIED, NO_PROJECT_TITLE, P1, clickMenu, expectNoProjectPage, expectNotDenied, login, menuLabels, note, shot, useProject } from './helpers';
 
 // 情境 5：首頁功能入口與專案隔離（TC-A02-01～04 的網頁部分）。全部唯讀，不改任何資料。
 
@@ -20,7 +20,8 @@ test('5-1 admin01 從 8 個入口都能進入（TC-A02-01）', async ({ page }) 
   await login(page, 'admin01');
   await useProject(page);
   await expect(page.getByRole('heading', { level: 1, name: '專案首頁' })).toBeVisible();
-  await expect(page.locator('.home-subtitle')).toHaveText(P1);
+  // 改版後專案名稱顯示在頁首標題下方的副標題（PageHeader subtitle）
+  await expect(page.locator('.ui-page-header__subtitle')).toHaveText(P1);
   expect(await menuLabels(page)).toEqual(ENTRIES.map((e) => e.name));
   await shot(page, tc, '01-功能目錄八個入口');
   let ok = 0;
@@ -126,13 +127,13 @@ const USER01_URLS = ['/data', '/data/imaging', '/data/tabular', '/data/tabular/1
 test('5-4 user01（未加入專案）直接輸入 10 個網址都被擋（TC-A02-04）', async ({ page }) => {
   const tc = 'TC-A02-04';
   await login(page, 'user01');
-  await expect(page.getByText('你尚未加入任何專案，請聯絡管理者將你加入專案。').first()).toBeVisible();
+  await expectNoProjectPage(page);
   await shot(page, tc, '00-首頁');
   let denied = 0;
   for (const [i, url] of USER01_URLS.entries()) {
     await page.goto(url);
-    // 沒有任何專案：研究區一律顯示「你還沒有加入任何專案」說明頁（等同被擋）
-    await expect(page.getByText(DENIED).or(page.getByRole('heading', { level: 1, name: '你還沒有加入任何專案' })).first()).toBeVisible();
+    // 沒有任何專案：研究區一律顯示「你尚未加入任何專案」說明頁（等同被擋）
+    await expect(page.getByText(DENIED).or(page.getByRole('heading', { level: 1, name: NO_PROJECT_TITLE, exact: true })).first()).toBeVisible();
     await expect(page.getByText('cohort_02.csv')).toHaveCount(0);
     await shot(page, tc, `${String(i + 1).padStart(2, '0')}-${url.replaceAll('/', '_')}`);
     denied++;

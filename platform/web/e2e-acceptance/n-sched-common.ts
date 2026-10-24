@@ -13,6 +13,9 @@ export const KUBE = process.env.KUBE_CONTEXT || 'kind-ai-platform';
 export const REPO = path.resolve(process.cwd(), '../..'); // 在 platform/web 執行
 export const COMPOSE_DIR = path.join(REPO, 'platform/deploy/local');
 export const COMPOSE_PROJECT = process.env.COMPOSE_PROJECT_NAME || 'ai-platform';
+// 開發平台（kind）的資料庫：沒有 compose 容器時改用 kubectl exec
+export const KUBE_NAMESPACE = process.env.KUBE_NAMESPACE || 'ai-platform';
+export const KUBE_PG_POD = process.env.KUBE_PG_POD || 'postgres-0';
 export const P1_NAME = 'P1-lung-ct';
 
 const PASSWORDS: Record<string, string> = { admin01: 'Admin01-dev!' };
@@ -231,14 +234,19 @@ export class Scenario {
     return r;
   }
 
-  /** 資料庫查詢：先用 docker compose exec，失敗時改用 docker exec（同一個容器） */
+  /** 資料庫查詢：先用 docker compose exec，失敗時改用 docker exec（同一個容器）；
+   *  沒有 compose 的 postgres 容器時（開發平台 kind）改用 kubectl exec postgres-0 */
   psql(label: string, sql: string) {
     const r = this.shell(label, psqlCmd(sql), { cwd: COMPOSE_DIR });
     if (r.code === 0) return r;
     const q = sql.replace(/(["$`\\])/g, '\\$1');
+    const cid = shellRaw(
+      `docker ps -q -f label=com.docker.compose.project=${COMPOSE_PROJECT} -f label=com.docker.compose.service=postgres`,
+    ).out.trim();
+    if (cid) return this.shell(`${label}（改用 docker exec）`, `docker exec ${cid} psql -U platform -d platform -c "${q}"`);
     return this.shell(
-      `${label}（改用 docker exec）`,
-      `docker exec $(docker ps -q -f label=com.docker.compose.project=${COMPOSE_PROJECT} -f label=com.docker.compose.service=postgres) psql -U platform -d platform -c "${q}"`,
+      `${label}（改用 kubectl exec）`,
+      `kubectl --context ${KUBE} -n ${KUBE_NAMESPACE} exec ${KUBE_PG_POD} -- psql -U platform -d platform -c "${q}"`,
     );
   }
 

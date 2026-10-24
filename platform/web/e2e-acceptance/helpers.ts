@@ -14,6 +14,13 @@ for (const pair of (process.env.KIT_PASSWORDS ?? '').split(',').filter(Boolean))
 export const EVIDENCE_DIR = process.env.EVIDENCE_DIR || 'acceptance-evidence';
 export const P1 = 'P1-lung-ct';
 export const DENIED = '無法存取此功能';
+/** 沒有加入任何專案時的說明頁（GlobalPages.tsx NoProjectPage）：標題＋請聯絡管理者 */
+export const NO_PROJECT_TITLE = '你尚未加入任何專案';
+export const NO_PROJECT_LEAD = '請聯絡專案管理者，將你的帳號加入研究專案。';
+export async function expectNoProjectPage(page: Page) {
+  await expect(page.getByRole('heading', { level: 1, name: NO_PROJECT_TITLE, exact: true })).toBeVisible();
+  await expect(page.getByText(NO_PROJECT_LEAD, { exact: true })).toBeVisible();
+}
 
 // ── 介面改版後的外框定位（集中在這裡，畫面用語變動時只改這一段） ──
 

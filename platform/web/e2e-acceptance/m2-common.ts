@@ -104,8 +104,11 @@ export async function switchProject(page: Page, name: string) {
 export async function gotoTabular(page: Page) {
   await clickMenu(page, '數據管理');
   await clickTab(page, '表格資料', page.getByRole('navigation', { name: '研究資料分頁' }));
-  await expect(page.getByRole('table', { name: '資料集列表' })).toBeVisible();
+  const table = page.getByRole('table', { name: '資料集列表' });
+  await expect(table).toBeVisible();
   await page.waitForLoadState('networkidle');
+  // 清單是進頁後才讀：等「載入中…」消失再看列
+  await expect(table.getByRole('status').filter({ hasText: '載入中…' })).toHaveCount(0, { timeout: 30_000 });
 }
 
 // ---------------------------------------------------------------- 建立模型（原建模管理）
