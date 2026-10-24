@@ -375,13 +375,13 @@ export function MembersPage({ fixedProjectId }: { fixedProjectId?: number } = {}
                       ) : null}
                     </td>
                     <td>
-                      <div className="adm-row-actions">
-                        <button type="button" className="adm-link-btn" aria-label={`編輯 ${r.username}`} onClick={() => edit(r)}>
-                          編輯 ›
+                      <div className="adm-row-btns">
+                        <button type="button" className="btn btn--secondary btn--small" aria-label={`編輯 ${r.username}`} onClick={() => edit(r)}>
+                          編輯
                         </button>
                         <button
                           type="button"
-                          className="adm-link-btn adm-link-btn--danger"
+                          className="btn btn--small adm-btn--danger-outline"
                           aria-label={`移除 ${r.username}`}
                           onClick={() => {
                             clearMessages();

@@ -96,14 +96,14 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
               <span className="text-muted">目前沒有待處理的影像。</span>
             ) : null}
           </div>
-          <p className="text-muted" data-testid="label-totals">
+          <p className="text-muted lb-progress-card__totals" data-testid="label-totals">
             專案「{project?.name}」共 {data.studies.length} 個研究、{data.total} 筆標註（分類 {data.by_kind.classification}、分割{' '}
             {data.by_kind.segmentation}、偵測 {data.by_kind.detection}），已評分 {data.rated} 筆。待處理包括還沒標的影像，以及自動標註後等你確認的草稿。
           </p>
         </Card>
       ) : null}
 
-      <Card className="section">
+      <Card className="lb-card-gap">
         <form className="lb-filters" aria-label="篩選研究" onSubmit={(e) => e.preventDefault()}>
           <div className="field lb-filters__search">
             <label htmlFor="pending-q">搜尋</label>
@@ -142,7 +142,7 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
         </form>
       </Card>
 
-      <Card title="待處理清單" flush>
+      <Card title="待處理清單" flush className="lb-card-gap">
         {summary.loading && !data ? (
           <p role="status" className="loading lb-card-note">
             載入中…

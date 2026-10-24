@@ -572,7 +572,7 @@ function DownloadTab({ model, runId }: { model: Model; runId: number }) {
               })}
             </div>
             <div className="row-actions">
-              <button type="button" className="trn-link-btn" onClick={() => saveText(guideText(model), `${base}-使用說明.txt`)}>
+              <button type="button" className="btn btn--secondary" onClick={() => saveText(guideText(model), `${base}-使用說明.txt`)}>
                 <Icon name="doc" />
                 下載範例與環境說明
               </button>

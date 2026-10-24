@@ -50,7 +50,8 @@ export async function fetchThumbnail(opts: {
   const series = opts.seriesUid || (await firstSeries(root, opts.studyUid, opts.getToken));
   if (!series) throw new Error('研究沒有序列');
   const res = await fetch(`${root}/studies/${opts.studyUid}/series/${series}/thumbnail`, {
-    headers: await authHeaders(opts.getToken, 'image/jpeg, image/png, image/*'),
+    // Orthanc 的 Accept 只能列一種格式，列多種會回 400
+    headers: await authHeaders(opts.getToken, 'image/jpeg'),
     signal: opts.signal,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

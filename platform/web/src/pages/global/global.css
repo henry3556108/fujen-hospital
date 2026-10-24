@@ -144,8 +144,10 @@
 
 .gp-card__cover {
   order: 1;
-  width: 9rem;
-  height: 6.75rem;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: var(--radius-md);
   background: var(--color-bg-subtle);
@@ -189,11 +191,19 @@
   margin-top: auto;
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border-default);
+  /* 底列固定高度：有沒有「目前專案」「最近使用」標籤，各卡底列都在同一高度 */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
+  height: calc(1.75rem + var(--space-2));
+  overflow: hidden;
+  white-space: nowrap;
   font-size: var(--font-size-small);
+}
+
+.gp-card__foot > .text-muted {
+  margin-left: auto;
 }
 
 .gp-actions {

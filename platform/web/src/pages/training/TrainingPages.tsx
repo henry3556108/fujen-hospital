@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
+import { Card, EmptyState, Icon, SidePanel, SplitLayout } from '../../components/ui';
 import { useTrainingApi, type TrainingRun, type TrainingSetting } from './api';
 import { useHasPermission } from './ModelExport';
 import { PackageImport, mappingText } from './PackageImport';
@@ -85,38 +86,56 @@ export function CodePage() {
   const choose = (id: number | null) => setParams(id ? { setting: String(id) } : {}, { replace: true });
   return (
     <div className="stack">
-      <section className="card section stack" aria-labelledby="code-title">
-        <div className="training-head">
-          <h2 id="code-title">流程程式碼</h2>
-          {canCode ? <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setImporting(true); }}>
-            匯入專案包
-          </button> : null}
-        </div>
-        <p className="text-muted">
-          每份已存設定都有一組流程程式碼（資料匯入、標註、前處理、訓練、部署）。可以匯出修改後再匯入，或匯出整個專案包到別的環境重現研究。
-        </p>
-        {notice ? <Alert tone="success">{notice}</Alert> : null}
-        <ApiErrorAlert error={settings.error} />
-        {settings.data && settings.data.length === 0 ? (
+      {/* 設計稿 B08：左邊選設定與說明，右邊操作按鈕欄；沒選設定時也維持兩欄 */}
+      <SplitLayout
+        sideWidth="300px"
+        side={
+          <SidePanel title="專案包" sticky={false}>
+            {canCode ? (
+              <div className="trn-side-actions">
+                <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setImporting(true); }}>
+                  <Icon name="upload" />
+                  匯入專案包
+                </button>
+              </div>
+            ) : (
+              <Alert tone="info">修改程式與匯入專案包需要 Coding 權限；沒有時仍可查看各環節由誰控制，並改回用介面設定。</Alert>
+            )}
+            <p className="trn-source">
+              匯入別的環境匯出的專案包，會建立一份新的訓練設定。要匯出，先在左邊選一份已存設定。
+            </p>
+          </SidePanel>
+        }
+      >
+        <Card title="流程程式碼">
           <p className="text-muted">
-            還沒有已存設定。先<Link to="/training/new">建立訓練</Link>，或匯入專案包。
+            每份已存設定都有一組流程程式碼（資料匯入、標註、前處理、訓練、部署）。可以匯出修改後再匯入，或匯出整個專案包到別的環境重現研究。
           </p>
-        ) : null}
-        {settings.data && settings.data.length > 0 ? (
-          <div className="field">
-            <label htmlFor="code-setting">已存設定</label>
-            <select id="code-setting" className="select" value={chosen ?? ''} onChange={(e) => choose(Number(e.target.value) || null)}>
-              <option value="">請選擇</option>
-              {settings.data.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-      </section>
-      {!canCode ? <Alert tone="info">修改程式與匯入專案包需要 Coding 權限；沒有時仍可查看各環節由誰控制，並改回用介面設定。</Alert> : null}
+          {notice ? <Alert tone="success">{notice}</Alert> : null}
+          <ApiErrorAlert error={settings.error} />
+          {settings.data && settings.data.length === 0 ? (
+            <p className="text-muted">
+              還沒有已存設定。先<Link to="/training/new">建立訓練</Link>，或匯入專案包。
+            </p>
+          ) : null}
+          {settings.data && settings.data.length > 0 ? (
+            <div className="field">
+              <label htmlFor="code-setting">已存設定</label>
+              <select id="code-setting" className="select" value={chosen ?? ''} onChange={(e) => choose(Number(e.target.value) || null)}>
+                <option value="">請選擇</option>
+                {settings.data.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {settings.data && settings.data.length > 0 && !setting ? (
+            <EmptyState icon="doc" title="先選一份已存設定" description="選好後下方會列出五個環節，可以檢視、下載或上傳各環節的程式碼與設定檔，也能匯出整個專案包。" />
+          ) : null}
+        </Card>
+      </SplitLayout>
       {importing ? (
         <PackageImport api={api} onClose={() => setImporting(false)}
           onImported={(out) => {

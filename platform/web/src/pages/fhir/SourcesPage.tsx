@@ -394,7 +394,7 @@ export function SourcesPage() {
               </tbody>
             </table>
           </div>
-          <div className="field field--inline">
+          <div className="field field--inline fhir-builtin">
             <label htmlFor="builtin-mapping">內建規則</label>
             <select id="builtin-mapping" className="select" value={builtinName} onChange={(e) => setBuiltinName(e.target.value)}>
               <option value="">請選擇</option>

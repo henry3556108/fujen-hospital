@@ -264,10 +264,10 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
           <div className="rd-filter__grid">
             {scopes.data && scopes.data.length > 0 && <ScopeSelect id="f-scope" scopes={scopes.data} value={scopeId} onChange={chooseScope} />}
             <div className="field">
-              <label htmlFor="f-modality">
-                影像種類<small>（Modality）</small>
+              <label htmlFor="f-modality" title="DICOM 欄位 Modality">
+                影像種類<span className="visually-hidden">（Modality）</span>
               </label>
-              <select id="f-modality" className="select" value={draft.modality} onChange={set('modality')}>
+              <select id="f-modality" className="select" title="DICOM 欄位 Modality" value={draft.modality} onChange={set('modality')}>
                 <option value="">全部</option>
                 {MODALITIES.map((mo) => (
                   <option key={mo} value={mo}>
@@ -288,14 +288,14 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="f-study-desc">
-                檢查描述<small>（Study Description，包含）</small>
+              <label htmlFor="f-study-desc" title="DICOM 欄位 Study Description，輸入部分文字即可">
+                檢查描述<span className="visually-hidden">（Study Description，包含）</span>
               </label>
-              <input id="f-study-desc" className="input" value={draft.study_description} onChange={set('study_description')} />
+              <input id="f-study-desc" className="input" placeholder="Study Description" value={draft.study_description} onChange={set('study_description')} />
             </div>
             <div className="field rd-filter__wide" role="group" aria-labelledby="f-date-label">
-              <span id="f-date-label" className="field__label">
-                檢查日期<small>（Study Date）</small>
+              <span id="f-date-label" className="field__label" title="DICOM 欄位 Study Date">
+                檢查日期<span className="visually-hidden">（Study Date）</span>
               </span>
               <span className="rd-date-range">
                 <input id="f-from" className="input" type="date" aria-label="檢查日期起" value={draft.from} onChange={set('from')} />
@@ -304,10 +304,10 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
               </span>
             </div>
             <div className="field">
-              <label htmlFor="f-series-desc">
-                序列描述<small>（Series Description，包含）</small>
+              <label htmlFor="f-series-desc" title="DICOM 欄位 Series Description，輸入部分文字即可">
+                序列描述<span className="visually-hidden">（Series Description，包含）</span>
               </label>
-              <input id="f-series-desc" className="input" value={draft.series_description} onChange={set('series_description')} />
+              <input id="f-series-desc" className="input" placeholder="Series Description" value={draft.series_description} onChange={set('series_description')} />
             </div>
           </div>
           <div className="rd-filter__actions">
@@ -350,24 +350,24 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
       </p>
       <div className="rd-table-card">
         <div className="table-wrap">
-          <table aria-label="影像清單">
+          <table aria-label="影像清單" className="rd-study-table">
             <thead>
               <tr>
-                <th scope="col">影像編號</th>
-                <th scope="col">檢查日期</th>
+                <th scope="col" className="rd-nowrap">影像編號</th>
+                <th scope="col" className="rd-nowrap">檢查日期</th>
                 <th scope="col" className="rd-nowrap">影像種類</th>
-                <th scope="col">檢查描述</th>
-                <th scope="col">序列描述</th>
-                <th scope="col">病歷號</th>
+                <th scope="col" className="rd-desc">檢查描述</th>
+                <th scope="col" className="rd-desc">序列描述</th>
+                <th scope="col" className="rd-nowrap">病歷號</th>
                 <th scope="col" className="rd-nowrap">性別</th>
-                <th scope="col" className="num">
+                <th scope="col" className="num rd-nowrap">
                   序列數
                 </th>
-                <th scope="col" className="num">
+                <th scope="col" className="num rd-nowrap">
                   影像數
                 </th>
-                {showLabels && <th scope="col">標註狀態</th>}
-                <th scope="col">操作</th>
+                {showLabels && <th scope="col" className="rd-nowrap">標註狀態</th>}
+                <th scope="col" className="rd-nowrap">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -376,7 +376,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
                 const state = LABEL_STATE[labelState(labelOf.get(s.study_instance_uid))];
                 return (
                   <tr key={s.study_instance_uid}>
-                    <th scope="row">
+                    <th scope="row" className="rd-nowrap">
                       <span className="rd-case">
                         <DicomThumb
                           projectId={pid}
@@ -389,15 +389,15 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
                       </span>
                     </th>
                     <td className="rd-nowrap">{formatDicomDate(s.study_date)}</td>
-                    <td>{s.modalities.join('、') || '—'}</td>
-                    <td>{s.study_description ?? '—'}</td>
-                    <td>{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
-                    <td>{s.patient_id ?? '—'}</td>
-                    <td>{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
+                    <td className="rd-nowrap">{s.modalities.join('、') || '—'}</td>
+                    <td className="rd-desc">{s.study_description ?? '—'}</td>
+                    <td className="rd-desc">{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
+                    <td className="rd-nowrap">{s.patient_id ?? '—'}</td>
+                    <td className="rd-nowrap">{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
                     <td className="num">{s.series.length}</td>
                     <td className="num">{s.instances}</td>
                     {showLabels && (
-                      <td>
+                      <td className="rd-nowrap">
                         <Badge tone={state.tone}>{state.text}</Badge>
                       </td>
                     )}

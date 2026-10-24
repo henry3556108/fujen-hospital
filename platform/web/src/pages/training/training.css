@@ -50,7 +50,8 @@
 .trn-ring__fill { stroke: var(--color-secondary); stroke-linecap: round; }
 
 /* 圖表兩欄（混淆矩陣＋ROC、預測值＋殘差） */
-.trn-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: start; }
+/* 同一排的卡片等高（A07 比較表＋ROC、B11 下載＋範例） */
+.trn-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: stretch; }
 .trn-chart-card { min-width: 0; margin: 0; padding: var(--space-4); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); }
 
 /* 卡片式小節（1. 選擇研究目的） */
@@ -58,6 +59,15 @@
 .trn-section__title { margin: 0; font-size: var(--font-size-card-title); font-weight: 700; }
 .trn-section__hint { margin: calc(-1 * var(--space-2)) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-small); }
 .trn-section__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+
+/* A06 研究目的：影像三選一、表格兩選一用同一個 3 欄格線（表格組第三格留空），卡片等高 */
+.trn-purpose .ui-option-group__items { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+.trn-purpose .ui-option { height: 100%; }
+@media (max-width: 767px) {
+  .trn-purpose .ui-option-group__items { grid-template-columns: minmax(0, 1fr); }
+}
+/* 精靈第三步的進階設定：跟上面的小節同樣是卡片，左緣對齊 */
+.trn-wizard-form .training-details { padding: var(--space-4) var(--space-5); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); box-shadow: var(--shadow-card); }
 
 /* 資料集卡片（A06「2. 確認資料」） */
 .trn-dataset { display: flex; gap: var(--space-4); align-items: flex-start; padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
@@ -81,6 +91,13 @@
 .trn-chips .checkbox { padding: var(--space-1) var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-pill); background: var(--color-bg-surface); }
 .trn-chips .checkbox:has(input:checked) { border-color: var(--color-border-selected); background: var(--color-bg-selected); color: var(--color-text-selected); }
 
+/* 已存設定（B02）：篩選列一行置中對齊；清單卡的表格貼齊卡片左右 */
+.trn-filter { display: flex; align-items: center; gap: var(--space-2) var(--space-4); flex-wrap: wrap; }
+.trn-filter .input { flex: 0 1 20rem; min-width: 12rem; }
+.trn-filter .checkbox { min-height: 2.5rem; }
+.trn-settings-card .table-wrap { margin-inline: calc(-1 * var(--space-5)); margin-bottom: calc(-1 * var(--space-5)); border: none; border-top: 1px solid var(--color-border-default); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.trn-settings-card .ui-card__extra .btn { font-size: var(--font-size-body); }
+
 /* 已存設定（B02）：清單列 */
 .trn-settings-table tbody tr { cursor: pointer; }
 .trn-settings-table tbody tr[aria-selected='true'] > * { background: var(--color-bg-selected); }
@@ -92,6 +109,10 @@
 .trn-params { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--font-size-small); }
 .trn-params dt { color: var(--color-text-secondary); }
 .trn-params dd { margin: 0; overflow-wrap: anywhere; }
+
+/* 流程程式碼（B08）：右側操作欄裡的小節（匯出專案包），與上方以細線分隔 */
+.trn-side-group { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-4); border-top: 1px solid var(--color-border-default); }
+.trn-side-group__title { margin: 0; font-size: var(--font-size-body); font-weight: 700; }
 
 /* 流程程式碼（B08） */
 .trn-stage-steps { padding: var(--space-4) var(--space-5); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); }
@@ -123,3 +144,9 @@
 .trn-compare tr[aria-current='true'] > * { background: var(--color-bg-selected); color: var(--color-text-selected); font-weight: 600; }
 .trn-full > summary { cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: var(--space-2); }
 .trn-model-head__icon { width: 3rem; height: 3rem; flex: none; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-secondary); }
+
+/* 版面一致性：表頭不拆字、格式卡按鈕貼底對齊、側欄說明與上方按鈕留間距 */
+.trn-settings-table thead th { white-space: nowrap; }
+.trn-settings-table td:nth-child(2) { white-space: nowrap; }
+.trn-format > .btn:last-child, .trn-format > .field__hint:last-child { margin-top: auto; }
+.ui-sidepanel__body > * + .trn-source { margin-top: var(--space-3); }

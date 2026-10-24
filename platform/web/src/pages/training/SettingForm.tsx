@@ -308,7 +308,7 @@ function WizardSettingForm(props: Props & { wizard: WizardOptions }) {
           {busy === 'save' ? '儲存中…' : '儲存設定'}
         </button>
       ) : null}
-      <button type="button" className="btn btn--small" onClick={onCancel}>
+      <button type="button" className="btn btn--secondary" onClick={onCancel}>
         取消
       </button>
     </div>

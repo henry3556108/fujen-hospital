@@ -106,6 +106,23 @@ describe('模型管理', () => {
     expect(modelState(m({}), [{ name: 'x', status: 'pending' } as never]).label).toBe('申請中');
     expect(modelState(m({}), []).label).toBe('可申請');
   });
+
+  it('search and token both have labels; empty list shows a row instead of a bare header', async () => {
+    server.use(http.get('*/api/projects/:pid/llm/models/catalog', () => HttpResponse.json([])));
+    await renderApp('/llm/models', 'ca01');
+    expect(await screen.findByText('白名單內還沒有模型。')).toBeInTheDocument();
+    expect(screen.getByLabelText('搜尋模型')).toBeInTheDocument();
+    expect(screen.getByLabelText('下載 Token（選填）')).toBeInTheDocument();
+  });
+});
+
+describe('參考文件：空狀態', () => {
+  it('shows an empty row when there is no document set', async () => {
+    server.use(http.get('*/api/projects/:pid/llm/knowledge-bases', () => HttpResponse.json([])));
+    await renderApp('/llm/docs', 'ca01');
+    const table = await screen.findByRole('table', { name: '參考文件集' });
+    expect(await within(table).findByText(/尚無文件集/)).toBeInTheDocument();
+  });
 });
 
 describe('團隊文件：Markdown', () => {

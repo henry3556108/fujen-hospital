@@ -45,13 +45,15 @@ export function LlmApprovalsPanel() {
                   <td>
                     <Badge tone="warning">待審核</Badge>
                   </td>
-                  <td className="row-actions">
-                    <button type="button" className="btn btn--small btn--primary" onClick={() => void review(d.id, true)}>
-                      核准
-                    </button>
-                    <button type="button" className="btn btn--small btn--secondary" onClick={() => void review(d.id, false)}>
-                      駁回
-                    </button>
+                  <td>
+                    <div className="row-actions">
+                      <button type="button" className="btn btn--small btn--primary" onClick={() => void review(d.id, true)}>
+                        核准
+                      </button>
+                      <button type="button" className="btn btn--small btn--secondary" onClick={() => void review(d.id, false)}>
+                        駁回
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

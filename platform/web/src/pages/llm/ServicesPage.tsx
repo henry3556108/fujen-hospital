@@ -80,52 +80,56 @@ export function ServicesPage() {
   return (
     <>
       <LlmHeader title="文件問答" subtitle="把目前的模型、參考文件與回答設定發布成院內服務，只開放給指定帳號呼叫。" />
-      <SplitLayout side={side}>
-        <ApiErrorAlert error={services.error} />
-        <Card title="已發布的服務" flush>
-          {services.data && services.data.length === 0 ? (
-            <EmptyState icon="server" title="還沒有發布的服務" description="在右側填好服務代號、名稱與授權帳號後按「發布」。" />
-          ) : (
-            <div className="table-wrap">
-              <table aria-label="已發布的服務">
-                <thead>
-                  <tr>
-                    <th>名稱</th>
-                    <th>端點</th>
-                    <th>參考文件</th>
-                    <th>授權帳號</th>
-                    <th>狀態</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(services.data ?? []).map((s) => (
-                    <tr key={s.id}>
-                      <th scope="row">{s.name}</th>
-                      <td>
-                        <code>{s.endpoint}</code>
-                      </td>
-                      <td>{kbName(s.kb_id)}</td>
-                      <td>{s.grants.join('、') || '（無）'}</td>
-                      <td>
-                        <Badge tone={s.enabled ? 'success' : 'neutral'}>{s.enabled ? '啟用' : '停用'}</Badge>
-                      </td>
-                      <td className="row-actions">
-                        <button type="button" className="btn btn--small btn--secondary" onClick={() => void llm!.setEnabled(s.id, !s.enabled).then(services.reload, setError)}>
-                          {s.enabled ? '停用' : '啟用'}
-                        </button>
-                        <button type="button" className="btn btn--small btn--danger" onClick={() => void llm!.unpublish(s.id).then(services.reload, setError)}>
-                          取消發布
-                        </button>
-                      </td>
+      <div className="llm-stretch">
+        <SplitLayout side={side}>
+          <ApiErrorAlert error={services.error} />
+          <Card title="已發布的服務" flush>
+            {services.data && services.data.length === 0 ? (
+              <EmptyState icon="server" title="還沒有發布的服務" description="在右側填好服務代號、名稱與授權帳號後按「發布」。" />
+            ) : (
+              <div className="table-wrap">
+                <table aria-label="已發布的服務">
+                  <thead>
+                    <tr>
+                      <th>名稱</th>
+                      <th>端點</th>
+                      <th>參考文件</th>
+                      <th>授權帳號</th>
+                      <th>狀態</th>
+                      <th>操作</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      </SplitLayout>
+                  </thead>
+                  <tbody>
+                    {(services.data ?? []).map((s) => (
+                      <tr key={s.id}>
+                        <th scope="row">{s.name}</th>
+                        <td>
+                          <code>{s.endpoint}</code>
+                        </td>
+                        <td>{kbName(s.kb_id)}</td>
+                        <td>{s.grants.join('、') || '（無）'}</td>
+                        <td>
+                          <Badge tone={s.enabled ? 'success' : 'neutral'}>{s.enabled ? '啟用' : '停用'}</Badge>
+                        </td>
+                        <td>
+                          <div className="row-actions">
+                            <button type="button" className="btn btn--small btn--secondary" onClick={() => void llm!.setEnabled(s.id, !s.enabled).then(services.reload, setError)}>
+                              {s.enabled ? '停用' : '啟用'}
+                            </button>
+                            <button type="button" className="btn btn--small btn--danger" onClick={() => void llm!.unpublish(s.id).then(services.reload, setError)}>
+                              取消發布
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </SplitLayout>
+      </div>
     </>
   );
 }

@@ -699,3 +699,69 @@
 .adm-audit-table td {
   white-space: nowrap;
 }
+
+/* 帳號管理（B18）：每列一行，操作排成一列小按鈕 */
+.adm-row-btns {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.adm-proj-one {
+  display: inline-block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.adm-proj-more summary {
+  cursor: pointer;
+  color: var(--color-text-link);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.adm-proj-more ul {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-small);
+}
+
+/* 總覽（B17）：系統狀態卡與待處理事項同高，連結列放在卡片底列，與左卡底列對齊 */
+.adm-status-card .ui-card__footer .adm-status__links {
+  padding: 0;
+  background: none;
+}
+
+.adm-status__value {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* 全平台筆數：8 格排成 4×2 不留半排；工作狀態一排撐滿 */
+.adm-counts--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.adm-counts--fill {
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+}
+
+@media (max-width: 767px) {
+  .adm-counts--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.adm-row-btns .adm-btn--danger-outline {
+  border: 1px solid var(--color-action-danger);
+  background: var(--color-bg-surface);
+  color: var(--color-action-danger);
+}

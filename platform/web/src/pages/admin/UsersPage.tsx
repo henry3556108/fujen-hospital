@@ -166,6 +166,34 @@ function ProjectLinks({ user, list }: { user: User; list: UserProject[] | undefi
   );
 }
 
+/** 表格裡的所屬專案摘要：每列一行。1 個顯示名稱，多個顯示「N 個專案」，可展開或滑過看全部。 */
+export function ProjectSummary({ user, list }: { user: User; list: UserProject[] | undefined }) {
+  if (!list || list.length <= 1) {
+    const m = list?.[0];
+    if (!m) return <ProjectLinks user={user} list={list} />;
+    return (
+      <span className="adm-proj-one" title={`${m.name}（${m.role}）`}>
+        <Link to={`/admin/projects/${m.id}`}>{m.name}</Link>
+        <span className="text-muted">（{m.role}）</span>
+      </span>
+    );
+  }
+  const all = list.map((m) => `${m.name}（${m.role}）`).join('、');
+  return (
+    <details className="adm-proj-more">
+      <summary title={all}>{list.length} 個專案</summary>
+      <ul>
+        {list.map((m) => (
+          <li key={m.id}>
+            <Link to={`/admin/projects/${m.id}`}>{m.name}</Link>
+            <span className="text-muted">（{m.role}）</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /** 右側：選中帳號的編輯欄（設計稿 B18）。類型改在下拉選好後按「儲存變更」。 */
 function UserPanel({
   target,
@@ -407,19 +435,19 @@ export function UsersPage() {
                       </select>
                     </td>
                     <td>
-                      <ProjectLinks user={u} list={memberships.data ? (memberships.data.get(u.id) ?? []) : undefined} />
+                      <ProjectSummary user={u} list={memberships.data ? (memberships.data.get(u.id) ?? []) : undefined} />
                     </td>
                     <td>
-                      <div className="adm-row-actions">
-                        <button type="button" className="adm-link-btn" aria-label={`編輯 ${u.username}`} onClick={() => select(u)}>
-                          編輯 ›
+                      <div className="adm-row-btns">
+                        <button type="button" className="btn btn--secondary btn--small" aria-label={`編輯 ${u.username}`} onClick={() => select(u)}>
+                          編輯
                         </button>
-                        <button type="button" className="adm-link-btn" aria-label={`重設 ${u.username} 的密碼`} onClick={() => select(u, true)}>
+                        <button type="button" className="btn btn--secondary btn--small" aria-label={`重設 ${u.username} 的密碼`} onClick={() => select(u, true)}>
                           重設密碼
                         </button>
                         <button
                           type="button"
-                          className="adm-link-btn adm-link-btn--danger"
+                          className="btn btn--small adm-btn--danger-outline"
                           aria-label={`刪除 ${u.username}`}
                           onClick={() => {
                             clearMessages();

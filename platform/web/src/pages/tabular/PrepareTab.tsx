@@ -264,7 +264,7 @@ export function PrepareTab() {
                 </button>
               </Alert>
             )}
-            <div className="table-wrap">
+            <div className="table-wrap rd-hscroll">
               <table aria-label="欄位整理" className="rd-prep-table">
                 <thead>
                   <tr>
@@ -276,9 +276,15 @@ export function PrepareTab() {
                     <th scope="col" className="num">
                       不同值
                     </th>
-                    <th scope="col">想預測</th>
-                    <th scope="col">用來預測</th>
-                    <th scope="col">當作類別</th>
+                    <th scope="col" className="rd-prep-flag" title="選一個欄位當作模型要預測的結果（Target）">
+                      想預測
+                    </th>
+                    <th scope="col" className="rd-prep-flag" title="勾選的欄位拿來預測（Feature）">
+                      用來預測
+                    </th>
+                    <th scope="col" className="rd-prep-flag" title="把文字或代碼拆成 0／1 欄位（One-Hot 編碼）">
+                      當作類別
+                    </th>
                     <th scope="col">處理方式</th>
                     <th scope="col">提示</th>
                     <th scope="col">操作</th>
@@ -292,7 +298,14 @@ export function PrepareTab() {
                     return (
                       <tr key={f.name}>
                         <th scope="row">{f.name}</th>
-                        <td>{typeLabel(f)}</td>
+                        <td className="rd-prep-type">
+                          {/* 「整數（0／1，是／否）」拆兩行，括號說明放小字，欄寬不被撐開 */}
+                          {typeLabel(f).split(/(?=（)/).map((part, i) => (
+                            <span key={part} className={i ? 'rd-sub' : undefined}>
+                              {part}
+                            </span>
+                          ))}
+                        </td>
                         <td className={`num${f.missing > 0 ? ' rd-num--warning' : ''}`}>{f.missing}</td>
                         <td className="num">{f.unique}</td>
                         <td>

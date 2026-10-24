@@ -8,7 +8,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { Icon } from '../../components/Icon';
-import { Card, CodeBlock, SidePanel, SplitLayout, Stepper } from '../../components/ui';
+import { Card, CodeBlock, EmptyState, SidePanel, SplitLayout, Stepper } from '../../components/ui';
 import { isImageKind, saveFile, type StageEntry, type StageId, type StageOverview, type TrainingApi, type TrainingSetting } from './api';
 import { CODE_STAGES, STAGE_NAMES } from './stages';
 
@@ -113,6 +113,32 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
   const codeName = editing?.code ? `${editing.stage}.py` : '';
   const editingEntry = editing ? overview.stages.find((s) => s.stage === editing.stage) ?? null : null;
   const stepIndex = editing ? overview.stages.findIndex((s) => s.stage === editing.stage) : -1;
+  // 匯出整個流程（專案包）：放在右側操作欄底部（設計稿 B08「匯出專案包」）
+  const packageExport = (
+    <div className="trn-side-group" role="group" aria-label="匯出整個流程（專案包）">
+      <h3 className="trn-side-group__title">匯出整個流程（專案包）</h3>
+      <p className="trn-source">
+        下載資料匯入、標註、前處理、訓練、部署五個環節的設定與程式，以及在自己電腦重做的說明（README.md、run_all.py）。影像與研究編號已去識別。
+      </p>
+      {!image && canCode ? (
+        <label className="checkbox checkbox--top">
+          <input type="checkbox" checked={includeData} onChange={(e) => setIncludeData(e.target.checked)} />
+          <span>附上原始資料（只含用到的欄位；限計畫主持人，會記錄在稽核紀錄的資料交換）</span>
+        </label>
+      ) : null}
+      {canCode ? (
+        <div className="trn-side-actions">
+          <button type="button" className="btn btn--secondary" disabled={busy}
+            onClick={() => void run(async () => saveFile(await api.exportPackage(setting.id, includeData)))}>
+            <Icon name="download" />
+            下載整個流程（專案包）
+          </button>
+        </div>
+      ) : (
+        <p className="text-muted">匯出專案包需要 Coding 權限。</p>
+      )}
+    </div>
+  );
   return (
     <section className="stack" aria-labelledby="stages-title">
       <div className="training-head">
@@ -144,12 +170,13 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
           steps={overview.stages.map((s) => ({ label: s.name, description: s.locked ? '用匯入檔' : '用介面' }))} />
       </div>
 
-      {editing ? (
-        <div role="group" aria-label={`${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」`}>
+      {/* 設計稿 B08：左程式碼區、右操作按鈕欄；還沒選環節時也維持兩欄，左邊放引導文字 */}
+      <div {...(editing ? { role: 'group', 'aria-label': `${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」` } : {})}>
           <SplitLayout
             sideWidth="300px"
             side={
-              <SidePanel title="套用與檢查" sticky={false}>
+              <SidePanel title={editing ? '套用與檢查' : '操作'} sticky={false}>
+                {editing ? (<>
                 <div className="trn-side-actions">
                   <button type="button" className="btn btn--primary" disabled={busy} aria-label={`套用「${STAGE_NAMES[editing.stage]}」`}
                     onClick={() => void run(async () => {
@@ -204,9 +231,14 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
                     改回介面設定
                   </button>
                 ) : null}
+                </>) : (
+                  <p className="trn-source">在下方表格按「檢視程式碼」或「檢視設定檔」，左邊會顯示那個環節的內容，這裡會出現套用、下載與上傳。</p>
+                )}
+                {packageExport}
               </SidePanel>
             }
           >
+            {editing ? (
             <Card
               title={`${STAGE_NAMES[editing.stage]}${editing.code ? '流程程式碼' : '設定檔'}`}
               extra={
@@ -238,9 +270,13 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
                 ) : null}
               </div>
             </Card>
+            ) : (
+              <Card title="環節內容">
+                <EmptyState icon="doc" title="還沒選環節" description="從下方「各環節目前由誰控制」選一個環節檢視程式碼或設定檔；修改後可在這裡直接套用。" />
+              </Card>
+            )}
           </SplitLayout>
-        </div>
-      ) : null}
+      </div>
 
       <Card title="各環節目前由誰控制" flush>
         <div className="table-wrap">
@@ -300,31 +336,6 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
       </Card>
       <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden aria-label="選擇環節檔（zip）"
         onChange={(e) => upload(e.target.files?.[0])} />
-
-      <Card title="匯出整個流程（專案包）">
-        <div className="stack">
-          <p className="field__hint">
-            下載資料匯入、標註、前處理、訓練、部署五個環節的設定與程式，以及在自己電腦重做的說明（README.md、run_all.py）。影像與研究編號已去識別。
-          </p>
-          {!image && canCode ? (
-            <label className="checkbox">
-              <input type="checkbox" checked={includeData} onChange={(e) => setIncludeData(e.target.checked)} />
-              附上原始資料（只含用到的欄位；限計畫主持人，會記錄在稽核紀錄的資料交換）
-            </label>
-          ) : null}
-          {canCode ? (
-            <div className="row-actions">
-              <button type="button" className="btn btn--secondary" disabled={busy}
-                onClick={() => void run(async () => saveFile(await api.exportPackage(setting.id, includeData)))}>
-                <Icon name="download" />
-                下載整個流程（專案包）
-              </button>
-            </div>
-          ) : (
-            <p className="text-muted">匯出專案包需要 Coding 權限。</p>
-          )}
-        </div>
-      </Card>
 
       {unlocking?.locked ? (
         <ConfirmDialog

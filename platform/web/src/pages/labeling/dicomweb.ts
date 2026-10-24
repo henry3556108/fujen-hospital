@@ -192,7 +192,7 @@ export function createDicomwebClient(opts: {
     async thumbnail(studyUid, info, signal) {
       const res = await get(
         `/studies/${studyUid}/series/${info.seriesInstanceUid}/instances/${info.sopInstanceUid}/thumbnail`,
-        'image/jpeg, image/png, image/*',
+        'image/jpeg', // Orthanc 的 Accept 只能列一種格式
         signal,
       );
       return res.blob();

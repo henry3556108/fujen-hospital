@@ -145,10 +145,12 @@ export function PreviewTab() {
           </h3>
         </div>
         {tiles.length > 0 && (
-          <ul className="rd-tiles section" aria-label="摘要統計">
+          <ul className="rd-tiles" aria-label="摘要統計">
             {tiles.map((c) => (
               <li key={c.name} className="rd-tile">
-                <span className="rd-tile__label">平均 {c.name}</span>
+                <span className="rd-tile__label" title={`平均 ${c.name}`}>
+                  平均 {c.name}
+                </span>
                 <span className="rd-tile__value" title={String(c.mean)}>
                   {formatStat(c.mean!)}
                 </span>

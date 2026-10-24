@@ -206,50 +206,49 @@ function Settings({ api }: { api: TrainingApi }) {
 
   return (
     <div className="stack">
-      <section className="stack" aria-labelledby="settings-title">
-        <div className="trn-section__head">
-          <div>
-            <h2 id="settings-title">已存設定</h2>
-            <p className="text-muted">管理常用的訓練設定。按「套用」會開啟建立訓練並帶入這份設定，確認後送出；每次送出訓練時也會一併存下設定。</p>
-          </div>
-          <button type="button" className="btn btn--primary" onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
-            新增訓練設定
-          </button>
-        </div>
-        {notice ? <Alert tone="success">{notice}</Alert> : null}
-        <ApiErrorAlert error={error ?? settings.error} />
-        <div className="row-actions">
-          <div className="field">
-            <label htmlFor="settings-search">搜尋設定</label>
-            <input id="settings-search" className="input" type="search" value={query} placeholder="名稱、建立者或任務" onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <label className="checkbox">
-            <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
-            只看我建立的
-          </label>
-          {mineOnly && others > 0 ? <span className="text-muted">（另有 {others} 份其他人的設定）</span> : null}
-        </div>
-        {settings.data && all.length === 0 ? (
-          <p className="text-muted">還沒有已存設定。按「建立訓練」送出第一次訓練，設定會自動存在這裡。</p>
+      {/* 設計稿 B02：左邊清單卡（標題、篩選列、表格），有資料時右邊是設定詳情 */}
+      <SplitLayout
+        sideWidth="400px"
+        side={current ? (
+          <SettingDetail
+            key={current.id}
+            setting={current}
+            dataText={dataText(current)}
+            diff={diffOf(current)}
+            onCopy={() => copy(current)}
+            onDelete={() => setDeleting(current)}
+            onSubmit={() => void submit(current)}
+            onApplyDataset={(tf) => apply(current, tf)}
+          />
         ) : null}
-        {settings.data && all.length > 0 && visible.length === 0 ? <p className="text-muted">沒有符合條件的設定。</p> : null}
-        {visible.length > 0 ? (
-          <SplitLayout
-            sideWidth="400px"
-            side={current ? (
-              <SettingDetail
-                key={current.id}
-                setting={current}
-                dataText={dataText(current)}
-                diff={diffOf(current)}
-                onCopy={() => copy(current)}
-                onDelete={() => setDeleting(current)}
-                onSubmit={() => void submit(current)}
-                onApplyDataset={(tf) => apply(current, tf)}
-              />
-            ) : null}
-          >
-            <Card flush>
+      >
+        <Card
+          title="已存設定"
+          className="trn-settings-card"
+          extra={
+            // 頁首已有實心「建立訓練」，這裡用次要樣式
+            <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
+              新增訓練設定
+            </button>
+          }
+        >
+          <p className="text-muted">管理常用的訓練設定。按「套用」會開啟建立訓練並帶入這份設定，確認後送出；每次送出訓練時也會一併存下設定。</p>
+          {notice ? <Alert tone="success">{notice}</Alert> : null}
+          <ApiErrorAlert error={error ?? settings.error} />
+          <div className="trn-filter">
+            <label htmlFor="settings-search" className="visually-hidden">搜尋設定</label>
+            <input id="settings-search" className="input" type="search" value={query} placeholder="搜尋設定：名稱、建立者或任務" onChange={(e) => setQuery(e.target.value)} />
+            <label className="checkbox">
+              <input type="checkbox" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+              只看我建立的
+            </label>
+            {mineOnly && others > 0 ? <span className="text-muted">（另有 {others} 份其他人的設定）</span> : null}
+          </div>
+          {settings.data && all.length === 0 ? (
+            <p className="text-muted">還沒有已存設定。按「建立訓練」送出第一次訓練，設定會自動存在這裡。</p>
+          ) : null}
+          {settings.data && all.length > 0 && visible.length === 0 ? <p className="text-muted">沒有符合條件的設定。</p> : null}
+          {visible.length > 0 ? (
               <div className="table-wrap">
                 <table className="table trn-settings-table" aria-label="訓練設定清單">
                   <thead>
@@ -313,10 +312,9 @@ function Settings({ api }: { api: TrainingApi }) {
                   </tbody>
                 </table>
               </div>
-            </Card>
-          </SplitLayout>
-        ) : null}
-      </section>
+          ) : null}
+        </Card>
+      </SplitLayout>
 
       {editor ? (
         <SettingForm
@@ -386,11 +384,12 @@ function SettingDetail({ setting, dataText, diff, onCopy, onDelete, onSubmit, on
       title={setting.name}
       actions={
         <>
-          <button type="button" className="btn btn--small btn--secondary" onClick={onCopy}>
-            複製「{setting.name}」
+          {/* 畫面寫短字（設計稿 B02），完整名稱留在 aria-label */}
+          <button type="button" className="btn btn--small btn--secondary" aria-label={`複製「${setting.name}」`} onClick={onCopy}>
+            複製
           </button>
-          <button type="button" className="btn btn--small btn--danger" onClick={onDelete}>
-            刪除「{setting.name}」
+          <button type="button" className="btn btn--small btn--danger" aria-label={`刪除「${setting.name}」`} onClick={onDelete}>
+            刪除
           </button>
         </>
       }

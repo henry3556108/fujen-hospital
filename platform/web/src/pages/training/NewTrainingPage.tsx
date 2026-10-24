@@ -154,6 +154,9 @@ function Wizard({ api }: { api: TrainingApi }) {
   const [formKey, setFormKey] = useState(0);
   // 送出訓練（建立版本、排入佇列）可能要幾秒：期間鎖住表單，避免重複送出
   const [submitting, setSubmitting] = useState(false);
+  // 第二步的資料檢查（按右側「下一步」時）
+  const [dataIssue, setDataIssue] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const query = params.toString();
   // 已選好研究目的或資料、還沒送出：離開前提醒（送出後導到訓練頁，元件卸載即取消登記）
   useUnsavedChanges(step > 1, '建立訓練還沒送出。');
@@ -206,6 +209,38 @@ function Wizard({ api }: { api: TrainingApi }) {
       onChoose={(kind) => setForm({ ...emptyForm(cat, kind), name: form.name })} />
   );
 
+  /** 第二步「下一步」：先檢查資料，有問題留在第二步顯示。 */
+  function nextFromData() {
+    if (!form) return;
+    setDataIssue(null);
+    setChecking(true);
+    dataProblem(api, form)
+      .then((p) => (p ? setDataIssue(p) : (setFormKey((k) => k + 1), setStep(3))))
+      .catch(() => { setFormKey((k) => k + 1); setStep(3); })
+      .finally(() => setChecking(false));
+  }
+
+  // 第一、二步的按鈕照設計稿放在右側「送出前確認」底部（第三步由 SettingForm 放）
+  const stepActions = step === 1 ? (
+    <div className="trn-side-actions">
+      <button type="button" className="btn btn--primary" onClick={() => setStep(2)}>
+        下一步：確認資料
+      </button>
+      <Link className="btn btn--secondary" to="/training">
+        取消
+      </Link>
+    </div>
+  ) : (
+    <div className="trn-side-actions">
+      <button type="button" className="btn btn--primary" disabled={checking} onClick={nextFromData}>
+        下一步：確認並送出
+      </button>
+      <button type="button" className="btn btn--secondary" onClick={() => { setDataIssue(null); setStep(1); }}>
+        上一步
+      </button>
+    </div>
+  );
+
   return (
     <div className="stack">
       <div className="trn-stage-steps">
@@ -215,22 +250,18 @@ function Wizard({ api }: { api: TrainingApi }) {
       <ApiErrorAlert error={error} />
 
       {step < 3 ? (
-        <SplitLayout side={<WizardSide>{summary(form)}</WizardSide>}>
+        <SplitLayout side={
+          <WizardSide>
+            {summary(form)}
+            {stepActions}
+            <p className="trn-summary-note"><Icon name="info" />送出後可在訓練紀錄查看進度。</p>
+          </WizardSide>
+        }>
           <div className="stack">
             {purposeSection}
-            {step === 1 ? (
-              <div className="row-actions">
-                <button type="button" className="btn btn--primary" onClick={() => setStep(2)}>
-                  下一步：確認資料
-                </button>
-                <Link className="btn btn--secondary" to="/training">
-                  取消
-                </Link>
-              </div>
-            ) : (
-              <DataStep api={api} cat={cat} form={form} setForm={setForm} labelDatasets={labelDatasets} datasets={datasets}
-                onBack={() => setStep(1)} onNext={() => { setFormKey((k) => k + 1); setStep(3); }} />
-            )}
+            {step === 2 ? (
+              <DataStep api={api} cat={cat} form={form} setForm={setForm} labelDatasets={labelDatasets} datasets={datasets} problem={dataIssue} />
+            ) : null}
           </div>
         </SplitLayout>
       ) : (
@@ -314,7 +345,7 @@ function PurposeSection({ purposes, kind, locked, onChoose, onBack }: {
       disabled={locked && kind !== p.kind} onSelect={() => onChoose(p.kind)} />
   );
   return (
-    <section className="trn-section" aria-labelledby="wizard-purpose">
+    <section className="trn-section trn-purpose" aria-labelledby="wizard-purpose">
       <div className="trn-section__head">
         <h2 id="wizard-purpose" className="trn-section__title">1. 選擇研究目的</h2>
         {locked ? (
@@ -433,35 +464,17 @@ export function splitProblem(f: Pick<FormState, 'kind' | 'validationMethod' | 't
 
 type Res<T> = { data: T | null; error: unknown; loading: boolean };
 
-function DataStep({ api, cat, form, setForm, labelDatasets, datasets, onBack, onNext }: {
+function DataStep({ api, cat, form, setForm, labelDatasets, datasets, problem }: {
   api: TrainingApi; cat: Catalogue; form: FormState; setForm: (f: FormState) => void; labelDatasets: Res<LabelDataset[]>; datasets: Res<Dataset[]>;
-  onBack: () => void; onNext: () => void;
+  problem: string | null;
 }) {
   const image = isImageKind(form.kind);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
   return (
     <section className="trn-section" aria-label={`確認資料：${purposeTitle(form.kind)}`}>
       <h2 className="trn-section__title">2. 確認資料</h2>
       <p className="trn-section__hint">{image ? '選擇用於訓練的已標註資料集' : '選擇用於訓練的表格資料集'}</p>
       {image ? <ImageData datasets={labelDatasets} form={form} setForm={setForm} /> : <TabularData api={api} cat={cat} form={form} setForm={setForm} datasets={datasets} />}
       {problem ? <Alert tone="error">{problem}</Alert> : null}
-      <div className="row-actions">
-        <button type="button" className="btn btn--secondary" onClick={onBack}>
-          上一步
-        </button>
-        <button type="button" className="btn btn--primary" disabled={checking}
-          onClick={() => {
-            setProblem(null);
-            setChecking(true);
-            dataProblem(api, form)
-              .then((p) => (p ? setProblem(p) : onNext()))
-              .catch(() => onNext())
-              .finally(() => setChecking(false));
-          }}>
-          下一步：確認並送出
-        </button>
-      </div>
     </section>
   );
 }

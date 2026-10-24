@@ -139,7 +139,7 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
         </div>
       ) : null}
 
-      <Card title="執行紀錄" flush>
+      <Card title="執行紀錄" flush className="lb-card-gap">
         <ApiErrorAlert error={runs.error} />
         {runs.data && runs.data.length === 0 ? (
           <p className="text-muted lb-card-note">還沒有自動標註紀錄。</p>

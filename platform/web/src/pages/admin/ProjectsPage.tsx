@@ -233,13 +233,13 @@ export function ProjectsPage() {
                 <td>{p.description || '—'}</td>
                 <td>{p.gpu_group ?? '未綁定'}</td>
                 <td>
-                  <div className="adm-row-actions">
-                    <Link to={`/admin/projects/${p.id}/members`} className="adm-link-btn">
+                  <div className="adm-row-btns">
+                    <Link to={`/admin/projects/${p.id}/members`} className="btn btn--secondary btn--small">
                       成員與權限
                     </Link>
                     <button
                       type="button"
-                      className="adm-link-btn"
+                      className="btn btn--secondary btn--small"
                       aria-label={`編輯 ${p.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -250,7 +250,7 @@ export function ProjectsPage() {
                     </button>
                     <button
                       type="button"
-                      className="adm-link-btn adm-link-btn--danger"
+                      className="btn btn--small adm-btn--danger-outline"
                       aria-label={`刪除 ${p.name}`}
                       onClick={() => {
                         setNotice(null);

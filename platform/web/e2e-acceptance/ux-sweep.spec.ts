@@ -29,7 +29,7 @@ const RESEARCH = [
   study && `/labeling/studies/${study}`,
   '/training', '/training/new', '/training/settings', '/training/code', run && `/training/runs/${run}`,
   '/models', run && `/models/${run}/result`, run && `/models/${run}/predict`, run && `/models/${run}/history`,
-  run && `/models/${run}/share`, run && `/models/${run}/download`,
+  run && `/models/${run}/share`, run && `/models/${run}/download`, run && `/models/${run}/call`,
   '/llm/chat', '/llm/docs', '/llm/prompts', '/llm/services', '/llm/models', '/llm/workflows', '/llm/wiki',
 ].filter(Boolean) as string[];
 
@@ -46,7 +46,10 @@ const ROLES: Record<string, string[]> = {
   pi01: RESEARCH, md01: RESEARCH, ra01: RESEARCH, ca01: RESEARCH, vw01: RESEARCH,
 };
 const pick = (process.env.SWEEP_ROLES || '').split(',').filter(Boolean);
-const NOISE = /favicon|ResizeObserver loop|Download the React DevTools|net::ERR_ABORTED/;
+// 瀏覽器對每個 4xx 都會印 console「Failed to load resource」；HTTP 狀態另由 response 檢查，這裡不重複算
+const NOISE = /favicon|ResizeObserver loop|Download the React DevTools|net::ERR_ABORTED|Failed to load resource/;
+// 本來就會 404 的查詢：資料集還沒設定想預測的欄位
+const EXPECTED_404 = /\/tabular\/datasets\/\d+\/target-feature$/;
 
 type Row = { role: string; route: string; status: 'ok' | 'fail' | 'denied'; issues: string[]; shot: string };
 
@@ -57,7 +60,10 @@ async function check(page: Page, role: string, route: string, idx: number): Prom
   };
   const onError = (e: Error) => issues.push(`pageerror: ${e.message.slice(0, 140)}`);
   const onResp = (r: { status(): number; url(): string }) => {
-    if (r.status() >= 500) issues.push(`HTTP ${r.status()} ${new URL(r.url()).pathname}`);
+    const st = r.status();
+    const p = new URL(r.url()).pathname;
+    if (st === 404 && EXPECTED_404.test(p)) return;
+    if (st >= 500 || (st >= 400 && st !== 401 && st !== 403)) issues.push(`HTTP ${st} ${p}`);
   };
   page.on('console', onConsole); page.on('pageerror', onError); page.on('response', onResp);
   try {

@@ -53,7 +53,7 @@ export function KnowledgePage() {
       <LlmHeader title="文件問答" subtitle="「根據文件回答」會從這裡的文件找答案。加入文件後狀態變成「可使用」；「未完成」的文件請重新加入。" />
       <ApiErrorAlert error={kbs.error ?? error} />
       <div className="llm-two-col">
-        <Card title="文件集" flush>
+        <Card title="文件集" flush className="llm-kb-card">
           <div className="table-wrap">
             <table aria-label="參考文件集">
               <thead>
@@ -70,23 +70,32 @@ export function KnowledgePage() {
                     <th scope="row">{k.name}</th>
                     <td>{k.documents}</td>
                     <td>{k.chunks}</td>
-                    <td className="row-actions">
-                      <button
-                        type="button"
-                        className="btn btn--small btn--secondary"
-                        onClick={() => {
-                          setSelected(k.id);
-                          setUploadKey((n) => n + 1);
-                        }}
-                      >
-                        管理文件
-                      </button>
-                      <button type="button" className="btn btn--small btn--danger" onClick={() => setRemoving(k)}>
-                        刪除
-                      </button>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="btn btn--small btn--secondary"
+                          onClick={() => {
+                            setSelected(k.id);
+                            setUploadKey((n) => n + 1);
+                          }}
+                        >
+                          管理文件
+                        </button>
+                        <button type="button" className="btn btn--small btn--danger" onClick={() => setRemoving(k)}>
+                          刪除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {kbs.data && kbs.data.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="llm-empty-row">
+                      尚無文件集，在下面輸入名稱後按「新增文件集」。
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -126,7 +135,7 @@ export function KnowledgePage() {
             )}
           </Card>
         ) : (
-          <Card>
+          <Card className="llm-center-card">
             <EmptyState icon="doc" title="選一個文件集" description="在左邊按「管理文件」，就能加入文件並查看每份文件的處理狀態。" />
           </Card>
         )}

@@ -155,7 +155,7 @@ function LoadConfigForm({ model, onChange }: { model: CatalogModel; onChange: ()
           >
             {busy ? '處理中…' : '套用並重新載入'}
           </button>
-          <div className="row-actions">
+          <div className="llm-btn-pair">
             <button type="submit" className="btn btn--secondary" disabled={busy}>
               儲存載入設定
             </button>
@@ -174,7 +174,7 @@ function LoadConfigForm({ model, onChange }: { model: CatalogModel; onChange: ()
           >
             {busy ? '處理中…' : '載入'}
           </button>
-          <button type="submit" className="btn btn--secondary" disabled={busy}>
+          <button type="submit" className="btn btn--secondary llm-block-btn" disabled={busy}>
             儲存載入設定
           </button>
         </>
@@ -256,187 +256,202 @@ export function ModelsPage() {
   return (
     <>
       <LlmHeader title="語言模型管理" subtitle="管理可用的語言模型，申請下載並設定載入參數。下載前需管理者核准。" />
-      <SplitLayout side={open ? <LoadPanel key={open.name} model={open} onClose={() => setSelected(null)} onChange={catalog.reload} /> : undefined}>
-        <SegmentedTabs
-          label="語言模型管理分頁"
-          idPrefix="llm-models"
-          value={tab}
-          onChange={setTab}
-          items={[
-            { key: 'catalog', label: '可用模型' },
-            { key: 'downloads', label: '下載申請' },
-            { key: 'load', label: '載入設定' },
-          ]}
-        />
-        <ApiErrorAlert error={catalog.error ?? downloads.error ?? error} />
-        <div role="tabpanel" id={tabPanelId('llm-models', tab)} aria-labelledby={`llm-models-${tab}-tab`} className="stack">
-          {tab === 'catalog' && (
-            <>
-              <p className="text-muted">只有白名單內的模型可以下載；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
-              <div className="llm-toolbar llm-toolbar--plain">
-                <div className="field">
-                  <label htmlFor="model-q" className="visually-hidden">
-                    搜尋模型
-                  </label>
-                  <input id="model-q" className="input" type="search" placeholder="搜尋模型名稱或來源" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="llm-stretch">
+        <SplitLayout side={open ? <LoadPanel key={open.name} model={open} onClose={() => setSelected(null)} onChange={catalog.reload} /> : undefined}>
+          <SegmentedTabs
+            label="語言模型管理分頁"
+            idPrefix="llm-models"
+            value={tab}
+            onChange={setTab}
+            items={[
+              { key: 'catalog', label: '可用模型' },
+              { key: 'downloads', label: '下載申請' },
+              { key: 'load', label: '載入設定' },
+            ]}
+          />
+          <ApiErrorAlert error={catalog.error ?? downloads.error ?? error} />
+          <div role="tabpanel" id={tabPanelId('llm-models', tab)} aria-labelledby={`llm-models-${tab}-tab`} className="stack llm-fill">
+            {tab === 'catalog' && (
+              <>
+                <p className="text-muted">只有白名單內的模型可以下載；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
+                <div className="llm-model-filters">
+                  <div className="field">
+                    <label htmlFor="model-q">搜尋模型</label>
+                    <input id="model-q" className="input" type="search" placeholder="搜尋模型名稱或來源" value={q} onChange={(e) => setQ(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="model-token">下載 Token（選填）</label>
+                    <input id="model-token" className="input" type="password" autoComplete="off" placeholder="需要時填寫，不會被儲存" value={token} onChange={(e) => setToken(e.target.value)} />
+                  </div>
                 </div>
-                <div className="field">
-                  <label htmlFor="model-token">下載 Token（需要時填寫，不會被儲存）</label>
-                  <input id="model-token" className="input" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
-                </div>
-              </div>
-              <Card flush>
-                <div className="table-wrap">
-                  <table aria-label="白名單模型">
-                    <thead>
-                      <tr>
-                        <th>模型名稱</th>
-                        <th>來源與授權</th>
-                        <th>狀態</th>
-                        <th>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shown.map((m) => {
-                        const mine = list.filter((d) => d.name === m.name);
-                        const approved = mine.find((d) => d.status === 'approved');
-                        const active = mine.find((d) => d.status === 'downloading');
-                        const requested = mine.find((d) => d.status === 'pending');
-                        const state = modelState(m, list);
-                        return (
-                          <tr key={m.name} className={open?.name === m.name ? 'llm-row--selected' : undefined}>
-                            <th scope="row" className="llm-nowrap">
-                              {m.name}
-                            </th>
-                            <td>
-                              {m.repo}@{m.revision.slice(0, 8)}
-                              <span className="llm-cell-note">
-                                授權 {m.license || '—'}
-                                {m.has_remote_code ? '（夾帶程式碼）' : ''}
-                              </span>
-                            </td>
-                            <td>
-                              <Badge tone={state.tone}>{state.label}</Badge>
-                            </td>
-                            <td className="row-actions">
-                              {m.installed && (
-                                <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
-                                  載入設定
-                                </button>
-                              )}
-                              {!m.installed && !approved && !active && !requested && (
-                                <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.requestDownload(m.name))}>
-                                  申請下載
-                                </button>
-                              )}
-                              {approved && (
-                                <button type="button" className="btn btn--small btn--primary" onClick={() => void act(() => llm!.executeDownload(approved.id, token))}>
-                                  下載
-                                </button>
-                              )}
-                              {me.account_type === 'admin' && m.has_remote_code && !m.remote_code_approved && (
-                                <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.approveRemoteCode(m.name))}>
-                                  核准程式碼
-                                </button>
-                              )}
-                              <button type="button" className="btn btn--small btn--ghost" onClick={() => showRecords(m.name)}>
-                                下載紀錄
-                              </button>
-                              {m.installed && <MoreMenu label={`${m.name} 更多操作`} items={[{ label: '刪除模型', danger: true, onSelect: () => setRemoving(m.name) }]} />}
+                <Card flush>
+                  <div className="table-wrap">
+                    <table aria-label="白名單模型">
+                      <thead>
+                        <tr>
+                          <th>模型名稱</th>
+                          <th>來源與授權</th>
+                          <th>狀態</th>
+                          <th>操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shown.map((m) => {
+                          const mine = list.filter((d) => d.name === m.name);
+                          const approved = mine.find((d) => d.status === 'approved');
+                          const active = mine.find((d) => d.status === 'downloading');
+                          const requested = mine.find((d) => d.status === 'pending');
+                          const state = modelState(m, list);
+                          return (
+                            <tr key={m.name} className={open?.name === m.name ? 'llm-row--selected' : undefined}>
+                              <th scope="row" className="llm-nowrap">
+                                {m.name}
+                              </th>
+                              <td>
+                                {m.repo}@{m.revision.slice(0, 8)}
+                                <span className="llm-cell-note">
+                                  授權 {m.license || '—'}
+                                  {m.has_remote_code ? '（夾帶程式碼）' : ''}
+                                </span>
+                              </td>
+                              <td>
+                                <Badge tone={state.tone}>{state.label}</Badge>
+                              </td>
+                              <td>
+                                <div className="row-actions">
+                                  {m.installed && (
+                                    <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
+                                      載入設定
+                                    </button>
+                                  )}
+                                  {!m.installed && !approved && !active && !requested && (
+                                    <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.requestDownload(m.name))}>
+                                      申請下載
+                                    </button>
+                                  )}
+                                  {approved && (
+                                    <button type="button" className="btn btn--small btn--primary" onClick={() => void act(() => llm!.executeDownload(approved.id, token))}>
+                                      下載
+                                    </button>
+                                  )}
+                                  {me.account_type === 'admin' && m.has_remote_code && !m.remote_code_approved && (
+                                    <button type="button" className="btn btn--small btn--secondary" onClick={() => void act(() => llm!.approveRemoteCode(m.name))}>
+                                      核准程式碼
+                                    </button>
+                                  )}
+                                  <button type="button" className="btn btn--small btn--ghost" onClick={() => showRecords(m.name)}>
+                                    下載紀錄
+                                  </button>
+                                  {m.installed && <MoreMenu label={`${m.name} 更多操作`} items={[{ label: '刪除模型', danger: true, onSelect: () => setRemoving(m.name) }]} />}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {catalog.data && shown.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="llm-empty-row">
+                              {q ? '沒有符合的模型。' : '白名單內還沒有模型。'}
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            </>
-          )}
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </>
+            )}
 
-          {tab === 'downloads' && (
-            <>
-              {recordsOf && (
-                <p className="llm-filter">
-                  只看「{recordsOf}」
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setRecordsOf('')}>
-                    顯示全部
-                  </button>
-                </p>
-              )}
-              <p className="text-muted">申請由管理者在「系統管理 › 稽核與審核」核准或駁回；核准後回到「可用模型」按「下載」。</p>
-              <Card flush>
-                <div className="table-wrap">
-                  <table aria-label="下載紀錄">
-                    <thead>
-                      <tr>
-                        <th>模型</th>
-                        <th>狀態</th>
-                        <th>申請人</th>
-                        <th>審核人</th>
-                        <th>commit</th>
-                        <th>hash</th>
-                        <th>時間</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records.map((d) => (
-                        <tr key={d.id}>
-                          <th scope="row">{d.name}</th>
-                          <td>
-                            <Badge tone={STATUS_TONE[d.status] ?? 'neutral'}>{downloadStatus(d)}</Badge>
-                            {d.message && <span className="llm-cell-note">{d.message}</span>}
-                          </td>
-                          <td>{d.user}</td>
-                          <td>{d.reviewer ?? '—'}</td>
-                          <td>{d.commit?.slice(0, 8) ?? '—'}</td>
-                          <td>{d.hash?.slice(0, 12) ?? '—'}</td>
-                          <td>{d.time ? fmtDateTime(d.time) : '—'}</td>
+            {tab === 'downloads' && (
+              <>
+                {recordsOf && (
+                  <p className="llm-filter">
+                    只看「{recordsOf}」
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => setRecordsOf('')}>
+                      顯示全部
+                    </button>
+                  </p>
+                )}
+                <p className="text-muted">申請由管理者在「系統管理 › 稽核與審核」核准或駁回；核准後回到「可用模型」按「下載」。</p>
+                <Card flush>
+                  <div className="table-wrap">
+                    <table aria-label="下載紀錄">
+                      <thead>
+                        <tr>
+                          <th>模型</th>
+                          <th>狀態</th>
+                          <th>申請人</th>
+                          <th>審核人</th>
+                          <th>commit</th>
+                          <th>hash</th>
+                          <th>時間</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {downloads.data && records.length === 0 && <p className="text-muted llm-pad">還沒有下載申請。</p>}
-                </div>
-              </Card>
-            </>
-          )}
+                      </thead>
+                      <tbody>
+                        {records.map((d) => (
+                          <tr key={d.id}>
+                            <th scope="row">{d.name}</th>
+                            <td>
+                              <Badge tone={STATUS_TONE[d.status] ?? 'neutral'}>{downloadStatus(d)}</Badge>
+                              {d.message && <span className="llm-cell-note">{d.message}</span>}
+                            </td>
+                            <td>{d.user}</td>
+                            <td>{d.reviewer ?? '—'}</td>
+                            <td>{d.commit?.slice(0, 8) ?? '—'}</td>
+                            <td>{d.hash?.slice(0, 12) ?? '—'}</td>
+                            <td>{d.time ? fmtDateTime(d.time) : '—'}</td>
+                          </tr>
+                        ))}
+                        {downloads.data && records.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="llm-empty-row">
+                              還沒有下載申請。
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </>
+            )}
 
-          {tab === 'load' &&
-            (installed.length === 0 ? (
-              <EmptyState icon="cube" title="還沒有下載的模型" description="先在「可用模型」申請下載，核准並下載後才能設定載入。" />
-            ) : (
-              <Card flush>
-                <div className="table-wrap">
-                  <table aria-label="已下載的模型">
-                    <thead>
-                      <tr>
-                        <th>模型名稱</th>
-                        <th>狀態</th>
-                        <th>操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {installed.map((m) => (
-                        <tr key={m.name} className={open?.name === m.name ? 'llm-row--selected' : undefined}>
-                          <th scope="row">{m.name}</th>
-                          <td>
-                            <Badge tone={m.loaded ? 'success' : 'info'}>{m.loaded ? '已載入' : '已下載'}</Badge>
-                          </td>
-                          <td>
-                            <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
-                              載入設定
-                            </button>
-                          </td>
+            {tab === 'load' &&
+              (installed.length === 0 ? (
+                <EmptyState icon="cube" title="還沒有下載的模型" description="先在「可用模型」申請下載，核准並下載後才能設定載入。" />
+              ) : (
+                <Card flush>
+                  <div className="table-wrap">
+                    <table aria-label="已下載的模型">
+                      <thead>
+                        <tr>
+                          <th>模型名稱</th>
+                          <th>狀態</th>
+                          <th>操作</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            ))}
-        </div>
-      </SplitLayout>
+                      </thead>
+                      <tbody>
+                        {installed.map((m) => (
+                          <tr key={m.name} className={open?.name === m.name ? 'llm-row--selected' : undefined}>
+                            <th scope="row">{m.name}</th>
+                            <td>
+                              <Badge tone={m.loaded ? 'success' : 'info'}>{m.loaded ? '已載入' : '已下載'}</Badge>
+                            </td>
+                            <td>
+                              <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
+                                載入設定
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ))}
+          </div>
+        </SplitLayout>
+      </div>
       {removing && (
         <ConfirmDialog
           title="刪除模型"

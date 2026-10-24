@@ -21,8 +21,9 @@ export function DataTable({
   cellClass?: (row: number, column: string, value: Cell) => string | undefined;
 }) {
   return (
-    <div className="table-wrap">
-      <table aria-label={label}>
+    // 欄位多時整張表左右捲動，不擠壓也不截掉最右欄
+    <div className="table-wrap rd-hscroll">
+      <table aria-label={label} className="rd-datatable">
         <thead>
           <tr>
             <th scope="col" className="num">

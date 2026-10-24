@@ -35,7 +35,8 @@
   display: grid;
   grid-template-columns: 7.5rem minmax(0, 1fr) minmax(17rem, 21rem);
   gap: var(--space-3);
-  align-items: start;
+  /* 切片條、影像、標註面板同高 */
+  align-items: stretch;
 }
 
 @media (max-width: 1200px) {
@@ -297,12 +298,25 @@
   gap: var(--space-2);
 }
 
+/* 開關直接放在深色資訊列上，不另加白底，高度與其他文字一致 */
 .lb-viewer__toggle {
   margin-left: auto;
-  padding: 0.125rem var(--space-2);
-  border-radius: var(--radius-md);
-  background: var(--card-bg);
-  color: var(--color-text-primary);
+  color: var(--viewer-text);
+}
+
+.lb-viewer__toggle .ui-toggle {
+  min-height: 2rem;
+  padding: 0;
+}
+
+.lb-viewer__toggle .ui-toggle__track {
+  border-color: var(--viewer-border);
+  background: var(--viewer-bg);
+}
+
+.lb-viewer__toggle .ui-toggle--on .ui-toggle__track {
+  border-color: var(--color-action-primary);
+  background: var(--color-action-primary);
 }
 
 /* 右側標註面板 */
@@ -389,18 +403,22 @@
   font-weight: 600;
 }
 
-/* 主要按鈕在 DOM 第一個（下一筆），畫面上排在右邊 */
+/* 主要按鈕在 DOM 第一個（下一筆），畫面上排在右邊；兩顆固定 1:2，貼齊面板底部 */
 .lb-panel__actions {
-  display: flex;
-  flex-direction: row-reverse;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: var(--space-2);
+  margin-top: auto;
   padding: var(--space-3) var(--space-4) var(--space-4);
   border-top: 1px solid var(--color-border-default);
 }
 
+.lb-panel__actions .btn {
+  min-width: 0;
+}
+
 .lb-panel__actions .btn--primary {
-  flex: 1 1 auto;
+  order: 2;
 }
 
 .lb-card-note {
@@ -730,5 +748,37 @@
 
 /* 影像高度配合視窗，工具列與底部資訊列都看得到 */
 .lb-viewer__body .viewport-grid--1x1 {
-  max-width: min(100%, calc(100vh - 20rem));
+  max-width: min(100%, calc(100vh - 22rem));
+}
+
+/* ---------- 標註資料集：左欄與右側資訊同一列、頂端對齊、等高 ---------- */
+.lb-ds-split > .ui-split {
+  align-items: stretch;
+}
+
+.lb-ds-split .ui-split__main {
+  display: flex;
+  flex-direction: column;
+}
+
+.lb-ds-split .lb-ds-detail {
+  flex: 1 1 auto;
+}
+
+/* 清單頁：上下相鄰的卡片保持同樣間距 */
+.lb-card-gap {
+  margin-top: var(--space-4);
+}
+
+.lb-progress-card__totals {
+  margin: var(--space-3) 0 0;
+}
+
+/* CSV 匯入：檔案選擇與旁邊下拉選單同高，送出鈕與上方欄位留間距 */
+.lb-csv-form .file-picker {
+  min-height: 2.5rem;
+}
+
+.lb-csv-form__submit {
+  margin-top: var(--space-4);
 }

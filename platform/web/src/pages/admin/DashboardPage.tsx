@@ -4,7 +4,8 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { Card, Icon, PageHeader, StatTile, StatusDot, type IconName } from '../../components/ui';
-import type { ClusterNode } from '../scheduling/types';
+import type { GatewayRoute } from '../fhir/types';
+import type { ClusterNode, GpuAllocation } from '../scheduling/types';
 import './admin.css';
 
 const JOB_STATUS_LABELS: Record<string, string> = {
@@ -80,14 +81,28 @@ function PendingCard({ items }: { items: PendingItem[] }) {
   );
 }
 
-/** 系統狀態：只顯示 API 讀得到的運算節點狀態；其他服務請到系統監控 */
+/** 系統狀態：只顯示 API 讀得到的項目（運算節點、GPU 份數、資料交換閘道）；其他服務請到系統監控 */
 function SystemCard() {
   const { api } = useSession();
   const nodes = useResource(() => api.get<ClusterNode[]>('/api/admin/cluster/nodes'));
+  const gpu = useResource(() => api.get<GpuAllocation[]>('/api/admin/cluster/gpu-dashboard'));
+  const routes = useResource(() => api.get<GatewayRoute[]>('/api/admin/gateway/routes'));
   const list = nodes.data;
   const notReady = list ? list.filter((n) => !n.ready).length : 0;
+  const capacity = list ? list.reduce((a, n) => a + n.gpu_capacity, 0) : 0;
+  const enabledRoutes = routes.data ? routes.data.filter((r) => r.enabled).length : 0;
   return (
-    <Card title="系統狀態" extra={<Link to="/admin/monitoring">查看全部 ›</Link>}>
+    <Card
+      title="系統狀態"
+      className="adm-status-card"
+      extra={<Link to="/admin/monitoring">查看全部 ›</Link>}
+      footer={
+        <div className="adm-status__links">
+          <Link to="/admin/monitoring">系統監控與告警規則</Link>
+          <Link to="/admin/fhir/alerts">資料交換流量告警</Link>
+        </div>
+      }
+    >
       <ul className="adm-status" aria-label="系統狀態">
         <li>
           <Icon name="server" />
@@ -106,11 +121,33 @@ function SystemCard() {
             </StatusDot>
           )}
         </li>
+        <li>
+          <Icon name="grid" />
+          <span className="adm-status__name">GPU 使用份數</span>
+          {gpu.error || nodes.error ? (
+            <StatusDot tone="neutral">無法讀取</StatusDot>
+          ) : !gpu.data || !list ? (
+            <span className="text-muted">載入中…</span>
+          ) : (
+            <Link to="/admin/compute/gpu" className="adm-status__value">
+              使用中 {gpu.data.length} / {capacity} 份
+            </Link>
+          )}
+        </li>
+        <li>
+          <Icon name="swap" />
+          <span className="adm-status__name">資料交換閘道</span>
+          {routes.error ? (
+            <StatusDot tone="neutral">無法讀取</StatusDot>
+          ) : !routes.data ? (
+            <span className="text-muted">載入中…</span>
+          ) : (
+            <Link to="/admin/fhir/gateway" className="adm-status__value">
+              啟用 {enabledRoutes} / {routes.data.length} 條路由
+            </Link>
+          )}
+        </li>
       </ul>
-      <div className="adm-status__links">
-        <Link to="/admin/monitoring">系統監控與告警規則</Link>
-        <Link to="/admin/fhir/alerts">資料交換流量告警</Link>
-      </div>
     </Card>
   );
 }
@@ -220,7 +257,7 @@ export function DashboardPage() {
           </Card>
 
           <Card title="全平台筆數">
-            <ul className="adm-counts" aria-label="平台總覽">
+            <ul className="adm-counts adm-counts--4" aria-label="平台總覽">
               <Tile label="帳號" value={d.accounts.total} note={`Admin ${d.accounts.admin}、User ${d.accounts.user}`} to="/admin/users" link="管理帳號" />
               <Tile label="專案" value={d.projects} to="/admin/projects" link="管理專案" />
               <Tile label="專案成員" value={d.memberships} note="帳號加入專案的次數" />
@@ -231,7 +268,7 @@ export function DashboardPage() {
               <Tile label="排程工作" value={d.jobs.total} />
             </ul>
             <h3 className="adm-subhead">排程工作狀態</h3>
-            <ul className="adm-counts" aria-label="排程工作狀態">
+            <ul className="adm-counts adm-counts--fill" aria-label="排程工作狀態">
               {Object.entries(d.jobs.by_status).map(([status, n]) => (
                 <Tile key={status} label={JOB_STATUS_LABELS[status] ?? status} value={n} />
               ))}

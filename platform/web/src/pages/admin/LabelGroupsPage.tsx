@@ -254,10 +254,10 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
                 <td>{g.description || '—'}</td>
                 <td>{g.members.map((m) => m.username).join('、') || '（無）'}</td>
                 <td>
-                  <div className="row-actions">
+                  <div className="adm-row-btns">
                     <button
                       type="button"
-                      className="adm-link-btn"
+                      className="btn btn--secondary btn--small"
                       aria-label={`編輯 ${g.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -268,7 +268,7 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
                     </button>
                     <button
                       type="button"
-                      className="adm-link-btn"
+                      className="btn btn--small adm-btn--danger-outline"
                       aria-label={`刪除 ${g.name}`}
                       onClick={() => {
                         setNotice(null);

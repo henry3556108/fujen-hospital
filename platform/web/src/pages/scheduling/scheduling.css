@@ -290,41 +290,45 @@
   gap: var(--space-4);
 }
 
+/* 四張一樣大的工具卡：名稱、說明、網址，按鈕固定在卡片底部 */
 .sch-mon-links {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .sch-mon-link {
-  display: grid;
-  grid-template-columns: 11rem 1fr;
-  gap: var(--space-1) var(--space-4);
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
 }
 
-.sch-mon-link .btn {
-  grid-row: span 2;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
+.sch-mon-link__name {
+  font-size: var(--font-size-card);
 }
 
-.sch-mon-link .mono {
+.sch-mon-link__desc {
+  flex: 1;
+  color: var(--color-text-muted);
+}
+
+.sch-mon-link__url {
   font-size: var(--font-size-small);
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 640px) {
-  .sch-mon-link {
-    grid-template-columns: 1fr;
-  }
-
-  .sch-mon-link .btn {
-    grid-row: auto;
-  }
+.sch-mon-link .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  margin-top: var(--space-2);
 }

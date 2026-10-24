@@ -140,7 +140,7 @@ export function CsvImport({
         用醫師既有的診斷表（CSV）一次完成分類標註。第一列是欄名，需要有病歷號或影像編號一欄，以及診斷一欄。匯入的標註直接算已確認；重新匯入會更新，不會重複。
       </p>
       <ApiErrorAlert error={error} />
-      <form aria-label="匯入診斷結果" onSubmit={submit} noValidate>
+      <form className="lb-csv-form" aria-label="匯入診斷結果" onSubmit={submit} noValidate>
         <div className="form-grid">
           <div className="field">
             <label htmlFor="csv-file">CSV 檔（必填）</label>
@@ -234,7 +234,7 @@ export function CsvImport({
             </div>
           ) : null}
         </fieldset>
-        <button type="submit" className="btn btn--primary" disabled={busy}>
+        <button type="submit" className="btn btn--primary lb-csv-form__submit" disabled={busy}>
           {busy ? '處理中…' : '匯入'}
         </button>
       </form>

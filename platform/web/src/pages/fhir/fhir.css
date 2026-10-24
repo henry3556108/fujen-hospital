@@ -122,6 +122,17 @@
   margin: 0;
 }
 
+/* 內建規則選單：選項名稱很長，在窄欄裡要能縮小、按鈕換行，不撐出橫向捲軸 */
+.fhir-builtin {
+  flex-wrap: wrap;
+}
+
+.fhir-builtin .select {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .fhir-source {
   display: inline-flex;
   align-items: center;

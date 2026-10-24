@@ -43,12 +43,19 @@
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: var(--space-4);
   margin-top: var(--space-4);
-  align-items: start;
+  /* 左右兩欄等高：左欄最後一張卡撐滿到右欄總高（設計稿 A01） */
+  align-items: stretch;
 }
 
 .home-grid__col {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
+}
+
+.home-grid__col > .ui-card:last-child {
+  flex: 1;
 }
 
 /* 只有一欄時佔滿 */
@@ -56,9 +63,14 @@
   grid-column: 1 / -1;
 }
 
+/* flush 卡片裡的空狀態：左緣對齊卡片標題（--space-5），上距與一般卡片相同 */
+.home-grid .ui-card__body > p:only-child {
+  margin: 0;
+}
+
 .home-pad {
   margin: 0;
-  padding: var(--space-4);
+  padding: var(--space-1) var(--space-5) var(--space-5);
 }
 
 .home-table td,

@@ -343,120 +343,122 @@ function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
   return (
     <>
       <ApiErrorAlert error={dataset.error ?? versions.error} />
-      <SplitLayout side={side}>
-        <Card className="section">
-          <div className="lb-ds-toolbar">
-            <div className="field">
-              <label htmlFor="ds-pick">資料集</label>
-              <select id="ds-pick" className="select" value={d.id} onChange={(e) => navigate(`/labeling/datasets/${e.target.value}`)}>
-                {(datasets.data ?? [d]).map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="ds-version">版本</label>
-              <select
-                id="ds-version"
-                className="select"
-                value={version ? String(version.version) : ''}
-                onChange={(e) => {
-                  const q = new URLSearchParams(search);
-                  if (e.target.value) q.set('version', e.target.value);
-                  else q.delete('version');
-                  setSearch(q, { replace: true });
-                }}
-              >
-                <option value="">目前內容{d.latest_version ? '' : '（尚未建版）'}</option>
-                {(versions.data ?? []).map((v) => (
-                  <option key={v.version} value={v.version}>
-                    第 {v.version} 版（{when(v.created_at).slice(0, 10)}，{v.annotations} 筆）
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="lb-ds-toolbar__actions">
-              <button type="button" className="btn btn--primary" onClick={continueConfirm}>
-                繼續確認
-              </button>
-              {d.task === 'classification' ? (
-                <button type="button" className="btn btn--secondary" onClick={() => setImporting(true)}>
-                  匯入診斷結果
-                </button>
-              ) : null}
-            </div>
-          </div>
-          {version ? (
-            <Alert tone="info">
-              第 {version.version} 版建立於 {when(version.created_at)}，當時有 {version.annotations} 筆已確認標註。右側是這一版的摘要；下方明細是目前內容，不是第{' '}
-              {version.version} 版當時的內容。
-            </Alert>
-          ) : null}
-          <ConfirmProgress confirmed={d.current.annotations} pending={d.current.drafts_excluded} totalLabel="筆標註" />
-          {d.current.drafts_excluded > 0 ? <p className="field__hint">待確認的是自動標註的草稿，確認後才會用在訓練。診斷表匯入的標註直接算已確認。</p> : null}
-        </Card>
-
-        <Card title={`明細（${total} 筆，含待確認）`} flush>
-          <ApiErrorAlert error={items.error} />
-          {items.data && items.data.items.length === 0 ? (
-            <p className="text-muted lb-card-note">還沒有符合這份資料集的標註。</p>
-          ) : items.data ? (
-            <>
-              <div className="table-wrap">
-                <table aria-label="資料集內的標註">
-                  <thead>
-                    <tr>
-                      <th scope="col">影像編號</th>
-                      <th scope="col">來源</th>
-                      <th scope="col">分類</th>
-                      <th scope="col">確認狀態</th>
-                      <th scope="col">最後修改</th>
-                      <th scope="col">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.data.items.map((it) => (
-                      <tr key={it.annotation_id} data-annotation={it.annotation_id}>
-                        <th scope="row">{it.accession_number || it.study_instance_uid}</th>
-                        <td>{SOURCE_LABELS[it.source]}</td>
-                        <td>{it.label ? <Badge tone="info">{it.label}</Badge> : '—'}</td>
-                        <td>
-                          <Badge tone={it.status === 'draft' ? 'warning' : 'success'}>{STATUS_LABELS[it.status]}</Badge>
-                        </td>
-                        <td>
-                          {it.updated_by}　{when(it.updated_at)}
-                        </td>
-                        <td>
-                          <Link
-                            className="btn btn--secondary btn--small"
-                            to={`/labeling/studies/${encodeURIComponent(it.study_instance_uid)}?annotation=${it.annotation_id}`}
-                            aria-label={`開啟標註 #${it.annotation_id}`}
-                          >
-                            開啟
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      <div className="lb-ds-split section">
+        <SplitLayout side={side}>
+          <Card>
+            <div className="lb-ds-toolbar">
+              <div className="field">
+                <label htmlFor="ds-pick">資料集</label>
+                <select id="ds-pick" className="select" value={d.id} onChange={(e) => navigate(`/labeling/datasets/${e.target.value}`)}>
+                  {(datasets.data ?? [d]).map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <Pagination
-                page={page}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={setPage}
-                onPageSizeChange={(n) => {
-                  setPageSize(n);
-                  setPage(1);
-                }}
-                label="明細分頁"
-              />
-            </>
-          ) : null}
-        </Card>
-      </SplitLayout>
+              <div className="field">
+                <label htmlFor="ds-version">版本</label>
+                <select
+                  id="ds-version"
+                  className="select"
+                  value={version ? String(version.version) : ''}
+                  onChange={(e) => {
+                    const q = new URLSearchParams(search);
+                    if (e.target.value) q.set('version', e.target.value);
+                    else q.delete('version');
+                    setSearch(q, { replace: true });
+                  }}
+                >
+                  <option value="">目前內容{d.latest_version ? '' : '（尚未建版）'}</option>
+                  {(versions.data ?? []).map((v) => (
+                    <option key={v.version} value={v.version}>
+                      第 {v.version} 版（{when(v.created_at).slice(0, 10)}，{v.annotations} 筆）
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="lb-ds-toolbar__actions">
+                <button type="button" className="btn btn--primary" onClick={continueConfirm}>
+                  繼續確認
+                </button>
+                {d.task === 'classification' ? (
+                  <button type="button" className="btn btn--secondary" onClick={() => setImporting(true)}>
+                    匯入診斷結果
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {version ? (
+              <Alert tone="info">
+                第 {version.version} 版建立於 {when(version.created_at)}，當時有 {version.annotations} 筆已確認標註。右側是這一版的摘要；下方明細是目前內容，不是第{' '}
+                {version.version} 版當時的內容。
+              </Alert>
+            ) : null}
+            <ConfirmProgress confirmed={d.current.annotations} pending={d.current.drafts_excluded} totalLabel="筆標註" />
+            {d.current.drafts_excluded > 0 ? <p className="field__hint">待確認的是自動標註的草稿，確認後才會用在訓練。診斷表匯入的標註直接算已確認。</p> : null}
+          </Card>
+
+          <Card title={`明細（${total} 筆，含待確認）`} flush className="lb-ds-detail">
+            <ApiErrorAlert error={items.error} />
+            {items.data && items.data.items.length === 0 ? (
+              <p className="text-muted lb-card-note">還沒有符合這份資料集的標註。</p>
+            ) : items.data ? (
+              <>
+                <div className="table-wrap">
+                  <table aria-label="資料集內的標註">
+                    <thead>
+                      <tr>
+                        <th scope="col">影像編號</th>
+                        <th scope="col">來源</th>
+                        <th scope="col">分類</th>
+                        <th scope="col">確認狀態</th>
+                        <th scope="col">最後修改</th>
+                        <th scope="col">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.data.items.map((it) => (
+                        <tr key={it.annotation_id} data-annotation={it.annotation_id}>
+                          <th scope="row">{it.accession_number || it.study_instance_uid}</th>
+                          <td>{SOURCE_LABELS[it.source]}</td>
+                          <td>{it.label ? <Badge tone="info">{it.label}</Badge> : '—'}</td>
+                          <td>
+                            <Badge tone={it.status === 'draft' ? 'warning' : 'success'}>{STATUS_LABELS[it.status]}</Badge>
+                          </td>
+                          <td>
+                            {it.updated_by}　{when(it.updated_at)}
+                          </td>
+                          <td>
+                            <Link
+                              className="btn btn--secondary btn--small"
+                              to={`/labeling/studies/${encodeURIComponent(it.study_instance_uid)}?annotation=${it.annotation_id}`}
+                              aria-label={`開啟標註 #${it.annotation_id}`}
+                            >
+                              開啟
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setPage}
+                  onPageSizeChange={(n) => {
+                    setPageSize(n);
+                    setPage(1);
+                  }}
+                  label="明細分頁"
+                />
+              </>
+            ) : null}
+          </Card>
+        </SplitLayout>
+      </div>
 
       <SlideOver open={importing} title="匯入診斷結果" onClose={() => setImporting(false)} width="40rem">
         <CsvImport

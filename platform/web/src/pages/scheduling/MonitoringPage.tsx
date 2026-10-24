@@ -81,6 +81,9 @@ export function MonitoringPage() {
         <ul className="sch-mon-links" aria-label="監控工具">
           {links.map((l) => (
             <li key={l.key} className="sch-mon-link">
+              <strong className="sch-mon-link__name">{l.name}</strong>
+              <span className="sch-mon-link__desc">{l.description}</span>
+              <span className="text-muted mono sch-mon-link__url">{l.url}</span>
               <a
                 className="btn btn--secondary btn--small"
                 href={l.url}
@@ -88,11 +91,9 @@ export function MonitoringPage() {
                 rel="noreferrer"
                 aria-label={`${l.name}（開新分頁）：${l.description}`}
               >
-                開啟 {l.name}
+                開啟
                 <Icon name="external" />
               </a>
-              <span>{l.description}</span>
-              <span className="text-muted mono">{l.url}</span>
             </li>
           ))}
         </ul>
