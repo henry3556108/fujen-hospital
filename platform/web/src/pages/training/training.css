@@ -150,3 +150,14 @@
 .trn-settings-table td:nth-child(2) { white-space: nowrap; }
 .trn-format > .btn:last-child, .trn-format > .field__hint:last-child { margin-top: auto; }
 .ui-sidepanel__body > * + .trn-source { margin-top: var(--space-3); }
+
+/* 兩欄同排等高（A06、B02、B08）：左右卡片底部對齊，左欄最後一張卡撐滿 */
+.trn-eq > .ui-split, .trn-wizard-form > .ui-split { align-items: stretch; }
+.trn-eq > .ui-split > .ui-split__main, .trn-wizard-form > .ui-split > .ui-split__main,
+.trn-eq > .ui-split > .ui-split__main > .stack:only-child, .trn-wizard-form > .ui-split > .ui-split__main > .stack:only-child { display: flex; flex-direction: column; }
+.trn-eq > .ui-split > .ui-split__main > :last-child, .trn-wizard-form > .ui-split > .ui-split__main > :last-child,
+.trn-eq > .ui-split > .ui-split__main > .stack:only-child > :last-child, .trn-wizard-form > .ui-split > .ui-split__main > .stack:only-child > :last-child { flex: 1 1 auto; }
+/* 這幾頁內容不寬，兩欄維持到 1200px 才收成單欄 */
+@media (min-width: 1200px) {
+  .trn-eq > .ui-split--with-side, .trn-wizard-form > .ui-split--with-side { grid-template-columns: minmax(0, 1fr) var(--ui-split-side, var(--layout-panel-width)); }
+}

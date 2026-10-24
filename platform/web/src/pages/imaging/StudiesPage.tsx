@@ -45,6 +45,15 @@ function splitRange(value: string): [string, string] {
   return [toInput(a), toInput(b)];
 }
 
+/** 描述欄最多兩行，超過省略，滑過看全文 */
+function Clamp({ text }: { text: string }) {
+  return (
+    <span className="rd-clamp" title={text}>
+      {text}
+    </span>
+  );
+}
+
 /** 表格裡的性別用中文 */
 const SEX_SHORT: Record<string, string> = { F: '女', M: '男', O: '其他' };
 
@@ -390,8 +399,12 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
                     </th>
                     <td className="rd-nowrap">{formatDicomDate(s.study_date)}</td>
                     <td className="rd-nowrap">{s.modalities.join('、') || '—'}</td>
-                    <td className="rd-desc">{s.study_description ?? '—'}</td>
-                    <td className="rd-desc">{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
+                    <td className="rd-desc">
+                      <Clamp text={s.study_description ?? '—'} />
+                    </td>
+                    <td className="rd-desc">
+                      <Clamp text={[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'} />
+                    </td>
                     <td className="rd-nowrap">{s.patient_id ?? '—'}</td>
                     <td className="rd-nowrap">{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
                     <td className="num">{s.series.length}</td>

@@ -250,7 +250,7 @@ function Wizard({ api }: { api: TrainingApi }) {
       <ApiErrorAlert error={error} />
 
       {step < 3 ? (
-        <SplitLayout side={
+        <div className="trn-eq"><SplitLayout side={
           <WizardSide>
             {summary(form)}
             {stepActions}
@@ -263,7 +263,7 @@ function Wizard({ api }: { api: TrainingApi }) {
               <DataStep api={api} cat={cat} form={form} setForm={setForm} labelDatasets={labelDatasets} datasets={datasets} problem={dataIssue} />
             ) : null}
           </div>
-        </SplitLayout>
+        </SplitLayout></div>
       ) : (
         <>
           {submitting ? <p role="status">正在送出訓練，完成後會打開這次訓練的頁面…</p> : null}

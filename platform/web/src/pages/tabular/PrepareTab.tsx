@@ -238,18 +238,10 @@ export function PrepareTab() {
               </div>
               <div className="field">
                 <strong id="prep-features-label">用哪些欄位預測？</strong>
-                <p data-testid="chosen-features">
+                <p data-testid="chosen-features" className="rd-chosen">
                   {features.length ? `${features.length} 個：${features.join('、')}` : '尚未選擇，請在下表「用來預測」勾選'}
                 </p>
                 <p className="field__hint">模型拿來猜的資料，例如年齡、血壓（專業名稱：Feature）。</p>
-                <div className="row-actions">
-                  <button type="button" className="btn btn--ghost btn--small" onClick={selectAll}>
-                    全部勾選（不含識別碼）
-                  </button>
-                  <button type="button" className="btn btn--ghost btn--small" onClick={() => setFeatures([])}>
-                    全部取消
-                  </button>
-                </div>
               </div>
             </div>
             {unencodedText.length > 0 && (
@@ -264,7 +256,17 @@ export function PrepareTab() {
                 </button>
               </Alert>
             )}
-            <div className="table-wrap rd-hscroll">
+            {/* 「用來預測」欄的批次操作：貼在欄位表上緣，和表格左右對齊 */}
+            <div className="rd-prep-toolbar">
+              <span className="text-muted">用來預測：</span>
+              <button type="button" className="btn btn--ghost btn--small" onClick={selectAll}>
+                全部勾選（不含識別碼）
+              </button>
+              <button type="button" className="btn btn--ghost btn--small" onClick={() => setFeatures([])}>
+                全部取消
+              </button>
+            </div>
+            <div className="table-wrap rd-hscroll rd-prep-wrap">
               <table aria-label="欄位整理" className="rd-prep-table">
                 <thead>
                   <tr>

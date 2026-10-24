@@ -87,7 +87,7 @@ export function CodePage() {
   return (
     <div className="stack">
       {/* 設計稿 B08：左邊選設定與說明，右邊操作按鈕欄；沒選設定時也維持兩欄 */}
-      <SplitLayout
+      <div className="trn-eq"><SplitLayout
         sideWidth="300px"
         side={
           <SidePanel title="專案包" sticky={false}>
@@ -135,7 +135,7 @@ export function CodePage() {
             <EmptyState icon="doc" title="先選一份已存設定" description="選好後下方會列出五個環節，可以檢視、下載或上傳各環節的程式碼與設定檔，也能匯出整個專案包。" />
           ) : null}
         </Card>
-      </SplitLayout>
+      </SplitLayout></div>
       {importing ? (
         <PackageImport api={api} onClose={() => setImporting(false)}
           onImported={(out) => {

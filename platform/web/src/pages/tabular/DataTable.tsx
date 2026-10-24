@@ -30,8 +30,14 @@ export function DataTable({
               列
             </th>
             {preview.columns.map((c) => (
-              <th key={c} scope="col">
-                {c}
+              <th key={c} scope="col" title={c}>
+                {/* 底線後可換行，長欄名不撐寬整欄 */}
+                {c.split(/(?<=_)/).map((part, k) => (
+                  <span key={k}>
+                    {k > 0 && <wbr />}
+                    {part}
+                  </span>
+                ))}
               </th>
             ))}
           </tr>

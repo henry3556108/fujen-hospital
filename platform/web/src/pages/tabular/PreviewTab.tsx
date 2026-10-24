@@ -104,7 +104,7 @@ export function PreviewTab() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <fieldset className="section">
+        <fieldset>
           <legend>顯示欄位</legend>
           <div className="rd-colpanel__list">
             {listed.map((c) => (
@@ -121,12 +121,12 @@ export function PreviewTab() {
             {listed.length === 0 && <span className="text-muted">沒有符合的欄位</span>}
           </div>
         </fieldset>
-        <div className="rd-colpanel__actions section">
+        <div className="rd-colpanel__actions">
           <button type="button" className="btn btn--secondary btn--small" onClick={() => update([])} disabled={shown.length === 0}>
             全部顯示
           </button>
         </div>
-        <p role="status" className="text-muted section">
+        <p role="status" className="text-muted">
           {shown.length === 0 ? `顯示全部 ${all.length} 個欄位` : `顯示 ${visible.length} 個欄位，已隱藏 ${shown.length} 個：${shown.join('、')}`}
           。這個設定存在你的帳號，換電腦也一樣。
         </p>

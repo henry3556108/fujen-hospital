@@ -782,3 +782,135 @@
 .lb-csv-form__submit {
   margin-top: var(--space-4);
 }
+
+/* 工作台（寬螢幕）：整頁剛好一個視窗高，三欄同高、底部對齊；不寫死頂列／頁首高度，用 flex 撐滿剩下的空間。
+   影像依中間區塊實際大小縮放（container query），右側面板內容多時面板內部捲動。 */
+@media (min-width: 1201px) {
+  /* 外框鎖在一個視窗高，內容區自己捲動；工作台第一個畫面＝內容區高度，下方標註清單捲動後才看到 */
+  .shell:has(.lb-wb-screen) {
+    height: 100vh;
+  }
+
+  .shell:has(.lb-wb-screen) .shell__main {
+    min-height: 0;
+  }
+
+  .content:has(> .lb-wb-screen) {
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .lb-wb-screen {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 30rem;
+  }
+
+  .lb-wb-screen > * {
+    flex: none;
+  }
+
+  .lb-work {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .lb-strip {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .lb-strip__list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .lb-center {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .lb-center > .legend {
+    flex: none;
+  }
+
+  .lb-viewer {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .lb-toolbar,
+  .lb-viewer__foot {
+    flex: none;
+  }
+
+  .lb-viewer__body {
+    flex: 1 1 auto;
+    min-height: 16rem;
+    container-type: size;
+  }
+
+  /* 方形影像＋下方說明列（約 2.25rem）要放得進中間區塊 */
+  .lb-viewer__body .viewport-grid--1x1 {
+    max-width: min(100cqw, calc(100cqh - 2.25rem));
+  }
+
+  .lb-viewer__body .viewport-grid--1x2 {
+    max-width: min(100cqw, calc((100cqh - 2.25rem) * 2));
+  }
+
+  .lb-viewer__body .viewport-grid--2x2 {
+    max-width: min(100cqw, calc(100cqh - 5rem));
+  }
+
+  .lb-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .lb-panel__head,
+  .lb-kind-tabs,
+  .lb-panel__actions {
+    flex: none;
+  }
+
+  .lb-panel__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+/* 卡片內的說明文字與卡片標題左緣對齊 */
+.lb-card-note {
+  padding: var(--space-4) var(--space-5);
+}
+
+/* 標註資料集明細沒有資料：卡片不撐高，空狀態置中 */
+.lb-ds-split--empty > .ui-split {
+  align-items: start;
+}
+
+.lb-ds-split--empty .lb-ds-detail {
+  flex: none;
+}
+
+.lb-ds-empty {
+  padding-block: var(--space-6);
+  text-align: center;
+}
+
+/* 標籤顏色圖例放在深色影像區最下面，三欄底部對齊 */
+.lb-viewer > .legend {
+  flex: none;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-2);
+  color: var(--viewer-text);
+}

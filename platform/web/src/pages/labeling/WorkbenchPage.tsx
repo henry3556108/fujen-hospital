@@ -692,409 +692,412 @@ function Workbench({
 
   return (
     <>
-      <div className="lb-topbar">
-        <Link to={listPath} className="lb-topbar__back">
-          ← 回待處理清單
-        </Link>
-        <h1 className="lb-topbar__title">影像標註工作台</h1>
-        {summary.data ? (
-          <div className="lb-topbar__progress">
-            <ProgressBar label="已確認" value={progress.confirmed} max={progress.total} />
-          </div>
+      {/* 第一個畫面：頂列＋三欄，寬螢幕時剛好一個視窗高（labeling.css） */}
+      <div className="lb-wb-screen">
+        <div className="lb-topbar">
+          <Link to={listPath} className="lb-topbar__back">
+            ← 回待處理清單
+          </Link>
+          <h1 className="lb-topbar__title">影像標註工作台</h1>
+          {summary.data ? (
+            <div className="lb-topbar__progress">
+              <ProgressBar label="已確認" value={progress.confirmed} max={progress.total} />
+            </div>
+          ) : null}
+          <a className="btn btn--secondary btn--small lb-topbar__advanced" href={ohifUrl(labeling.projectId, studyUid)} target="_blank" rel="noreferrer">
+            進階檢視（OHIF）<span className="visually-hidden">，在新分頁開啟</span>
+          </a>
+        </div>
+        {loadError ? (
+          <Alert tone="error" title="無法載入影像">
+            {loadError instanceof Error ? loadError.message : '影像服務沒有回應'}
+          </Alert>
         ) : null}
-        <a className="btn btn--secondary btn--small lb-topbar__advanced" href={ohifUrl(labeling.projectId, studyUid)} target="_blank" rel="noreferrer">
-          進階檢視（OHIF）<span className="visually-hidden">，在新分頁開啟</span>
-        </a>
-      </div>
-      {loadError ? (
-        <Alert tone="error" title="無法載入影像">
-          {loadError instanceof Error ? loadError.message : '影像服務沒有回應'}
-        </Alert>
-      ) : null}
-      <ApiErrorAlert error={error ?? annotations.error} />
-      <p className="viewer-status" role="status" aria-live="polite" data-testid="workbench-status">
-        {message}
-      </p>
+        <ApiErrorAlert error={error ?? annotations.error} />
+        <p className="viewer-status" role="status" aria-live="polite" data-testid="workbench-status">
+          {message}
+        </p>
 
-      <div className="lb-work">
-        <SliceStrip
-          dicomweb={labeling.dicomweb}
-          studyUid={studyUid}
-          instances={list}
-          index={index}
-          onPick={goTo}
-          series={series.data ?? []}
-          seriesUid={currentSeries}
-          seriesLocked={dirty}
-          onSeries={(uid) => {
-            setSeriesUid(uid);
-            setIndex(0);
-            setHistory([]);
-          }}
-        />
+        <div className="lb-work">
+          <SliceStrip
+            dicomweb={labeling.dicomweb}
+            studyUid={studyUid}
+            instances={list}
+            index={index}
+            onPick={goTo}
+            series={series.data ?? []}
+            seriesUid={currentSeries}
+            seriesLocked={dirty}
+            onSeries={(uid) => {
+              setSeriesUid(uid);
+              setIndex(0);
+              setHistory([]);
+            }}
+          />
 
-        <div className="lb-center">
-          <section className="lb-viewer" aria-label="影像檢視">
-            <div className="lb-toolbar" role="toolbar" aria-label="檢視工具列" ref={toolbarRef}>
-              {viewTool('pan', 'hand', '移動')}
-              {viewTool('zoom', 'zoom', '放大')}
-              {viewTool('window', 'contrast', '窗位')}
-              <span className="lb-toolbar__sep" aria-hidden="true" />
-              <button type="button" className="lb-tool" aria-pressed={mode === 'detection' && tool === 'box'} onClick={() => pick('detection')}>
-                <ToolIcon name="select" />
-                圈選
-              </button>
-              <button
-                type="button"
-                className="lb-tool"
-                aria-pressed={mode === 'segmentation' && (tool === 'brush' || tool === 'erase')}
-                onClick={() => pick('segmentation')}
-              >
-                <ToolIcon name="brush" />
-                塗抹
-              </button>
-              <span className="lb-toolbar__sep" aria-hidden="true" />
-              <button type="button" className="lb-tool" disabled={history.length === 0} onClick={undo}>
-                <ToolIcon name="undo" />
-                復原
-              </button>
-              <button
-                type="button"
-                className="lb-tool lb-tool--end"
-                aria-expanded={popover === 'more'}
-                onClick={() => setPopover((p) => (p === 'more' ? null : 'more'))}
-              >
-                更多工具
-                <ToolIcon name="more" />
-              </button>
+          <div className="lb-center">
+            <section className="lb-viewer" aria-label="影像檢視">
+              <div className="lb-toolbar" role="toolbar" aria-label="檢視工具列" ref={toolbarRef}>
+                {viewTool('pan', 'hand', '移動')}
+                {viewTool('zoom', 'zoom', '放大')}
+                {viewTool('window', 'contrast', '窗位')}
+                <span className="lb-toolbar__sep" aria-hidden="true" />
+                <button type="button" className="lb-tool" aria-pressed={mode === 'detection' && tool === 'box'} onClick={() => pick('detection')}>
+                  <ToolIcon name="select" />
+                  圈選
+                </button>
+                <button
+                  type="button"
+                  className="lb-tool"
+                  aria-pressed={mode === 'segmentation' && (tool === 'brush' || tool === 'erase')}
+                  onClick={() => pick('segmentation')}
+                >
+                  <ToolIcon name="brush" />
+                  塗抹
+                </button>
+                <span className="lb-toolbar__sep" aria-hidden="true" />
+                <button type="button" className="lb-tool" disabled={history.length === 0} onClick={undo}>
+                  <ToolIcon name="undo" />
+                  復原
+                </button>
+                <button
+                  type="button"
+                  className="lb-tool lb-tool--end"
+                  aria-expanded={popover === 'more'}
+                  onClick={() => setPopover((p) => (p === 'more' ? null : 'more'))}
+                >
+                  更多工具
+                  <ToolIcon name="more" />
+                </button>
 
-              {popover === 'window' ? (
-                <div className="lb-popover" data-testid="window-menu">
-                  <fieldset className="viewer-toolbar__group">
-                    <legend>器官窗</legend>
-                    {WINDOW_PRESETS.map((p) => (
-                      <button
-                        key={p.key}
-                        type="button"
-                        className="btn btn--small btn--secondary"
-                        aria-pressed={windowSetting?.center === p.center && windowSetting?.width === p.width}
-                        onClick={() => applyWindow(p, p.label)}
-                      >
-                        {p.label}
+                {popover === 'window' ? (
+                  <div className="lb-popover" data-testid="window-menu">
+                    <fieldset className="viewer-toolbar__group">
+                      <legend>器官窗</legend>
+                      {WINDOW_PRESETS.map((p) => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          className="btn btn--small btn--secondary"
+                          aria-pressed={windowSetting?.center === p.center && windowSetting?.width === p.width}
+                          onClick={() => applyWindow(p, p.label)}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </fieldset>
+                    <form className="viewer-toolbar__group lb-window-form" aria-label="窗寬窗位" onSubmit={submitWindow} key={`${display?.width}/${display?.center}`}>
+                      <div className="field">
+                        <label htmlFor="ww">窗寬 WW</label>
+                        <input id="ww" name="ww" className="input" type="number" min={1} step={1} defaultValue={display?.width ?? ''} />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="wl">窗位 WL</label>
+                        <input id="wl" name="wl" className="input" type="number" step={1} defaultValue={display?.center ?? ''} />
+                      </div>
+                      <button type="submit" className="btn btn--small btn--secondary">
+                        套用
                       </button>
+                    </form>
+                    <p className="field__hint">選了「窗位」後，也可以在影像上左右拖曳調窗寬、上下拖曳調窗位。</p>
+                  </div>
+                ) : null}
+
+                {popover === 'more' ? (
+                  <div className="lb-popover lb-popover--end" data-testid="more-menu">
+                    <fieldset className="viewer-toolbar__group">
+                      <legend>排列</legend>
+                      {LAYOUTS.map((l) => (
+                        <button key={l} type="button" className="btn btn--small btn--secondary" aria-pressed={layout === l} onClick={() => changeLayout(l)}>
+                          {LAYOUT_LABELS[l]}
+                        </button>
+                      ))}
+                    </fieldset>
+                    <fieldset className="viewer-toolbar__group">
+                      <legend>旋轉</legend>
+                      <button type="button" className="btn btn--small btn--secondary" onClick={() => turn('ccw')}>
+                        向左轉 90°
+                      </button>
+                      <button type="button" className="btn btn--small btn--secondary" onClick={() => turn('cw')}>
+                        向右轉 90°
+                      </button>
+                    </fieldset>
+                    <fieldset className="viewer-toolbar__group">
+                      <legend>其他</legend>
+                      <button type="button" className="btn btn--small btn--secondary" aria-pressed={invert} onClick={() => setInvert((v) => !v)}>
+                        反相
+                      </button>
+                      <button type="button" className="btn btn--small btn--secondary" disabled={zoom >= MAX_ZOOM} onClick={() => changeZoom(Math.min(MAX_ZOOM, zoom * 1.5))}>
+                        放大一級
+                      </button>
+                      <button type="button" className="btn btn--small btn--secondary" disabled={zoom <= 1} onClick={() => changeZoom(Math.max(1, zoom / 1.5))}>
+                        縮小一級
+                      </button>
+                      <button type="button" className="btn btn--small btn--secondary" onClick={resetView}>
+                        重設檢視
+                      </button>
+                    </fieldset>
+                    <details className="hotkeys">
+                      <summary>快捷鍵</summary>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th scope="col">按鍵</th>
+                              <th scope="col">動作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {HOTKEYS.map((h) => (
+                              <tr key={h.keys}>
+                                <td>
+                                  {h.keys.split(' ').map((k) => (
+                                    <kbd key={k}>{k}</kbd>
+                                  ))}
+                                </td>
+                                <td>{h.description}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="lb-viewer__body">
+                {instances.loading || series.loading ? (
+                  <p role="status" className="loading lb-viewer__note">
+                    影像載入中…
+                  </p>
+                ) : list.length === 0 && !loadError ? (
+                  <p className="lb-viewer__note">這個研究沒有可顯示的影像。</p>
+                ) : (
+                  <div className={`viewport-grid viewport-grid--${layout}`} data-testid="viewport-grid" data-layout={layout}>
+                    {cells.map((instance, cell) => (
+                      <Viewport
+                        key={instance.sopInstanceUid}
+                        dicomweb={labeling.dicomweb}
+                        studyUid={studyUid}
+                        instance={instance}
+                        position={`${index + cell + 1} / ${list.length}`}
+                        window={windowSetting}
+                        rotation={rotation}
+                        invert={invert}
+                        overlays={overlaysFor(instance, cell)}
+                        badges={badgesFor(instance)}
+                        colorOf={colorOf}
+                        active={cell === 0}
+                        tool={cell === 0 || tool === 'pan' || tool === 'zoom' || tool === 'window' ? tool : 'none'}
+                        draftShape={(mode === 'segmentation' ? maskDraft?.shape : boxDraft?.shape) ?? undefined}
+                        onBox={addBox}
+                        onPaint={paint}
+                        onStrokeStart={strokeStart}
+                        onWindow={setShownWindow}
+                        zoom={zoom}
+                        pan={pan}
+                        onZoom={changeZoom}
+                        onPan={setPan}
+                        onWindowDrag={dragWindow}
+                      />
                     ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="lb-viewer__foot">
+                <span className="lb-viewer__meta">
+                  <span>{caseName}</span>
+                  {study?.study_date ? <span>{formatDate(study.study_date)}</span> : null}
+                  {study?.study_description || current?.modality ? <span>{study?.study_description || current?.modality}</span> : null}
+                </span>
+                <span className="lb-viewer__nav">
+                  <button type="button" className="lb-tool lb-tool--small" disabled={index <= 0} onClick={() => goTo(index - 1)}>
+                    上一張
+                  </button>
+                  <span data-testid="image-position">{position}</span>
+                  <button type="button" className="lb-tool lb-tool--small" disabled={index >= list.length - 1} onClick={() => goTo(index + 1)}>
+                    下一張
+                  </button>
+                </span>
+                <span className="lb-viewer__toggle">
+                  <Toggle checked={showAnnotations} onChange={setShowAnnotations} label="顯示標註範圍" />
+                </span>
+              </div>
+              <Legend colorOf={colorOf} />
+            </section>
+          </div>
+
+          <section aria-label="標註" className="lb-panel">
+            <div className="lb-panel__head">
+              <h2 className="lb-panel__case">{caseName}</h2>
+              <span className="text-muted">目前影像：{position}</span>
+            </div>
+            <div className="lb-kind-tabs" role="group" aria-label="標註種類">
+              {KIND_TABS.map((t) => (
+                <button
+                  key={t.kind}
+                  type="button"
+                  className="lb-kind-tab"
+                  aria-pressed={mode === t.kind}
+                  aria-label={t.name !== t.text ? t.name : undefined}
+                  onClick={() => pick(t.kind)}
+                >
+                  {t.text}
+                </button>
+              ))}
+            </div>
+
+            <div className="lb-panel__body stack">
+              <LabelPicker label="標註類別" ariaLabel="標籤" value={label} options={labelOptions} onChange={setLabel} />
+
+              {mode === 'classification' ? (
+                <div className="stack">
+                  <fieldset className="field" disabled={classDraft.editingId !== null}>
+                    <legend>標註對象</legend>
+                    <label className="checkbox-row">
+                      <input type="radio" name="scope" checked={classDraft.scope === 'image'} onChange={() => setClassDraft((d) => ({ ...d, scope: 'image' }))} />
+                      這張影像
+                    </label>
+                    <label className="checkbox-row">
+                      <input type="radio" name="scope" checked={classDraft.scope === 'study'} onChange={() => setClassDraft((d) => ({ ...d, scope: 'study' }))} />
+                      整個研究
+                    </label>
                   </fieldset>
-                  <form className="viewer-toolbar__group lb-window-form" aria-label="窗寬窗位" onSubmit={submitWindow} key={`${display?.width}/${display?.center}`}>
-                    <div className="field">
-                      <label htmlFor="ww">窗寬 WW</label>
-                      <input id="ww" name="ww" className="input" type="number" min={1} step={1} defaultValue={display?.width ?? ''} />
+                  {classDraft.editingId !== null ? <p className="field__hint">正在編輯標註 #{classDraft.editingId}</p> : null}
+                  {!label.trim() ? <p className="field__hint">先在「標註類別」輸入類別（例如 normal、abnormal），才能儲存。</p> : null}
+                  {classDraft.editingId !== null ? (
+                    <div className="row-actions">
+                      <button type="button" className="btn btn--secondary btn--small" onClick={discard}>
+                        取消編輯
+                      </button>
                     </div>
-                    <div className="field">
-                      <label htmlFor="wl">窗位 WL</label>
-                      <input id="wl" name="wl" className="input" type="number" step={1} defaultValue={display?.center ?? ''} />
+                  ) : null}
+                </div>
+              ) : null}
+
+              {mode === 'detection' ? (
+                <div className="stack">
+                  <div className="row-actions">
+                    <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'box'} onClick={() => setTool(tool === 'box' ? 'none' : 'box')}>
+                      畫框工具
+                    </button>
+                  </div>
+                  <p className="field__hint">選好類別後，在影像上按住拖曳畫框；也可以在下方輸入座標。</p>
+                  <form aria-label="以座標新增框" onSubmit={submitBox}>
+                    <div className="box-form">
+                      {(['x1', 'y1', 'x2', 'y2'] as const).map((k) => (
+                        <div className="field" key={k}>
+                          <label htmlFor={`box-${k}`}>{k}</label>
+                          <input id={`box-${k}`} name={k} className="input" type="number" step={1} min={0} required />
+                        </div>
+                      ))}
                     </div>
-                    <button type="submit" className="btn btn--small btn--secondary">
-                      套用
+                    <button type="submit" className="btn btn--small btn--secondary" disabled={!current}>
+                      新增框
                     </button>
                   </form>
-                  <p className="field__hint">選了「窗位」後，也可以在影像上左右拖曳調窗寬、上下拖曳調窗位。</p>
-                </div>
-              ) : null}
-
-              {popover === 'more' ? (
-                <div className="lb-popover lb-popover--end" data-testid="more-menu">
-                  <fieldset className="viewer-toolbar__group">
-                    <legend>排列</legend>
-                    {LAYOUTS.map((l) => (
-                      <button key={l} type="button" className="btn btn--small btn--secondary" aria-pressed={layout === l} onClick={() => changeLayout(l)}>
-                        {LAYOUT_LABELS[l]}
-                      </button>
+                  <ul className="draft-list" aria-label="草稿中的框">
+                    {(boxDraft?.boxes ?? []).map((b, i) => (
+                      <li key={`${i}-${b.box.join('-')}`}>
+                        <span>
+                          {b.label} <span className="mono">[{b.box.join(', ')}]</span>
+                        </span>
+                        <button type="button" className="btn btn--small btn--ghost" aria-label={`刪除第 ${i + 1} 個框`} onClick={() => removeBox(i)}>
+                          刪除
+                        </button>
+                      </li>
                     ))}
-                  </fieldset>
-                  <fieldset className="viewer-toolbar__group">
-                    <legend>旋轉</legend>
-                    <button type="button" className="btn btn--small btn--secondary" onClick={() => turn('ccw')}>
-                      向左轉 90°
+                  </ul>
+                  {boxDraft?.editingId ? <p className="field__hint">正在編輯標註 #{boxDraft.editingId}</p> : null}
+                  <div className="row-actions">
+                    <button type="button" className="btn btn--secondary btn--small" disabled={!boxDraft} onClick={discard}>
+                      捨棄草稿
                     </button>
-                    <button type="button" className="btn btn--small btn--secondary" onClick={() => turn('cw')}>
-                      向右轉 90°
-                    </button>
-                  </fieldset>
-                  <fieldset className="viewer-toolbar__group">
-                    <legend>其他</legend>
-                    <button type="button" className="btn btn--small btn--secondary" aria-pressed={invert} onClick={() => setInvert((v) => !v)}>
-                      反相
-                    </button>
-                    <button type="button" className="btn btn--small btn--secondary" disabled={zoom >= MAX_ZOOM} onClick={() => changeZoom(Math.min(MAX_ZOOM, zoom * 1.5))}>
-                      放大一級
-                    </button>
-                    <button type="button" className="btn btn--small btn--secondary" disabled={zoom <= 1} onClick={() => changeZoom(Math.max(1, zoom / 1.5))}>
-                      縮小一級
-                    </button>
-                    <button type="button" className="btn btn--small btn--secondary" onClick={resetView}>
-                      重設檢視
-                    </button>
-                  </fieldset>
-                  <details className="hotkeys">
-                    <summary>快捷鍵</summary>
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th scope="col">按鍵</th>
-                            <th scope="col">動作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {HOTKEYS.map((h) => (
-                            <tr key={h.keys}>
-                              <td>
-                                {h.keys.split(' ').map((k) => (
-                                  <kbd key={k}>{k}</kbd>
-                                ))}
-                              </td>
-                              <td>{h.description}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
+                  </div>
                 </div>
               ) : null}
-            </div>
 
-            <div className="lb-viewer__body">
-              {instances.loading || series.loading ? (
-                <p role="status" className="loading lb-viewer__note">
-                  影像載入中…
-                </p>
-              ) : list.length === 0 && !loadError ? (
-                <p className="lb-viewer__note">這個研究沒有可顯示的影像。</p>
-              ) : (
-                <div className={`viewport-grid viewport-grid--${layout}`} data-testid="viewport-grid" data-layout={layout}>
-                  {cells.map((instance, cell) => (
-                    <Viewport
-                      key={instance.sopInstanceUid}
-                      dicomweb={labeling.dicomweb}
-                      studyUid={studyUid}
-                      instance={instance}
-                      position={`${index + cell + 1} / ${list.length}`}
-                      window={windowSetting}
-                      rotation={rotation}
-                      invert={invert}
-                      overlays={overlaysFor(instance, cell)}
-                      badges={badgesFor(instance)}
-                      colorOf={colorOf}
-                      active={cell === 0}
-                      tool={cell === 0 || tool === 'pan' || tool === 'zoom' || tool === 'window' ? tool : 'none'}
-                      draftShape={(mode === 'segmentation' ? maskDraft?.shape : boxDraft?.shape) ?? undefined}
-                      onBox={addBox}
-                      onPaint={paint}
-                      onStrokeStart={strokeStart}
-                      onWindow={setShownWindow}
-                      zoom={zoom}
-                      pan={pan}
-                      onZoom={changeZoom}
-                      onPan={setPan}
-                      onWindowDrag={dragWindow}
-                    />
-                  ))}
+              {mode === 'segmentation' ? (
+                <div className="stack">
+                  <div className="row-actions">
+                    <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'brush'} onClick={() => setTool(tool === 'brush' ? 'none' : 'brush')}>
+                      筆刷
+                    </button>
+                    <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'erase'} onClick={() => setTool(tool === 'erase' ? 'none' : 'erase')}>
+                      橡皮擦
+                    </button>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="brush">筆刷大小</label>
+                    <div className="lb-range">
+                      <input
+                        id="brush"
+                        type="range"
+                        min={1}
+                        max={20}
+                        step={1}
+                        value={brush}
+                        aria-label="筆刷半徑（像素）"
+                        onChange={(e) => setBrush(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+                      />
+                      <output htmlFor="brush">{brush}</output>
+                    </div>
+                  </div>
+                  <p className="field__hint" data-testid="mask-info">
+                    {maskDraft
+                      ? `已塗 ${maskDraft.mask.reduce((n, v) => n + (v ? 1 : 0), 0)} 個像素：${usedLabels(maskDraft.mask, maskDraft.labelNames).join('、') || '（無）'}`
+                      : '選好類別後，在影像上按住拖曳塗抹。'}
+                  </p>
+                  {maskDraft?.editingId ? <p className="field__hint">正在編輯標註 #{maskDraft.editingId}</p> : null}
+                  <div className="row-actions">
+                    <button type="button" className="btn btn--secondary btn--small" disabled={!maskDraft} onClick={discard}>
+                      捨棄草稿
+                    </button>
+                  </div>
                 </div>
-              )}
+              ) : null}
+
+              <div className="lb-field">
+                <span className="lb-field__label">標註狀態</span>
+                <div className="row-actions" data-testid="annotation-state">
+                  <Badge tone={state.tone}>{state.text}</Badge>
+                  {focus && !dirty ? <span className="text-muted">#{focus.id}</span> : null}
+                  {focus && isDraft(focus) && !dirty ? (
+                    <button type="button" className="btn btn--small btn--secondary" disabled={busy} onClick={() => void confirmDraft(focus)}>
+                      直接確認
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="lb-field">
+                <span className="lb-field__label">標註信心</span>
+                {focus ? (
+                  <Rating
+                    name={`標註 #${focus.id}`}
+                    label={`標註 #${focus.id} 的標註信心`}
+                    value={focus.rating}
+                    disabled={busy}
+                    onChange={(rating) => rate(focus, rating)}
+                  />
+                ) : (
+                  <p className="field__hint">儲存後可以評分（1–5 分）。</p>
+                )}
+              </div>
             </div>
 
-            <div className="lb-viewer__foot">
-              <span className="lb-viewer__meta">
-                <span>{caseName}</span>
-                {study?.study_date ? <span>{formatDate(study.study_date)}</span> : null}
-                {study?.study_description || current?.modality ? <span>{study?.study_description || current?.modality}</span> : null}
-              </span>
-              <span className="lb-viewer__nav">
-                <button type="button" className="lb-tool lb-tool--small" disabled={index <= 0} onClick={() => goTo(index - 1)}>
-                  上一張
-                </button>
-                <span data-testid="image-position">{position}</span>
-                <button type="button" className="lb-tool lb-tool--small" disabled={index >= list.length - 1} onClick={() => goTo(index + 1)}>
-                  下一張
-                </button>
-              </span>
-              <span className="lb-viewer__toggle">
-                <Toggle checked={showAnnotations} onChange={setShowAnnotations} label="顯示標註範圍" />
-              </span>
+            {/* 主要動作：存完直接開下一筆待處理。DOM 先放主要按鈕，畫面上排在右邊 */}
+            <div className="lb-panel__actions" data-testid="workbench-actions">
+              <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void saveAndNext()}>
+                {canSave ? '儲存並開啟下一筆' : '開啟下一筆'}
+              </button>
+              <button type="button" className="btn btn--secondary" disabled={busy || !canSave} onClick={() => void saveCurrent()}>
+                只儲存
+              </button>
             </div>
           </section>
-          <Legend colorOf={colorOf} />
         </div>
-
-        <section aria-label="標註" className="lb-panel">
-          <div className="lb-panel__head">
-            <h2 className="lb-panel__case">{caseName}</h2>
-            <span className="text-muted">目前影像：{position}</span>
-          </div>
-          <div className="lb-kind-tabs" role="group" aria-label="標註種類">
-            {KIND_TABS.map((t) => (
-              <button
-                key={t.kind}
-                type="button"
-                className="lb-kind-tab"
-                aria-pressed={mode === t.kind}
-                aria-label={t.name !== t.text ? t.name : undefined}
-                onClick={() => pick(t.kind)}
-              >
-                {t.text}
-              </button>
-            ))}
-          </div>
-
-          <div className="lb-panel__body stack">
-            <LabelPicker label="標註類別" ariaLabel="標籤" value={label} options={labelOptions} onChange={setLabel} />
-
-            {mode === 'classification' ? (
-              <div className="stack">
-                <fieldset className="field" disabled={classDraft.editingId !== null}>
-                  <legend>標註對象</legend>
-                  <label className="checkbox-row">
-                    <input type="radio" name="scope" checked={classDraft.scope === 'image'} onChange={() => setClassDraft((d) => ({ ...d, scope: 'image' }))} />
-                    這張影像
-                  </label>
-                  <label className="checkbox-row">
-                    <input type="radio" name="scope" checked={classDraft.scope === 'study'} onChange={() => setClassDraft((d) => ({ ...d, scope: 'study' }))} />
-                    整個研究
-                  </label>
-                </fieldset>
-                {classDraft.editingId !== null ? <p className="field__hint">正在編輯標註 #{classDraft.editingId}</p> : null}
-                {!label.trim() ? <p className="field__hint">先在「標註類別」輸入類別（例如 normal、abnormal），才能儲存。</p> : null}
-                {classDraft.editingId !== null ? (
-                  <div className="row-actions">
-                    <button type="button" className="btn btn--secondary btn--small" onClick={discard}>
-                      取消編輯
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {mode === 'detection' ? (
-              <div className="stack">
-                <div className="row-actions">
-                  <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'box'} onClick={() => setTool(tool === 'box' ? 'none' : 'box')}>
-                    畫框工具
-                  </button>
-                </div>
-                <p className="field__hint">選好類別後，在影像上按住拖曳畫框；也可以在下方輸入座標。</p>
-                <form aria-label="以座標新增框" onSubmit={submitBox}>
-                  <div className="box-form">
-                    {(['x1', 'y1', 'x2', 'y2'] as const).map((k) => (
-                      <div className="field" key={k}>
-                        <label htmlFor={`box-${k}`}>{k}</label>
-                        <input id={`box-${k}`} name={k} className="input" type="number" step={1} min={0} required />
-                      </div>
-                    ))}
-                  </div>
-                  <button type="submit" className="btn btn--small btn--secondary" disabled={!current}>
-                    新增框
-                  </button>
-                </form>
-                <ul className="draft-list" aria-label="草稿中的框">
-                  {(boxDraft?.boxes ?? []).map((b, i) => (
-                    <li key={`${i}-${b.box.join('-')}`}>
-                      <span>
-                        {b.label} <span className="mono">[{b.box.join(', ')}]</span>
-                      </span>
-                      <button type="button" className="btn btn--small btn--ghost" aria-label={`刪除第 ${i + 1} 個框`} onClick={() => removeBox(i)}>
-                        刪除
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {boxDraft?.editingId ? <p className="field__hint">正在編輯標註 #{boxDraft.editingId}</p> : null}
-                <div className="row-actions">
-                  <button type="button" className="btn btn--secondary btn--small" disabled={!boxDraft} onClick={discard}>
-                    捨棄草稿
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {mode === 'segmentation' ? (
-              <div className="stack">
-                <div className="row-actions">
-                  <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'brush'} onClick={() => setTool(tool === 'brush' ? 'none' : 'brush')}>
-                    筆刷
-                  </button>
-                  <button type="button" className="btn btn--small btn--secondary" aria-pressed={tool === 'erase'} onClick={() => setTool(tool === 'erase' ? 'none' : 'erase')}>
-                    橡皮擦
-                  </button>
-                </div>
-                <div className="field">
-                  <label htmlFor="brush">筆刷大小</label>
-                  <div className="lb-range">
-                    <input
-                      id="brush"
-                      type="range"
-                      min={1}
-                      max={20}
-                      step={1}
-                      value={brush}
-                      aria-label="筆刷半徑（像素）"
-                      onChange={(e) => setBrush(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
-                    />
-                    <output htmlFor="brush">{brush}</output>
-                  </div>
-                </div>
-                <p className="field__hint" data-testid="mask-info">
-                  {maskDraft
-                    ? `已塗 ${maskDraft.mask.reduce((n, v) => n + (v ? 1 : 0), 0)} 個像素：${usedLabels(maskDraft.mask, maskDraft.labelNames).join('、') || '（無）'}`
-                    : '選好類別後，在影像上按住拖曳塗抹。'}
-                </p>
-                {maskDraft?.editingId ? <p className="field__hint">正在編輯標註 #{maskDraft.editingId}</p> : null}
-                <div className="row-actions">
-                  <button type="button" className="btn btn--secondary btn--small" disabled={!maskDraft} onClick={discard}>
-                    捨棄草稿
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="lb-field">
-              <span className="lb-field__label">標註狀態</span>
-              <div className="row-actions" data-testid="annotation-state">
-                <Badge tone={state.tone}>{state.text}</Badge>
-                {focus && !dirty ? <span className="text-muted">#{focus.id}</span> : null}
-                {focus && isDraft(focus) && !dirty ? (
-                  <button type="button" className="btn btn--small btn--secondary" disabled={busy} onClick={() => void confirmDraft(focus)}>
-                    直接確認
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            <div className="lb-field">
-              <span className="lb-field__label">標註信心</span>
-              {focus ? (
-                <Rating
-                  name={`標註 #${focus.id}`}
-                  label={`標註 #${focus.id} 的標註信心`}
-                  value={focus.rating}
-                  disabled={busy}
-                  onChange={(rating) => rate(focus, rating)}
-                />
-              ) : (
-                <p className="field__hint">儲存後可以評分（1–5 分）。</p>
-              )}
-            </div>
-          </div>
-
-          {/* 主要動作：存完直接開下一筆待處理。DOM 先放主要按鈕，畫面上排在右邊 */}
-          <div className="lb-panel__actions" data-testid="workbench-actions">
-            <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void saveAndNext()}>
-              {canSave ? '儲存並開啟下一筆' : '開啟下一筆'}
-            </button>
-            <button type="button" className="btn btn--secondary" disabled={busy || !canSave} onClick={() => void saveCurrent()}>
-              只儲存
-            </button>
-          </div>
-        </section>
       </div>
 
       <Card

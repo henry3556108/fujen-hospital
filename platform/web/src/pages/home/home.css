@@ -1,6 +1,7 @@
 /* 專案首頁（A01）：只引用 Token，不寫色碼。 */
 .home-hero {
-  padding: var(--space-6);
+  /* 與下方卡片同為 --space-5，標題左緣對齊 */
+  padding: var(--space-5);
 }
 
 .home-hero__head {
@@ -248,3 +249,10 @@
   font-weight: 600;
 }
 
+
+/* 卡片右上「查看全部 ›」：文字與箭頭置中對齊 */
+.home-grid .ui-card__extra a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

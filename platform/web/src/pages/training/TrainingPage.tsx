@@ -7,7 +7,7 @@ import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
-import { Badge, Card, Icon, InfoList, PageHeader, SegmentBar, SidePanel, SplitLayout, Tabs } from '../../components/ui';
+import { Badge, Card, EmptyState, Icon, InfoList, PageHeader, SegmentBar, SidePanel, SplitLayout, Tabs } from '../../components/ui';
 import { KIND_NAMES } from '../inference/api';
 import { versionNumber } from './NewTrainingPage';
 import { useTrainingApi, type Catalogue, type RunStatus, type TrainingApi, type TrainingSetting, type StageLock } from './api';
@@ -207,7 +207,7 @@ function Settings({ api }: { api: TrainingApi }) {
   return (
     <div className="stack">
       {/* 設計稿 B02：左邊清單卡（標題、篩選列、表格），有資料時右邊是設定詳情 */}
-      <SplitLayout
+      <div className="trn-eq"><SplitLayout
         sideWidth="400px"
         side={current ? (
           <SettingDetail
@@ -220,7 +220,13 @@ function Settings({ api }: { api: TrainingApi }) {
             onSubmit={() => void submit(current)}
             onApplyDataset={(tf) => apply(current, tf)}
           />
-        ) : null}
+        ) : (
+          // 清單是空的（或篩選後沒有）時也維持兩欄，右欄放引導
+          <SidePanel title="設定詳情" sticky={false}>
+            <EmptyState icon="doc" title="選一份設定查看詳情"
+              description={all.length ? '目前的篩選沒有符合的設定。取消「只看我建立的」或換個搜尋字。' : '送出第一次訓練後，設定會存在左邊清單；點一列就會在這裡顯示資料切分、任務類型與套用按鈕。'} />
+          </SidePanel>
+        )}
       >
         <Card
           title="已存設定"
@@ -314,7 +320,7 @@ function Settings({ api }: { api: TrainingApi }) {
               </div>
           ) : null}
         </Card>
-      </SplitLayout>
+      </SplitLayout></div>
 
       {editor ? (
         <SettingForm

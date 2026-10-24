@@ -172,7 +172,7 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
 
       {/* 設計稿 B08：左程式碼區、右操作按鈕欄；還沒選環節時也維持兩欄，左邊放引導文字 */}
       <div {...(editing ? { role: 'group', 'aria-label': `${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」` } : {})}>
-          <SplitLayout
+          <div className="trn-eq"><SplitLayout
             sideWidth="300px"
             side={
               <SidePanel title={editing ? '套用與檢查' : '操作'} sticky={false}>
@@ -275,7 +275,7 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
                 <EmptyState icon="doc" title="還沒選環節" description="從下方「各環節目前由誰控制」選一個環節檢視程式碼或設定檔；修改後可在這裡直接套用。" />
               </Card>
             )}
-          </SplitLayout>
+          </SplitLayout></div>
       </div>
 
       <Card title="各環節目前由誰控制" flush>

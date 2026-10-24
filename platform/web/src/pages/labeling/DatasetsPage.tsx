@@ -343,7 +343,7 @@ function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
   return (
     <>
       <ApiErrorAlert error={dataset.error ?? versions.error} />
-      <div className="lb-ds-split section">
+      <div className={`lb-ds-split section ${items.data && items.data.items.length === 0 ? 'lb-ds-split--empty' : ''}`}>
         <SplitLayout side={side}>
           <Card>
             <div className="lb-ds-toolbar">
@@ -402,7 +402,7 @@ function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
           <Card title={`明細（${total} 筆，含待確認）`} flush className="lb-ds-detail">
             <ApiErrorAlert error={items.error} />
             {items.data && items.data.items.length === 0 ? (
-              <p className="text-muted lb-card-note">還沒有符合這份資料集的標註。</p>
+              <p className="text-muted lb-card-note lb-ds-empty">還沒有符合這份資料集的標註。</p>
             ) : items.data ? (
               <>
                 <div className="table-wrap">
