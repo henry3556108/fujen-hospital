@@ -358,7 +358,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
           : `共 ${total} 筆影像${scope ? `（資料範圍「${scope.name}」）` : ''}${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 筆` : ''}`}
       </p>
       <div className="rd-table-card">
-        <div className="table-wrap">
+        <div className="table-wrap rd-hscroll">
           <table aria-label="影像清單" className="rd-study-table">
             <thead>
               <tr>

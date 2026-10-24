@@ -810,3 +810,25 @@
 .rd-prep-table tbody th {
   box-shadow: none;
 }
+/* B09 表頭不換行：寧可左右捲動；第一欄（列號）固定在左側 */
+.rd-datatable thead th,
+.rd-datatable thead th > span {
+  white-space: nowrap;
+}
+.rd-datatable thead th:first-child,
+.rd-datatable tbody th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.rd-datatable tbody th:first-child {
+  background: var(--card-bg);
+}
+/* A02：描述欄可再窄一些，讓操作欄（含 16px 右內距）留在可見範圍；真的放不下時右緣有漸層提示 */
+.rd-study-table .rd-desc {
+  min-width: 6rem;
+  max-width: 12rem;
+}
+.rd-study-table td:last-child .rd-actions {
+  vertical-align: middle;
+}
