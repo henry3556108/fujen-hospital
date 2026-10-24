@@ -15,7 +15,11 @@ import {
 } from './imaging';
 import type { DetectionBox } from './types';
 
-export type Tool = 'none' | 'box' | 'brush' | 'erase';
+/** none＝不動作；pan／zoom／window＝拖曳移動、縮放、調窗位；box／brush／erase＝標註 */
+export type Tool = 'none' | 'pan' | 'zoom' | 'window' | 'box' | 'brush' | 'erase';
+
+const NAV_TOOLS: readonly Tool[] = ['pan', 'zoom', 'window'];
+export const MAX_ZOOM = 8;
 
 export interface Overlay {
   id: string;
@@ -55,7 +59,27 @@ export interface ViewportProps {
   draftShape?: [number, number];
   onBox?: (box: [number, number, number, number]) => void;
   onPaint?: (x: number, y: number) => void;
+  /** 筆刷按下、開始新的一筆之前（給「復原」記下目前草稿） */
+  onStrokeStart?: () => void;
   onWindow?: (w: WindowSetting) => void;
+  /** 縮放倍率（1＝剛好放進視窗）與位移（視窗寬高的百分比），所有視窗共用 */
+  zoom?: number;
+  pan?: [number, number];
+  onZoom?: (zoom: number) => void;
+  onPan?: (pan: [number, number]) => void;
+  /** 用「窗位」工具拖曳時的新窗位 */
+  onWindowDrag?: (w: WindowSetting) => void;
+}
+
+interface Gesture {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+  pan: [number, number];
+  window: WindowSetting | null;
+  moved: boolean;
 }
 
 const SIZE = 512;
@@ -201,23 +225,78 @@ export function Viewport(props: ViewportProps) {
     return [(x * w) / instance.columns, (y * h) / instance.rows];
   }
 
-  const drawing = active && tool !== 'none' && pixels !== null;
+  const zoom = props.zoom ?? 1;
+  const pan = props.pan ?? [0, 0];
+  const navigating = NAV_TOOLS.includes(tool) && pixels !== null;
+  const drawing = active && !navigating && tool !== 'none' && pixels !== null;
+  const gesture = useRef<Gesture | null>(null);
+
+  function startGesture(e: ReactPointerEvent<HTMLCanvasElement>) {
+    const stage = e.currentTarget.parentElement?.getBoundingClientRect();
+    gesture.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: stage?.width || SIZE,
+      height: stage?.height || SIZE,
+      zoom,
+      pan: [pan[0], pan[1]],
+      window: effective,
+      moved: false,
+    };
+  }
+
+  function moveGesture(e: ReactPointerEvent<HTMLCanvasElement>) {
+    const g = gesture.current;
+    if (!g) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) g.moved = true;
+    if (tool === 'pan') props.onPan?.([g.pan[0] + (dx / g.width) * 100, g.pan[1] + (dy / g.height) * 100]);
+    else if (tool === 'zoom') props.onZoom?.(Math.min(MAX_ZOOM, Math.max(1, g.zoom * Math.exp(-dy / 150))));
+    else if (tool === 'window' && g.window) {
+      // 左右拖曳改窗寬、上下拖曳改窗位，幅度依目前窗寬
+      props.onWindowDrag?.({
+        center: g.window.center + (dy / g.height) * g.window.width,
+        width: Math.max(1, g.window.width + (dx / g.width) * g.window.width * 2),
+      });
+    }
+  }
 
   function down(e: ReactPointerEvent<HTMLCanvasElement>) {
-    if (!drawing || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (navigating) {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      startGesture(e);
+      return;
+    }
+    if (!drawing) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     const p = toImage(e);
     drag.current = p;
     if (tool === 'box') setPreview({ a: p, b: p });
-    else props.onPaint?.(...toDraft(p));
+    else {
+      props.onStrokeStart?.();
+      props.onPaint?.(...toDraft(p));
+    }
   }
   function move(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (gesture.current) {
+      moveGesture(e);
+      return;
+    }
     if (!drawing || !drag.current) return;
     const p = toImage(e);
     if (tool === 'box') setPreview({ a: drag.current, b: p });
     else props.onPaint?.(...toDraft(p));
   }
   function up(e: ReactPointerEvent<HTMLCanvasElement>) {
+    const g = gesture.current;
+    if (g) {
+      gesture.current = null;
+      // 放大工具只點一下（沒拖曳）＝放大一級
+      if (tool === 'zoom' && !g.moved) props.onZoom?.(Math.min(MAX_ZOOM, g.zoom * 1.5));
+      return;
+    }
     if (!drag.current) return;
     const start = drag.current;
     drag.current = null;
@@ -229,7 +308,7 @@ export function Viewport(props: ViewportProps) {
   }
 
   const description = effective
-    ? `第 ${props.position} 張，窗寬 ${Math.round(effective.width)}、窗位 ${Math.round(effective.center)}，旋轉 ${rotation} 度${invert ? '，反相' : ''}`
+    ? `第 ${props.position} 張，窗寬 ${Math.round(effective.width)}、窗位 ${Math.round(effective.center)}，旋轉 ${rotation} 度${invert ? '，反相' : ''}${zoom > 1.001 ? `，放大 ${zoom.toFixed(1)} 倍` : ''}`
     : `第 ${props.position} 張`;
 
   return (
@@ -242,22 +321,27 @@ export function Viewport(props: ViewportProps) {
       data-window-width={effective ? Math.round(effective.width) : ''}
       data-invert={invert ? '1' : '0'}
       data-ready={pixels ? '1' : '0'}
+      data-zoom={zoom.toFixed(2)}
     >
-      <canvas
-        ref={canvasRef}
-        width={SIZE}
-        height={SIZE}
-        className={`viewport__canvas${drawing ? ' viewport__canvas--drawing' : ''}`}
-        role="img"
-        aria-label={`影像 ${description}`}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={() => {
-          drag.current = null;
-          setPreview(null);
-        }}
-      />
+      <div className="viewport__stage">
+        <canvas
+          ref={canvasRef}
+          width={SIZE}
+          height={SIZE}
+          className={`viewport__canvas${drawing ? ' viewport__canvas--drawing' : ''}${navigating ? ` viewport__canvas--${tool}` : ''}`}
+          style={zoom !== 1 || pan[0] || pan[1] ? { transform: `translate(${pan[0]}%, ${pan[1]}%) scale(${zoom})` } : undefined}
+          role="img"
+          aria-label={`影像 ${description}`}
+          onPointerDown={down}
+          onPointerMove={move}
+          onPointerUp={up}
+          onPointerCancel={() => {
+            drag.current = null;
+            gesture.current = null;
+            setPreview(null);
+          }}
+        />
+      </div>
       {props.badges?.length ? (
         <ul className="viewport__badges" aria-label="這張影像的分類標註">
           {props.badges.map((b) => (

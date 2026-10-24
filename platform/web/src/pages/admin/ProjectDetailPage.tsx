@@ -4,12 +4,13 @@ import type { Project } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { Tabs } from '../../components/Tabs';
+import { Icon, PageHeader, Tabs } from '../../components/ui';
 import { AllowlistEditor } from '../imaging/AllowlistEditor';
 import type { GpuGroup } from '../scheduling/types';
 import { LabelGroupsPage } from './LabelGroupsPage';
 import { MembersPage } from './MembersPage';
 import { ProjectForm, type FormValues } from './ProjectsPage';
+import './admin.css';
 
 function useProjectId(): number {
   return Number(useParams().projectId);
@@ -29,7 +30,7 @@ function BasicTab({ project, onSaved }: { project: Project; onSaved: () => void 
     onSaved();
   }
   return (
-    <>
+    <div className="adm-narrow">
       {notice && <Alert tone="success">{notice}</Alert>}
       <ProjectForm
         key={`${project.id}-${project.name}-${project.gpu_group}`}
@@ -41,24 +42,20 @@ function BasicTab({ project, onSaved }: { project: Project; onSaved: () => void 
         groups={groups.data}
         groupsError={groups.error}
       />
-    </>
+    </div>
   );
 }
 
 function AllowlistTab({ project }: { project: Project }) {
   return (
-    <div className="section">
-      <h2>影像存取清單</h2>
-      <p className="text-muted">
-        設定清單後，專案「{project.name}」在網頁、API、DICOMweb 都只看得到清單內的影像（Accession Number）。清單外的影像仍可匯入，但不會顯示；
-        院內影像系統（PACS）取像會直接拒絕清單外的影像。研究資料頁只能看，不能修改。
-      </p>
-      <AllowlistEditor projectId={project.id} />
+    <div className="adm-allowlist-tab">
+      <h2 className="visually-hidden">影像存取清單</h2>
+      <AllowlistEditor projectId={project.id} projectName={project.name} />
     </div>
   );
 }
 
-/** 管理區單一專案頁：四個分頁都用路由的 projectId（03 規格第二節管理區） */
+/** 管理區單一專案頁（設計稿 B19）：四個分頁都用路由的 projectId（03 規格第二節管理區） */
 function ProjectDetail({ tab }: { tab: 'basic' | 'members' | 'groups' | 'allowlist' }) {
   const { api } = useSession();
   const id = useProjectId();
@@ -66,16 +63,25 @@ function ProjectDetail({ tab }: { tab: 'basic' | 'members' | 'groups' | 'allowli
   const project = projects.data?.find((p) => p.id === id) ?? null;
   const base = `/admin/projects/${id}`;
   return (
-    <>
-      <p>
-        <Link to="/admin/projects">← 專案清單</Link>
-      </p>
-      <h1>{project ? `專案：${project.name}` : '專案'}</h1>
-      <ApiErrorAlert error={projects.error} />
-      {projects.loading && !projects.data && <p role="status">載入中…</p>}
-      {projects.data && !project && <Alert tone="error">找不到專案 {id}，可能已被刪除。請回專案清單重新選擇。</Alert>}
-      {project && (
-        <>
+    <div className="adm-page">
+      <PageHeader
+        breadcrumbs={[{ label: '專案', to: '/admin/projects' }, { label: project?.name ?? `專案 ${id}` }]}
+        title={project ? `專案：${project.name}` : '專案'}
+        subtitle={project?.description || undefined}
+        actions={
+          project && (
+            <>
+              <Link to="/admin/compute/groups" className="adm-header-link">
+                <Icon name="gear" /> GPU 群組
+              </Link>
+              <Link to={`${base}/allowlist`} className="adm-header-link">
+                <Icon name="database" /> 影像存取清單
+              </Link>
+            </>
+          )
+        }
+      >
+        {project && (
           <Tabs
             label="專案設定分頁"
             items={[
@@ -85,13 +91,20 @@ function ProjectDetail({ tab }: { tab: 'basic' | 'members' | 'groups' | 'allowli
               { to: `${base}/allowlist`, label: '影像存取清單' },
             ]}
           />
+        )}
+      </PageHeader>
+      <ApiErrorAlert error={projects.error} />
+      {projects.loading && !projects.data && <p role="status">載入中…</p>}
+      {projects.data && !project && <Alert tone="error">找不到專案 {id}，可能已被刪除。請回專案清單重新選擇。</Alert>}
+      {project && (
+        <>
           {tab === 'basic' && <BasicTab project={project} onSaved={projects.reload} />}
           {tab === 'members' && <MembersPage fixedProjectId={project.id} />}
           {tab === 'groups' && <LabelGroupsPage fixedProjectId={project.id} />}
           {tab === 'allowlist' && <AllowlistTab project={project} />}
         </>
       )}
-    </>
+    </div>
   );
 }
 

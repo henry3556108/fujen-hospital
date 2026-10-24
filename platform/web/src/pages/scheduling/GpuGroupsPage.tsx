@@ -3,8 +3,7 @@ import { ApiError } from '../../api/client';
 import { relabel } from '../../api/relabel';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
-import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Alert, ApiErrorAlert, Card, ConfirmDialog, SidePanel } from '../../components/ui';
 import { SchedulingPage } from './SchedulingRoutes';
 import { MODE_LABELS, POOL_LABELS, POOL_MODES, type GpuGroup, type GpuMode, type GpuPool } from './types';
 
@@ -56,10 +55,9 @@ function GroupForm({
   const nameInvalid = error instanceof ApiError && error.fieldErrors.some((f) => f.field === 'name');
 
   return (
-    <form aria-label={title} className="card section" onSubmit={submit} noValidate>
-      <h2>{title}</h2>
+    <form aria-label={title} className="sch-form" onSubmit={submit} noValidate>
       <ApiErrorAlert error={error} />
-      <div className="form-grid">
+      <div className="stack">
         <div className="field">
           <label htmlFor={`${idp}-name`}>群組名稱（必填）</label>
           <input
@@ -104,12 +102,13 @@ function GroupForm({
           />
         </div>
       </div>
-      <div className="row-actions">
-        <button type="submit" className="btn btn--primary" disabled={busy}>
+      <Alert tone="info">群組建立後，可在「專案」指派給專案使用，並在「排隊順序」調整工作先後。</Alert>
+      <div className="sch-form__actions">
+        <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
           {submitLabel}
         </button>
         {onCancel && (
-          <button type="button" className="btn btn--secondary" onClick={onCancel}>
+          <button type="button" className="btn btn--secondary btn--block" onClick={onCancel}>
             取消
           </button>
         )}
@@ -160,12 +159,31 @@ export function GpuGroupsPage() {
     }
   }
 
+  const side = editing ? (
+    <SidePanel title="編輯 GPU 群組" onClose={() => setEditing(null)}>
+      <GroupForm
+        key={editing.name}
+        title="編輯 GPU 群組"
+        submitLabel="儲存"
+        editing
+        initial={{ name: editing.name, pool: editing.pool as GpuPool, gpu_count: String(editing.gpu_count) }}
+        onSubmit={update}
+        onCancel={() => setEditing(null)}
+      />
+    </SidePanel>
+  ) : (
+    <SidePanel title="新增 GPU 群組">
+      <GroupForm title="新增 GPU 群組" submitLabel="新增群組" editing={false} initial={EMPTY} onSubmit={create} />
+    </SidePanel>
+  );
+
   return (
-    <SchedulingPage title="GPU 群組">
+    <SchedulingPage title="運算資源" subtitle="管理 GPU 資源、群組與叢集節點" side={side}>
       <p className="text-muted">專案綁定一個 GPU 群組後，該專案的訓練工作會進入這個群組所在 GPU 池的佇列。</p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />
       <ApiErrorAlert error={groups.error} />
+      <Card title="GPU 群組" flush>
       <div className="table-wrap">
         <table aria-label="GPU 群組列表">
           <thead>
@@ -232,20 +250,7 @@ export function GpuGroupsPage() {
           </tbody>
         </table>
       </div>
-
-      {editing ? (
-        <GroupForm
-          key={editing.name}
-          title="編輯 GPU 群組"
-          submitLabel="儲存"
-          editing
-          initial={{ name: editing.name, pool: editing.pool as GpuPool, gpu_count: String(editing.gpu_count) }}
-          onSubmit={update}
-          onCancel={() => setEditing(null)}
-        />
-      ) : (
-        <GroupForm title="新增 GPU 群組" submitLabel="新增群組" editing={false} initial={EMPTY} onSubmit={create} />
-      )}
+      </Card>
 
       {deleting && (
         <ConfirmDialog

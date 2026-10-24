@@ -133,6 +133,8 @@ export interface DicomwebClient {
   series(studyUid: string): Promise<SeriesInfo[]>;
   instances(studyUid: string, seriesUid: string): Promise<InstanceInfo[]>;
   pixels(studyUid: string, info: InstanceInfo): Promise<Int16Array | Uint16Array | Uint8Array>;
+  /** 單張影像的縮圖（伺服器轉好的 JPEG／PNG），給工作台左側切片條用 */
+  thumbnail(studyUid: string, info: InstanceInfo, signal?: AbortSignal): Promise<Blob>;
 }
 
 const MESSAGES: Record<number, string> = {
@@ -147,12 +149,13 @@ export function createDicomwebClient(opts: {
   getToken: () => Promise<string | null>;
 }): DicomwebClient {
   const root = `${opts.base}/dicomweb/projects/${opts.projectId}`;
-  async function get(path: string, accept: string): Promise<Response> {
+  async function get(path: string, accept: string, signal?: AbortSignal): Promise<Response> {
     const token = await opts.getToken();
     let res: Response;
     try {
       res = await fetch(`${root}${path}`, {
         headers: { Accept: accept, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        signal,
       });
     } catch {
       throw new DicomwebError(0, '無法連線到影像服務，請確認網路或稍後再試');
@@ -185,6 +188,14 @@ export function createDicomwebClient(opts: {
         cache.set(key, hit);
       }
       return hit;
+    },
+    async thumbnail(studyUid, info, signal) {
+      const res = await get(
+        `/studies/${studyUid}/series/${info.seriesInstanceUid}/instances/${info.sopInstanceUid}/thumbnail`,
+        'image/jpeg, image/png, image/*',
+        signal,
+      );
+      return res.blob();
     },
   };
 }

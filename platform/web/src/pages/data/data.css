@@ -1,0 +1,558 @@
+/* 研究資料區（影像、表格資料）照設計稿 A02、A05、B05、B06、B09、B10 的版面；類名前綴 rd- */
+
+/* 頁內段落分頁（button aria-pressed），外觀與底線分頁相同 */
+.rd-tabs .tabs__item[aria-pressed='true'] {
+  color: var(--color-text-link);
+  border-bottom-color: var(--nav-item-indicator-selected);
+  font-weight: 700;
+}
+.rd-tabs {
+  margin-bottom: var(--space-4);
+}
+
+.rd-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.rd-section-head h2,
+.rd-section-head h3 {
+  margin: 0;
+}
+
+/* ---------- 篩選條件（B06） ---------- */
+.rd-filter {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+}
+.rd-filter__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.rd-filter__title {
+  margin: 0;
+  font-size: var(--font-size-card-title);
+  font-weight: 700;
+}
+.rd-filter__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border: none;
+  background: transparent;
+  color: var(--color-text-link);
+  font: inherit;
+  cursor: pointer;
+}
+.rd-filter__toggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.rd-filter__body {
+  padding: var(--space-4) var(--space-5);
+}
+.rd-filter__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: end;
+}
+.rd-filter__grid .field {
+  margin: 0;
+}
+.rd-filter__wide {
+  grid-column: span 2;
+}
+.rd-filter .field__label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.rd-filter label small,
+.rd-filter .field__label small {
+  font-weight: 400;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+.rd-nowrap {
+  white-space: nowrap;
+}
+.rd-date-range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.rd-date-range .input {
+  min-width: 0;
+  flex: 1;
+}
+.rd-filter__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+@media (max-width: 720px) {
+  .rd-filter__wide {
+    grid-column: auto;
+  }
+  .rd-date-range {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.rd-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-secondary);
+}
+.rd-count strong {
+  color: var(--color-text-primary);
+}
+
+/* 表格內：縮圖＋編號 */
+.rd-case {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rd-case__name {
+  font-weight: 600;
+}
+.rd-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+}
+.rd-sub {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+.rd-table-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.rd-table-card > .table-wrap {
+  border: none;
+  border-radius: 0;
+}
+.rd-table-card > .ui-pagination {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* ---------- 加入資料（A02 滑出面板） ---------- */
+.rd-target {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  font-weight: 600;
+}
+.rd-target-label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+}
+.rd-sources {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+.rd-source {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  inline-size: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.rd-source:hover {
+  border-color: var(--card-border-hover);
+}
+.rd-source[aria-pressed='true'] {
+  border-color: var(--color-border-selected);
+  background: var(--color-bg-selected);
+  box-shadow: inset 0 0 0 1px var(--color-border-selected);
+}
+.rd-source__icon {
+  flex: none;
+  color: var(--color-action-primary);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.rd-source .entry-card__title {
+  display: block;
+  font-weight: 700;
+}
+.rd-source .entry-card__desc {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+/* ---------- 匯入結果（B05） ---------- */
+.rd-import {
+  margin-top: var(--space-4);
+}
+.rd-import__title {
+  margin: 0 0 var(--space-3);
+}
+.rd-import__summary {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+}
+.rd-import__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.rd-import__meta dt,
+.rd-import__stats dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+.rd-import__meta dd {
+  margin: var(--space-1) 0 0;
+  font-weight: 600;
+}
+.rd-import__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+.rd-import__stats dd {
+  margin: var(--space-1) 0 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.rd-import__stats dd small {
+  margin-left: var(--space-1);
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+.rd-num--success {
+  color: var(--color-status-success-text);
+}
+.rd-num--warning {
+  color: var(--color-status-warning-text);
+}
+.rd-num--error {
+  color: var(--color-status-error-text);
+}
+.rd-import__note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+}
+.rd-import__files {
+  margin-top: var(--space-4);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+.rd-import__files .table-wrap {
+  border: none;
+}
+.rd-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* ---------- 研究明細 ---------- */
+.rd-study-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-start;
+}
+
+/* ---------- 表格資料：資料集頁頭（A05） ---------- */
+.rd-dataset-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.rd-dataset-head h2 {
+  margin: 0;
+  font-size: var(--font-size-page-title);
+}
+.rd-dataset-head p {
+  margin: var(--space-1) 0 0;
+}
+.rd-dataset-head__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rd-crumbs {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-small);
+}
+
+/* B09 摘要統計方塊 */
+.rd-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rd-tile {
+  min-width: 9rem;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+.rd-tile__label {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+.rd-tile__value {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+/* B09 欄位顯示面板 */
+.rd-colpanel fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.rd-colpanel legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.rd-colpanel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 26rem;
+  overflow-y: auto;
+}
+.rd-colpanel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* B10 相關矩陣＋散佈圖並排 */
+.rd-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.rd-two-col > .card {
+  margin: 0;
+}
+.rd-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.rd-radios legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.rd-chips .checkbox {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+}
+.rd-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* A05 整理資料 */
+.rd-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rd-step;
+}
+.rd-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  padding-bottom: var(--space-4);
+}
+/* 摘要文字在 DOM 最前面（測試與螢幕閱讀器先讀到），畫面上編號圓圈放左欄 */
+.rd-step > * {
+  grid-column: 2;
+}
+.rd-step > .rd-step__title {
+  grid-row: 1;
+}
+.rd-step > .rd-step__num {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  align-self: start;
+}
+.rd-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: calc(1rem - 1px);
+  top: 2rem;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-border-default);
+}
+.rd-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  color: var(--color-text-on-action);
+  font-weight: 700;
+}
+.rd-step__title {
+  font-weight: 700;
+  word-break: break-word;
+}
+.rd-step__desc {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  word-break: break-word;
+}
+.rd-step__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.rd-step__edit {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+.rd-step__edit .form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.rd-add-step > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  cursor: pointer;
+}
+.rd-add-step > summary::-webkit-details-marker {
+  display: none;
+}
+.rd-add-step .form-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.rd-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+.rd-compare__arrow {
+  align-self: center;
+  color: var(--color-text-muted);
+  font-size: 1.5rem;
+}
+.rd-compare h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+@media (max-width: 960px) {
+  .rd-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rd-compare__arrow {
+    transform: rotate(90deg);
+    justify-self: center;
+  }
+}
+.rd-cell--missing {
+  background: var(--color-status-warning-bg);
+}
+.rd-cell--filled {
+  background: var(--color-status-success-bg);
+  font-weight: 700;
+}
+.rd-bottom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.rd-bottom-bar .text-muted {
+  margin-right: auto;
+}
+
+.rd-prep-table td:nth-child(2) {
+  min-width: 5.5rem;
+}
+.rd-prep-table .column-hint {
+  min-width: 9rem;
+}
+.rd-crumbs a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

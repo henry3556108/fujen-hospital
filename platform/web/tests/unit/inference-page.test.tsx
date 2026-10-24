@@ -149,7 +149,7 @@ describe('inference page', () => {
   it('needs Prediction permission', async () => {
     await renderApp('/models', 'user01');
     // 沒有專案（也就沒有 Prediction）：外框先擋下，不會進到模型清單
-    expect(await screen.findByText('你還沒有加入任何專案')).toBeInTheDocument();
+    expect(await screen.findByText('你尚未加入任何專案')).toBeInTheDocument();
     expect(screen.queryByRole('table', { name: '模型清單' })).toBeNull();
   });
 });

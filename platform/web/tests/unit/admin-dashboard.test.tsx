@@ -32,14 +32,14 @@ describe('admin Dashboard and Account pages', () => {
     expect(tile(status, '排隊中')).toBe('0');
     const table = screen.getByRole('table', { name: '各專案筆數' });
     const p1 = within(table).getByRole('row', { name: /P1-lung-ct/ });
-    expect(within(p1).getAllByRole('cell').map((c) => c.textContent)).toEqual(['gpu-exclusive', '5', '0', '1', '6', '0']);
+    expect(within(p1).getAllByRole('cell').map((c) => c.textContent)).toEqual(['gpu-exclusive', '5', '0', '1', '6', '0', '查看 ›']);
   });
 
   it('the 帳號 item in the admin sidebar is the account management page, with each account’s projects', async () => {
     const { user } = await renderApp('/admin/dashboard');
     const nav = await screen.findByRole('navigation', { name: '系統管理選單' });
     await user.click(within(nav).getByRole('link', { name: '帳號' }));
-    expect(await screen.findByRole('heading', { level: 1, name: '帳號' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '帳號管理' })).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: '帳號列表' });
     expect(within(table).getByRole('columnheader', { name: '所屬專案' })).toBeInTheDocument();
     const md = within(table).getByRole('row', { name: /md01/ });
@@ -50,8 +50,8 @@ describe('admin Dashboard and Account pages', () => {
   it('the overview lists pending items that link to where they are handled', async () => {
     await renderApp('/admin');
     const pending = await screen.findByRole('list', { name: '待處理事項' });
-    expect(within(pending).getByRole('link', { name: '調整排隊順序' })).toHaveAttribute('href', '/admin/compute/queues');
-    expect(within(pending).getByRole('link', { name: '系統監控與告警規則' })).toHaveAttribute('href', '/admin/monitoring');
+    expect(within(pending).getByRole('link', { name: '排隊中的工作（0 件）' })).toHaveAttribute('href', '/admin/compute/queues');
+    expect(screen.getByRole('link', { name: '系統監控與告警規則' })).toHaveAttribute('href', '/admin/monitoring');
   });
 
   it('non-admin cannot open the Dashboard', async () => {

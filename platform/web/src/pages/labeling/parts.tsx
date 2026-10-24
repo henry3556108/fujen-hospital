@@ -10,11 +10,14 @@ export function LabelPicker({
   options,
   onChange,
   label = '標籤',
+  ariaLabel,
 }: {
   value: string;
   options: string[];
   onChange: (label: string) => void;
   label?: string;
+  /** 畫面文字與輔助技術名稱不同時用（工作台畫面寫「標註類別」，名稱沿用「標籤」） */
+  ariaLabel?: string;
 }) {
   const id = useId();
   const listId = `${id}-options`;
@@ -24,6 +27,8 @@ export function LabelPicker({
       <input
         id={id}
         className="input"
+        aria-label={ariaLabel}
+        placeholder="例如 normal、nodule"
         list={listId}
         value={value}
         maxLength={128}
@@ -48,14 +53,17 @@ export function Rating({
   onChange,
   name,
   disabled,
+  label,
 }: {
   value: number | null;
   onChange: (rating: number | null) => void;
   name: string;
   disabled?: boolean;
+  /** 整組的名稱；預設「{name} 的評分」 */
+  label?: string;
 }) {
   return (
-    <fieldset className="rating" aria-label={`${name} 的評分`} data-rating={value ?? ''}>
+    <fieldset className="rating" aria-label={label ?? `${name} 的評分`} data-rating={value ?? ''}>
       {[1, 2, 3, 4, 5].map((n) => (
         <button
           key={n}

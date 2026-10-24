@@ -149,7 +149,7 @@ describe('匯入影像', () => {
   it('TC-A03-05 users without Labeling permission see no upload form', async () => {
     await renderApp('/data/imaging/import', 'vw01');
     expect(await screen.findByText('你在專案「P1-lung-ct」沒有 Labeling 權限，無法加入影像。')).toBeInTheDocument();
-    expect(screen.queryByRole('form')).toBeNull();
+    expect(within(screen.getByRole('dialog', { name: '加入資料' })).queryByRole('form')).toBeNull();
   });
 });
 
@@ -215,6 +215,11 @@ describe('PACS 查詢取像', () => {
     const admin = await renderApp('/admin/allowlist', 'admin01');
     const form = await screen.findByRole('form', { name: '設定影像存取清單' });
     await admin.user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0003');
+    {
+      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
+      if (ok && !(ok as HTMLInputElement).checked) await admin.user.click(ok);
+    }
     await admin.user.click(within(form).getByRole('button', { name: '儲存清單' }));
     await screen.findByText('已儲存影像存取清單，共 1 筆');
     admin.unmount();
@@ -264,7 +269,7 @@ describe('加入資料（改版）', () => {
     const region = screen.getByRole('region', { name: 'DICOM 匯入結果' });
     await user.click(within(region).getByRole('button', { name: '失敗（1）' }));
     expect(resultRows(table).map((r) => r[0])).toEqual(['not-dicom.dcm']);
-    await user.click(within(region).getByRole('button', { name: '只重傳失敗的 1 個檔案' }));
+    await user.click(within(region).getByRole('button', { name: '重新上傳失敗的 1 個檔案' }));
     await waitFor(() => expect(screen.getByRole('region', { name: 'DICOM 匯入結果' })).toHaveTextContent('匯入工作 2：新增 0、重複 0、失敗 1'));
   });
 });

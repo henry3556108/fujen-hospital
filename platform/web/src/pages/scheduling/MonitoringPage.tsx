@@ -1,5 +1,9 @@
+import { useResource } from '../../api/useResource';
+import { useSession } from '../../auth/SessionContext';
 import { platformEnv } from '../../runtimeConfig';
+import { ApiErrorAlert, Card, Icon, StatTile } from '../../components/ui';
 import { SchedulingPage } from './SchedulingRoutes';
+import type { ClusterNode, GpuAllocation } from './types';
 
 export interface MonitoringLink {
   key: string;
@@ -27,7 +31,7 @@ export function monitoringLinks(env: Record<string, string | undefined> = platfo
       key: 'alertmanager',
       name: 'Alertmanager',
       url: env.VITE_ALERTMANAGER_URL || 'http://127.0.0.1:39093',
-      description: '告警狀態、重複抑制與靜音',
+      description: '告警分類、規則、重複抑制、靜音與通知',
     },
     {
       key: 'mailpit',
@@ -38,31 +42,69 @@ export function monitoringLinks(env: Record<string, string | undefined> = platfo
   ];
 }
 
-/** TC-C02-03 的入口：儀表板本身在 Grafana 內編輯與保存。 */
-export function MonitoringPage() {
+interface Snapshot {
+  nodes: ClusterNode[];
+  rows: GpuAllocation[];
+}
+
+/** 平台自己知道的叢集狀態（節點與 GPU 份數）；CPU、記憶體曲線與告警規則在外部監控工具內 */
+function ClusterSnapshot() {
+  const { api } = useSession();
+  const snap = useResource<Snapshot>(async () => {
+    const [nodes, rows] = await Promise.all([
+      api.get<ClusterNode[]>('/api/admin/cluster/nodes'),
+      api.get<GpuAllocation[]>('/api/admin/cluster/gpu-dashboard'),
+    ]);
+    return { nodes, rows };
+  });
+  if (snap.error) return <ApiErrorAlert error={snap.error} />;
+  if (!snap.data) return <p role="status">載入中…</p>;
+  const { nodes, rows } = snap.data;
+  const ready = nodes.filter((n) => n.ready).length;
+  const capacity = nodes.reduce((a, n) => a + n.gpu_capacity, 0);
   return (
-    <SchedulingPage title="系統監控" tabs={false}>
-      <p className="text-muted">監控工具在新分頁開啟，需使用各工具自己的帳號登入。</p>
-      <ul className="entry-grid section" aria-label="監控工具">
-        {monitoringLinks().map((l) => (
-          <li key={l.key}>
-            <a className="card link-card" href={l.url} target="_blank" rel="noreferrer">
-              <span className="link-card__title">{l.name}（開新分頁）</span>
+    <div className="sch-mon-tiles" aria-label="叢集狀態">
+      <StatTile label="就緒節點" value={`${ready} / ${nodes.length}`} icon="server" tone={ready === nodes.length ? 'secondary' : 'error'} to="/admin/compute/nodes" />
+      <StatTile label="執行中 GPU 工作" value={rows.length} icon="pulse" to="/admin/compute/gpu" />
+      <StatTile label="可排程 GPU 份數" value={capacity} icon="grid" tone="neutral" />
+    </div>
+  );
+}
+
+/** TC-C02-03 的入口（設計稿 B23）：監控圖表、告警規則與通知在外部工具內編輯與保存，這頁提供入口與叢集摘要。 */
+export function MonitoringPage() {
+  const links = monitoringLinks();
+  return (
+    <SchedulingPage title="系統監控" subtitle="監控運算資源與服務狀態" tabs={false}>
+      <ClusterSnapshot />
+      <Card title="監控工具" extra={<span className="text-muted">在新分頁開啟，需使用各工具自己的帳號登入</span>}>
+        <ul className="sch-mon-links" aria-label="監控工具">
+          {links.map((l) => (
+            <li key={l.key} className="sch-mon-link">
+              <a
+                className="btn btn--secondary btn--small"
+                href={l.url}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${l.name}（開新分頁）：${l.description}`}
+              >
+                開啟 {l.name}
+                <Icon name="external" />
+              </a>
               <span>{l.description}</span>
               <span className="text-muted mono">{l.url}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-      <section className="card section" aria-labelledby="monitoring-dashboards">
-        <h2 id="monitoring-dashboards">預設儀表板</h2>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card title="預設儀表板">
         <p>
-          <a href={`${monitoringLinks()[0].url}/dashboards`} target="_blank" rel="noreferrer">
+          <a href={`${links[0].url}/dashboards`} target="_blank" rel="noreferrer">
             在 Grafana 瀏覽所有儀表板（開新分頁）
           </a>
         </p>
-        <p className="text-muted">「平台叢集總覽」顯示各節點池 CPU、GPU 已配置與可用份數、執行中的 GPU 工作。</p>
-      </section>
+        <p className="text-muted">「平台叢集總覽」顯示各節點池 CPU、GPU 已配置與可用份數、執行中的 GPU 工作。告警規則、重複通知抑制與通知管道在 Alertmanager 設定。</p>
+      </Card>
     </SchedulingPage>
   );
 }

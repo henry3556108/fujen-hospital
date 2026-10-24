@@ -6,6 +6,8 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PageHeader, SplitLayout } from '../../components/ui';
+import './admin.css';
 import type { GpuGroup } from '../scheduling/types';
 
 export interface FormValues {
@@ -74,11 +76,11 @@ export function ProjectForm({
     setValues((v) => ({ ...v, [k]: e.target.value }));
 
   return (
-    <form aria-label={title} className="card section" onSubmit={submit} noValidate>
-      <h2>{title}</h2>
+    <form aria-label={title} className="ui-card adm-form-card" onSubmit={submit} noValidate>
+      <h2 className="ui-card__title">{title}</h2>
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={groupsError} />
-      <div className="form-grid">
+      <div className="adm-form">
         <div className="field">
           <label htmlFor={`${idp}-name`}>專案名稱（必填）</label>
           <input
@@ -177,13 +179,34 @@ export function ProjectsPage() {
     }
   }
 
+  const form = editing ? (
+    <ProjectForm
+      key={editing.id}
+      title="編輯專案"
+      submitLabel="儲存"
+      initial={{ name: editing.name, description: editing.description, gpu_group: editing.gpu_group ?? '' }}
+      onSubmit={update}
+      onCancel={() => setEditing(null)}
+      groups={groups.data}
+      groupsError={groups.error}
+    />
+  ) : (
+    <ProjectForm title="新增專案" submitLabel="新增專案" initial={EMPTY} onSubmit={create} groups={groups.data} groupsError={groups.error} />
+  );
+
   return (
-    <div className="section">
-      <h1>專案</h1>
-      <p className="text-muted">點專案名稱設定 GPU 群組、成員與權限、標註群組、影像存取清單。</p>
+    <div className="adm-page">
+      <PageHeader title="專案" subtitle="點專案名稱設定 GPU 群組、成員與權限、標註群組、影像存取清單。" />
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />
       <ApiErrorAlert error={projects.error} />
+      <SplitLayout side={<div className="adm-side">{form}</div>}>
+      <section className="ui-card adm-card" aria-labelledby="projects-title">
+        <div className="ui-card__head">
+          <h2 id="projects-title" className="ui-card__title">
+            專案列表{projects.data ? `（${projects.data.length} 個）` : ''}
+          </h2>
+        </div>
       <div className="table-wrap">
         <table aria-label="專案列表">
           <thead>
@@ -210,10 +233,13 @@ export function ProjectsPage() {
                 <td>{p.description || '—'}</td>
                 <td>{p.gpu_group ?? '未綁定'}</td>
                 <td>
-                  <div className="row-actions">
+                  <div className="adm-row-actions">
+                    <Link to={`/admin/projects/${p.id}/members`} className="adm-link-btn">
+                      成員與權限
+                    </Link>
                     <button
                       type="button"
-                      className="btn btn--secondary btn--small"
+                      className="adm-link-btn"
                       aria-label={`編輯 ${p.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -224,7 +250,7 @@ export function ProjectsPage() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn--secondary btn--small"
+                      className="adm-link-btn adm-link-btn--danger"
                       aria-label={`刪除 ${p.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -245,28 +271,8 @@ export function ProjectsPage() {
           </tbody>
         </table>
       </div>
-
-      {editing ? (
-        <ProjectForm
-          key={editing.id}
-          title="編輯專案"
-          submitLabel="儲存"
-          initial={{ name: editing.name, description: editing.description, gpu_group: editing.gpu_group ?? '' }}
-          onSubmit={update}
-          onCancel={() => setEditing(null)}
-          groups={groups.data}
-          groupsError={groups.error}
-        />
-      ) : (
-        <ProjectForm
-          title="新增專案"
-          submitLabel="新增專案"
-          initial={EMPTY}
-          onSubmit={create}
-          groups={groups.data}
-          groupsError={groups.error}
-        />
-      )}
+      </section>
+      </SplitLayout>
 
       {deleting && (
         <ConfirmDialog

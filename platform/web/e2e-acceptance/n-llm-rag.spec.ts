@@ -31,19 +31,44 @@ test.afterAll(async () => {
 });
 
 // 改版後用語：Playground→對話、知識庫→參考文件、Prompt 範本→問答範本、發布 API→內部服務；
-// 對話模式 Free Chat→自由對話、Chat with Knowledge Base→根據文件回答。
-const MODE_FREE = '自由對話';
-const MODE_KB = '根據文件回答';
+// 對話模式 Free Chat→一般問答、Chat with Knowledge Base→文件問答（改版後是頁內分頁「問答模式」，不再是下拉）。
+const MODE_FREE = '一般問答';
+const MODE_KB = '文件問答';
+
+const modeTab = (page: Page, name: string) => page.getByRole('tablist', { name: '問答模式' }).getByRole('tab', { name, exact: true });
 
 /** 語言模型 › 對話（原 Playground） */
 async function playground(page: Page) {
   await llmTab(page, 'Playground');
-  await expect(page.getByLabel('對話模式', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: '問答模式' })).toBeVisible();
 }
 
-/** 對話頁的「參考文件」（原知識庫）與「問答範本」（原 Prompt 範本）下拉 */
+/** 切換對話模式分頁（已是該分頁就不再點，點了會開新對話） */
+async function setMode(page: Page, name: string) {
+  const t = modeTab(page, name);
+  if ((await t.getAttribute('aria-selected')) !== 'true') await t.click();
+  await expect(t).toHaveAttribute('aria-selected', 'true');
+}
+
+/** 「文件問答」分頁左側的「參考文件」下拉（label 視覺隱藏） */
 const kbSelect = (page: Page) => page.getByLabel('參考文件', { exact: true });
-const promptSelect = (page: Page) => page.getByLabel('問答範本', { exact: true });
+
+/** 「一般問答」分頁左側的「問答範本」清單：切到範圍分頁、點一下套用；輸入框上方出現「使用範本：標題」 */
+async function pickPrompt(page: Page, title: string, scope: '個人範本' | '共用範本' = '共用範本') {
+  await setMode(page, MODE_FREE);
+  await page.getByRole('tablist', { name: '範本範圍' }).getByRole('tab', { name: scope, exact: true }).click();
+  const item = page.getByRole('list', { name: '範本清單' }).getByRole('button', { name: title });
+  await expect(item).toBeVisible({ timeout: 30_000 });
+  if ((await item.getAttribute('aria-pressed')) !== 'true') await item.click();
+  await expect(page.getByRole('form', { name: '送出訊息' })).toContainText(`使用範本：${title}`);
+}
+
+/** 不使用範本（原下拉選「不使用」）：按輸入框上方的「不使用範本」 */
+async function clearPrompt(page: Page) {
+  const off = page.getByRole('form', { name: '送出訊息' }).getByRole('button', { name: '不使用範本', exact: true });
+  if (await off.isVisible()) await off.click();
+  await expect(off).toHaveCount(0);
+}
 
 /** 回應下方的「出處：…」與「回應時間 N 秒」 */
 function replyLine(r: { text: string; sources: string; seconds: string }) {
@@ -94,7 +119,8 @@ test('B5 用院內文件建知識問答', async ({ browser }) => {
     const docsText = (await listed.getByRole('listitem').allInnerTexts()).map(oneLine);
     await s.step(ca, '步驟 4', '上傳結果與文件清單', { line: `${countText}｜${results.join('；')}｜${docsText.join('；')}`, focus: counts, full: true });
     await s.soft('6 份文件全部寫入（可使用 6 份、重複 0 份、未完成 0 份）', () => expect(countText).toContain(`可使用 ${DOC_FILES.length} 份、重複 0 份、未完成 0 份`));
-    await s.soft('文件清單格式為「檔名（格式，N 個片段）」', () => expect(docsText.join('\n')).toMatch(/registration_flow\.html（HTML，\d+ 個片段）/));
+    // 新版清單一列是「檔名 … 大小 · HTML，N 個片段」，仍要同一列看得到檔名、格式與片段數
+    await s.soft('文件清單列出檔名、格式與片段數', () => expect(docsText.join('\n')).toMatch(/registration_flow\.html[\s\S]{0,80}?HTML，\d+ 個片段/));
 
     // 要注意：同一份文件重複上傳會判為重複
     const again = ca.waitForEvent('filechooser');
@@ -109,7 +135,7 @@ test('B5 用院內文件建知識問答', async ({ browser }) => {
 
     // 第 5 步：對話（原 Playground），「對話模式」選「根據文件回答」（原 Chat with Knowledge Base），「參考文件」選剛建立的
     await playground(ca);
-    await ca.getByLabel('對話模式', { exact: true }).selectOption({ label: MODE_KB });
+    await setMode(ca, MODE_KB);
     await selectContaining(kbSelect(ca), KB);
     await s.step(ca, '步驟 5', '選擇對話模式與參考文件', { line: oneLine(await kbSelect(ca).locator('option:checked').innerText()) });
 
@@ -152,15 +178,15 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
     await form.getByRole('button', { name: '新增問答範本' }).click();
     await expect(okMsg(ca, `已新增問答範本「${PROMPT}」`)).toBeVisible();
     const row = rowOf(ca.getByRole('table', { name: '問答範本' }), PROMPT);
-    await expect(row).toContainText('公開');
+    await expect(row).toContainText('共用'); // 改版後可見範圍欄顯示「共用」（表單選項仍是「公開（專案成員都看得到）」）
     await s.step(ca, '步驟 2', '已新增問答範本', { line: oneLine(await row.innerText()), full: true });
 
     // 第 3–4 步：Playground 三種組合
     await playground(ca);
     const q = '洗手時乾洗手要搓揉多久？';
     // (a) 只用範本：自由對話＋範本
-    await ca.getByLabel('對話模式', { exact: true }).selectOption({ label: MODE_FREE });
-    await selectContaining(promptSelect(ca), PROMPT);
+    await setMode(ca, MODE_FREE);
+    await pickPrompt(ca, PROMPT);
     await s.step(ca, '步驟 3a', '只用範本（自由對話＋範本）');
     const ra = await ask(s, ca, q, '步驟 4a');
     const callA = await lastCall();
@@ -173,9 +199,9 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
     // 第 5 步：「開新對話」清空 → (b) 只用參考文件：根據文件回答＋參考文件、範本「不使用」
     await ca.getByRole('button', { name: '開新對話' }).click();
     await expect(ca.getByRole('list', { name: '對話內容' }).locator('li')).toHaveCount(0);
-    await ca.getByLabel('對話模式', { exact: true }).selectOption({ label: MODE_KB });
+    await setMode(ca, MODE_KB);
     await selectContaining(kbSelect(ca), KB);
-    await promptSelect(ca).selectOption({ label: '不使用' });
+    await clearPrompt(ca);
     await s.step(ca, '步驟 3b', '只用參考文件（範本不使用）');
     const rb = await ask(s, ca, q, '步驟 4b');
     const callB = await lastCall();
@@ -184,7 +210,11 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
 
     // (c) 兩者一起：知識庫＋範本
     await ca.getByRole('button', { name: '開新對話' }).click();
-    await selectContaining(promptSelect(ca), PROMPT);
+    // 範本清單只在「一般問答」分頁：先切過去點範本，再切回「文件問答」（文件集與範本都會保留）
+    await pickPrompt(ca, PROMPT);
+    await setMode(ca, MODE_KB);
+    await expect(kbSelect(ca).locator('option:checked')).toContainText(KB);
+    await expect(ca.getByRole('form', { name: '送出訊息' })).toContainText(`使用範本：${PROMPT}`);
     await s.step(ca, '步驟 3c', '參考文件與範本一起用');
     const rc = await ask(s, ca, q, '步驟 4c');
     const callC = await lastCall();
@@ -210,14 +240,15 @@ test('B7 把知識問答發布給其他系統呼叫', async ({ browser }) => {
     s.log(`ca01 原本的生成參數：${JSON.stringify(origParams)}`);
     const ca = await s.open(browser, 'ca01');
 
-    // 第 1 步：「對話 → 對話設定：生成參數與回答規則」（收合區塊）調整並按「儲存生成參數」
+    // 第 1 步：「對話 →（右上）設定 → 右側『回答設定』面板」調整生成參數並按「儲存設定」（原「儲存生成參數」）
     await playground(ca);
-    const settings = ca.getByTestId('chat-settings');
-    if ((await settings.count()) && (await settings.getAttribute('open')) === null) await settings.locator('summary').click();
+    const open = ca.getByRole('button', { name: '設定', exact: true });
+    if ((await open.getAttribute('aria-expanded')) !== 'true') await open.click();
+    await expect(ca.getByRole('complementary', { name: '回答設定' })).toBeVisible();
     const params = ca.getByRole('form', { name: '生成參數' });
     await params.getByLabel('Temperature', { exact: true }).fill('0.3');
     await params.getByLabel('Max New Tokens', { exact: true }).fill('256');
-    await params.getByRole('button', { name: '儲存生成參數' }).click();
+    await params.getByRole('button', { name: '儲存設定', exact: true }).click();
     await expect(okMsg(ca, '已儲存生成參數')).toBeVisible();
     await s.step(ca, '步驟 1', '儲存生成參數', { line: 'Temperature 0.3、Max New Tokens 256', focus: params });
 

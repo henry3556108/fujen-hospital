@@ -3,9 +3,11 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { formatDicomDate } from '../../components/format';
+import { Icon } from '../../components/Icon';
+import { DicomThumb } from '../../components/ui';
 import type { Study } from './types';
 
-/** 研究明細；不在專案內或不在 Accession 清單內時 API 回 404。 */
+/** 研究明細（影像清單的「檢視」）：研究資訊與各序列縮圖；不在專案內或不在 Accession 清單內時 API 回 404。 */
 export function StudyDetailPage() {
   const { api, project } = useSession();
   const pid = project!.id;
@@ -18,20 +20,31 @@ export function StudyDetailPage() {
 
   return (
     <>
-      <h2>研究明細</h2>
-      <p className="row-actions">
-        <Link to="/data/imaging">回影像清單</Link>
+      <p className="rd-crumbs">
+        <Link to="/data/imaging">
+          <Icon name="chevron-left" /> 回影像清單
+        </Link>
+      </p>
+      <div className="rd-section-head">
+        <h2>研究明細</h2>
         {studyUid && (
           <Link to={`/labeling/studies/${encodeURIComponent(studyUid)}`} className="btn btn--primary">
             開始標註
           </Link>
         )}
-      </p>
+      </div>
       <ApiErrorAlert error={study.error} />
       {study.loading && !s && <p role="status">載入中…</p>}
       {s && !study.error && (
         <>
-          <section className="card" aria-label="研究資訊">
+          <section className="card rd-study-head" aria-label="研究資訊">
+            <DicomThumb
+              projectId={pid}
+              studyUid={s.study_instance_uid}
+              seriesUid={s.series[0]?.series_instance_uid}
+              alt={`${s.accession_number ?? s.study_instance_uid} 縮圖`}
+              size={160}
+            />
             <dl className="kv">
               <dt>Accession Number</dt>
               <dd>{s.accession_number ?? '—'}</dd>
@@ -60,6 +73,7 @@ export function StudyDetailPage() {
               <thead>
                 <tr>
                   <th scope="col">Series Description</th>
+                  <th scope="col">預覽</th>
                   <th scope="col">Modality</th>
                   <th scope="col">Series Instance UID</th>
                   <th scope="col" className="num">
@@ -71,6 +85,14 @@ export function StudyDetailPage() {
                 {s.series.map((x) => (
                   <tr key={x.series_instance_uid}>
                     <th scope="row">{x.series_description ?? '—'}</th>
+                    <td>
+                      <DicomThumb
+                        projectId={pid}
+                        studyUid={s.study_instance_uid}
+                        seriesUid={x.series_instance_uid}
+                        alt={`${x.series_description ?? x.series_instance_uid} 縮圖`}
+                      />
+                    </td>
                     <td>{x.modality ?? '—'}</td>
                     <td className="mono">{x.series_instance_uid}</td>
                     <td className="num">{x.instances}</td>

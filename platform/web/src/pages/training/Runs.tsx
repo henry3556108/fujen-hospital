@@ -137,9 +137,6 @@ export function Runs({ api, extra }: { api: TrainingApi; extra?: ReactNode }) {
       <div className="training-head">
         <h2 id="runs-title">訓練紀錄</h2>
         <div className="row-actions">
-          <Link className="btn btn--primary" to="/training/new">
-            建立訓練
-          </Link>
           <button type="button" className="btn btn--secondary btn--small" onClick={reload}>
             重新整理
           </button>

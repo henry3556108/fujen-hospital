@@ -8,6 +8,7 @@ import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
 import { Icon } from '../../components/Icon';
+import { Card, CodeBlock, SidePanel, SplitLayout, Stepper } from '../../components/ui';
 import { isImageKind, saveFile, type StageEntry, type StageId, type StageOverview, type TrainingApi, type TrainingSetting } from './api';
 import { CODE_STAGES, STAGE_NAMES } from './stages';
 
@@ -110,8 +111,10 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
   if (!overview) return <p role="status">載入中…</p>;
 
   const codeName = editing?.code ? `${editing.stage}.py` : '';
+  const editingEntry = editing ? overview.stages.find((s) => s.stage === editing.stage) ?? null : null;
+  const stepIndex = editing ? overview.stages.findIndex((s) => s.stage === editing.stage) : -1;
   return (
-    <section className="card section stack" aria-labelledby="stages-title">
+    <section className="stack" aria-labelledby="stages-title">
       <div className="training-head">
         <h2 id="stages-title">流程程式碼「{setting.name}」</h2>
         <button type="button" className="btn btn--secondary" onClick={onClose}>
@@ -135,123 +138,193 @@ export function StagesPanel({ api, setting, onChanged, onClose }: Props) {
       ) : null}
       <StageErrors error={error} />
 
-      <div className="table-wrap">
-        <table className="table" aria-label="流程環節">
-          <thead>
-            <tr>
-              <th scope="col">環節</th>
-              <th scope="col">目前由誰控制</th>
-              <th scope="col">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {overview.stages.map((s) => (
-              <tr key={s.stage}>
-                <th scope="row">{s.name}</th>
-                <td>
-                  {s.locked ? (
-                    <span className="stack">
-                      <span className="badge status-badge status-badge--info"><Icon name="lock" className="stage-lock" /> 匯入檔控制</span>
-                      <span className="field__hint">
-                        {Object.keys(s.locked.files).join('、')}（{s.locked.imported_by}，{formatTime(s.locked.imported_at)} 匯入，sha256 {s.locked.sha256.slice(0, 4)}…）
-                        {s.locked.code_changed ? '程式已修改。' : '程式與平台相同，只改設定值。'}
-                      </span>
-                      {s.problem ? <span className="badge status-badge status-badge--warning">需要處理</span> : null}
-                    </span>
-                  ) : (
-                    '介面設定'
-                  )}
-                </td>
-                <td className="row-actions">
-                  {canCode || !hasCode(s) ? (
-                    <>
-                      <button type="button" className="btn btn--small btn--secondary" onClick={() => void openView(s.stage)}>
-                        {hasCode(s) ? '檢視程式碼' : '檢視設定檔'}「{s.name}」
-                      </button>
-                      <button type="button" className="btn btn--small btn--secondary"
-                        onClick={() => void run(async () => saveFile(await api.exportStage(setting.id, s.stage)))}>
-                        下載環節檔「{s.name}」
-                      </button>
-                      <button type="button" className="btn btn--small btn--secondary" disabled={busy}
-                        onClick={() => { setUploadStage(s.stage); uploadRef.current?.click(); }}>
-                        上傳環節檔「{s.name}」
-                      </button>
-                    </>
-                  ) : null}
-                  {s.locked ? (
-                    <button type="button" className="btn btn--small btn--danger" onClick={() => setUnlocking(s)}>
-                      改回用介面設定「{s.name}」
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* 設計稿 B08：五個環節的步驟條，正在檢視的環節標成目前 */}
+      <div className="trn-stage-steps">
+        <Stepper label="流程的五個環節" current={stepIndex}
+          steps={overview.stages.map((s) => ({ label: s.name, description: s.locked ? '用匯入檔' : '用介面' }))} />
       </div>
-      <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden aria-label="選擇環節檔（zip）"
-        onChange={(e) => upload(e.target.files?.[0])} />
 
       {editing ? (
-        <div className="stack" role="group" aria-label={`${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」`}>
-          <h3>{editing.code ? '程式碼' : '設定檔'}「{STAGE_NAMES[editing.stage]}」</h3>
-          <p className="field__hint">
-            {editing.code
-              ? `${editing.stage}.json 是這個環節的設定值，${codeName} 是程式（必須保留平台呼叫的函式名稱與參數）。`
-              : editing.stage === 'deploy'
-                ? 'deploy.json 是部署設定：要部署的模型（sha256）、服務名稱、顯示名稱、可呼叫的帳號。'
-                : `${Object.keys(editing.files).join('、')} 是資料來源設定。結構式資料改了欄位結構時，平台會用原始檔重新驗證並建立新的資料集，原資料集不變。`}
-            按「套用」後平台會先檢查，不符合時列出全部問題，設定不會改變。
-          </p>
-          {Object.entries(editing.files).map(([name, text]) => (
-            <div className="field" key={name}>
-              <label htmlFor={`stage-file-${name}`}>{name}</label>
-              <textarea id={`stage-file-${name}`} className="input stage-code" rows={name.endsWith('.py') ? 18 : 8} spellCheck={false}
-                value={text} onChange={(e) => setEditing({ ...editing, files: { ...editing.files, [name]: e.target.value } })} />
-            </div>
-          ))}
-          <div className="row-actions">
-            <button type="button" className="btn btn--primary" disabled={busy}
-              onClick={() => void run(async () => {
-                const out = await api.applyStage(setting.id, editing.stage, editing.files);
-                setEditing(null);
-                return out;
-              }, applied(editing.stage))}>
-              {busy ? '檢查中…' : `套用「${STAGE_NAMES[editing.stage]}」`}
-            </button>
-            {editing.code ? (
-              <button type="button" className="btn btn--secondary"
-                onClick={() => setEditing({ ...editing, files: { ...editing.files, [codeName]: editing.defaultCode } })}>
-                {codeName} 還原成平台預設程式
-              </button>
-            ) : null}
-            <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>
-              不套用，關閉
-            </button>
-          </div>
+        <div role="group" aria-label={`${editing.code ? '程式碼' : '設定檔'}「${STAGE_NAMES[editing.stage]}」`}>
+          <SplitLayout
+            sideWidth="300px"
+            side={
+              <SidePanel title="套用與檢查" sticky={false}>
+                <div className="trn-side-actions">
+                  <button type="button" className="btn btn--primary" disabled={busy} aria-label={`套用「${STAGE_NAMES[editing.stage]}」`}
+                    onClick={() => void run(async () => {
+                      const out = await api.applyStage(setting.id, editing.stage, editing.files);
+                      setEditing(null);
+                      return out;
+                    }, applied(editing.stage))}>
+                    <Icon name="play" />
+                    {busy ? '檢查中…' : '檢查並套用'}
+                  </button>
+                  <button type="button" className="btn btn--secondary"
+                    onClick={() => void run(async () => saveFile(await api.exportStage(setting.id, editing.stage)))}>
+                    <Icon name="download" />
+                    {editing.code ? '下載 Python 與設定檔' : '下載設定檔'}
+                  </button>
+                  <button type="button" className="btn btn--secondary" disabled={busy}
+                    onClick={() => { setUploadStage(editing.stage); uploadRef.current?.click(); }}>
+                    <Icon name="upload" />
+                    匯入環節檔（zip）
+                  </button>
+                  {editing.code ? (
+                    <button type="button" className="btn btn--secondary"
+                      onClick={() => setEditing({ ...editing, files: { ...editing.files, [codeName]: editing.defaultCode } })}>
+                      {codeName} 還原成平台預設程式
+                    </button>
+                  ) : null}
+                  <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>
+                    不套用，關閉
+                  </button>
+                </div>
+                {editingEntry?.locked ? (
+                  <p className="trn-source">
+                    來源：{editingEntry.locked.imported_by}，{formatTime(editingEntry.locked.imported_at)} 匯入，sha256 {editingEntry.locked.sha256.slice(0, 12)}…
+                  </p>
+                ) : null}
+                {editingEntry?.problem ? (
+                  <div className="trn-check trn-check--warning">
+                    <Icon name="warning" />
+                    <p><strong>需要處理</strong>：{editingEntry.problem}</p>
+                  </div>
+                ) : editingEntry?.locked ? (
+                  <div className="trn-check">
+                    <Icon name="success" />
+                    <p><strong>格式檢查通過</strong>：目前的匯入檔已通過平台檢查。</p>
+                  </div>
+                ) : (
+                  <p className="trn-source">按「檢查並套用」後平台會先檢查，不符合時列出全部問題，設定不會改變。</p>
+                )}
+                {editingEntry?.locked ? (
+                  <button type="button" className="trn-link-btn" onClick={() => setUnlocking(editingEntry)}>
+                    <Icon name="back" />
+                    改回介面設定
+                  </button>
+                ) : null}
+              </SidePanel>
+            }
+          >
+            <Card
+              title={`${STAGE_NAMES[editing.stage]}${editing.code ? '流程程式碼' : '設定檔'}`}
+              extra={
+                <span className="trn-source">
+                  <Icon name="info" /> {editingEntry?.locked ? '目前由匯入檔控制' : '目前由介面設定控制'}
+                </span>
+              }
+            >
+              <div className="stack">
+                <p className="field__hint">
+                  {editing.code
+                    ? `${editing.stage}.json 是這個環節的設定值，${codeName} 是程式（必須保留平台呼叫的函式名稱與參數）。`
+                    : editing.stage === 'deploy'
+                      ? 'deploy.json 是部署設定：要部署的模型（sha256）、服務名稱、顯示名稱、可呼叫的帳號。'
+                      : `${Object.keys(editing.files).join('、')} 是資料來源設定。結構式資料改了欄位結構時，平台會用原始檔重新驗證並建立新的資料集，原資料集不變。`}
+                </p>
+                {Object.entries(editing.files).map(([name, text]) => (
+                  <div className="field" key={name}>
+                    <label htmlFor={`stage-file-${name}`}>{name}</label>
+                    <textarea id={`stage-file-${name}`} className="input stage-code trn-code-edit" rows={name.endsWith('.py') ? 18 : 8} spellCheck={false}
+                      value={text} onChange={(e) => setEditing({ ...editing, files: { ...editing.files, [name]: e.target.value } })} />
+                  </div>
+                ))}
+                {editing.code && editing.defaultCode ? (
+                  <details className="trn-full">
+                    <summary>平台預設程式（對照用）</summary>
+                    <CodeBlock code={editing.defaultCode} title={`平台預設的 ${codeName}`} language="python" maxHeight="360px" />
+                  </details>
+                ) : null}
+              </div>
+            </Card>
+          </SplitLayout>
         </div>
       ) : null}
 
-      <div className="stack">
-        <h3>整個流程（專案包）</h3>
-        <p className="field__hint">
-          下載資料匯入、標註、前處理、訓練、部署五個環節的設定與程式，以及在自己電腦重做的說明（README.md、run_all.py）。影像與研究編號已去識別。
-        </p>
-        {!image && canCode ? (
-          <label className="checkbox">
-            <input type="checkbox" checked={includeData} onChange={(e) => setIncludeData(e.target.checked)} />
-            附上原始資料（只含用到的欄位；限計畫主持人，會記錄在稽核紀錄的資料交換）
-          </label>
-        ) : null}
-        {canCode ? (
-          <div className="row-actions">
-            <button type="button" className="btn btn--secondary" disabled={busy}
-              onClick={() => void run(async () => saveFile(await api.exportPackage(setting.id, includeData)))}>
-              下載整個流程（專案包）
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <Card title="各環節目前由誰控制" flush>
+        <div className="table-wrap">
+          <table className="table" aria-label="流程環節">
+            <thead>
+              <tr>
+                <th scope="col">環節</th>
+                <th scope="col">目前由誰控制</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overview.stages.map((s) => (
+                <tr key={s.stage}>
+                  <th scope="row">{s.name}</th>
+                  <td>
+                    {s.locked ? (
+                      <span className="stack">
+                        <span className="badge status-badge status-badge--info"><Icon name="lock" className="stage-lock" /> 匯入檔控制</span>
+                        <span className="field__hint">
+                          {Object.keys(s.locked.files).join('、')}（{s.locked.imported_by}，{formatTime(s.locked.imported_at)} 匯入，sha256 {s.locked.sha256.slice(0, 4)}…）
+                          {s.locked.code_changed ? '程式已修改。' : '程式與平台相同，只改設定值。'}
+                        </span>
+                        {s.problem ? <span className="badge status-badge status-badge--warning">需要處理</span> : null}
+                      </span>
+                    ) : (
+                      '介面設定'
+                    )}
+                  </td>
+                  <td className="row-actions">
+                    {canCode || !hasCode(s) ? (
+                      <>
+                        <button type="button" className="btn btn--small btn--secondary" onClick={() => void openView(s.stage)}>
+                          {hasCode(s) ? '檢視程式碼' : '檢視設定檔'}「{s.name}」
+                        </button>
+                        <button type="button" className="btn btn--small btn--secondary"
+                          onClick={() => void run(async () => saveFile(await api.exportStage(setting.id, s.stage)))}>
+                          下載環節檔「{s.name}」
+                        </button>
+                        <button type="button" className="btn btn--small btn--secondary" disabled={busy}
+                          onClick={() => { setUploadStage(s.stage); uploadRef.current?.click(); }}>
+                          上傳環節檔「{s.name}」
+                        </button>
+                      </>
+                    ) : null}
+                    {s.locked ? (
+                      <button type="button" className="btn btn--small btn--danger" onClick={() => setUnlocking(s)}>
+                        改回用介面設定「{s.name}」
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden aria-label="選擇環節檔（zip）"
+        onChange={(e) => upload(e.target.files?.[0])} />
+
+      <Card title="匯出整個流程（專案包）">
+        <div className="stack">
+          <p className="field__hint">
+            下載資料匯入、標註、前處理、訓練、部署五個環節的設定與程式，以及在自己電腦重做的說明（README.md、run_all.py）。影像與研究編號已去識別。
+          </p>
+          {!image && canCode ? (
+            <label className="checkbox">
+              <input type="checkbox" checked={includeData} onChange={(e) => setIncludeData(e.target.checked)} />
+              附上原始資料（只含用到的欄位；限計畫主持人，會記錄在稽核紀錄的資料交換）
+            </label>
+          ) : null}
+          {canCode ? (
+            <div className="row-actions">
+              <button type="button" className="btn btn--secondary" disabled={busy}
+                onClick={() => void run(async () => saveFile(await api.exportPackage(setting.id, includeData)))}>
+                <Icon name="download" />
+                下載整個流程（專案包）
+              </button>
+            </div>
+          ) : (
+            <p className="text-muted">匯出專案包需要 Coding 權限。</p>
+          )}
+        </div>
+      </Card>
 
       {unlocking?.locked ? (
         <ConfirmDialog

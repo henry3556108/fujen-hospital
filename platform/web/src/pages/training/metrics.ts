@@ -310,6 +310,33 @@ export function positiveSentence(run: TrainingRun): string {
   return `陽性＝${target} 為「${String(positive)}」：敏感度、特異度、ROC 曲線，以及預測時顯示的「${target}＝${String(positive)} 的機率」都以這一類計算。`;
 }
 
+/** 由混淆矩陣算出的計數（F3）：[分子, 分母]。二分類才有敏感度、特異度；陽性類別沒給時用第二個類別（與訓練範本相同）。 */
+export function confusionCounts(
+  cm: { labels: string[]; matrix: number[][] } | null | undefined,
+  positive?: string | null,
+): Record<string, [number, number]> {
+  if (!cm || !cm.matrix.length || cm.matrix.length !== cm.labels.length) return {};
+  const m = cm.matrix;
+  const total = m.flat().reduce((a, b) => a + b, 0);
+  const correct = m.reduce((a, row, i) => a + (row[i] ?? 0), 0);
+  const out: Record<string, [number, number]> = total ? { accuracy: [correct, total] } : {};
+  if (cm.labels.length === 2) {
+    const p = positive != null && cm.labels.includes(String(positive)) ? cm.labels.indexOf(String(positive)) : 1;
+    const n = 1 - p;
+    const [tp, fn, tn, fp] = [m[p][p], m[p][n], m[n][n], m[n][p]];
+    if (tp + fn) out.sensitivity = [tp, tp + fn];
+    if (tn + fp) out.specificity = [tn, tn + fp];
+  }
+  return out;
+}
+
+/** 指標旁的計數「5 / 6」：計數換算的比例要和顯示的指標相同（同一份資料算的）才顯示，否則空字串。 */
+export function countText(name: string, value: number | null | undefined, counts: Record<string, [number, number]>): string {
+  const c = counts[name];
+  if (!c || !c[1] || typeof value !== 'number') return '';
+  return Math.abs(c[0] / c[1] - value) < 0.0005 ? `${c[0]} / ${c[1]}` : '';
+}
+
 /** 訓練失敗的訊息：第一段是給使用者看的原因，分隔線（或舊格式的 Python 堆疊）之後是技術細節。 */
 export function splitFailure(message: string): { reason: string; details: string } {
   const text = message || '訓練工作失敗';

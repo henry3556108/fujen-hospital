@@ -5,6 +5,7 @@ import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
+import { Icon } from '../../components/Icon';
 import { useProjectAccess } from '../data/access';
 import { ReportView } from './ReportView';
 import type { Dataset, UploadResult, ValidationReport } from './types';
@@ -55,13 +56,15 @@ export function DatasetsPage() {
 
   return (
     <>
-      <h2>表格資料</h2>
-      <div className="row-actions">
-        <p className="text-muted">表格資料（CSV），例如從病歷或 Excel 匯出的檢驗值、診斷。上傳後可查看資料、選想預測的欄位並整理，再用來建立模型。</p>
+      <div className="rd-section-head">
+        <div>
+          <h2>表格資料</h2>
+          <p className="text-muted">表格資料（CSV），例如從病歷或 Excel 匯出的檢驗值、診斷。上傳後可查看資料、選想預測的欄位並整理，再用來建立模型。</p>
+        </div>
         {writable && (
           // 跳到下方上傳表單；主要按鈕是表單裡的「上傳並驗證」（03 規格 4.1）
           <a className="btn btn--secondary" href="#upload-csv">
-            上傳 CSV
+            <Icon name="upload" /> 上傳 CSV
           </a>
         )}
       </div>
@@ -109,8 +112,14 @@ export function DatasetsPage() {
                 <td>{d.created_by}</td>
                 <td>{formatTime(d.created_at)}</td>
                 <td>
-                  <div className="row-actions">
-                    <button type="button" className="btn btn--secondary btn--small" aria-label={`驗證報告 ${d.name}`} onClick={() => void showReport(d)}>
+                  <div className="rd-actions">
+                    <Link to={`/data/tabular/${d.id}/view`} className="btn btn--secondary btn--small" aria-label={`查看資料 ${d.name}`}>
+                      查看資料
+                    </Link>
+                    <Link to={`/data/tabular/${d.id}/prepare`} className="btn btn--secondary btn--small" aria-label={`整理資料 ${d.name}`}>
+                      整理資料
+                    </Link>
+                    <button type="button" className="btn btn--ghost btn--small" aria-label={`驗證報告 ${d.name}`} onClick={() => void showReport(d)}>
                       驗證報告
                     </button>
                     {writable && (

@@ -1,13 +1,15 @@
 // 建立模型（B-05）：外框與分頁（訓練紀錄／已存設定／程式與專案包），以及「已存設定」頁：
 // 搜尋、套用（開建立訓練精靈帶入）、複製、修改、刪除；設定與資料集目前的設定不一致時列出差異並可套用。
 import { useState } from 'react';
-import { Link, NavLink, Navigate, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTime } from '../../components/format';
+import { Badge, Card, Icon, InfoList, PageHeader, SegmentBar, SidePanel, SplitLayout, Tabs } from '../../components/ui';
 import { KIND_NAMES } from '../inference/api';
+import { versionNumber } from './NewTrainingPage';
 import { useTrainingApi, type Catalogue, type RunStatus, type TrainingApi, type TrainingSetting, type StageLock } from './api';
 import { SettingForm } from './SettingForm';
 import { useHasPermission } from './ModelExport';
@@ -28,14 +30,18 @@ export function TrainingLayout() {
   ];
   return (
     <>
-      <h1>建立模型</h1>
-      <nav aria-label="建立模型分頁" className="tabs">
-        {tabs.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end} className="tabs__item">
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+      <PageHeader
+        title="建立模型"
+        subtitle="選好研究目的與資料送出訓練，在這裡查看每次訓練的結果與已存設定。"
+        actions={
+          <Link className="btn btn--primary" to="/training/new">
+            <Icon name="play" />
+            建立訓練
+          </Link>
+        }
+      >
+        <Tabs label="建立模型分頁" items={tabs} />
+      </PageHeader>
       {api ? <Outlet /> : <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>}
     </>
   );
@@ -95,6 +101,7 @@ function Settings({ api }: { api: TrainingApi }) {
   const catalogue = useResource(() => api.catalogue(), [api]);
   const settings = useResource(() => api.settings(), [api]);
   const datasets = useResource(() => api.datasets().catch(() => []), [api]);
+  const labelSets = useResource(() => api.labelDatasets().catch(() => []), [api]);
   const datasetIds = [...new Set((settings.data ?? []).flatMap((s) => (s.config.source.type === 'tabular' ? [s.config.source.dataset_id] : [])))];
   const saved = useResource(
     async () => Object.fromEntries(await Promise.all(datasetIds.map(async (id) => [id, await api.targetFeature(id).catch(() => null)] as const))),
@@ -104,7 +111,10 @@ function Settings({ api }: { api: TrainingApi }) {
   const [query, setQuery] = useState('');
   const [mineOnly, setMineOnly] = useState(true);
   const [editor, setEditor] = useState<{ form: FormState; editing: TrainingSetting | null; key: number; locks?: StageLock[] } | null>(null);
-  const [notice, setNotice] = useState('');
+  const location = useLocation();
+  const savedName = (location.state as { saved?: string } | null)?.saved;
+  const [notice, setNotice] = useState(savedName ? `已儲存訓練設定「${savedName}」。` : '');
+  const [selected, setSelected] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [deleting, setDeleting] = useState<TrainingSetting | null>(null);
 
@@ -182,21 +192,30 @@ function Settings({ api }: { api: TrainingApi }) {
     });
   }
 
+  const current = visible.find((s) => s.id === selected) ?? visible[0] ?? null;
+  const labelName = (id: number | null | undefined) => {
+    const ds = id ? labelSets.data?.find((d) => d.id === id) : null;
+    return ds ? `${ds.name}・第 ${versionNumber(ds)} 版` : id ? `標註資料集 #${id}` : '影像';
+  };
+  const dataText = (s: TrainingSetting) => (s.config.source.type === 'tabular' ? datasetName(s.config.source.dataset_id) : labelName(s.config.label_dataset_id));
+  const diffOf = (s: TrainingSetting) => {
+    const locked = s.locked_stages ?? [];
+    // 標註或前處理由匯入檔控制時，不提供套用資料集設定（資料集的設定不影響這份訓練設定）
+    return locked.includes('labels') || locked.includes('preprocess') ? null : outdated(s, saved.data ?? {});
+  };
+
   return (
     <div className="stack">
-      <section className="card section stack" aria-labelledby="settings-title">
-        <div className="training-head">
-          <h2 id="settings-title">已存設定</h2>
-          <div className="row-actions">
-          <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
+      <section className="stack" aria-labelledby="settings-title">
+        <div className="trn-section__head">
+          <div>
+            <h2 id="settings-title">已存設定</h2>
+            <p className="text-muted">管理常用的訓練設定。按「套用」會開啟建立訓練並帶入這份設定，確認後送出；每次送出訓練時也會一併存下設定。</p>
+          </div>
+          <button type="button" className="btn btn--primary" onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
             新增訓練設定
           </button>
-          <Link className="btn btn--secondary" to="/training/new">
-            建立訓練
-          </Link>
-          </div>
         </div>
-        <p className="text-muted">每次送出訓練時都會一併存下設定。按「套用」會開啟建立訓練，帶入這份設定，確認後送出。</p>
         {notice ? <Alert tone="success">{notice}</Alert> : null}
         <ApiErrorAlert error={error ?? settings.error} />
         <div className="row-actions">
@@ -215,72 +234,87 @@ function Settings({ api }: { api: TrainingApi }) {
         ) : null}
         {settings.data && all.length > 0 && visible.length === 0 ? <p className="text-muted">沒有符合條件的設定。</p> : null}
         {visible.length > 0 ? (
-          <div className="table-wrap">
-            <table className="table" aria-label="訓練設定清單">
-              <thead>
-                <tr>
-                  <th scope="col">名稱</th>
-                  <th scope="col">任務</th>
-                  <th scope="col">資料</th>
-                  <th scope="col">最後修改</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((s) => {
-                  const locked = s.locked_stages ?? [];
-                  // 標註或前處理由匯入檔控制時，不提供套用資料集設定（資料集的設定不影響這份訓練設定）
-                  const diff = locked.includes('labels') || locked.includes('preprocess') ? null : outdated(s, saved.data ?? {});
-                  return (
-                    <tr key={s.id}>
-                      <th scope="row">
-                        {s.name}
-                        {locked.length ? (
-                          <span className="badge status-badge status-badge--info" data-testid="locked-stages">匯入控制：{stageNames(locked)}</span>
-                        ) : null}
+          <SplitLayout
+            sideWidth="400px"
+            side={current ? (
+              <SettingDetail
+                key={current.id}
+                setting={current}
+                dataText={dataText(current)}
+                diff={diffOf(current)}
+                onCopy={() => copy(current)}
+                onDelete={() => setDeleting(current)}
+                onSubmit={() => void submit(current)}
+                onApplyDataset={(tf) => apply(current, tf)}
+              />
+            ) : null}
+          >
+            <Card flush>
+              <div className="table-wrap">
+                <table className="table trn-settings-table" aria-label="訓練設定清單">
+                  <thead>
+                    <tr>
+                      <th scope="col">設定名稱</th>
+                      <th scope="col">任務類型</th>
+                      <th scope="col">資料版本</th>
+                      <th scope="col">最後修改</th>
+                      <th scope="col">
+                        <span className="visually-hidden">操作</span>
                       </th>
-                      <td>{KIND_NAMES[s.kind]}</td>
-                      <td>
-                        {s.config.source.type === 'tabular' ? datasetName(s.config.source.dataset_id) : '影像'}
-                        {diff ? (
-                          <span className="stack">
-                            <span className="badge status-badge status-badge--warning">與資料集設定不同</span>
-                            <span className="field__hint" data-testid="setting-difference">{diff.text}</span>
-                            <button type="button" className="btn btn--small btn--secondary" onClick={() => apply(s, diff.tf)}>
-                              套用資料集設定到「{s.name}」
-                            </button>
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>
-                        {s.updated_by}，{formatTime(s.updated_at)}
-                      </td>
-                      <td className="row-actions">
-                        <button type="button" className="btn btn--small btn--secondary" onClick={() => void submit(s)}>
-                          送出訓練「{s.name}」
-                        </button>
-                        <Link className="btn btn--small btn--secondary" to={`/training/new?setting=${s.id}`}>
-                          套用「{s.name}」
-                        </Link>
-                        <button type="button" className="btn btn--small btn--secondary" onClick={() => copy(s)}>
-                          複製「{s.name}」
-                        </button>
-                        <button type="button" className="btn btn--small btn--secondary" onClick={() => void edit(s)}>
-                          修改「{s.name}」
-                        </button>
-                          <Link className="btn btn--small" to={`/training/code?setting=${s.id}`}>
-                            流程程式碼「{s.name}」
-                          </Link>
-                        <button type="button" className="btn btn--small btn--danger" onClick={() => setDeleting(s)}>
-                          刪除「{s.name}」
-                        </button>
-                      </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {visible.map((s) => {
+                      const locked = s.locked_stages ?? [];
+                      return (
+                        <tr key={s.id} aria-selected={current?.id === s.id} onClick={() => setSelected(s.id)}>
+                          <th scope="row">
+                            {s.name}
+                            {locked.length ? (
+                              <span className="badge status-badge status-badge--info" data-testid="locked-stages">匯入控制：{stageNames(locked)}</span>
+                            ) : null}
+                          </th>
+                          <td>{KIND_NAMES[s.kind]}</td>
+                          <td>
+                            {dataText(s)}
+                            {diffOf(s) ? (
+                              <>
+                                {' '}
+                                <Badge tone="warning">資料集設定已變更</Badge>
+                              </>
+                            ) : null}
+                          </td>
+                          <td>
+                            {s.updated_by}，{formatTime(s.updated_at)}
+                          </td>
+                          <td>
+                            {/* 每列留常用操作（完整名稱放在 aria-label）；複製、刪除與詳細內容在右側 */}
+                            <div className="trn-row-actions" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" className="trn-link-btn" aria-label={`送出訓練「${s.name}」`} onClick={() => void submit(s)}>
+                                送出訓練
+                              </button>
+                              <Link className="trn-link-btn" aria-label={`套用「${s.name}」`} to={`/training/new?setting=${s.id}`}>
+                                套用
+                              </Link>
+                              <button type="button" className="trn-link-btn" aria-label={`修改「${s.name}」`} onClick={() => void edit(s)}>
+                                修改
+                              </button>
+                              <Link className="trn-link-btn" aria-label={`流程程式碼「${s.name}」`} to={`/training/code?setting=${s.id}`}>
+                                流程程式碼
+                              </Link>
+                              <button type="button" className="ui-icon-btn" aria-label={`查看「${s.name}」的詳細設定`} aria-pressed={current?.id === s.id} onClick={() => setSelected(s.id)}>
+                                <Icon name="chevron-right" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </SplitLayout>
         ) : null}
       </section>
 
@@ -307,5 +341,93 @@ function Settings({ api }: { api: TrainingApi }) {
         </ConfirmDialog>
       ) : null}
     </div>
+  );
+}
+
+/** 已存設定的右側詳情（設計稿 B02）：資料、資料切分、任務類型、進階參數，以及套用並建立訓練。 */
+function SettingDetail({ setting, dataText, diff, onCopy, onDelete, onSubmit, onApplyDataset }: {
+  setting: TrainingSetting;
+  dataText: string;
+  diff: { tf: TargetFeature; text: string } | null;
+  onCopy: () => void;
+  onDelete: () => void;
+  onSubmit: () => void;
+  onApplyDataset: (tf: TargetFeature) => void;
+}) {
+  const c = setting.config;
+  const kfold = c.validation?.method === 'kfold' ? c.validation.folds : 0;
+  const params = Object.entries(c.hyperparameters ?? {});
+  const items = [
+    { label: '資料版本', value: dataText },
+    {
+      label: '資料切分',
+      value: kfold ? (
+        `測試資料 ${c.split.test}%，其餘做 ${kfold} 折交叉驗證`
+      ) : (
+        <SegmentBar label="資料切分" segments={[
+          { label: '訓練資料', value: c.split.train },
+          { label: '驗證資料', value: c.split.validation },
+          { label: '測試資料', value: c.split.test },
+        ]} />
+      ),
+    },
+    { label: '任務類型', value: KIND_NAMES[setting.kind] },
+    ...(c.tabular
+      ? [
+          { label: '要預測的結果', value: c.tabular.target || '—' },
+          { label: '用來預測的資料', value: c.tabular.features.length ? `${c.tabular.features.length} 個欄位` : '—' },
+          { label: '演算法', value: c.tabular.algorithm },
+        ]
+      : []),
+    ...(c.image?.labels?.length ? [{ label: 'Label', value: c.image.labels.join('、') }] : []),
+  ];
+  return (
+    <SidePanel
+      title={setting.name}
+      actions={
+        <>
+          <button type="button" className="btn btn--small btn--secondary" onClick={onCopy}>
+            複製「{setting.name}」
+          </button>
+          <button type="button" className="btn btn--small btn--danger" onClick={onDelete}>
+            刪除「{setting.name}」
+          </button>
+        </>
+      }
+      footer={
+        <div className="trn-side-actions">
+          <Link className="btn btn--primary" to={`/training/new?setting=${setting.id}`}>
+            套用並建立訓練
+          </Link>
+          <button type="button" className="btn btn--secondary" onClick={onSubmit}>
+            不修改，直接送出訓練
+          </button>
+        </div>
+      }
+    >
+      {diff ? (
+        <Alert tone="warning">
+          <span className="stack">
+            <strong>與資料集設定不同</strong>
+            <span data-testid="setting-difference">{diff.text}</span>
+            <button type="button" className="btn btn--small btn--secondary" onClick={() => onApplyDataset(diff.tf)}>
+              套用資料集設定到「{setting.name}」
+            </button>
+          </span>
+        </Alert>
+      ) : null}
+      <InfoList items={items} />
+      {params.length ? (
+        <details className="trn-full">
+          <summary>進階參數設定</summary>
+          <dl className="trn-params">
+            {params.flatMap(([k, v]) => [<dt key={`k-${k}`}>{k}</dt>, <dd key={`v-${k}`}>{String(v)}</dd>])}
+          </dl>
+        </details>
+      ) : null}
+      <p className="field__hint">
+        建立者 {setting.created_by}；刪除設定不會刪除已送出的訓練與模型。
+      </p>
+    </SidePanel>
   );
 }

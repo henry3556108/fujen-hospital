@@ -1,5 +1,5 @@
 // 模擬 platform/api 的影像 API（app/imaging）。上傳的 DICOM 會真的解析標頭（Explicit VR Little Endian）。
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import type { ImagingFile, ImportFileResult, ImportJob, ImportKind, PacsAnswer, PairedStudy, Scope, ScopeFilters, Study } from '../pages/imaging/types';
 import { API, detail, isoNow, json, jsonBody, moduleState, requireProject, validation } from './support';
 
@@ -405,6 +405,13 @@ function cleanFilters(raw: unknown): ScopeFilters {
   return Object.fromEntries(FILTER_KEYS.filter((k) => typeof src[k] === 'string' && (src[k] as string).trim()).map((k) => [k, (src[k] as string).trim()]));
 }
 
+/** 模擬縮圖：黑底、兩個灰色橢圓（像胸部切面），只給畫面示意 */
+const THUMBNAIL_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">' +
+  '<rect width="128" height="128" fill="black"/><ellipse cx="64" cy="64" rx="54" ry="44" fill="gray"/>' +
+  '<ellipse cx="44" cy="62" rx="18" ry="28" fill="black"/><ellipse cx="84" cy="62" rx="18" ry="28" fill="black"/>' +
+  '<circle cx="64" cy="70" r="8" fill="white"/></svg>';
+
 export const imagingHandlers = [
   http.post(`${BASE}/dicom`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'labeling');
@@ -577,6 +584,15 @@ export const imagingHandlers = [
     if (ctx instanceof Response) return ctx;
     const study = studiesOf(state(), ctx.project.id).find((st) => st.study_instance_uid === params.uid);
     return study ? json(study) : detail(404, '找不到研究，或不在本專案的 Accession 清單內');
+  }),
+
+  // DICOMweb 代理的序列縮圖（Gateway 的 .../series/{series}/thumbnail）：回一張合成的灰階圖
+  http.get('*/dicomweb/projects/:pid/studies/:study/series/:series/thumbnail', ({ request, params }) => {
+    const ctx = requireProject(request, params.pid, 'project');
+    if (ctx instanceof Response) return ctx;
+    const known = studiesOf(state(), ctx.project.id).some((st) => st.study_instance_uid === params.study);
+    if (!known) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    return new HttpResponse(THUMBNAIL_SVG, { headers: { 'Content-Type': 'image/svg+xml' } });
   }),
 
   http.get(`${BASE}/accession-allowlist`, ({ request, params }) => {

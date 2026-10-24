@@ -102,6 +102,9 @@ export async function useProject(page: Page, name = P1) {
     .first();
   if ((await target.count()) === 0) return; // 沒有任何專案（例如 user01）
   await target.click();
+  // 點卡片只是選取，按「進入專案 →」才進入
+  const enter = main.getByRole('button', { name: /進入專案/ });
+  if ((await enter.count()) > 0) await enter.click();
   // 選好後回到研究區，頂端「目前專案」下拉顯示該專案
   await expect(page.locator('select#project-switcher option:checked')).toHaveText(name);
 }

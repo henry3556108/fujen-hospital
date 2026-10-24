@@ -15,7 +15,7 @@ function catalog(installed: boolean, loaded: boolean) {
 }
 
 describe('模型管理', () => {
-  it('a requested download shows 已申請，待核准 and no second 申請下載 button', async () => {
+  it('a requested download shows 申請中 and no second 申請下載 button', async () => {
     const downloads: Record<string, unknown>[] = [];
     server.use(
       catalog(false, false),
@@ -29,9 +29,9 @@ describe('模型管理', () => {
     );
     const { user } = await renderApp('/llm/models', 'ca01');
     const row = (await screen.findByRole('rowheader', { name: 'gemma-test' })).closest('tr')!;
-    expect(within(row).getByText('未下載')).toBeInTheDocument();
+    expect(within(row).getByText('可申請')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: '申請下載' }));
-    await waitFor(() => expect(within(row).getByText('已申請，待核准')).toBeInTheDocument());
+    await waitFor(() => expect(within(row).getByText('申請中')).toBeInTheDocument());
     expect(within(row).queryByRole('button', { name: '申請下載' })).not.toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe('模型管理', () => {
     );
     const { user } = await renderApp('/llm/models', 'ca01');
     const form = await screen.findByRole('form', { name: 'gemma-test 載入設定' });
-    await user.selectOptions(within(form).getByLabelText('量化'), '8bit');
+    await user.click(within(form).getByLabelText('8-bit'));
     await user.click(within(form).getByRole('button', { name: '套用並重新載入' }));
     expect(await within(form).findByText(/已依新設定重新載入/)).toBeInTheDocument();
     expect(sent).toEqual([{ quantization: '8bit', cpu: 8, memory_gb: 16, gpu_type: 'gpu-exclusive', gpu_count: 1 }]);

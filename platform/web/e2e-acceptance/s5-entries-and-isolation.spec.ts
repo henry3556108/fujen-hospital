@@ -12,7 +12,7 @@ const ENTRIES: { name: string; url: RegExp; h1: string }[] = [
   { name: '建模管理', url: /\/training$/, h1: '建立模型' },
   { name: 'AI 模型部署', url: /\/models\?entry=deployment$/, h1: '使用模型' },
   { name: '推論服務管理', url: /\/models\?entry=inference$/, h1: '使用模型' },
-  { name: 'LLM No-code 開發', url: /\/llm\/chat$/, h1: '語言模型' },
+  { name: 'LLM No-code 開發', url: /\/llm\/chat$/, h1: '文件問答' }, // 改版後 /llm/chat 的標題為「文件問答」
 ];
 
 test('5-1 admin01 從 8 個入口都能進入（TC-A02-01）', async ({ page }) => {

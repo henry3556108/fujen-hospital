@@ -192,8 +192,15 @@ test('M1 補拍 10 瀏覽器相容（TC-A02-08）', async () => {
     const t = await clickTabs(page, page.getByRole('navigation', { name: '語言模型分頁' }));
     await page.getByRole('navigation', { name: '語言模型分頁' }).getByRole('link', { name: '對話' }).click();
     await page.waitForLoadState('networkidle');
-    const r = await poke(page, page.locator('#chat-mode'));
-    return t.ok === 7 && r.ok ? `7 個分頁切換正常，「對話模式」下拉可開啟（${r.n} 個選項）` : `失敗：分頁 ${t.ok}/${t.total}、對話模式 ${r.ok}`;
+    // 改版後「對話模式」下拉改成頁內分頁「一般問答／文件問答」：切到「文件問答」再切回「一般問答」，確認選取狀態跟著變
+    const modes = page.getByRole('tablist', { name: '問答模式' });
+    const n = await modes.getByRole('tab').count();
+    await modes.getByRole('tab', { name: '文件問答', exact: true }).click();
+    const kbOk = (await modes.getByRole('tab', { name: '文件問答', exact: true }).getAttribute('aria-selected')) === 'true';
+    await modes.getByRole('tab', { name: '一般問答', exact: true }).click();
+    const freeOk = (await modes.getByRole('tab', { name: '一般問答', exact: true }).getAttribute('aria-selected')) === 'true';
+    const r = { ok: n > 0 && kbOk && freeOk, n };
+    return t.ok === 7 && r.ok ? `7 個分頁切換正常，「對話模式」分頁可切換（${r.n} 個選項）` : `失敗：分頁 ${t.ok}/${t.total}、對話模式 ${r.ok}`;
   });
   // 登出，留下乾淨的狀態
   await page.locator('.topbar').getByRole('button', { name: '登出', exact: true }).click().catch(() => undefined);

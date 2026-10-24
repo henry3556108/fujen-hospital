@@ -1,25 +1,471 @@
-/* 影像標註（WP5a）。只引用 Design Token，不寫色碼。 */
+/* 影像標註（WP5a）。只引用 Design Token，不寫色碼。新版面類名以 lb- 開頭。 */
 
-.workbench {
+/* ---------- 工作台（設計稿 A03） ---------- */
+
+.lb-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.lb-topbar__back {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.lb-topbar__title {
+  margin: 0;
+  font-size: var(--font-size-card-title);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.lb-topbar__progress {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+
+.lb-topbar__advanced {
+  margin-left: auto;
+}
+
+.lb-work {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
-  gap: 1rem;
+  grid-template-columns: 7.5rem minmax(0, 1fr) minmax(17rem, 21rem);
+  gap: var(--space-3);
   align-items: start;
 }
 
-@media (max-width: 1100px) {
-  .workbench {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 1200px) {
+  .lb-work {
+    grid-template-columns: 7rem minmax(0, 1fr);
+  }
+  .lb-panel {
+    grid-column: 1 / -1;
   }
 }
 
-.viewer-toolbar {
+@media (max-width: 640px) {
+  .lb-work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lb-strip__list {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+  }
+}
+
+/* 左側切片條 */
+.lb-strip {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  min-width: 0;
+}
+
+.lb-strip__head {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--space-1) var(--space-2);
+  font-size: var(--font-size-small);
+}
+
+.lb-strip__title {
+  color: var(--color-text-secondary);
+}
+
+.lb-strip__count {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.lb-strip__series {
+  margin-bottom: var(--space-2);
+}
+
+.lb-strip__series .select {
+  width: 100%;
+  min-width: 0;
+}
+
+.lb-strip__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(100vh - 14rem);
+  overflow-y: auto;
+}
+
+.lb-slice {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 4.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--viewer-bg);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.lb-slice:hover {
+  border-color: var(--viewer-border);
+}
+
+.lb-slice[aria-current='true'] {
+  border-color: var(--color-action-primary);
+}
+
+.lb-slice:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.lb-slice__img {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background: var(--viewer-bg);
+}
+
+.lb-slice__img img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lb-slice__no {
+  position: absolute;
+  right: var(--space-1);
+  bottom: 0.125rem;
+  color: var(--viewer-text);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+/* 中間影像區：深色工具列＋影像＋底部資訊列 */
+.lb-center {
+  min-width: 0;
+}
+
+.lb-viewer {
+  background: var(--viewer-bg);
+  color: var(--viewer-text);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+}
+
+.lb-toolbar {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--viewer-border);
+}
+
+.lb-toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 var(--space-1);
+  background: var(--viewer-border);
+}
+
+.lb-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--viewer-text);
+  font: inherit;
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.lb-tool:hover:not(:disabled) {
+  border-color: var(--viewer-border);
+}
+
+.lb-tool[aria-pressed='true'],
+.lb-tool[aria-expanded='true'] {
+  background: var(--color-action-primary);
+  color: var(--color-text-on-action);
+}
+
+.lb-tool:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lb-tool:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: 1px;
+}
+
+.lb-tool--end {
+  margin-left: auto;
+}
+
+.lb-tool--small {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+}
+
+.lb-tool__icon {
+  flex: none;
+}
+
+/* 窗位、更多工具的下拉選單 */
+.lb-popover {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: var(--space-3);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(26rem, calc(100% - 2 * var(--space-3)));
+  padding: var(--space-4);
+  background: var(--card-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+
+.lb-popover--end {
+  left: auto;
+  right: var(--space-3);
+}
+
+.lb-window-form .input {
+  width: 6rem;
+}
+
+.lb-viewer__body {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3);
+  min-height: 16rem;
+}
+
+.lb-viewer__body .viewport-grid {
+  width: 100%;
+}
+
+.lb-viewer__body .viewport-grid--1x1 {
+  max-width: min(100%, 70vh);
+}
+
+.lb-viewer__note {
+  align-self: center;
+  color: var(--viewer-text);
+}
+
+.lb-viewer__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--viewer-border);
+  font-size: var(--font-size-small);
+}
+
+.lb-viewer__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.lb-viewer__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lb-viewer__toggle {
+  margin-left: auto;
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--color-text-primary);
+}
+
+/* 右側標註面板 */
+.lb-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.lb-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.lb-panel__case {
+  margin: 0;
+  font-size: var(--font-size-card-title);
+}
+
+.lb-kind-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 0 var(--space-2);
+}
+
+.lb-kind-tab {
+  flex: 1;
+  padding: var(--space-2) var(--space-2);
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.lb-kind-tab[aria-pressed='true'] {
+  color: var(--color-action-primary);
+  border-bottom-color: var(--color-action-primary);
+  font-weight: 600;
+}
+
+.lb-kind-tab:focus-visible {
+  outline: 2px solid var(--focus-ring-color);
+  outline-offset: -2px;
+}
+
+.lb-panel__body {
+  padding: var(--space-4);
+}
+
+.lb-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lb-field__label {
+  font-weight: 600;
+  font-size: var(--font-size-small);
+}
+
+.lb-range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.lb-range input {
+  flex: 1;
+  accent-color: var(--color-action-primary);
+}
+
+.lb-range output {
+  min-width: 2ch;
+  font-weight: 600;
+}
+
+/* 主要按鈕在 DOM 第一個（下一筆），畫面上排在右邊 */
+.lb-panel__actions {
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.lb-panel__actions .btn--primary {
+  flex: 1 1 auto;
+}
+
+.lb-card-note {
+  padding: var(--space-4);
+  margin: 0;
+}
+
+/* ---------- 清單頁（待處理、資料集、自動標註） ---------- */
+
+.lb-progress-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+}
+
+.lb-progress-card__bar {
+  flex: 1 1 18rem;
+}
+
+.lb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
   align-items: flex-end;
-  padding: 0.75rem;
-  margin-bottom: 0.75rem;
+}
+
+.lb-filters .field {
+  margin: 0;
+  min-width: 12rem;
+}
+
+.lb-filters__search {
+  flex: 1 1 16rem;
+}
+
+.lb-ds-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.lb-ds-toolbar .field {
+  margin: 0;
+  min-width: 14rem;
+}
+
+.lb-ds-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.lb-ds-side-section {
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.lb-ds-side-section h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
 }
 
 .viewer-toolbar__group {
@@ -97,6 +543,27 @@
 
 .viewport__canvas--drawing {
   cursor: crosshair;
+}
+
+.viewport__canvas--pan {
+  cursor: grab;
+}
+
+.viewport__canvas--zoom {
+  cursor: zoom-in;
+}
+
+.viewport__canvas--window {
+  cursor: ns-resize;
+}
+
+/* 放大、移動時裁切在視窗內 */
+.viewport__stage {
+  overflow: hidden;
+}
+
+.viewport__stage .viewport__canvas {
+  transform-origin: center;
 }
 
 .viewport__caption {
@@ -222,3 +689,46 @@
 .viewport__badge--4 { border-left-color: var(--annotation-color-4); }
 .viewport__badge--5 { border-left-color: var(--annotation-color-5); }
 .viewport__badge--6 { border-left-color: var(--annotation-color-6); }
+
+.lb-auto-form {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.lb-auto-form > .btn {
+  align-self: flex-start;
+}
+
+.lb-auto-form > p {
+  margin: 0;
+}
+
+.lb-csv {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+.lb-csv > p {
+  margin: 0;
+}
+
+.lb-progress-card__pending {
+  margin: 0;
+}
+
+/* 窄螢幕：切片條改成橫向小縮圖 */
+@media (max-width: 640px) {
+  .lb-strip__list > li {
+    flex: 0 0 4.5rem;
+  }
+}
+
+/* 狀態列保留高度，訊息出現時版面不跳動 */
+.viewer-status {
+  min-height: 1.5em;
+}
+
+/* 影像高度配合視窗，工具列與底部資訊列都看得到 */
+.lb-viewer__body .viewport-grid--1x1 {
+  max-width: min(100%, calc(100vh - 20rem));
+}

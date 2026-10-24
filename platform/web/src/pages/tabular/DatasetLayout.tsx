@@ -4,6 +4,8 @@ import { ApiError } from '../../api/client';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
+import { formatTime } from '../../components/format';
+import { Icon } from '../../components/Icon';
 import { Tabs } from '../../components/Tabs';
 import { useProjectAccess } from '../data/access';
 import type { CatalogueItem, DatasetDetail, Step, TargetFeature } from './types';
@@ -61,8 +63,10 @@ export function DatasetLayout() {
 
   return (
     <>
-      <p>
-        <Link to="/data/tabular">回表格資料清單</Link>
+      <p className="rd-crumbs">
+        <Link to="/data/tabular">
+          <Icon name="chevron-left" /> 回表格資料清單
+        </Link>
       </p>
       <ApiErrorAlert error={dataset.error} />
       <ApiErrorAlert error={catalogue.error} />
@@ -70,7 +74,7 @@ export function DatasetLayout() {
       {!dataset.error && !ready && <p role="status">載入中…</p>}
       {ready && !dataset.error && (
         <>
-          <header className="row-actions dataset-head" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <header className="rd-dataset-head dataset-head">
             <div>
               <h2>資料集：{d.name}</h2>
               <p className="text-muted" data-testid="dataset-size">
@@ -78,11 +82,18 @@ export function DatasetLayout() {
                 {d.rejected_rows ? `（上傳時拒絕 ${d.rejected_rows} 列）` : ''}。原始資料不會被修改，整理步驟只套用在副本上。
               </p>
             </div>
-            {can('training') && (
-              <Link className="btn btn--secondary" to={`/training/new?tabular=${d.id}`}>
-                用這份資料建立模型
-              </Link>
-            )}
+            <div className="rd-dataset-head__side">
+              {saved.data && (
+                <span className="text-muted" data-testid="dataset-updated">
+                  整理設定最後更新 {formatTime(saved.data.updated_at)}
+                </span>
+              )}
+              {can('training') && (
+                <Link className="btn btn--secondary" to={`/training/new?tabular=${d.id}`}>
+                  用這份資料建立模型
+                </Link>
+              )}
+            </div>
           </header>
           <Tabs label="資料集分頁" items={tabs} />
           {current ? (

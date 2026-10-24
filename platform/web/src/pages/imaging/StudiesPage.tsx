@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { withQuery } from '../../api/client';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { formatDicomDate } from '../../components/format';
-import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
+import { Icon } from '../../components/Icon';
+import { Badge, DicomThumb, Pagination, SlideOver, type BadgeTone } from '../../components/ui';
 import { useProjectAccess } from '../data/access';
 import { ImagingNav } from './ImagingNav';
+import { AddDataPanel, sourceOf } from './ImportPage';
 import { ScopeSelect, useScopes } from './ScopeSelect';
 import { EMPTY_FILTERS, SEX_LABELS, type Scope, type ScopeFilters, type Study, type StudyFilters } from './types';
 
 const MODALITIES = ['CT', 'MR', 'CR', 'DX', 'US', 'MG', 'PT', 'NM', 'XA'];
-/** 每頁研究數（API 的 limit） */
+/** 每頁研究數（API 的 limit）預設值；可在分頁列改成 20／100 */
 export const STUDY_PAGE = 50;
+const PAGE_SIZES = [20, 50, 100];
 
 interface StudyPage {
   items: Study[];
@@ -72,10 +75,9 @@ export function scopeFilters(applied: StudyFilters, base: ScopeFilters = {}): Sc
   return out;
 }
 
-/** 把目前的篩選條件存成資料範圍（需要 Labeling 權限）。 */
-function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scope: Scope) => void }) {
+/** 把目前的篩選條件存成資料範圍（需要 Labeling 權限）；按「儲存資料範圍」後出現。 */
+function SaveScope({ filters, onSaved, onCancel }: { filters: ScopeFilters; onSaved: (scope: Scope) => void; onCancel: () => void }) {
   const { api, project } = useSession();
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -90,7 +92,6 @@ function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scop
     setError(null);
     try {
       const scope = await api.post<Scope>(`/api/projects/${project!.id}/imaging/scopes`, { name: name.trim(), filters });
-      setOpen(false);
       setName('');
       onSaved(scope);
     } catch (err) {
@@ -100,17 +101,12 @@ function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scop
     }
   }
 
-  if (!open) {
-    return (
-      <button type="button" className="btn btn--secondary btn--small" onClick={() => setOpen(true)}>
-        儲存為資料範圍
-      </button>
-    );
-  }
   return (
-    <form aria-label="儲存為資料範圍" className="card section" onSubmit={submit} noValidate>
+    <form aria-label="儲存資料範圍" className="card section" onSubmit={submit} noValidate>
       <ApiErrorAlert error={error} />
-      <p className="text-muted">資料範圍存的是目前的篩選條件，之後新加入、符合條件的影像也會算在裡面。</p>
+      <p className="text-muted">
+        資料範圍存的是目前的篩選條件，之後新加入、符合條件的影像也會算在裡面。儲存資料範圍只是研究選取，不會改變專案的影像存取清單。
+      </p>
       <div className="field">
         <label htmlFor="scope-name">資料範圍名稱</label>
         <input id="scope-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
@@ -119,7 +115,7 @@ function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scop
         <button type="submit" className="btn btn--secondary" disabled={busy}>
           儲存
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setOpen(false)}>
+        <button type="button" className="btn btn--ghost" onClick={onCancel}>
           取消
         </button>
       </div>
@@ -127,28 +123,34 @@ function SaveScope({ filters, onSaved }: { filters: ScopeFilters; onSaved: (scop
   );
 }
 
-/** TC-B01-09 影像清單：以 5 個 DICOM 欄位篩選、每頁 50 筆，可選或儲存資料範圍；篩選條件與頁碼放在網址，重新載入或分享連結都一致。 */
-export function StudiesPage() {
+/**
+ * TC-B01-09 影像清單（A02、B06）：5 個 DICOM 欄位篩選、縮圖、標註狀態，可選或儲存資料範圍，直接檢視或開始標註；
+ * 篩選條件、頁碼、每頁筆數放在網址，重新載入或分享連結都一致。
+ * adding：/data/imaging/import 時開著右側「加入資料」滑出面板。
+ */
+export function StudiesPage({ adding = false }: { adding?: boolean }) {
   const { api, project } = useSession();
   const { can } = useProjectAccess();
+  const navigate = useNavigate();
   const pid = project!.id;
   const [params, setParams] = useSearchParams();
   const applied = Object.fromEntries(KEYS.map((k) => [k, params.get(k) ?? ''])) as unknown as StudyFilters;
   const scopeId = params.get('scope_id') ? Number(params.get('scope_id')) : null;
   const appliedKey = KEYS.map((k) => applied[k]).join('|');
+  const size = PAGE_SIZES.includes(Number(params.get('size'))) ? Number(params.get('size')) : STUDY_PAGE;
   const page = Math.max(1, Math.floor(Number(params.get('page')) || 1));
-  const offset = (page - 1) * STUDY_PAGE;
+  const offset = (page - 1) * size;
   const studies = useResource(
     () =>
       api.get<StudyPage>(
         withQuery(`/api/projects/${pid}/imaging/studies`, {
           ...applied,
           scope_id: scopeId ?? undefined,
-          limit: STUDY_PAGE,
+          limit: size,
           offset: offset || undefined,
         }),
       ),
-    [pid, appliedKey, scopeId, offset],
+    [pid, appliedKey, scopeId, offset, size],
   );
   const scopes = useScopes();
   // 標註狀態：讀不到（舊後端或錯誤）就不顯示這一欄
@@ -160,14 +162,37 @@ export function StudiesPage() {
   const showLabels = Boolean(labels.data);
   const total = studies.data?.total ?? 0;
   const shown = studies.data?.items ?? [];
-  const lastPage = Math.max(1, Math.ceil(total / STUDY_PAGE));
+  const lastPage = Math.max(1, Math.ceil(total / size));
   const scope = scopes.data?.find((s) => s.id === scopeId) ?? null;
   const [notice, setNotice] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [savingScope, setSavingScope] = useState(false);
 
-  function goTo(next: number) {
+  /** 網址上除了加入資料來源以外的查詢字串（篩選、範圍、頁碼） */
+  function listQuery(): string {
+    const q = new URLSearchParams(params);
+    q.delete('source');
+    const s = q.toString();
+    return s ? `?${s}` : '';
+  }
+
+  // 關閉加入資料面板後重新載入清單與標註狀態（剛匯入的影像要出現）
+  const wasAdding = useRef(adding);
+  useEffect(() => {
+    if (wasAdding.current && !adding) {
+      studies.reload();
+      labels.reload();
+    }
+    wasAdding.current = adding;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adding]);
+
+  function goTo(next: number, nextSize = size) {
     const q = new URLSearchParams(params);
     if (next <= 1) q.delete('page');
     else q.set('page', String(next));
+    if (nextSize === STUDY_PAGE) q.delete('size');
+    else q.set('size', String(nextSize));
     setParams(q);
   }
 
@@ -184,6 +209,7 @@ export function StudiesPage() {
   function query(next: StudyFilters, nextScope: number | null) {
     const q: Record<string, string> = Object.fromEntries(KEYS.filter((k) => next[k].trim()).map((k) => [k, next[k].trim()]));
     if (nextScope != null) q.scope_id = String(nextScope);
+    if (size !== STUDY_PAGE) q.size = String(size);
     setParams(q);
   }
 
@@ -194,7 +220,7 @@ export function StudiesPage() {
 
   function clear() {
     setDraft(emptyDraft);
-    setParams({});
+    setParams(size !== STUDY_PAGE ? { size: String(size) } : {});
   }
 
   function chooseScope(next: Scope | null) {
@@ -212,166 +238,227 @@ export function StudiesPage() {
   return (
     <>
       <ImagingNav />
-      <div className="page-head">
+      <div className="rd-section-head">
         <h2>影像清單</h2>
         {can('labeling') && (
-          <Link to="/data/imaging/import" className="btn btn--primary">
-            加入資料
+          <Link to={`/data/imaging/import${listQuery()}`} className="btn btn--primary">
+            <Icon name="upload" /> 加入資料
           </Link>
         )}
       </div>
-      <form aria-label="篩選影像" className="card" onSubmit={submit} noValidate>
-        <div className="form-grid">
-          {scopes.data && scopes.data.length > 0 && <ScopeSelect id="f-scope" scopes={scopes.data} value={scopeId} onChange={chooseScope} />}
-          <div className="field">
-            <label htmlFor="f-modality">影像種類（Modality）</label>
-            <select id="f-modality" className="select" value={draft.modality} onChange={set('modality')}>
-              <option value="">全部</option>
-              {MODALITIES.map((mo) => (
-                <option key={mo} value={mo}>
-                  {mo}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="f-sex">性別</label>
-            <select id="f-sex" className="select" value={draft.patient_sex} onChange={set('patient_sex')}>
-              <option value="">全部</option>
-              {Object.entries(SEX_LABELS).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="f-study-desc">檢查描述（Study Description，包含）</label>
-            <input id="f-study-desc" className="input" value={draft.study_description} onChange={set('study_description')} />
-          </div>
-          <div className="field">
-            <label htmlFor="f-series-desc">序列描述（Series Description，包含）</label>
-            <input id="f-series-desc" className="input" value={draft.series_description} onChange={set('series_description')} />
-          </div>
-          <div className="field">
-            <label htmlFor="f-from">檢查日期起</label>
-            <input id="f-from" className="input" type="date" value={draft.from} onChange={set('from')} />
-          </div>
-          <div className="field">
-            <label htmlFor="f-to">檢查日期迄</label>
-            <input id="f-to" className="input" type="date" value={draft.to} onChange={set('to')} />
-          </div>
+
+      <form aria-label="篩選影像" className="rd-filter" onSubmit={submit} noValidate>
+        <div className="rd-filter__head">
+          <h3 className="rd-filter__title">篩選條件</h3>
+          <button
+            type="button"
+            className="rd-filter__toggle"
+            aria-expanded={filtersOpen}
+            aria-controls="study-filter-body"
+            onClick={() => setFiltersOpen((v) => !v)}
+          >
+            {filtersOpen ? '收合' : '展開'} <Icon name="chevron-down" />
+          </button>
         </div>
-        <div className="row-actions section">
-          <button type="submit" className="btn btn--secondary">
-            套用篩選
-          </button>
-          <button type="button" className="btn btn--ghost" onClick={clear}>
-            清除篩選
-          </button>
+        <div id="study-filter-body" className="rd-filter__body" hidden={!filtersOpen}>
+          <div className="rd-filter__grid">
+            {scopes.data && scopes.data.length > 0 && <ScopeSelect id="f-scope" scopes={scopes.data} value={scopeId} onChange={chooseScope} />}
+            <div className="field">
+              <label htmlFor="f-modality">
+                影像種類<small>（Modality）</small>
+              </label>
+              <select id="f-modality" className="select" value={draft.modality} onChange={set('modality')}>
+                <option value="">全部</option>
+                {MODALITIES.map((mo) => (
+                  <option key={mo} value={mo}>
+                    {mo}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="f-sex">性別</label>
+              <select id="f-sex" className="select" value={draft.patient_sex} onChange={set('patient_sex')}>
+                <option value="">全部</option>
+                {Object.entries(SEX_LABELS).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="f-study-desc">
+                檢查描述<small>（Study Description，包含）</small>
+              </label>
+              <input id="f-study-desc" className="input" value={draft.study_description} onChange={set('study_description')} />
+            </div>
+            <div className="field rd-filter__wide" role="group" aria-labelledby="f-date-label">
+              <span id="f-date-label" className="field__label">
+                檢查日期<small>（Study Date）</small>
+              </span>
+              <span className="rd-date-range">
+                <input id="f-from" className="input" type="date" aria-label="檢查日期起" value={draft.from} onChange={set('from')} />
+                <span aria-hidden="true">–</span>
+                <input id="f-to" className="input" type="date" aria-label="檢查日期迄" value={draft.to} onChange={set('to')} />
+              </span>
+            </div>
+            <div className="field">
+              <label htmlFor="f-series-desc">
+                序列描述<small>（Series Description，包含）</small>
+              </label>
+              <input id="f-series-desc" className="input" value={draft.series_description} onChange={set('series_description')} />
+            </div>
+          </div>
+          <div className="rd-filter__actions">
+            <button type="submit" className="btn btn--primary">
+              <Icon name="search" /> 套用篩選
+            </button>
+            {can('labeling') && (
+              <button type="button" className="btn btn--secondary" aria-expanded={savingScope} onClick={() => setSavingScope((v) => !v)}>
+                儲存資料範圍
+              </button>
+            )}
+            <button type="button" className="btn btn--secondary" onClick={clear}>
+              清除篩選
+            </button>
+          </div>
         </div>
       </form>
 
+      {can('labeling') && savingScope && (
+        <SaveScope
+          key={`${scopeId}|${appliedKey}`}
+          filters={scopeFilters(applied, scope?.filters)}
+          onCancel={() => setSavingScope(false)}
+          onSaved={(saved) => {
+            scopes.setData([...(scopes.data ?? []), saved]);
+            setDraft(emptyDraft);
+            setSavingScope(false);
+            query(EMPTY_FILTERS, saved.id);
+            setNotice(`已儲存資料範圍「${saved.name}」，共 ${saved.study_count} 筆影像。標註時可以選這個範圍。`);
+          }}
+        />
+      )}
+
       <ApiErrorAlert error={studies.error} />
       {notice && <Alert tone="success">{notice}</Alert>}
-      <div className="row-actions section">
-        <p role="status">
-          {studies.loading && !studies.data
-            ? '載入中…'
-            : `共 ${total} 筆影像${scope ? `（資料範圍「${scope.name}」）` : ''}${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 筆` : ''}`}
-        </p>
-        {can('labeling') && (
-          <SaveScope
-            key={`${scopeId}|${appliedKey}`}
-            filters={scopeFilters(applied, scope?.filters)}
-            onSaved={(saved) => {
-              scopes.setData([...(scopes.data ?? []), saved]);
-              setDraft(emptyDraft);
-              query(EMPTY_FILTERS, saved.id);
-              setNotice(`已儲存資料範圍「${saved.name}」，共 ${saved.study_count} 筆影像。標註時可以選這個範圍。`);
-            }}
+      <p role="status" className="rd-count">
+        {studies.loading && !studies.data
+          ? '載入中…'
+          : `共 ${total} 筆影像${scope ? `（資料範圍「${scope.name}」）` : ''}${active.length ? `（已套用 ${active.length} 個篩選條件）` : ''}${shown.length ? `，第 ${offset + 1}–${offset + shown.length} 筆` : ''}`}
+      </p>
+      <div className="rd-table-card">
+        <div className="table-wrap">
+          <table aria-label="影像清單">
+            <thead>
+              <tr>
+                <th scope="col">影像編號</th>
+                <th scope="col">檢查日期</th>
+                <th scope="col" className="rd-nowrap">影像種類</th>
+                <th scope="col">檢查描述</th>
+                <th scope="col">序列描述</th>
+                <th scope="col">病歷號</th>
+                <th scope="col" className="rd-nowrap">性別</th>
+                <th scope="col" className="num">
+                  序列數
+                </th>
+                <th scope="col" className="num">
+                  影像數
+                </th>
+                {showLabels && <th scope="col">標註狀態</th>}
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((s) => {
+                const name = s.accession_number ?? s.study_instance_uid;
+                const state = LABEL_STATE[labelState(labelOf.get(s.study_instance_uid))];
+                return (
+                  <tr key={s.study_instance_uid}>
+                    <th scope="row">
+                      <span className="rd-case">
+                        <DicomThumb
+                          projectId={pid}
+                          studyUid={s.study_instance_uid}
+                          seriesUid={s.series[0]?.series_instance_uid}
+                          alt={`${name} 縮圖`}
+                          size={48}
+                        />
+                        <span className="rd-case__name">{s.accession_number ?? '—'}</span>
+                      </span>
+                    </th>
+                    <td className="rd-nowrap">{formatDicomDate(s.study_date)}</td>
+                    <td>{s.modalities.join('、') || '—'}</td>
+                    <td>{s.study_description ?? '—'}</td>
+                    <td>{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
+                    <td>{s.patient_id ?? '—'}</td>
+                    <td>{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
+                    <td className="num">{s.series.length}</td>
+                    <td className="num">{s.instances}</td>
+                    {showLabels && (
+                      <td>
+                        <Badge tone={state.tone}>{state.text}</Badge>
+                      </td>
+                    )}
+                    <td>
+                      <span className="rd-actions">
+                        {/* 舊名稱「預覽」保留為無障礙名稱（驗收腳本沿用） */}
+                        <Link
+                          to={`/data/imaging/studies/${encodeURIComponent(s.study_instance_uid)}`}
+                          className="btn btn--secondary btn--small"
+                          aria-label={`預覽 ${name}`}
+                        >
+                          檢視
+                        </Link>
+                        {can('labeling') && (
+                          <Link
+                            to={`/labeling/studies/${encodeURIComponent(s.study_instance_uid)}`}
+                            className="btn btn--secondary btn--small"
+                            aria-label={`開始標註 ${name}`}
+                          >
+                            開始標註
+                          </Link>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {studies.data && total === 0 && (
+                <tr>
+                  <td colSpan={cols}>
+                    {active.length || scope ? '沒有符合篩選條件的影像' : '這個專案還沒有影像，請按「加入資料」上傳或從院內影像系統取得'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {total > 0 && (
+          <Pagination
+            label="影像清單分頁"
+            page={Math.min(page, lastPage)}
+            pageSize={size}
+            total={total}
+            pageSizeOptions={PAGE_SIZES}
+            onPageChange={(p) => goTo(p)}
+            onPageSizeChange={(n) => goTo(1, n)}
           />
         )}
       </div>
-      {total > STUDY_PAGE && (
-        <div className="row-actions section">
-          <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => goTo(page - 1)}>
-            上一頁
-          </button>
-          <span>
-            第 {page}／{lastPage} 頁
-          </span>
-          <button type="button" className="btn btn--secondary btn--small" disabled={page >= lastPage} onClick={() => goTo(page + 1)}>
-            下一頁
-          </button>
-        </div>
-      )}
-      <div className="table-wrap">
-        <table aria-label="影像清單">
-          <thead>
-            <tr>
-              <th scope="col">檢查日期</th>
-              <th scope="col">影像編號（Accession）</th>
-              <th scope="col">病歷號</th>
-              <th scope="col">性別</th>
-              <th scope="col">影像種類</th>
-              <th scope="col">檢查描述</th>
-              <th scope="col">序列描述</th>
-              <th scope="col" className="num">
-                序列數
-              </th>
-              <th scope="col" className="num">
-                影像數
-              </th>
-              {showLabels && <th scope="col">標註狀態</th>}
-              <th scope="col">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((s) => {
-              const name = s.accession_number ?? s.study_instance_uid;
-              const state = LABEL_STATE[labelState(labelOf.get(s.study_instance_uid))];
-              return (
-                <tr key={s.study_instance_uid}>
-                  <td>{formatDicomDate(s.study_date)}</td>
-                  <th scope="row">{s.accession_number ?? '—'}</th>
-                  <td>{s.patient_id ?? '—'}</td>
-                  <td>{s.patient_sex ? (SEX_SHORT[s.patient_sex] ?? s.patient_sex) : '—'}</td>
-                  <td>{s.modalities.join('、') || '—'}</td>
-                  <td>{s.study_description ?? '—'}</td>
-                  <td>{[...new Set(s.series.map((x) => x.series_description).filter(Boolean))].join('、') || '—'}</td>
-                  <td className="num">{s.series.length}</td>
-                  <td className="num">{s.instances}</td>
-                  {showLabels && (
-                    <td>
-                      <StatusBadge tone={state.tone}>{state.text}</StatusBadge>
-                    </td>
-                  )}
-                  <td>
-                    <span className="row-actions">
-                      <Link to={`/data/imaging/studies/${encodeURIComponent(s.study_instance_uid)}`} aria-label={`預覽 ${name}`}>
-                        預覽
-                      </Link>
-                      {can('labeling') && (
-                        <Link to={`/labeling/studies/${encodeURIComponent(s.study_instance_uid)}`} aria-label={`開始標註 ${name}`}>
-                          開始標註
-                        </Link>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-            {studies.data && total === 0 && (
-              <tr>
-                <td colSpan={cols}>
-                  {active.length || scope ? '沒有符合篩選條件的影像' : '這個專案還沒有影像，請按「加入資料」上傳或從院內影像系統取得'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+
+      <SlideOver open={adding} title="加入資料" width="44rem" closeOnBackdrop={false} onClose={() => navigate(`/data/imaging${listQuery()}`)}>
+        <AddDataPanel
+          source={sourceOf(params.get('source'))}
+          onSource={(next) => {
+            const q = new URLSearchParams(params);
+            if (next === 'upload') q.delete('source');
+            else q.set('source', next);
+            setParams(q, { replace: true });
+          }}
+        />
+      </SlideOver>
     </>
   );
 }

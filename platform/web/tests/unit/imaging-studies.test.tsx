@@ -30,9 +30,9 @@ describe('研究列表', () => {
     await loaded(6);
     const r = await rows();
     expect(r).toHaveLength(6);
-    // 檢查日期、影像編號、病歷號、性別、影像種類、檢查描述、序列描述、序列數、影像數
+    // 影像編號（含縮圖）、檢查日期、影像種類、檢查描述、序列描述、病歷號、性別、序列數、影像數
     expect(r[0].slice(0, 9)).toEqual([
-      '2024-01-05', 'ACC0011', 'PAT0011', '女', 'CT', 'CT CHEST WO CONTRAST', 'AXIAL 5MM SOFT TISSUE', '1', '4',
+      'ACC0011', '2024-01-05', 'CT', 'CT CHEST WO CONTRAST', 'AXIAL 5MM SOFT TISSUE', 'PAT0011', '女', '1', '4',
     ]);
   });
 
@@ -45,10 +45,10 @@ describe('研究列表', () => {
   });
 
   const cases: [string, (u: ReturnType<typeof import('@testing-library/user-event').default.setup>) => Promise<void>, string, (r: string[]) => boolean, number][] = [
-    ['Modality', async (u) => u.selectOptions(screen.getByLabelText('影像種類（Modality）'), 'MR'), 'modality=MR', (r) => r[4] === 'MR', 2],
-    ['性別', async (u) => u.selectOptions(screen.getByLabelText('性別'), 'F'), 'patient_sex=F', (r) => r[3] === '女', 3],
-    ['Study Description', async (u) => u.type(screen.getByLabelText(/^檢查描述/), 'chest'), 'study_description=chest', (r) => /CHEST/.test(r[5]), 3],
-    ['Series Description', async (u) => u.type(screen.getByLabelText(/^序列描述/), 'lung'), 'series_description=lung', (r) => /LUNG/.test(r[6]), 2],
+    ['Modality', async (u) => u.selectOptions(screen.getByLabelText('影像種類（Modality）'), 'MR'), 'modality=MR', (r) => r[2] === 'MR', 2],
+    ['性別', async (u) => u.selectOptions(screen.getByLabelText('性別'), 'F'), 'patient_sex=F', (r) => r[6] === '女', 3],
+    ['Study Description', async (u) => u.type(screen.getByLabelText(/^檢查描述/), 'chest'), 'study_description=chest', (r) => /CHEST/.test(r[3]), 3],
+    ['Series Description', async (u) => u.type(screen.getByLabelText(/^序列描述/), 'lung'), 'series_description=lung', (r) => /LUNG/.test(r[4]), 2],
     [
       'Study Date',
       async (u) => {
@@ -56,7 +56,7 @@ describe('研究列表', () => {
         await u.type(screen.getByLabelText('檢查日期迄'), '2024-05-31');
       },
       'study_date=20240301-20240531',
-      (r) => r[0] >= '2024-03-01' && r[0] <= '2024-05-31',
+      (r) => r[1] >= '2024-03-01' && r[1] <= '2024-05-31',
       3,
     ],
   ];
@@ -84,7 +84,7 @@ describe('研究列表', () => {
     await loaded(2);
     expect(screen.getByLabelText('影像種類（Modality）')).toHaveValue('CT');
     expect(screen.getByLabelText('性別')).toHaveValue('M');
-    expect((await rows()).map((r) => r[1])).toEqual(['ACC0012', 'ACC0015']);
+    expect((await rows()).map((r) => r[0])).toEqual(['ACC0012', 'ACC0015']);
     await first.user.click(screen.getByRole('button', { name: '清除篩選' }));
     await loaded(6);
     expect(screen.getByLabelText('影像種類（Modality）')).toHaveValue('');
@@ -154,7 +154,7 @@ describe('研究列表分頁', () => {
     await user.click(screen.getByRole('button', { name: '下一頁' }));
     await screen.findByText('共 120 筆影像，第 51–100 筆');
     expect(seen.at(-1)).toBe('?limit=50&offset=50');
-    expect((await rows())[0][1]).toBe('ACC0051');
+    expect((await rows())[0][0]).toBe('ACC0051');
 
     await user.click(screen.getByRole('button', { name: '下一頁' }));
     await screen.findByText('共 120 筆影像，第 101–120 筆');
@@ -217,6 +217,12 @@ describe('影像存取清單', () => {
     expect(await screen.findByText(/未設定清單/)).toBeInTheDocument();
     const form = screen.getByRole('form', { name: '設定影像存取清單' });
     await user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0011\nACC0013');
+    await user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
+    {
+      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
+      if (ok && !(ok as HTMLInputElement).checked) await user.click(ok);
+    }
     await user.click(within(form).getByRole('button', { name: '儲存清單' }));
     expect(await screen.findByText('已儲存影像存取清單，共 2 筆')).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: '清單內的 Accession Number' })).getAllByRole('listitem').map((l) => l.textContent)).toEqual([
@@ -231,13 +237,19 @@ describe('影像存取清單', () => {
     cleanup();
     await renderApp('/data/imaging', 'pi01');
     await loaded(2);
-    expect((await rows()).map((r) => r[1])).toEqual(['ACC0011', 'ACC0013']);
+    expect((await rows()).map((r) => r[0])).toEqual(['ACC0011', 'ACC0013']);
   });
 
   it('TC-B01-08 after the list is set, a study outside it is 404 by direct URL', async () => {
     const admin = await renderApp('/admin/allowlist', 'admin01');
     const form = await screen.findByRole('form', { name: '設定影像存取清單' });
     await admin.user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0011');
+    await admin.user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
+    {
+      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
+      if (ok && !(ok as HTMLInputElement).checked) await admin.user.click(ok);
+    }
     await admin.user.click(within(form).getByRole('button', { name: '儲存清單' }));
     await screen.findByText('已儲存影像存取清單，共 1 筆');
     admin.unmount();
@@ -249,6 +261,12 @@ describe('影像存取清單', () => {
     const { user } = await renderApp('/admin/allowlist', 'admin01');
     const form = await screen.findByRole('form', { name: '設定影像存取清單' });
     await user.type(within(form).getByLabelText(/^Accession Number/), 'ACC*');
+    await user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
+    {
+      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
+      if (ok && !(ok as HTMLInputElement).checked) await user.click(ok);
+    }
     await user.click(within(form).getByRole('button', { name: '儲存清單' }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('Accession 格式錯誤：ACC*');
   });
@@ -278,12 +296,12 @@ describe('影像清單（改版）', () => {
     expect(screen.getByRole('columnheader', { name: '標註狀態' })).toBeInTheDocument();
   });
 
-  it('a viewer has no 開始標註 / 加入資料 / 儲存為資料範圍', async () => {
+  it('a viewer has no 開始標註 / 加入資料 / 儲存資料範圍', async () => {
     await renderApp('/data/imaging', 'vw01');
     await loaded(6);
     expect(screen.queryByRole('link', { name: /^開始標註/ })).toBeNull();
     expect(screen.queryByRole('link', { name: '加入資料' })).toBeNull();
-    expect(screen.queryByRole('button', { name: '儲存為資料範圍' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '儲存資料範圍' })).toBeNull();
   });
 
   it('saves the current filters as a data scope and selecting it sends scope_id', async () => {
@@ -295,8 +313,8 @@ describe('影像清單（改版）', () => {
     });
     const { user } = await renderApp('/data/imaging?modality=CT', 'ra01');
     await loaded(4);
-    await user.click(screen.getByRole('button', { name: '儲存為資料範圍' }));
-    const form = screen.getByRole('form', { name: '儲存為資料範圍' });
+    await user.click(screen.getByRole('button', { name: '儲存資料範圍' }));
+    const form = screen.getByRole('form', { name: '儲存資料範圍' });
     await user.type(within(form).getByLabelText('資料範圍名稱'), '胸部 CT');
     await user.click(within(form).getByRole('button', { name: '儲存' }));
     expect(await screen.findByText(/已儲存資料範圍「胸部 CT」，共 4 筆影像/)).toBeInTheDocument();

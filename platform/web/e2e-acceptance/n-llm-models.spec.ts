@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { Scenario, REPO, api, contentHash, dc, llmApprovals, llmBase, llmTab, okMsg, oneLine, outcome, resetModel, rowOf } from './n-bc-common';
 
 // 新功能情境 B1–B4（docs/05-新增功能使用情境.md）：LLM 真模型的引進、離線預載、量化與資源、新環境預設模型。
@@ -18,12 +18,33 @@ async function modelsPage(page: Page) {
 
 const catalogRow = (page: Page, name: string) => rowOf(page.getByRole('table', { name: '白名單模型' }), name);
 
+/** 模型頁內分頁（可用模型／下載申請／載入設定） */
+async function modelsTab(page: Page, name: '可用模型' | '下載申請' | '載入設定') {
+  const t = page.getByRole('tablist', { name: '語言模型管理分頁' }).getByRole('tab', { name, exact: true });
+  await t.click();
+  await expect(t).toHaveAttribute('aria-selected', 'true');
+}
+
+/** 右側「載入設定」面板一次只開一個模型：在「可用模型」該列按「載入設定」，回傳「名稱 資源設定」區塊 */
+async function openLoadPanel(page: Page, name: string) {
+  await modelsTab(page, '可用模型');
+  await catalogRow(page, name).getByRole('button', { name: '載入設定', exact: true }).click();
+  const sec = page.getByRole('region', { name: `${name} 資源設定` });
+  await expect(sec).toBeVisible();
+  return sec;
+}
+
+/** 量化、GPU 類型改成單選（radio）：依 legend 找到群組 */
+const radioGroup = (sec: Locator, legend: string) => sec.getByRole('group', { name: legend, exact: true });
+const radioValue = async (group: Locator) => group.locator('input[type="radio"]:checked').inputValue();
+const checkRadio = async (group: Locator, value: string) => group.locator(`input[type="radio"][value="${value}"]`).check();
+
 /** B1 第 2–5 步（B2 第 3 步共用）：研究員申請 → Admin 核准 → 研究員下載，直到「已下載」 */
 async function requestApproveDownload(s: Scenario, ca: Page, adm: Page, name: string, n: (k: number) => string) {
-  // 第 2 步：研究員在白名單看到新模型「未下載」，按「申請下載」
+  // 第 2 步：研究員在白名單看到新模型「未下載」（改版後徽章為「可申請」），按「申請下載」
   await modelsPage(ca);
   const row = catalogRow(ca, name);
-  await expect(row).toContainText('未下載');
+  await expect(row).toContainText('可申請');
   await s.step(ca, n(2), 'ca01-白名單看到新模型（未下載）', { line: oneLine(await row.innerText()), focus: row });
   await row.getByRole('button', { name: '申請下載' }).click();
   // 已知產品問題：申請後（pending）列上仍是「未下載」＋「申請下載」（ModelsPage.tsx 只認 approved／downloading）。
@@ -71,8 +92,9 @@ async function requestApproveDownload(s: Scenario, ca: Page, adm: Page, name: st
   return { row, sawProgress: !!progress };
 }
 
-/** 第 6 步：「下載紀錄」最新一筆（依編號由舊到新排列，取最後一列） */
+/** 第 6 步：「下載紀錄」最新一筆（依編號由舊到新排列，取最後一列）；改版後在「下載申請」分頁 */
 async function downloadRecord(s: Scenario, ca: Page, name: string, label: string) {
+  await modelsTab(ca, '下載申請');
   const rec = rowOf(ca.getByRole('table', { name: '下載紀錄' }), name).last();
   const text = oneLine(await rec.innerText());
   await s.step(ca, label, 'ca01-下載紀錄', { line: text, focus: rec });
@@ -114,11 +136,12 @@ test('B1 從 Hugging Face 引進一個新模型', async ({ browser }) => {
       });
 
       // 第 7 步：「模型名稱 載入與資源」按「載入」，狀態「已載入」
-      const sec = ca.getByRole('region', { name: `${B1_NAME} 資源設定` });
-      await expect(sec.getByRole('heading', { name: `${B1_NAME} 載入與資源` })).toBeVisible();
+      // 改版後「載入與資源」標題移除，右側面板一次只開一個模型：回「可用模型」在該列按「載入設定」
+      const sec = await openLoadPanel(ca, B1_NAME);
       await s.step(ca, '步驟 7', 'ca01-載入與資源區塊', { focus: sec });
       await sec.getByRole('button', { name: '載入', exact: true }).click();
-      await expect(okMsg(sec, '已載入')).toBeVisible({ timeout: 180_000 });
+      // 載入後面板上方的狀態框也會是「已載入」，任一個出現即可
+      await expect(okMsg(sec, '已載入').first()).toBeVisible({ timeout: 180_000 });
       await expect(row).toContainText('已載入');
       const runtime = sec.locator(`[aria-label="${B1_NAME} 執行狀態"]`);
       await s.soft('載入後顯示模型服務回報的執行狀態', () => expect(runtime).toBeVisible({ timeout: 30_000 }));
@@ -198,17 +221,19 @@ test('B3 調整模型的量化與資源', async ({ browser }) => {
       const ca = await s.open(browser, 'ca01');
       // 第 1 步：「模型管理」往下到「gemma-3-4b-it 載入與資源」
       await modelsPage(ca);
-      const sec = ca.getByRole('region', { name: `${GEMMA} 資源設定` });
-      await expect(sec.getByRole('heading', { name: `${GEMMA} 載入與資源` })).toBeVisible();
+      const sec = await openLoadPanel(ca, GEMMA);
       const runtime = sec.locator(`[aria-label="${GEMMA} 執行狀態"]`);
       await expect(runtime).toBeVisible({ timeout: 30_000 });
       await s.step(ca, '步驟 1', '載入與資源（原始設定）', { line: (await runtime.textContent()) ?? '', focus: sec });
 
       // 第 2 步：修改欄位（量化 8-bit、CPU 4；記憶體、GPU 類型、GPU 張數維持）
+      // 改版後：量化（legend「量化設定」）、GPU 類型為單選；「CPU」→「CPU 核心數」
       const field = (label: string) => sec.getByLabel(label, { exact: true });
-      await field('量化').selectOption({ label: '8-bit' });
-      await field('CPU').fill('4');
-      const fields = `量化 ${await field('量化').inputValue()}、CPU ${await field('CPU').inputValue()}、記憶體 ${await field('記憶體（GB）').inputValue()} GB、GPU 類型 ${await field('GPU 類型').inputValue()}、GPU 張數 ${await field('GPU 張數').inputValue()}`;
+      const quant = radioGroup(sec, '量化設定');
+      const gpuType = radioGroup(sec, 'GPU 類型');
+      await quant.getByRole('radio', { name: '8-bit', exact: true }).check();
+      await field('CPU 核心數').fill('4');
+      const fields = `量化 ${await radioValue(quant)}、CPU ${await field('CPU 核心數').inputValue()}、記憶體 ${await field('記憶體（GB）').inputValue()} GB、GPU 類型 ${await radioValue(gpuType)}、GPU 張數 ${await field('GPU 張數').inputValue()}`;
       await s.step(ca, '步驟 2', '改成8-bit與CPU4', { line: fields, focus: sec });
 
       // 第 3 步：已載入 → 「套用並重新載入」→「已依新設定重新載入」
@@ -239,17 +264,17 @@ test('B3 調整模型的量化與資源', async ({ browser }) => {
 
       // 第 3 步的另一條路：未載入時改回原設定 →「儲存載入設定」→ 再按「載入」
       // （卸載後表單重新掛載、欄位回到資料庫的值；仍依原設定填一次）
-      await field('量化').selectOption(String(orig.quantization));
-      await field('CPU').fill(String(orig.cpu));
+      await checkRadio(quant, String(orig.quantization));
+      await field('CPU 核心數').fill(String(orig.cpu));
       await field('記憶體（GB）').fill(String(orig.memory_gb));
-      await field('GPU 類型').selectOption(String(orig.gpu_type));
+      await checkRadio(gpuType, String(orig.gpu_type));
       await field('GPU 張數').fill(String(orig.gpu_count));
       await sec.getByRole('button', { name: '儲存載入設定' }).click();
       const saved = await outcome(sec, '已儲存載入設定', 30_000);
       await s.step(ca, '步驟 3（未載入）', saved.ok ? '改回原設定並儲存載入設定' : '儲存載入設定失敗', { line: saved.text, focus: sec });
       await s.soft('按「儲存載入設定」出現「已儲存載入設定」', () => expect(saved.text).toContain('已儲存載入設定'));
       await sec.getByRole('button', { name: '載入', exact: true }).click();
-      await expect(okMsg(sec, '已載入')).toBeVisible({ timeout: 300_000 });
+      await expect(okMsg(sec, '已載入').first()).toBeVisible({ timeout: 300_000 });
       await expect(runtime).toContainText('量化', { timeout: 60_000 });
       const rt4 = (await runtime.textContent()) ?? '';
       await s.step(ca, '步驟 3–4（未載入）', '再按載入（原設定）', { line: rt4, focus: sec });

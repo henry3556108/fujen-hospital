@@ -12,11 +12,15 @@ import { adminRoutes } from './pages/admin/AdminRoutes';
 import { LegacyFhirRedirect } from './pages/fhir/FhirLayout';
 import { AccountPage, CatalogPage, NoProjectPage, ProjectSelectPage } from './pages/global/GlobalPages';
 import { HomePage } from './pages/home/HomePage';
+import { applyStoredTheme } from './pages/global/theme';
 import { dataRoutes } from './pages/data/routes';
 import { labelingRoutes } from './pages/labeling/routes';
 import { trainingRoutes } from './pages/training/routes';
 import { modelRoutes } from './pages/models/routes';
 import { llmRoutes } from './pages/llm/routes';
+
+// 個人設定存的介面主題（B32），一載入就套用，避免先閃一下預設主題
+if (typeof document !== 'undefined') applyStoredTheme();
 
 function RequireAuth() {
   const { status, loadError, reload } = useSession();

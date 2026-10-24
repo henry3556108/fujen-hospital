@@ -15,9 +15,12 @@ async function send(user: ReturnType<typeof import('@testing-library/user-event'
 describe('LLM No-code 開發', () => {
   it('/llm opens the 對話 tab for a coder', async () => {
     await renderApp('/llm', 'ca01');
-    expect(await screen.findByRole('heading', { level: 1, name: '語言模型' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '文件問答' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: '對話測試' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '對話' })).toHaveAttribute('aria-current', 'page');
+    // 一般問答／文件問答兩個頁內分頁，預設一般問答
+    expect(screen.getByRole('tab', { name: '一般問答' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '文件問答' })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('TC-A03-05 viewer typing /llm/playground is denied', async () => {
@@ -31,12 +34,12 @@ describe('LLM No-code 開發', () => {
     await send(user, '你好');
     const log = screen.getByRole('list', { name: '對話內容' });
     expect(await within(log).findByText('[fake-llm] echo: 你好')).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('對話模式'), 'kb');
+    await user.click(screen.getByRole('tab', { name: '文件問答' }));
     expect(within(log).queryByText('[fake-llm] echo: 你好')).toBeNull();          // 換模式開新對話
     expect(screen.getByText('請先選擇參考文件。')).toBeInTheDocument();
     await user.selectOptions(await screen.findByLabelText('參考文件'), '1');
     await send(user, '門診時間');
-    expect(await within(log).findByText('出處：outpatient_hours.pdf')).toBeInTheDocument();
+    expect(await within(log).findByText('outpatient_hours.pdf · 段落 1')).toBeInTheDocument();
   });
 
   it('TC-B07-08 model outage shows a retry prompt, keeps the message and retries', async () => {
@@ -64,18 +67,20 @@ describe('LLM No-code 開發', () => {
 
   it('TC-B07-05 generation params are saved with PUT and shown after reload', async () => {
     const { user, unmount } = await renderApp('/llm/playground', 'ca01');
+    await user.click(await screen.findByRole('button', { name: '設定' }));
     const form = await screen.findByRole('form', { name: '生成參數' });
     const temp = within(form).getByLabelText('Temperature');
     await user.clear(temp);
     await user.type(temp, '0.35');
-    await user.type(within(form).getByLabelText('回答規則（System Prompt）'), '院內助理');
+    await user.type(within(form).getByLabelText('System Prompt'), '院內助理');
     await user.click(within(form).getByRole('button', { name: '儲存設定' }));
-    expect(await within(form).findByText('已儲存生成參數')).toBeInTheDocument();
+    expect(await within(form).findByText(/已儲存生成參數（\d\d:\d\d）/)).toBeInTheDocument();
     unmount();
-    await renderApp('/llm/playground', 'ca01');
+    const second = await renderApp('/llm/playground', 'ca01');
+    await second.user.click(await screen.findByRole('button', { name: '設定' }));
     const again = await screen.findByRole('form', { name: '生成參數' });
     await waitFor(() => expect(within(again).getByLabelText('Temperature')).toHaveValue(0.35));
-    expect(within(again).getByLabelText('回答規則（System Prompt）')).toHaveValue('院內助理');
+    expect(within(again).getByLabelText('System Prompt')).toHaveValue('院內助理');
   });
 
   it('TC-B07-06 uploading documents sends every file and shows per-file results', async () => {
@@ -121,17 +126,18 @@ describe('LLM No-code 開發', () => {
   it('TC-B08-02 / TC-B08-04 wiki create, edit, version and ask', async () => {
     const { user } = await renderApp('/llm/wiki', 'ca01');
     const create = await screen.findByRole('form', { name: '新增頁面' });
-    await user.type(within(create).getByLabelText('路徑'), 'sop/visiting');
+    await user.type(within(create).getByLabelText('頁面路徑'), 'sop/visiting');
     await user.type(within(create).getByLabelText('標題'), '探病規定');
     await user.type(within(create).getByLabelText(/^內容/), '探病時間 11 點');
-    await user.click(within(create).getByRole('button', { name: '儲存' }));
+    await user.click(within(create).getByRole('button', { name: '儲存文件' }));
     const edit = await screen.findByRole('form', { name: '編輯頁面' });
     await user.clear(within(edit).getByLabelText(/^內容/));
     await user.type(within(edit).getByLabelText(/^內容/), '探病時間 18 點');
-    await user.click(within(edit).getByRole('button', { name: '儲存' }));
-    await user.click(await screen.findByRole('button', { name: /^版本 1/ }));
+    await user.click(within(edit).getByRole('button', { name: '儲存文件' }));
+    await user.click(await screen.findByRole('button', { name: /^第 1 版/ }));
     expect(await screen.findByLabelText('舊版內容')).toHaveTextContent('探病時間 11 點');
-    const ask = screen.getByRole('form', { name: '以這頁問 LLM' });
+    await user.click(screen.getByRole('button', { name: '以這頁提問' }));
+    const ask = await screen.findByRole('form', { name: '以這頁提問' });
     await user.type(within(ask).getByLabelText('問題'), '晚上可以探病嗎');
     await user.click(within(ask).getByRole('button', { name: '送出' }));
     expect(await within(ask).findByText(/脈絡來源 wiki_api/)).toBeInTheDocument();

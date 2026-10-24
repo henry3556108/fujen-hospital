@@ -48,6 +48,8 @@ export interface Model {
     classes?: string[];
     /** 缺值處理：impute＝特徵可留白（以訓練資料的中位數或最常見的值補上）；drop 或沒有＝含缺值的列不預測 */
     missing?: 'impute' | 'drop';
+    /** 平台訓練時實際的套件版本（名稱→版本；舊模型沒有） */
+    libraries?: Record<string, string>;
   };
 }
 

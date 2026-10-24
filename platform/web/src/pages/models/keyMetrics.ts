@@ -37,6 +37,8 @@ export interface KeyMetric {
   name: string;
   label: string;
   text: string;
+  /** 原始數值（各類別召回率等沒有單一數值時為 null） */
+  value: number | null;
 }
 
 /** 3 個以內的主要指標；還沒有規格指標時顯示目前有的數值指標（不留空格）。 */
@@ -47,10 +49,10 @@ export function keyMetrics(kind: ModelKind, metrics: Record<string, unknown> | u
   const out: KeyMetric[] = [];
   for (const name of wanted) {
     const v = scores[name];
-    if (typeof v === 'number') out.push({ name, label: label(name), text: text(name, v) });
+    if (typeof v === 'number') out.push({ name, label: label(name), text: text(name, v), value: v });
     else if (name === 'recall_per_class' && v && typeof v === 'object') {
       const parts = Object.entries(v as Record<string, number>).map(([c, n]) => `${c} ${pct(n)}`);
-      out.push({ name, label: '各類別召回率', text: parts.join('、') });
+      out.push({ name, label: '各類別召回率', text: parts.join('、'), value: null });
     }
     if (out.length === 3) return out;
   }
@@ -58,7 +60,7 @@ export function keyMetrics(kind: ModelKind, metrics: Record<string, unknown> | u
   // 補上規格指標之前：顯示目前有的數值指標
   for (const [name, v] of Object.entries(scores)) {
     if (typeof v !== 'number' || name.startsWith('baseline_')) continue;
-    out.push({ name, label: label(name), text: text(name, v) });
+    out.push({ name, label: label(name), text: text(name, v), value: v });
     if (out.length === 3) break;
   }
   return out;

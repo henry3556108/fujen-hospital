@@ -7,8 +7,19 @@ export function cellText(value: Cell): string {
   return String(value);
 }
 
-/** 資料預覽表：第一欄是列號（從 1 起算，與驗證報告的「第幾列」相同）。 */
-export function DataTable({ label, preview }: { label: string; preview: Preview }) {
+/**
+ * 資料預覽表：第一欄是列號（從 1 起算，與驗證報告的「第幾列」相同）。
+ * cellClass：額外的儲存格樣式（處理前後比較標出缺值與補上的值）。
+ */
+export function DataTable({
+  label,
+  preview,
+  cellClass,
+}: {
+  label: string;
+  preview: Preview;
+  cellClass?: (row: number, column: string, value: Cell) => string | undefined;
+}) {
   return (
     <div className="table-wrap">
       <table aria-label={label}>
@@ -31,7 +42,12 @@ export function DataTable({ label, preview }: { label: string; preview: Preview 
                 {preview.offset + i + 1}
               </th>
               {r.map((v, j) => (
-                <td key={preview.columns[j]} className={typeof v === 'number' ? 'num' : v === null ? 'text-muted' : undefined}>
+                <td
+                  key={preview.columns[j]}
+                  className={[typeof v === 'number' ? 'num' : v === null ? 'text-muted' : '', cellClass?.(i, preview.columns[j], v) ?? '']
+                    .filter(Boolean)
+                    .join(' ') || undefined}
+                >
                   {cellText(v)}
                 </td>
               ))}

@@ -70,9 +70,10 @@ describe('design tokens', () => {
     }
   });
 
-  it('only a light theme is defined (03 規格 4.3：拿掉主題切換)', () => {
-    expect(themes.rawDarkMedia).toEqual({});
-    expect(themes.rawDark).toEqual({});
+  it('dark theme: data-theme="dark" and the follow-system media query define the same tokens', () => {
+    expect(Object.keys(themes.rawDark).length).toBeGreaterThan(20);
+    expect(themes.rawDarkMedia).toEqual(themes.rawDark);
+    expect(themes.dark['--color-bg-page']).not.toBe(themes.light['--color-bg-page']);
   });
 
   it('uses the proposal palette', () => {
@@ -88,7 +89,7 @@ describe('design tokens', () => {
     expect(t['--color-status-error-icon']).toBe('#b42318');
   });
 
-  for (const theme of ['light'] as const) {
+  for (const theme of ['light', 'dark'] as const) {
     it.each(PAIRS)(`${theme}: %s on %s ≥ %s:1`, (fg, bg, min) => {
       const t = themes[theme];
       expect(t[fg], `${fg} 未定義`).toBeDefined();

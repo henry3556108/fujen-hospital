@@ -1,10 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { FileInput } from '../../components/FileInput';
+import { Icon, type IconName } from '../../components/Icon';
 import { useProjectAccess } from '../data/access';
-import { ImagingNav } from './ImagingNav';
 import { ImportResult } from './ImportResult';
 import { PacsPage } from './PacsPage';
 import type { ImportJob } from './types';
@@ -146,7 +146,7 @@ function UploadForm({
       </p>
       <div className="row-actions">
         <button type="submit" className={done ? 'btn btn--secondary' : 'btn btn--primary'} disabled={busy}>
-          {busy ? '上傳中…' : `上傳到「${project!.name}」`}
+          <Icon name="upload" /> {busy ? '上傳中…' : `上傳到「${project!.name}」`}
         </button>
       </div>
       {batches.map((b, i) => (
@@ -159,93 +159,100 @@ function UploadForm({
         />
       ))}
       {done && (
-        <div className="row-actions section">
+        <div className="rd-footer-actions">
+          <Link to="/data/imaging/jobs">看匯入紀錄</Link>
+          {batches.some((b) => b.endpoint === 'files') && <Link to="/data/imaging/files">看檔案與配對</Link>}
           {added > 0 && (
-            <Link to="/labeling" className="btn btn--primary">
+            <Link to="/labeling" className="btn btn--secondary">
               開始標註
             </Link>
           )}
-          <Link to="/data/imaging">到影像清單查看</Link>
-          <Link to="/data/imaging/jobs">看匯入紀錄</Link>
-          {batches.some((b) => b.endpoint === 'files') && <Link to="/data/imaging/files">看檔案與配對</Link>}
+          {/* 舊名稱「到影像清單查看」保留為無障礙名稱（驗收腳本沿用） */}
+          <Link to="/data/imaging" className="btn btn--primary" aria-label="到影像清單查看">
+            查看匯入的影像 <Icon name="arrow" />
+          </Link>
         </div>
       )}
     </form>
   );
 }
 
-type Source = 'upload' | 'pacs' | 'bundle';
-const SOURCES: { key: Source; title: string; desc: string }[] = [
-  { key: 'upload', title: '從電腦上傳', desc: 'DICOM（單檔或整個資料夾）、NIfTI、ITK、makesense。' },
-  { key: 'pacs', title: '從院內影像系統取得', desc: '向院內影像系統（PACS）查詢，挑選後取回。' },
-  { key: 'bundle', title: '匯入影像與標註檔', desc: '影像和對應的標註檔一起匯入，例如 NIfTI 的 _image／_label、makesense 匯出。' },
+export type Source = 'upload' | 'pacs' | 'bundle';
+export const SOURCES: { key: Source; title: string; desc: string; icon: IconName }[] = [
+  { key: 'upload', title: '從電腦上傳', desc: '支援 DICOM（單檔或整個資料夾）、NIfTI、MHA、makesense JSON', icon: 'upload' },
+  { key: 'pacs', title: '從院內影像系統取得', desc: '向院內影像系統（PACS）查詢，挑選後匯入影像', icon: 'database' },
+  { key: 'bundle', title: '匯入影像與標註檔', desc: '影像和對應的標註檔一起匯入（NIfTI 的 _image／_label、MHA、makesense JSON）', icon: 'doc' },
 ];
 
-/** TC-B01-02～07 加入資料：三種來源；需要 Labeling 權限。 */
-export function ImportPage() {
+export function sourceOf(value: string | null): Source {
+  return SOURCES.find((s) => s.key === value)?.key ?? 'upload';
+}
+
+/**
+ * TC-B01-02～07 加入資料（A02 滑出面板內容）：目標專案、三種來源卡片、選中來源的上傳或查詢表單；需要 Labeling 權限。
+ * source／onSource：目前選的來源（由呼叫端放在網址）。
+ */
+export function AddDataPanel({ source, onSource }: { source: Source; onSource: (s: Source) => void }) {
   const { project, can, missing } = useProjectAccess();
-  const [params, setParams] = useSearchParams();
-  const source = (SOURCES.find((s) => s.key === params.get('source'))?.key ?? 'upload') as Source;
+  if (!can('labeling')) {
+    return (
+      <Alert tone="warning" title="沒有權限">
+        {missing('labeling', '加入影像')}
+      </Alert>
+    );
+  }
   return (
     <>
-      <ImagingNav />
-      <h2>加入資料</h2>
-      {can('labeling') ? (
-        <>
-          <Alert tone="info" title="目標專案">
-            加入的影像只會進到專案「<strong>{project!.name}</strong>」。要加到別的專案，請先在頂端切換專案。
-          </Alert>
-          <ul className="entry-grid section import-sources" aria-label="資料來源">
-            {SOURCES.map((s) => (
-              <li key={s.key}>
-                <button
-                  type="button"
-                  className="card entry-card"
-                  aria-pressed={source === s.key}
-                  onClick={() => setParams(s.key === 'upload' ? {} : { source: s.key }, { replace: true })}
-                >
-                  <span className="entry-card__title">{s.title}</span>
-                  <span className="entry-card__desc">{s.desc}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="text-muted">
-            單一檔案失敗不影響其他檔案。同一專案內以 SOP Instance UID 判斷重複，重複的影像不會再存一份。大量匯入請使用批次匯入程式。
-          </p>
-          {source === 'upload' && (
-            <UploadForm
-              key="upload"
-              id="upload"
-              title="從電腦上傳"
-              hint="DICOM（.dcm、.dicom、.ima 或沒有副檔名）、NIfTI（.nii、.nii.gz）、ITK MetaImage（.mha）、makesense 匯出（.json）"
-              accept=".dcm,.dicom,.ima,.nii,.gz,.mha,.json"
-              allowFolder
-              route={endpointOf}
-            />
-          )}
-          {source === 'bundle' && (
-            <UploadForm
-              key="bundle"
-              id="bundle"
-              title="匯入影像與標註檔"
-              hint="檔名以 _image、_label 結尾會自動配對；makesense 標註會依檔名配到已匯入的 DICOM。配對結果可到「檔案與配對」查看。"
-              accept=".nii,.gz,.mha,.json"
-              allowFolder={false}
-              route={() => 'files'}
-            />
-          )}
-          {source === 'pacs' && (
-            <section className="card section" aria-label="從院內影像系統取得">
-              <h3>從院內影像系統取得</h3>
-              <PacsPage embedded />
-            </section>
-          )}
-        </>
-      ) : (
-        <Alert tone="warning" title="沒有權限">
-          {missing('labeling', '加入影像')}
-        </Alert>
+      <span className="rd-target-label">目標專案</span>
+      <p className="rd-target">{project!.name}</p>
+      <p className="field__hint">
+        加入的影像只會進到專案「<strong>{project!.name}</strong>」。要加到別的專案，請先在頂端切換專案。
+      </p>
+      <ul className="rd-sources" aria-label="資料來源">
+        {SOURCES.map((s) => (
+          <li key={s.key}>
+            <button type="button" className="rd-source" aria-pressed={source === s.key} onClick={() => onSource(s.key)}>
+              <span className="rd-source__icon" aria-hidden="true">
+                <Icon name={s.icon} />
+              </span>
+              <span>
+                <span className="entry-card__title">{s.title}</span>
+                <span className="entry-card__desc">{s.desc}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted">
+        單一檔案失敗不影響其他檔案。同一專案內以 SOP Instance UID 判斷重複，重複的影像不會再存一份。大量匯入請使用批次匯入程式。
+      </p>
+      {source === 'upload' && (
+        <UploadForm
+          key="upload"
+          id="upload"
+          title="從電腦上傳"
+          hint="DICOM（.dcm、.dicom、.ima 或沒有副檔名）、NIfTI（.nii、.nii.gz）、ITK MetaImage（.mha）、makesense 匯出（.json）"
+          accept=".dcm,.dicom,.ima,.nii,.gz,.mha,.json"
+          allowFolder
+          route={endpointOf}
+        />
+      )}
+      {source === 'bundle' && (
+        <UploadForm
+          key="bundle"
+          id="bundle"
+          title="匯入影像與標註檔"
+          hint="檔名以 _image、_label 結尾會自動配對；makesense 標註會依檔名配到已匯入的 DICOM。配對結果可到「檔案與配對」查看。"
+          accept=".nii,.gz,.mha,.json"
+          allowFolder={false}
+          route={() => 'files'}
+        />
+      )}
+      {source === 'pacs' && (
+        <section className="card section" aria-label="從院內影像系統取得">
+          <h3>從院內影像系統取得</h3>
+          <PacsPage embedded />
+        </section>
       )}
     </>
   );

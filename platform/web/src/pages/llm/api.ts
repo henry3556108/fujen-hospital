@@ -12,13 +12,13 @@ export interface GenerationParams {
   system_prompt: string;
 }
 
-export const PARAM_FIELDS: { key: keyof Omit<GenerationParams, 'system_prompt'>; label: string; min: number; max: number; step: number }[] = [
-  { key: 'temperature', label: 'Temperature', min: 0, max: 2, step: 0.05 },
-  { key: 'max_new_tokens', label: 'Max New Tokens', min: 1, max: 8192, step: 1 },
-  { key: 'repetition_penalty', label: 'Repetition Penalty', min: 0.1, max: 2, step: 0.05 },
-  { key: 'length_penalty', label: 'Length Penalty', min: -2, max: 2, step: 0.05 },
-  { key: 'top_k', label: 'Top K', min: 1, max: 1000, step: 1 },
-  { key: 'top_p', label: 'Top P', min: 0.01, max: 1, step: 0.01 },
+export const PARAM_FIELDS: { key: keyof Omit<GenerationParams, 'system_prompt'>; label: string; hint: string; min: number; max: number; step: number }[] = [
+  { key: 'temperature', label: 'Temperature', hint: '控制回答的變化，數值越高越多變。', min: 0, max: 2, step: 0.05 },
+  { key: 'max_new_tokens', label: 'Max New Tokens', hint: '控制回答的長度上限。', min: 1, max: 8192, step: 1 },
+  { key: 'repetition_penalty', label: 'Repetition Penalty', hint: '降低重複內容的機率。', min: 0.1, max: 2, step: 0.05 },
+  { key: 'length_penalty', label: 'Length Penalty', hint: '調整回答長度的偏好。', min: -2, max: 2, step: 0.05 },
+  { key: 'top_k', label: 'Top K', hint: '每次只從前 K 個候選詞挑選。', min: 1, max: 1000, step: 1 },
+  { key: 'top_p', label: 'Top P', hint: '只從累積機率達 P 的候選詞挑選。', min: 0.01, max: 1, step: 0.01 },
 ];
 
 export interface Source {
@@ -62,6 +62,7 @@ export interface KbDocument {
   chunks: number;
   size: number;
   uploaded_by: string;
+  uploaded_at?: string | null;
 }
 
 export interface UploadResult {
@@ -145,7 +146,20 @@ export interface Workflow {
   id: number;
   name: string;
   description: string;
-  definition: { state: Record<string, unknown>; entry: string; nodes: { id: string; type: string }[]; edges: string[][] };
+  definition: { state: Record<string, unknown>; entry: string; nodes: WorkflowNode[]; edges: string[][] };
+  created_by?: string;
+  updated_at?: string | null;
+}
+
+/** 節點定義；條件節點另有 key、operator、then、else */
+export interface WorkflowNode {
+  id: string;
+  type: string;
+  kb_id?: number;
+  page_id?: number;
+  then?: string;
+  else?: string;
+  [key: string]: unknown;
 }
 
 export interface NodeRecord {
@@ -166,13 +180,20 @@ export interface WorkflowRun {
   error: string;
   final_state: Record<string, unknown> | null;
   nodes: NodeRecord[];
+  input?: Record<string, unknown>;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
+
+/** 執行紀錄清單（不含逐節點內容） */
+export type WorkflowRunSummary = Omit<WorkflowRun, 'nodes'>;
 
 export interface WikiPageSummary {
   id: number;
   path: string;
   title: string;
   updated_by?: string;
+  updated_at?: string | null;
 }
 
 export interface WikiPage extends WikiPageSummary {
@@ -237,6 +258,7 @@ export function llmApi(api: ApiClient, projectId: number, options: { auth?: Auth
     createKb: (name: string, description: string) => api.post<KnowledgeBase>(`${base}/knowledge-bases`, { name, description }),
     deleteKb: (id: number) => api.delete(`${base}/knowledge-bases/${id}`),
     documents: (id: number) => api.get<KbDocument[]>(`${base}/knowledge-bases/${id}/documents`),
+    deleteDocument: (id: number, documentId: number) => api.delete(`${base}/knowledge-bases/${id}/documents/${documentId}`),
     async upload(id: number, files: File[]): Promise<UploadResult> {
       // 多檔上傳用 multipart，不經 JSON 用的 ApiClient
       const form = new FormData();
@@ -290,9 +312,12 @@ export function llmApi(api: ApiClient, projectId: number, options: { auth?: Auth
     unpublish: (id: number) => api.delete(`${base}/services/${id}`),
     // 工作流
     workflows: () => api.get<Workflow[]>(`${base}/workflows`),
-    createWorkflow: (name: string, definition: unknown) => api.post<Workflow>(`${base}/workflows`, { name, definition }),
+    createWorkflow: (name: string, definition: unknown, description = '') => api.post<Workflow>(`${base}/workflows`, { name, description, definition }),
+    updateWorkflow: (id: number, body: { name: string; description: string; definition: unknown }) => api.put<Workflow>(`${base}/workflows/${id}`, body),
     deleteWorkflow: (id: number) => api.delete(`${base}/workflows/${id}`),
     runWorkflow: (id: number, input: unknown) => api.post<WorkflowRun>(`${base}/workflows/${id}/runs`, { input }),
+    workflowRuns: (id: number) => api.get<WorkflowRunSummary[]>(`${base}/workflows/${id}/runs`),
+    workflowRun: (id: number, runId: number) => api.get<WorkflowRun>(`${base}/workflows/${id}/runs/${runId}`),
     // Wiki
     wikiPages: () => api.get<WikiPageSummary[]>(`${base}/wiki/pages`),
     wikiPage: (id: number) => api.get<WikiPage>(`${base}/wiki/pages/${id}`),

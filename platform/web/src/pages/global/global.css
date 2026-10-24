@@ -1,0 +1,479 @@
+/* 選擇專案（B30）、無專案（B31）、個人設定（B32）、功能目錄（B12）、登入（B29）。只用 tokens 變數。 */
+
+/* B31 無專案 */
+.gp-empty {
+  max-width: 44rem;
+  margin: var(--space-8) auto 0;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.gp-empty__icon {
+  width: 4rem;
+  height: 4rem;
+  color: var(--color-text-muted);
+}
+
+.gp-empty__title {
+  margin: 0;
+  font-size: var(--font-size-page-title);
+}
+
+.gp-empty__lead {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.gp-account-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  width: 100%;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  text-align: left;
+}
+
+.gp-account-row__label {
+  color: var(--color-text-secondary);
+}
+
+.gp-account-row__value {
+  flex: 1;
+  font-weight: 600;
+  font-size: var(--font-size-card-title);
+}
+
+.gp-empty__main {
+  min-width: 18rem;
+  justify-content: center;
+}
+
+.gp-empty__status {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.gp-empty__more {
+  justify-content: center;
+}
+
+/* B30 選擇專案 */
+.gp-search {
+  position: relative;
+  margin: var(--space-4) 0;
+}
+
+.gp-search__icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.gp-search .gp-search__input {
+  width: 100%;
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+}
+
+.gp-search__clear {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.gp-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-4);
+}
+
+.gp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gp-card:hover {
+  border-color: var(--card-border-hover);
+}
+
+.gp-card[aria-pressed='true'] {
+  border: 2px solid var(--color-border-selected);
+  padding: calc(var(--space-4) - 1px);
+}
+
+/* 名稱在 DOM 第一個（按鈕名稱以專案名開頭），畫面上放在封面下面 */
+.gp-card__name {
+  order: 2;
+  font-size: var(--font-size-card-title);
+  font-weight: 700;
+}
+
+.gp-card__cover {
+  order: 1;
+  width: 9rem;
+  height: 6.75rem;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.gp-card__check {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-action-primary);
+  color: var(--color-text-on-action);
+}
+
+.gp-card__role {
+  order: 3;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-selected);
+  color: var(--color-text-selected);
+  font-weight: 600;
+  font-size: var(--font-size-small);
+}
+
+.gp-card__desc {
+  order: 4;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.gp-card__foot {
+  order: 5;
+  margin-top: auto;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+}
+
+.gp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.gp-actions__status {
+  margin: 0 auto 0 0;
+  color: var(--color-text-secondary);
+}
+
+/* B32 個人設定 */
+.gp-settings {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 56rem;
+}
+
+.gp-rows {
+  margin: 0;
+}
+
+.gp-rows > div {
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.gp-rows dt {
+  color: var(--color-text-secondary);
+}
+
+.gp-rows dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.gp-pad {
+  padding: var(--space-4);
+  margin: 0;
+}
+
+.gp-theme {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: var(--space-2) var(--space-4);
+}
+
+.gp-theme__legend {
+  float: left;
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+
+.gp-theme__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.gp-theme__option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gp-theme__hint {
+  grid-column: 2;
+  margin: 0;
+  font-size: var(--font-size-small);
+}
+
+.gp-security {
+  display: grid;
+  grid-template-columns: 10rem 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.gp-security__label {
+  color: var(--color-text-secondary);
+}
+
+/* B12 功能目錄 */
+.gp-cat {
+  overflow-x: auto;
+}
+
+.gp-cat__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gp-cat__table td,
+.gp-cat__table th {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.gp-cat__group + .gp-cat__group .gp-cat__group-head td {
+  border-top: var(--space-4) solid var(--color-bg-page);
+}
+
+.gp-cat__group-head td {
+  padding-top: var(--space-4);
+}
+
+.gp-cat__group-title {
+  font-size: var(--font-size-card-title);
+  font-weight: 700;
+}
+
+.gp-cat__group-count {
+  color: var(--color-text-secondary);
+}
+
+.gp-cat__icon {
+  width: 3.5rem;
+}
+
+.gp-cat__icon-box {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.gp-cat__name {
+  white-space: nowrap;
+}
+
+.gp-cat__name > a {
+  font-weight: 700;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.gp-cat__name > a:hover {
+  color: var(--color-text-link);
+  text-decoration: underline;
+}
+
+.gp-cat__alias {
+  display: block;
+  font-weight: 400;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.gp-cat__place {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.gp-cat__desc {
+  color: var(--color-text-secondary);
+}
+
+.gp-cat__code {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.gp-cat__open {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gp-cat__open a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+
+/* B29 登入 */
+.gp-login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-4);
+  background: var(--color-bg-page);
+}
+
+.gp-login__card {
+  width: 100%;
+  max-width: 34rem;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.gp-login__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-card-title);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.gp-login__brand .icon {
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-action-primary);
+}
+
+.gp-login__title {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-page-title);
+}
+
+.gp-login__lead {
+  margin: 0;
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.gp-login__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.gp-login__flow {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.gp-login__flow h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-body);
+}
+
+@media (max-width: 767px) {
+  .gp-rows > div,
+  .gp-theme,
+  .gp-security {
+    grid-template-columns: 1fr;
+  }
+
+  .gp-theme__hint {
+    grid-column: 1;
+  }
+
+  .gp-cat__name,
+  .gp-cat__place {
+    white-space: normal;
+  }
+}
+
+/* 登入頁不會載入 home.css，大按鈕在這裡再定義一次（與 home.css 相同） */
+.gp-login .btn--large {
+  min-height: 3rem;
+  padding: 0.625rem 1.5rem;
+  font-size: 1.0625rem;
+}

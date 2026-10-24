@@ -10,7 +10,7 @@ async function form() {
 describe('共享排程設定', () => {
   it('shows the current settings from the API', async () => {
     await renderApp('/admin/compute/shared');
-    expect(await screen.findByRole('heading', { level: 1, name: '共享排程設定' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '排隊與共享設定' })).toBeInTheDocument();
     const f = await form();
     expect(within(f).getByLabelText(/^時間片份數/)).toHaveValue(4);
     expect(within(f).getByLabelText(/^工作時限/)).toHaveValue(60);
@@ -79,11 +79,11 @@ describe('共享排程設定', () => {
     const { user } = await renderApp('/admin/compute/shared');
     await screen.findByRole('navigation', { name: '運算資源分頁' });
     for (const [name, title] of [
-      ['GPU 群組', 'GPU 群組'],
-      ['節點', '叢集節點'],
-      ['GPU 使用對照', 'GPU Dashboard'],
-      ['排隊順序', '佇列順序'],
-      ['共享設定', '共享排程設定'],
+      ['GPU 群組', '運算資源'],
+      ['節點', '運算資源'],
+      ['GPU 使用對照', '運算資源'],
+      ['排隊順序', '排隊與共享設定'],
+      ['共享設定', '排隊與共享設定'],
     ]) {
       await user.click(within(screen.getByRole('navigation', { name: '運算資源分頁' })).getByRole('link', { name }));
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument();

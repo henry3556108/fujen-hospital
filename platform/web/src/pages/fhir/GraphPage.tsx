@@ -29,7 +29,7 @@ function GraphSvg({ graph }: { graph: FhirGraph }) {
   const byId = new Map<string, GraphNode>(graph.nodes.map((n) => [n.id, n]));
   return (
     <svg
-      className="fhir-graph card"
+      className="fhir-graph"
       viewBox={`0 0 ${SIZE} ${SIZE}`}
       role="img"
       aria-labelledby="graph-title graph-desc"
@@ -101,8 +101,8 @@ export function GraphPage() {
   }
 
   return (
-    <div className="section">
-      <form aria-label="查詢關聯圖" className="field field--inline" onSubmit={load}>
+    <div className="stack">
+      <form aria-label="查詢關聯圖" className="fhir-search" onSubmit={load}>
         <label htmlFor="graph-patient">病歷號</label>
         <input
           id="graph-patient"
@@ -126,7 +126,9 @@ export function GraphPage() {
               </li>
             ))}
           </ul>
-          <GraphSvg graph={graph} />
+          <div className="ui-card fhir-graph-card">
+            <GraphSvg graph={graph} />
+          </div>
           {graph.truncated && <p className="text-muted">資源太多，只顯示每種型別的前 200 筆。</p>}
           <div className="table-wrap">
             <table aria-label="關聯清單">

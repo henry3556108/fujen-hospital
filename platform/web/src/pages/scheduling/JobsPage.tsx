@@ -96,7 +96,7 @@ export function JobsPage() {
   const list = [...(jobs.data ?? [])].sort((a, b) => b.id - a.id);
 
   return (
-      <SchedulingPage title="測試工作">
+    <SchedulingPage title="運算資源" subtitle="測試工作：送出示範工作，查看排隊與執行情形">
       <ProjectPicker id="jobs-project" label="送出到專案" />
       <p className="text-muted">
         專案「{project.name}」的排程工作。訓練工作進入專案綁定 GPU 群組的佇列，資料清洗工作進入 CPU 佇列。

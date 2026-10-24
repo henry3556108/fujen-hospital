@@ -1,29 +1,17 @@
 /* FHIR 頁面：只引用 tokens.css 的語意 token，不寫色碼。 */
 .fhir-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .fhir-stat {
-  min-width: 9rem;
-  padding: 0.75rem 1rem;
+  min-height: 4.5rem;
 }
 
-.fhir-stat__value {
-  display: block;
-  font-size: 1.5rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.fhir-stat__label {
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-}
 
 .fhir-textarea {
   width: 100%;
@@ -120,4 +108,266 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.875rem;
   overflow-wrap: anywhere;
+}
+
+/* ---------- 改版（設計稿 B24～B28） ---------- */
+.fhir-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.fhir-head-actions .field {
+  margin: 0;
+}
+
+.fhir-source {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.fhir-scope {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-small);
+}
+
+/* 病歷號查詢列 */
+.fhir-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+}
+
+.fhir-search label {
+  font-weight: 600;
+}
+
+.fhir-search .input {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+}
+
+/* 主表＋右側關聯／結果兩欄 */
+.fhir-split {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1279px) {
+  .fhir-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fhir-type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fhir-type__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.fhir-type__icon--Patient {
+  color: var(--color-action-primary);
+}
+
+.fhir-type__icon--Encounter {
+  color: var(--color-status-success-icon);
+}
+
+.fhir-type__icon--Observation {
+  color: var(--color-status-warning-icon);
+}
+
+.fhir-row--selected > * {
+  background: var(--color-bg-selected);
+}
+
+.fhir-row--static > * {
+  color: var(--color-text-muted);
+}
+
+.fhir-card-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--font-size-small);
+}
+
+.fhir-more {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+/* 病人中心關聯摘要 */
+.fhir-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: var(--space-4) 0;
+}
+
+.fhir-tree__node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 8rem;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: var(--font-size-small);
+}
+
+.fhir-tree__node--Patient {
+  background: var(--color-bg-selected);
+  border-color: var(--color-border-selected);
+}
+
+.fhir-tree__node--Encounter {
+  background: var(--color-status-success-bg);
+  border-color: var(--color-status-success-border);
+}
+
+.fhir-tree__node--Observation {
+  background: var(--color-status-warning-bg);
+  border-color: var(--color-status-warning-border);
+}
+
+.fhir-tree__links {
+  width: 50%;
+  height: var(--space-6);
+  border: 2px solid var(--color-border-strong);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  margin-top: var(--space-3);
+  position: relative;
+}
+
+.fhir-tree__links::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: calc(-1 * var(--space-3) - 2px);
+  height: var(--space-3);
+  border-left: 2px solid var(--color-border-strong);
+}
+
+.fhir-tree__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+/* 來源與對應 */
+.fhir-run-form {
+  margin-top: var(--space-4);
+}
+
+.fhir-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.fhir-run-form__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.fhir-subhead {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-card-title);
+}
+
+.fhir-caption {
+  caption-side: top;
+  padding: var(--space-2) 0;
+  text-align: left;
+  font-weight: 600;
+}
+
+.fhir-last {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  font-size: var(--font-size-small);
+}
+
+.fhir-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.fhir-form-actions--stack {
+  flex-direction: column;
+}
+
+/* 流量告警 */
+.fhir-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+.fhir-filter .field {
+  margin: 0;
+}
+
+.fhir-filter__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.fhir-over {
+  color: var(--color-status-warning-text);
+  font-weight: 600;
+}
+
+/* Gateway */
+.fhir-link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fhir-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.fhir-lock .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.fhir-graph-card {
+  padding: var(--space-4);
 }

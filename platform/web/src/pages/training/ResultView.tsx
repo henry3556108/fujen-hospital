@@ -7,7 +7,9 @@ import { BarChart } from '../../components/charts/BarChart';
 import { LineChart } from '../../components/charts/LineChart';
 import { ScatterChart } from '../../components/charts/ScatterChart';
 import { formatNumber } from '../../components/format';
-import { isImageKind, type Charts, type TrainingApi, type TrainingRun } from './api';
+import { isImageKind, type Charts, type RunCharts as RunChartsData, type TrainingApi, type TrainingRun } from './api';
+import { Icon } from '../../components/Icon';
+import { MetricTiles } from './MetricTiles';
 import {
   METRICS,
   SPLIT_NAMES,
@@ -24,6 +26,8 @@ import {
   baselineSentence,
   positiveSentence,
   headlineNumber,
+  confusionCounts,
+  countText,
   type Source,
 } from './metrics';
 import { downloadAndSave } from './ModelExport';
@@ -31,10 +35,30 @@ import { downloadAndSave } from './ModelExport';
 const KEY_METRICS = ['accuracy', 'auc', 'sensitivity', 'specificity', 'r2', 'rmse', 'mae', 'dice', 'pixel_accuracy', 'mean_iou'];
 const BASELINES = ['baseline_accuracy', 'baseline_rmse'];
 
-/** actions：結論與重點指標下方的按鈕（例如「用這個模型預測病人」），不必捲到圖表下面才看到。 */
-export function ResultView({ api, run, actions }: { api: TrainingApi; run: TrainingRun; actions?: ReactNode }) {
+/** 這次訓練的圖表資料（charts.json）。影像訓練讀不到時當作沒有圖表，不顯示錯誤。 */
+export function useRunCharts(api: TrainingApi, run: Pick<TrainingRun, 'id' | 'kind' | 'status'>) {
+  return useResource<RunChartsData | null>(
+    () => (run.status !== 'succeeded' ? Promise.resolve(null) : api.charts(run.id).catch((err: unknown) => {
+      if (isImageKind(run.kind)) return null;
+      throw err;
+    })),
+    [api, run.id, run.status],
+  );
+}
+
+/** 混淆矩陣的計數（F3），陽性類別依圖表或指標的 labels.positive。 */
+export function countsOf(run: Pick<TrainingRun, 'metrics'>, charts: Charts | null | undefined) {
+  const labels = run.metrics?.labels as { positive?: unknown } | undefined;
+  const positive = charts?.roc?.positive ?? (labels?.positive != null ? String(labels.positive) : null);
+  return confusionCounts(charts?.confusion_matrix, positive);
+}
+
+/** actions：結論與重點指標下方的按鈕（例如「用這個模型預測病人」），不必捲到圖表下面才看到。hideReport：外層已有「下載報告」。 */
+export function ResultView({ api, run, actions, hideReport }: { api: TrainingApi; run: TrainingRun; actions?: ReactNode; hideReport?: boolean }) {
   const [done, setDone] = useState('');
   const [error, setError] = useState<unknown>(null);
+  const charts = useRunCharts(api, run);
+  const counts = countsOf(run, charts.data?.charts);
   const splits = splitScores(run);
   const cv = cvOf(run);
   const conclusion = verdict(run);
@@ -62,9 +86,12 @@ export function ResultView({ api, run, actions }: { api: TrainingApi; run: Train
     <section className="stack" aria-labelledby={`result-${run.id}`}>
       <div className="training-head">
         <h3 id={`result-${run.id}`}>模型好不好？</h3>
-        <button type="button" className="btn btn--secondary btn--small" onClick={() => void report()}>
-          下載報表（可列印）
-        </button>
+        {hideReport ? null : (
+          <button type="button" className="btn btn--secondary btn--small" onClick={() => void report()}>
+            <Icon name="download" />
+            下載報表（可列印）
+          </button>
+        )}
       </div>
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
@@ -88,16 +115,19 @@ export function ResultView({ api, run, actions }: { api: TrainingApi; run: Train
               ? `以下數字是 ${cv.folds} 折平均（${cv.rows} 人輪流當檢查資料）。`
               : `以下是${SPLIT_NAMES[source.key] ?? source.label}${rowsOf(run, source.key) ? `（${rowsOf(run, source.key)} 人，訓練時沒看過）` : ''}的結果。`}
           </p>
-          <ul className="metric-cards" aria-label={`訓練 #${run.id} 的重點指標`}>
-            {keys.map((k) => (
-              <li key={k} className="metric-card">
-                <span className="metric-card__label">{metricLabel(k)}</span>
-                <span className="metric-card__value">{k === conclusion?.name ? headlineNumber(k, main[k]) : formatMetric(k, main[k])}</span>
-                {cardSentence(run, source, k, main[k]) ? <span className="metric-card__plain">{cardSentence(run, source, k, main[k])}</span> : null}
-                <span className="metric-card__help">{METRICS[k]?.help}</span>
-              </li>
-            ))}
-          </ul>
+          <MetricTiles
+            label={`訓練 #${run.id} 的重點指標`}
+            tiles={keys.map((k) => ({
+              name: k,
+              label: metricLabel(k),
+              value: main[k],
+              text: k === conclusion?.name ? headlineNumber(k, main[k]) : formatMetric(k, main[k]),
+              // K 折平均不是同一份資料算的，不顯示計數
+              count: source.key === charts.data?.charts?.subset ? countText(k, main[k], counts) : '',
+              plain: cardSentence(run, source, k, main[k]) || undefined,
+              help: METRICS[k]?.help,
+            }))}
+          />
           {baseline ? <p className="metric-baseline" data-testid="baseline">{baseline}</p> : null}
           {positiveSentence(run) ? <p className="metric-baseline" data-testid="positive-class">{positiveSentence(run)}</p> : null}
         </>
@@ -121,7 +151,7 @@ export function ResultView({ api, run, actions }: { api: TrainingApi; run: Train
           <AllMetrics run={run} />
         </div>
       </details>
-      {!isImageKind(run.kind) && run.status === 'succeeded' ? <RunCharts api={api} run={run} /> : null}
+      {run.status === 'succeeded' ? <RunCharts run={run} charts={charts} /> : null}
     </section>
   );
 }
@@ -212,12 +242,14 @@ const SUBSET_NOTE: Record<Charts['subset'], string> = {
   train: '沒有測試集與驗證集，以下圖表以訓練資料計算，結果可能過度樂觀',
 };
 
-function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
-  const charts = useResource(() => api.charts(run.id), [api, run.id]);
+function RunCharts({ run, charts }: { run: TrainingRun; charts: ReturnType<typeof useRunCharts> }) {
   if (charts.error) return <ApiErrorAlert error={charts.error} />;
-  if (!charts.data) return <p role="status">圖表載入中…</p>;
-  const c = charts.data.charts;
-  if (!c) return <p className="text-muted">這次訓練沒有圖表資料（快速測試或舊版訓練只提供指標）。</p>;
+  if (charts.loading && !charts.data) return <p role="status">圖表載入中…</p>;
+  const c = charts.data?.charts;
+  if (!c) {
+    // 影像分割、偵測與快速測試沒有圖表；影像的不特別說明
+    return isImageKind(run.kind) ? null : <p className="text-muted">這次訓練沒有圖表資料（快速測試或舊版訓練只提供指標）。</p>;
+  }
   const target = run.config.tabular?.target ?? '目標';
   return (
     <div className="stack" aria-label={`訓練 #${run.id} 的圖表`} role="group">
@@ -225,9 +257,10 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
       <p className="text-muted">
         {SUBSET_NOTE[c.subset]}（{c.rows} 筆）。
       </p>
+      <div className="trn-chart-grid">
       {c.confusion_matrix ? <ConfusionMatrix runId={run.id} {...c.confusion_matrix} /> : null}
       {c.roc ? (
-        <div>
+        <div className="trn-chart-card">
           <LineChart
             title={`ROC 曲線（${SPLIT_NAMES[c.subset]}，陽性＝「${c.roc.positive}」）`}
             series={[{ name: '模型', points: c.roc.points }]}
@@ -241,12 +274,12 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
       ) : null}
       {c.regression ? (
         <>
-          <div>
+          <div className="trn-chart-card">
             <ScatterChart title={`預測值與實際值${c.regression.sampled ? `（共 ${c.regression.total} 筆，畫出 ${c.regression.points.length} 筆）` : ''}`}
               points={c.regression.points} xLabel={`實際 ${target}`} yLabel={`預測 ${target}`} />
             <p className="field__hint">點越貼近從左下到右上的對角線（預測＝實際）越好。</p>
           </div>
-          <div>
+          <div className="trn-chart-card">
             <BarChart
               title="殘差分布（實際值 − 預測值）"
               bars={c.regression.residuals.map((b) => ({ label: formatNumber(b.start, 3), value: b.count, detail: `${formatNumber(b.start, 3)}～${formatNumber(b.end, 3)}` }))}
@@ -258,7 +291,7 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
         </>
       ) : null}
       {c.feature_importance?.items.length ? (
-        <div>
+        <div className="trn-chart-card">
           <BarChart
             title="特徵重要性（打亂後分數下降多少）"
             horizontal
@@ -271,6 +304,7 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
           </p>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
@@ -278,7 +312,7 @@ function RunCharts({ api, run }: { api: TrainingApi; run: TrainingRun }) {
 function ConfusionMatrix({ runId, labels, matrix }: { runId: number; labels: string[]; matrix: number[][] }) {
   const peak = Math.max(1, ...matrix.flat());
   return (
-    <figure className="chart">
+    <figure className="chart trn-chart-card">
       <figcaption className="chart__title">混淆矩陣</figcaption>
       <p className="field__hint">每一列是實際類別、每一欄是模型預測；對角線（左上到右下）是預測正確的人數，越集中在對角線越好。</p>
       <div className="table-wrap">

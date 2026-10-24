@@ -3,36 +3,72 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
+import { Icon } from '../../components/Icon';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useProjectAccess } from '../data/access';
 import { ImagingNav } from './ImagingNav';
-import { countsText, IMPORT_TONE, ImportResult } from './ImportResult';
+import { countsText, IMPORT_TONE, ImportResult, RETRY_SOURCE } from './ImportResult';
 import { IMPORT_KIND_LABELS, IMPORT_STATUS_LABELS, type ImportJob } from './types';
 
+/** 匯入結果（B05）：一次匯入的摘要與逐檔原因；檔案已不在瀏覽器裡，「重新上傳」開加入資料重新選檔。 */
 function JobDetail({ jobId }: { jobId: string }) {
   const { api, project } = useSession();
+  const { can } = useProjectAccess();
   const job = useResource(() => api.get<ImportJob>(`/api/projects/${project!.id}/imaging/jobs/${jobId}`), [project!.id, jobId]);
+  const j = job.data;
   return (
     <>
+      <p className="rd-crumbs">
+        <Link to="/data/imaging/jobs">
+          <Icon name="chevron-left" /> 回匯入紀錄
+        </Link>
+      </p>
+      <div className="rd-section-head">
+        <div>
+          <h2>匯入結果</h2>
+          <p className="text-muted">這次影像匯入的結果與逐檔原因：哪些新增、哪些重複略過、哪些需要重新上傳。</p>
+        </div>
+      </div>
       <ApiErrorAlert error={job.error} />
-      {job.loading && !job.data && <p role="status">載入中…</p>}
-      {job.data && !job.error && <ImportResult job={job.data} title={`匯入工作 ${job.data.id}`} />}
+      {job.loading && !j && <p role="status">載入中…</p>}
+      {j && !job.error && (
+        <ImportResult
+          job={j}
+          title={`匯入工作 ${j.id}`}
+          retryHref={can('labeling') ? `/data/imaging/import${RETRY_SOURCE[j.kind] === 'upload' ? '' : `?source=${RETRY_SOURCE[j.kind]}`}` : undefined}
+          actions={
+            <Link to="/data/imaging" className="btn btn--primary">
+              查看匯入的影像 <Icon name="arrow" />
+            </Link>
+          }
+        />
+      )}
     </>
   );
 }
 
-/** 匯入紀錄：每次匯入的結果與逐檔原因（含院內影像系統取像）。 */
+/** 匯入紀錄：每次匯入的結果（含院內影像系統取像）；點「逐檔結果」看單次匯入結果頁。 */
 export function ImportJobsPage() {
   const { api, project } = useSession();
   const { jobId } = useParams();
   const jobs = useResource(() => api.get<ImportJob[]>(`/api/projects/${project!.id}/imaging/jobs`), [project!.id]);
 
+  if (jobId) {
+    return (
+      <>
+        <ImagingNav />
+        <JobDetail key={jobId} jobId={jobId} />
+      </>
+    );
+  }
+
   return (
     <>
       <ImagingNav />
-      <div className="page-head">
+      <div className="rd-section-head">
         <h2>匯入紀錄</h2>
         <button type="button" className="btn btn--secondary" onClick={jobs.reload} disabled={jobs.loading}>
-          重新整理
+          <Icon name="refresh" /> 重新整理
         </button>
       </div>
       <ApiErrorAlert error={jobs.error} />
@@ -60,7 +96,7 @@ export function ImportJobsPage() {
               </tr>
             )}
             {jobs.data?.map((j) => (
-              <tr key={j.id} aria-current={String(j.id) === jobId ? 'true' : undefined}>
+              <tr key={j.id}>
                 <th scope="row" className="num">
                   {j.id}
                 </th>
@@ -86,7 +122,6 @@ export function ImportJobsPage() {
           </tbody>
         </table>
       </div>
-      {jobId && <JobDetail key={jobId} jobId={jobId} />}
     </>
   );
 }

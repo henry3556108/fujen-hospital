@@ -129,13 +129,21 @@ export function PacsPage({ embedded = false }: { embedded?: boolean }) {
       <ApiErrorAlert error={retrieveError} />
       {job && (
         <>
-          <ImportResult job={job} title="PACS 取像結果" />
-          <p>
-            <Link to="/labeling" className="btn btn--primary">
-              開始標註
-            </Link>{' '}
-            <Link to="/data/imaging">到影像清單查看</Link>
-          </p>
+          <ImportResult
+            job={job}
+            title="PACS 取像結果"
+            actions={
+              <>
+                <Link to="/labeling" className="btn btn--secondary">
+                  開始標註
+                </Link>
+                {/* 舊名稱「到影像清單查看」保留為無障礙名稱（驗收腳本沿用） */}
+                <Link to="/data/imaging" className="btn btn--primary" aria-label="到影像清單查看">
+                  查看匯入的影像
+                </Link>
+              </>
+            }
+          />
         </>
       )}
 

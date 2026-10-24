@@ -7,7 +7,7 @@ describe('FHIR 資料交換（WP6）', () => {
   it('Admin 從帳號管理的分頁進入，看到各資源筆數', async () => {
     const { user } = await renderApp('/admin/projects');
     await user.click(within(await screen.findByRole('navigation', { name: '系統管理選單' })).getByRole('link', { name: '資料交換' }));
-    expect(await screen.findByRole('heading', { level: 1, name: '醫療資料交換（FHIR）' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '醫療資料交換' })).toBeInTheDocument();
     const stats = await screen.findByRole('list', { name: '資源筆數' });
     expect(await within(stats).findByText('2')).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: 'Patient 列表' });
@@ -28,13 +28,13 @@ describe('FHIR 資料交換（WP6）', () => {
     for (const [enabled, methods, threshold] of settings) {
       const { user, unmount } = await renderApp('/fhir/gateway');
       const form = await screen.findByRole('form', { name: '修改路由 fhir-rest' });
-      const toggle = within(form).getByRole('checkbox', { name: '啟用這條路由' });
-      if ((toggle as HTMLInputElement).checked !== enabled) await user.click(toggle);
+      const toggle = within(form).getByRole('switch', { name: '啟用這條路由' });
+      if ((toggle.getAttribute('aria-checked') === 'true') !== enabled) await user.click(toggle);
       for (const m of ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']) {
         const box = within(form).getByRole('checkbox', { name: m }) as HTMLInputElement;
         if (box.checked !== methods.includes(m)) await user.click(box);
       }
-      const input = within(form).getByLabelText(/流量告警門檻/);
+      const input = within(form).getByLabelText(/每人每分鐘門檻/);
       await user.clear(input);
       await user.type(input, threshold);
       await user.click(within(form).getByRole('button', { name: '儲存路由設定' }));
@@ -109,13 +109,13 @@ describe('FHIR 資料交換（WP6）', () => {
     const form = screen.getByRole('form', { name: '執行轉換' });
     await user.selectOptions(within(form).getByLabelText('來源'), 'encounters');
     await user.selectOptions(within(form).getByLabelText('對應規則'), 'csv-encounter');
-    await user.click(within(form).getByRole('button', { name: '執行' }));
-    expect(await within(form).findByText(/成功：讀取 20 筆，寫入 Encounter 20/)).toBeInTheDocument();
+    await user.click(within(form).getByRole('button', { name: '執行轉換' }));
+    expect(await screen.findByText(/成功：讀取 20 筆，寫入 Encounter 20/)).toBeInTheDocument();
 
     await user.selectOptions(within(form).getByLabelText('對應規則'), 'sql-patient');
-    await user.click(within(form).getByRole('button', { name: '執行' }));
-    expect(await within(form).findByText(/資料不合格，整批未寫入/)).toBeInTheDocument();
-    expect(within(form).getByText(/與來源的 csv 不符/)).toBeInTheDocument();
+    await user.click(within(form).getByRole('button', { name: '執行轉換' }));
+    expect(await screen.findByText(/執行 #\d+：資料不合格，整批未寫入/)).toBeInTheDocument();
+    expect(screen.getByText(/與來源的 csv 不符/)).toBeInTheDocument();
     expect(within(screen.getByRole('table', { name: '執行紀錄' })).getAllByRole('row')).toHaveLength(3);
   });
 

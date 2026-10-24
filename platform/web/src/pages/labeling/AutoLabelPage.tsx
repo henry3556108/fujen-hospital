@@ -3,11 +3,12 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
+import { Card, PageHeader } from '../../components/ui';
 import { useLabelingApi, type LabelingApi } from './api';
 import type { InstanceInfo } from './dicomweb';
 import { formatDate } from './parts';
 import { KIND_LABELS, type Annotation, type AutolabelRun } from './types';
-import { LabelingNav } from './LabelingNav';
+import { LABELING_SUBTITLE, LabelingNav } from './LabelingNav';
 import './labeling.css';
 
 export function AutoLabelPage() {
@@ -15,7 +16,7 @@ export function AutoLabelPage() {
   if (!labeling) {
     return (
       <>
-        <h1>影像標註</h1>
+        <PageHeader title="影像標註" subtitle={LABELING_SUBTITLE} />
         <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>
       </>
     );
@@ -76,10 +77,9 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
 
   return (
     <>
-      <h1>影像標註</h1>
-      <LabelingNav />
-      <h2>自動標註</h2>
-      <p className="text-muted">把影像送給自動標註服務，結果以「待確認」的草稿存回平台，並列入待處理清單。草稿要有人在標註工作台確認或修正後，才會用在訓練。</p>
+      <PageHeader title="影像標註" subtitle={LABELING_SUBTITLE}>
+        <LabelingNav />
+      </PageHeader>
       <ApiErrorAlert error={models.error ?? summary.error} />
       {imageError ? (
         <Alert tone="error" title="無法載入影像">
@@ -87,8 +87,11 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
         </Alert>
       ) : null}
 
-      <form className="card section" aria-label="送出自動標註" onSubmit={submit}>
-        <h2>送出自動標註</h2>
+      <form className="ui-card lb-auto-form section" aria-label="送出自動標註" onSubmit={submit}>
+        <h2 className="ui-card__title">送出自動標註</h2>
+        <p className="text-muted">
+          把影像送給自動標註服務，結果以「待確認」的草稿存回平台，並列入待處理清單。草稿要有人在標註工作台確認或修正後，才會用在訓練。
+        </p>
         <ApiErrorAlert error={error} />
         <div className="form-grid">
           <div className="field">
@@ -136,11 +139,10 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
         </div>
       ) : null}
 
-      <section className="section" aria-labelledby="runs-title">
-        <h2 id="runs-title">執行紀錄</h2>
+      <Card title="執行紀錄" flush>
         <ApiErrorAlert error={runs.error} />
         {runs.data && runs.data.length === 0 ? (
-          <p className="text-muted">還沒有自動標註紀錄。</p>
+          <p className="text-muted lb-card-note">還沒有自動標註紀錄。</p>
         ) : runs.data ? (
           <div className="table-wrap">
             <table aria-label="自動標註執行紀錄">
@@ -165,7 +167,11 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
                     <td>{r.created_at.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC')}</td>
                     <td>{r.duration_ms} 毫秒</td>
                     <td>
-                      <Link to={`/labeling/studies/${r.study_instance_uid}?annotation=${r.annotation_id}`} aria-label={`開啟自動標註 #${r.id} 的結果`}>
+                      <Link
+                        className="btn btn--secondary btn--small"
+                        to={`/labeling/studies/${r.study_instance_uid}?annotation=${r.annotation_id}`}
+                        aria-label={`開啟自動標註 #${r.id} 的結果`}
+                      >
                         開啟編輯
                       </Link>
                     </td>
@@ -175,7 +181,7 @@ function AutoLabel({ labeling }: { labeling: LabelingApi }) {
             </table>
           </div>
         ) : null}
-      </section>
+      </Card>
     </>
   );
 }

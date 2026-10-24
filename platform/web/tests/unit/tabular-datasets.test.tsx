@@ -153,12 +153,12 @@ describe('預覽與欄位顯示／隱藏', () => {
     const { user } = await renderApp('/data/tabular/2/view', 'vw01');
     expect(await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' })).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: '資料預覽' });
-    expect(screen.getByText('第 1–50 列，共 100 列')).toBeInTheDocument();
+    expect(screen.getByText('顯示第 1–50 筆，共 100 筆')).toBeInTheDocument();
     const rows = bodyRows(table);
     expect(rows).toHaveLength(50);
     expect(rows[0]).toEqual(['1', 'P10001', '38', 'M', '23.1', '90', '50', '78.6', 'current', '0', '2,180', '0', '（空）']);
     await user.click(screen.getByRole('button', { name: '下一頁' }));
-    await screen.findByText('第 51–100 列，共 100 列');
+    await screen.findByText('顯示第 51–100 筆，共 100 筆');
     expect(bodyRows(screen.getByRole('table', { name: '資料預覽' }))[0][0]).toBe('51');
     expect(screen.getByRole('button', { name: '下一頁' })).toBeDisabled();
   });

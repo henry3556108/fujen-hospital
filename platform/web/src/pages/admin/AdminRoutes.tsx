@@ -1,5 +1,5 @@
 import { Navigate, Outlet, Route } from 'react-router-dom';
-import { Tabs } from '../../components/Tabs';
+import { PageHeader, Tabs } from '../../components/ui';
 import { fhirRoutes } from '../fhir/FhirLayout';
 import { LlmApprovalsPanel } from '../llm/routes';
 import { MonitoringPage } from '../scheduling/MonitoringPage';
@@ -10,21 +10,23 @@ import { DashboardPage } from './DashboardPage';
 import { projectDetailRoutes } from './ProjectDetailPage';
 import { ProjectsPage } from './ProjectsPage';
 import { UsersPage } from './UsersPage';
+import './admin.css';
 
-/** 稽核與審核：稽核紀錄／模型下載審核 */
+/** 稽核與審核：稽核紀錄／模型下載審核（設計稿 B20） */
 function ReviewLayout() {
   return (
-    <>
-      <h1>稽核與審核</h1>
-      <Tabs
-        label="稽核與審核分頁"
-        items={[
-          { to: '/admin/audit', label: '稽核紀錄' },
-          { to: '/admin/approvals', label: '模型下載審核' },
-        ]}
-      />
+    <div className="adm-page">
+      <PageHeader title="稽核與審核" subtitle="查到誰在何時存取或修改什麼，再開詳細內容；模型下載申請在這裡審核。">
+        <Tabs
+          label="稽核與審核分頁"
+          items={[
+            { to: '/admin/audit', label: '稽核紀錄' },
+            { to: '/admin/approvals', label: '模型下載審核' },
+          ]}
+        />
+      </PageHeader>
       <Outlet />
-    </>
+    </div>
   );
 }
 

@@ -3,7 +3,6 @@ import { NotFoundPage } from '../SimplePages';
 import { AllowlistPage } from './AllowlistPage';
 import { FilesPage } from './FilesPage';
 import { ImportJobsPage } from './ImportJobsPage';
-import { ImportPage } from './ImportPage';
 import { PacsPage } from './PacsPage';
 import { StudiesPage } from './StudiesPage';
 import { StudyDetailPage } from './StudyDetailPage';
@@ -14,7 +13,7 @@ export function ImagingRoutes() {
     <Routes>
       <Route index element={<StudiesPage />} />
       <Route path="studies/:studyUid" element={<StudyDetailPage />} />
-      <Route path="import" element={<ImportPage />} />
+      <Route path="import" element={<StudiesPage adding />} />
       <Route path="jobs" element={<ImportJobsPage />} />
       <Route path="jobs/:jobId" element={<ImportJobsPage />} />
       <Route path="files" element={<FilesPage />} />

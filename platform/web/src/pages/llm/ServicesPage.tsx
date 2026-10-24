@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
-import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { useUserLookup } from '../../api/userLookup';
 import { UserPicker } from '../../components/UserPicker';
+import { Alert, ApiErrorAlert, Badge, Card, EmptyState, InfoList, SidePanel, SplitLayout } from '../../components/ui';
 import { PARAM_FIELDS } from './api';
+import { LlmHeader } from './LlmLayout';
 import { useLlm } from './useLlm';
 
 export function ServicesPage() {
@@ -30,52 +31,38 @@ export function ServicesPage() {
     }
   }
 
-  return (
-    <>
-      <ApiErrorAlert error={services.error} />
-      <div className="table-wrap section">
-        <table aria-label="已發布的服務">
-          <thead><tr><th>名稱</th><th>端點</th><th>授權帳號</th><th>狀態</th><th>操作</th></tr></thead>
-          <tbody>
-            {(services.data ?? []).map((s) => (
-              <tr key={s.id}>
-                <th scope="row">{s.name}</th><td><code>{s.endpoint}</code></td><td>{s.grants.join('、') || '（無）'}</td>
-                <td>{s.enabled ? '啟用' : '停用'}</td>
-                <td className="row-actions">
-                  <button type="button" className="btn btn--small btn--secondary" onClick={() => void llm!.setEnabled(s.id, !s.enabled).then(services.reload, setError)}>{s.enabled ? '停用' : '啟用'}</button>
-                  <button type="button" className="btn btn--small btn--danger" onClick={() => void llm!.unpublish(s.id).then(services.reload, setError)}>取消發布</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <form aria-label="發布為內部服務" className="card section" onSubmit={publish} noValidate>
-        <h2>發布為內部服務</h2>
-        <p className="text-muted">發布時使用你目前的生成參數。只有授權名單內的帳號可以經 Gateway 呼叫。</p>
+  const kbName = (id: number | null) => (id === null ? '不使用' : (kbs.data ?? []).find((k) => k.id === id)?.name ?? `#${id}`);
+
+  const side = (
+    <SidePanel title="發布為內部服務">
+      <form aria-label="發布為內部服務" className="stack" onSubmit={publish} noValidate>
+        <p className="text-muted">發布時使用你目前的回答設定。只有授權名單內的帳號可以經 Gateway 呼叫。</p>
         {done && <Alert tone="success">{done}</Alert>}
         <ApiErrorAlert error={error} />
-        <div className="form-grid">
-          <div className="field">
-            <label htmlFor="svc-slug">服務代號（小寫英數字與 -）</label>
-            <input id="svc-slug" className="input" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
-          </div>
-          <div className="field">
-            <label htmlFor="svc-name">名稱</label>
-            <input id="svc-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className="field">
-            <label htmlFor="svc-kb">參考文件</label>
-            <select id="svc-kb" className="select" value={form.kb} onChange={(e) => setForm({ ...form, kb: e.target.value })}>
-              <option value="">不使用</option>
-              {(kbs.data ?? []).map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="svc-grants">授權帳號（以逗號分隔）</label>
-            <UserPicker id="svc-grants" value={form.grants} lookup={lookup} onChange={(grants) => setForm({ ...form, grants })} />
-          </div>
+        <div className="field">
+          <label htmlFor="svc-slug">服務代號（小寫英數字與 -）</label>
+          <input id="svc-slug" className="input" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
         </div>
+        <div className="field">
+          <label htmlFor="svc-name">名稱</label>
+          <input id="svc-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div className="field">
+          <label htmlFor="svc-kb">參考文件</label>
+          <select id="svc-kb" className="select" value={form.kb} onChange={(e) => setForm({ ...form, kb: e.target.value })}>
+            <option value="">不使用</option>
+            {(kbs.data ?? []).map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="svc-grants">授權帳號（以逗號分隔）</label>
+          <UserPicker id="svc-grants" value={form.grants} lookup={lookup} onChange={(grants) => setForm({ ...form, grants })} />
+        </div>
+        <h3 className="llm-subhead">發布內容摘要</h3>
         <PublishSummary
           model={(catalog.data ?? []).filter((m) => m.loaded).map((m) => m.name).join('、') || '（目前沒有載入的模型）'}
           docs={(kbs.data ?? []).find((k) => String(k.id) === form.kb)?.name ?? '不使用'}
@@ -83,8 +70,62 @@ export function ServicesPage() {
           params={params.data ? PARAM_FIELDS.map((f) => `${f.label} ${params.data![f.key]}`).join('、') : '—'}
           grants={form.grants.split(/[,，\s]+/).filter(Boolean)}
         />
-        <button type="submit" className="btn btn--primary">發布</button>
+        <button type="submit" className="btn btn--primary llm-block-btn">
+          發布
+        </button>
       </form>
+    </SidePanel>
+  );
+
+  return (
+    <>
+      <LlmHeader title="文件問答" subtitle="把目前的模型、參考文件與回答設定發布成院內服務，只開放給指定帳號呼叫。" />
+      <SplitLayout side={side}>
+        <ApiErrorAlert error={services.error} />
+        <Card title="已發布的服務" flush>
+          {services.data && services.data.length === 0 ? (
+            <EmptyState icon="server" title="還沒有發布的服務" description="在右側填好服務代號、名稱與授權帳號後按「發布」。" />
+          ) : (
+            <div className="table-wrap">
+              <table aria-label="已發布的服務">
+                <thead>
+                  <tr>
+                    <th>名稱</th>
+                    <th>端點</th>
+                    <th>參考文件</th>
+                    <th>授權帳號</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(services.data ?? []).map((s) => (
+                    <tr key={s.id}>
+                      <th scope="row">{s.name}</th>
+                      <td>
+                        <code>{s.endpoint}</code>
+                      </td>
+                      <td>{kbName(s.kb_id)}</td>
+                      <td>{s.grants.join('、') || '（無）'}</td>
+                      <td>
+                        <Badge tone={s.enabled ? 'success' : 'neutral'}>{s.enabled ? '啟用' : '停用'}</Badge>
+                      </td>
+                      <td className="row-actions">
+                        <button type="button" className="btn btn--small btn--secondary" onClick={() => void llm!.setEnabled(s.id, !s.enabled).then(services.reload, setError)}>
+                          {s.enabled ? '停用' : '啟用'}
+                        </button>
+                        <button type="button" className="btn btn--small btn--danger" onClick={() => void llm!.unpublish(s.id).then(services.reload, setError)}>
+                          取消發布
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </SplitLayout>
     </>
   );
 }
@@ -92,17 +133,16 @@ export function ServicesPage() {
 /** 發布前的摘要：這次會用的模型、參考文件、回答規則、生成參數與授權對象，避免發布到另一組設定。 */
 export function PublishSummary({ model, docs, rules, params, grants }: { model: string; docs: string; rules: string; params: string; grants: string[] }) {
   return (
-    <dl className="training-facts" data-testid="publish-summary" aria-label="發布內容摘要">
-      <dt>模型</dt>
-      <dd>{model}</dd>
-      <dt>參考文件</dt>
-      <dd>{docs}</dd>
-      <dt>回答規則（範本）</dt>
-      <dd>{rules || '（沒有設定）'}</dd>
-      <dt>生成參數</dt>
-      <dd>{params}</dd>
-      <dt>授權對象</dt>
-      <dd>{grants.length ? grants.join('、') : '（還沒有指定）'}</dd>
-    </dl>
+    <div data-testid="publish-summary" aria-label="發布內容摘要" role="group">
+      <InfoList
+        items={[
+          { label: '模型', value: model },
+          { label: '參考文件', value: docs },
+          { label: '回答規則（System Prompt）', value: rules || '（沒有設定）' },
+          { label: '生成參數', value: params },
+          { label: '授權對象', value: grants.length ? grants.join('、') : '（還沒有指定）' },
+        ]}
+      />
+    </div>
   );
 }

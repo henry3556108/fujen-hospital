@@ -14,6 +14,7 @@ import { parseUsers, useTrainingApi, type Deployment, type TrainingApi } from '.
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
 import { useUserLookup } from '../../api/userLookup';
 import { UserPicker } from '../../components/UserPicker';
+import { Card, CodeBlock } from '../../components/ui';
 import { TryCall } from './TryCall';
 import { TryPredict } from './TryPredict';
 import '../training/training.css';
@@ -358,17 +359,111 @@ function sharedMessage(d: Deployment): string {
   return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「使用模型」，打開模型「${titleOf(d)}」就能預測。` + outsideNote(d);
 }
 
-/** 呼叫方式範例：結構式送 JSON rows，影像以 multipart 上傳 files。 */
-function CallExample({ deployment, model }: { deployment: Deployment; model?: Model }) {
+/** 呼叫方式範例（curl）：結構式送 JSON rows，影像以 multipart 上傳 files。 */
+export function curlExample(deployment: Pick<Deployment, 'endpoint'>, model?: Model): string {
   const image = model ? isImageModel(model.kind) : false;
   const features = model?.card.features ?? ['欄位名稱'];
-  const example = image
+  return image
     ? `curl -X POST "$GATEWAY${deployment.endpoint}" \\\n  -H "Authorization: Bearer $TOKEN" \\\n  -F "files=@IM0001.dcm"`
     : `curl -X POST "$GATEWAY${deployment.endpoint}" \\\n  -H "Authorization: Bearer $TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify({ rows: [Object.fromEntries(features.map((f) => [f, '…']))] })}'`;
+}
+
+/** Python 呼叫範例（requests）：與 curl 相同的端點與欄位。 */
+export function pythonCallExample(deployment: Pick<Deployment, 'endpoint'>, model?: Model): string {
+  const image = model ? isImageModel(model.kind) : false;
+  const features = model?.card.features ?? ['欄位名稱'];
+  const head = [
+    'import os',
+    'import requests',
+    '',
+    '# GATEWAY：平台 Gateway 網址；TOKEN：以「分享給」名單中的帳號登入取得',
+    'url = os.environ["GATEWAY"] + "' + deployment.endpoint + '"',
+    'headers = {"Authorization": "Bearer " + os.environ["TOKEN"]}',
+    '',
+  ];
+  const body = image
+    ? ['with open("IM0001.dcm", "rb") as f:', '    r = requests.post(url, headers=headers, files=[("files", f)])']
+    : [`rows = [{${features.map((f) => `"${f}": ...`).join(', ')}}]`, 'r = requests.post(url, headers=headers, json={"rows": rows})'];
+  return [...head, ...body, 'r.raise_for_status()', 'print(r.json())'].join('\n');
+}
+
+function CallExample({ deployment, model }: { deployment: Deployment; model?: Model }) {
+  const example = curlExample(deployment, model);
   return (
     <div className="stack">
       <h3>呼叫範例（{deployment.name}）</h3>
       <pre className="training-log" aria-label={`「${deployment.name}」的呼叫範例`}>{example}</pre>
+    </div>
+  );
+}
+
+/** 使用模型 › 分享與服務 › 呼叫說明（設計稿 B11）：已分享的端點、取得 Token、curl 與 Python 範例。 */
+export function CallGuide({ modelId }: { modelId: number }) {
+  const api = useTrainingApi();
+  const canTrain = useHasPermission('training');
+  const models = useResource(() => (api ? api.models() : Promise.resolve([] as Model[])), [api]);
+  const deployments = useResource(
+    () => (api && canTrain ? api.deployments().then((list) => list.filter((d) => d.model_id === modelId)) : Promise.resolve([] as Deployment[])),
+    [api, canTrain, modelId],
+  );
+  if (!canTrain) return <Alert tone="info">程式呼叫的端點與說明需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。</Alert>;
+  const error = models.error ?? deployments.error;
+  if (error) return <ApiErrorAlert error={error} />;
+  if (!deployments.data || !models.data) return <p role="status">載入中…</p>;
+  const model = models.data.find((m) => m.id === modelId);
+  if (deployments.data.length === 0) {
+    return (
+      <Card title="呼叫說明">
+        <p className="text-muted">這個模型還沒有分享。到「分享與服務」分享給同事後，平台會產生程式呼叫端點，這裡會列出呼叫方式。</p>
+      </Card>
+    );
+  }
+  const first = deployments.data[0];
+  return (
+    <div className="stack">
+      <Card title="呼叫說明">
+        <ol className="stack">
+          <li>以「分享給」名單中的帳號登入平台取得 Token；其他帳號呼叫會收到 403（拒絕）並留下稽核紀錄。</li>
+          <li>經 Gateway 以 POST 呼叫下表的端點，結構式模型送 JSON（rows），影像模型以 multipart 上傳 files。</li>
+          <li>回應是 JSON，格式與「試呼叫」看到的相同；可先在「分享與服務」頁下方試呼叫確認。</li>
+        </ol>
+      </Card>
+      <Card title="呼叫端點" flush>
+        <div className="table-wrap">
+          <table className="table" aria-label="這個模型的呼叫端點">
+            <thead>
+              <tr>
+                <th scope="col">名稱</th>
+                <th scope="col">技術名稱</th>
+                <th scope="col">呼叫端點</th>
+                <th scope="col">分享給</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deployments.data.map((d) => (
+                <tr key={d.id}>
+                  <th scope="row">{titleOf(d)}</th>
+                  <td>
+                    <code>{d.name}</code>
+                  </td>
+                  <td className="training-endpoint">
+                    <code>POST {d.endpoint}</code>
+                  </td>
+                  <td>{d.allowed_users.join('、') || '（無）'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+      <div className="trn-chart-grid">
+        <Card title={`curl 範例（${titleOf(first)}）`}>
+          <CodeBlock code={curlExample(first, model)} title="curl" language="bash" lineNumbers={false} />
+        </Card>
+        <Card title={`Python 範例（${titleOf(first)}）`}>
+          <CodeBlock code={pythonCallExample(first, model)} title="call.py" language="python" />
+        </Card>
+      </div>
     </div>
   );
 }

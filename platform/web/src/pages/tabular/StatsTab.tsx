@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
 import { ApiErrorAlert } from '../../components/Alert';
 import { ForestPlot } from '../../components/charts/ForestPlot';
@@ -206,7 +207,9 @@ export function StatsTab() {
   const { dataset, base, catalogue, steps } = useDataset();
   const names = dataset.columns.map((c) => c.name);
   const has = (c: string, fallback: string) => (names.includes(c) ? c : fallback);
-  const [model, setModel] = useState<Model>('logistic');
+  const [params] = useSearchParams();
+  // 從「相關與散佈圖」的「進一步分析」進來時預選模型（?model=）
+  const [model, setModel] = useState<Model>(() => MODELS.find(([v]) => v === params.get('model'))?.[0] ?? 'logistic');
   const [target, setTarget] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
   const [extra, setExtra] = useState('');
@@ -333,7 +336,7 @@ export function StatsTab() {
       </form>
       <ApiErrorAlert error={error} />
       {result && (
-        <section className="section" aria-label="分析結果">
+        <section className="card section" aria-label="分析結果">
           <h3>分析結果</h3>
           <ResultView r={result} />
         </section>

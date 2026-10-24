@@ -406,10 +406,13 @@ export async function ask(s: Scenario, page: Page, question: string, label: stri
   if (await failed.isVisible()) throw new Error(`模型沒有回應：${oneLine(await failed.innerText())}`);
   const last = replies.last();
   const paras = (await last.locator('p').allInnerTexts()).map((t) => t.trim());
+  // 改版後出處是「參考來源：」底下的卡片清單（每張「檔名 · 段落 N」），回應時間在「時間 · 回應時間 N 秒」那一行；
+  // 仍整理成「出處：檔名 · 段落 N、…」與「回應時間 N 秒」，紀錄格式不變
+  const names = (await last.getByRole('list', { name: '參考來源' }).locator('.llm-source__name').allInnerTexts()).map(oneLine);
   return {
     text: paras[0] ?? '',
-    sources: paras.find((p) => p.startsWith('出處：')) ?? '',
-    seconds: paras.find((p) => p.startsWith('回應時間')) ?? '',
+    sources: names.length ? `出處：${names.join('、')}` : '',
+    seconds: paras.map((p) => /回應時間 [\d.]+ 秒/.exec(p)?.[0]).find(Boolean) ?? '',
   };
 }
 

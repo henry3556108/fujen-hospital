@@ -5,6 +5,8 @@ import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { SidePanel, SplitLayout } from '../../components/ui';
+import './admin.css';
 
 const invalid = (error: unknown, field: string) =>
   error instanceof ApiError && error.fieldErrors.some((f) => f.field === field) ? true : undefined;
@@ -60,10 +62,10 @@ function GroupForm({
   }
 
   return (
-    <form aria-label={title} className="card section" onSubmit={submit} noValidate>
-      <h2>{title}</h2>
+    <SidePanel title={title}>
+    <form aria-label={title} className="adm-form" onSubmit={submit} noValidate>
       <ApiErrorAlert error={error} />
-      <div className="form-grid">
+      <div className="adm-form">
         <div className="field">
           <label htmlFor="group-name">群組名稱（必填）</label>
           <input
@@ -93,7 +95,7 @@ function GroupForm({
         {members.length === 0 && extra.length === 0 ? (
           <p className="text-muted">這個專案還沒有成員。</p>
         ) : (
-          <div className="checkbox-row">
+          <div className="adm-checklist">
             {members.map((m) => (
               <label key={m.user_id} className="checkbox">
                 <input type="checkbox" checked={chosen.includes(m.user_id)} onChange={() => toggle(m.user_id)} />
@@ -115,17 +117,18 @@ function GroupForm({
           </div>
         )}
       </fieldset>
-      <div className="row-actions">
-        <button type="submit" className="btn btn--primary" disabled={busy}>
-          {editing ? '儲存變更' : '新增群組'}
-        </button>
+      <div className="adm-panel-actions">
         {editing && (
           <button type="button" className="btn btn--secondary" onClick={onCancel}>
             取消
           </button>
         )}
+        <button type="submit" className="btn btn--primary" disabled={busy}>
+          {editing ? '儲存變更' : '新增群組'}
+        </button>
       </div>
     </form>
+    </SidePanel>
   );
 }
 
@@ -170,14 +173,14 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
 
   const groups = detail.data?.groups ?? [];
   return (
-    <div className="section">
-      <h2>標註群組</h2>
+    <div className="adm-members">
       <p className="text-muted">每個專案可以建立多個標註群組，把負責標註的成員分組；影像標註分派工作時以群組為單位。</p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={error} />
       <ApiErrorAlert error={projects.error} />
       <ApiErrorAlert error={detail.error} />
-      <div className="field" hidden={fixedProjectId !== undefined}>
+      {fixedProjectId === undefined && (
+      <div className="field">
         <label htmlFor="group-project">專案</label>
         <select
           id="group-project"
@@ -196,7 +199,32 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
           ))}
         </select>
       </div>
+      )}
 
+      <SplitLayout
+        side={
+          project && detail.data ? (
+            <GroupForm
+              key={`${project.id}-${editing?.id ?? 'new'}`}
+              project={project}
+              members={detail.data.members}
+              editing={editing}
+              onCancel={() => setEditing(null)}
+              onSaved={(g, created) => {
+                setNotice(created ? `已新增標註群組「${g.name}」` : `已更新標註群組「${g.name}」`);
+                setEditing(null);
+                detail.reload();
+              }}
+            />
+          ) : undefined
+        }
+      >
+      <section className="ui-card adm-card" aria-labelledby="groups-title">
+        <div className="ui-card__head">
+          <h2 id="groups-title" className="ui-card__title">
+            標註群組{detail.data ? `（${groups.length} 個）` : ''}
+          </h2>
+        </div>
       <div className="table-wrap">
         <table aria-label="標註群組列表">
           <thead>
@@ -229,7 +257,7 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
                   <div className="row-actions">
                     <button
                       type="button"
-                      className="btn btn--secondary btn--small"
+                      className="adm-link-btn"
                       aria-label={`編輯 ${g.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -240,7 +268,7 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
                     </button>
                     <button
                       type="button"
-                      className="btn btn--secondary btn--small"
+                      className="adm-link-btn"
                       aria-label={`刪除 ${g.name}`}
                       onClick={() => {
                         setNotice(null);
@@ -256,21 +284,8 @@ export function LabelGroupsPage({ fixedProjectId }: { fixedProjectId?: number } 
           </tbody>
         </table>
       </div>
-
-      {project && detail.data && (
-        <GroupForm
-          key={`${project.id}-${editing?.id ?? 'new'}`}
-          project={project}
-          members={detail.data.members}
-          editing={editing}
-          onCancel={() => setEditing(null)}
-          onSaved={(g, created) => {
-            setNotice(created ? `已新增標註群組「${g.name}」` : `已更新標註群組「${g.name}」`);
-            setEditing(null);
-            detail.reload();
-          }}
-        />
-      )}
+      </section>
+      </SplitLayout>
 
       {deleting && (
         <ConfirmDialog

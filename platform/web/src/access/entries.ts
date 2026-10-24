@@ -73,20 +73,20 @@ function entry(e: Omit<Entry, 'rule' | 'placeholder' | 'location'> & { sub?: str
 }
 
 export const ENTRIES: readonly Entry[] = [
-  entry({ key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '專案、帳號與成員權限', area: 'admin', sub: '帳號、專案' }),
-  entry({ key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '醫療影像與結構式資料匯入', area: 'data' }),
-  entry({ key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '影像標註平台', area: 'labeling', sub: '待處理' }),
-  entry({ key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '自動標註整合', area: 'labeling', sub: '自動標註' }),
-  entry({ key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '自動訓練與模型匯出', area: 'training', sub: '訓練紀錄' }),
-  entry({ key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '模型部署', area: 'models', sub: '分享與服務' }),
-  entry({ key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '推論服務', area: 'models', sub: '預測新資料與紀錄' }),
+  entry({ key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '管理研究成員帳號、專案、角色與權限。', area: 'admin', sub: '帳號、專案' }),
+  entry({ key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '管理影像與結構化資料，查看匯入與處理狀態。', area: 'data' }),
+  entry({ key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '進行影像標註、查看進度與品質。', area: 'labeling', sub: '待處理' }),
+  entry({ key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '使用已建立的模型進行影像自動分類與標註。', area: 'labeling', sub: '自動標註' }),
+  entry({ key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '管理模型訓練、版本與評估結果，匯出模型。', area: 'training', sub: '訓練紀錄' }),
+  entry({ key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '部署模型為推論服務，設定資源與版本。', area: 'models', sub: '分享與服務' }),
+  entry({ key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '管理推論服務的運行狀態、預測新資料與紀錄。', area: 'models', sub: '預測新資料與紀錄' }),
   entry({
     key: 'llm',
     label: '大型語言模型 No-code 開發',
     aliases: ['LLM No-code 開發'],
     path: '/llm',
     moduleCode: 'B-07／B-08',
-    description: 'LLM、RAG 與工作流',
+    description: '設定知識來源與問答應用（LLM、RAG、工作流程），進行測試與發布。',
     area: 'llm',
   }),
 ];

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Navigate, Route } from 'react-router-dom';
-import { Tabs } from '../../components/Tabs';
+import { PageHeader, SplitLayout, Tabs } from '../../components/ui';
 import { NotFoundPage } from '../SimplePages';
 import { ClusterNodesPage } from './ClusterNodesPage';
 import { GpuDashboardPage } from './GpuDashboardPage';
@@ -9,8 +9,10 @@ import { JobsPage } from './JobsPage';
 import { QueueOrderPage } from './QueueOrderPage';
 import { SharedSchedulingPage } from './SharedSchedulingPage';
 import '../../styles/pages.css';
+import './scheduling.css';
 
 // 管理區「運算資源」（03 規格第二節）：GPU 使用對照為第一頁。
+// 分頁名稱沿用（驗收腳本以名稱點分頁）；版型照設計稿 B21／B22。
 const TABS = [
   { to: '/admin/compute/gpu', label: 'GPU 使用對照' },
   { to: '/admin/compute/queues', label: '排隊順序' },
@@ -20,13 +22,31 @@ const TABS = [
   { to: '/admin/compute/jobs', label: '測試工作' },
 ];
 
-/** 運算資源各頁共用的版頭：頁面標題＋分頁。tabs=false 給系統監控用（它在管理區自成一項）。 */
-export function SchedulingPage({ title, children, tabs = true }: { title: string; children: ReactNode; tabs?: boolean }) {
+/**
+ * 運算資源各頁共用的版頭：頁面標題、副標、右上動作＋分頁；side 給右側設定欄（B21 建立群組、B22 共享排程設定）。
+ * tabs=false 給系統監控用（它在管理區自成一項）。
+ */
+export function SchedulingPage({
+  title,
+  subtitle,
+  actions,
+  side,
+  children,
+  tabs = true,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  actions?: ReactNode;
+  side?: ReactNode;
+  children: ReactNode;
+  tabs?: boolean;
+}) {
   return (
     <>
-      <h1>{title}</h1>
-      {tabs && <Tabs label="運算資源分頁" items={TABS} />}
-      {children}
+      <PageHeader title={title} subtitle={subtitle} actions={actions}>
+        {tabs && <Tabs label="運算資源分頁" items={TABS} />}
+      </PageHeader>
+      <SplitLayout side={side}>{children}</SplitLayout>
     </>
   );
 }

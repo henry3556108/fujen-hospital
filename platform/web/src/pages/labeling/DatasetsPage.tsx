@@ -1,19 +1,42 @@
-// 標註資料集：清單、建立、匯入診斷結果，以及單一資料集（分布、逐筆列表、用這份資料建立模型）。
+// 標註資料集（設計稿 A04）：清單、建立、匯入診斷結果；
+// 單一資料集：資料集與版本選擇、繼續確認、已確認／待確認進度、明細表與分頁、右側資料集資訊（類別統計、來源統計）。
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { StatusBadge } from '../../components/StatusBadge';
+import {
+  Badge,
+  BarList,
+  Card,
+  ConfirmProgress,
+  EmptyState,
+  InfoList,
+  PageHeader,
+  Pagination,
+  SidePanel,
+  SlideOver,
+  SplitLayout,
+} from '../../components/ui';
 import { useProjectAccess } from '../data/access';
 import { useLabelingApi, type LabelingApi } from './api';
 import { CsvImport } from './CsvImport';
 import { LabelingNav } from './LabelingNav';
-import { useScopes } from './pending';
-import { SOURCE_LABELS, STATUS_LABELS, TASK_LABELS, type AnnotationKind, type AnnotationSource, type LabelDataset } from './types';
+import { useScopes, workbenchPath } from './pending';
+import {
+  SOURCE_LABELS,
+  STATUS_LABELS,
+  TASK_LABELS,
+  type AnnotationKind,
+  type AnnotationSource,
+  type LabelDataset,
+  type LabelDatasetVersion,
+} from './types';
 import './labeling.css';
 
-/** 逐筆列表每頁筆數 */
-export const ITEMS_PAGE = 50;
+/** 明細表預設每頁筆數（設計稿 A04：每頁顯示 10 筆） */
+export const ITEMS_PAGE = 10;
+
+const DATASETS_SUBTITLE = '一份有名稱的資料集，保留標註來源與確認狀態；送出訓練時系統自動記下版本。';
 
 function NoProject() {
   return <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>;
@@ -27,19 +50,29 @@ function distribution(counts: Record<string, number>, names?: Record<string, str
   return parts.join('、') || '—';
 }
 
+/** BarList 用：數量由多到少 */
+function bars(counts: Record<string, number>, names?: Record<string, string>) {
+  return Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => ({ label: names?.[k] ?? k, value: n }));
+}
+
+const when = (iso: string) => iso.slice(0, 16).replace('T', ' ');
+
 export function LabelDatasetsPage() {
   const labeling = useLabelingApi();
   return (
     <>
-      <h1>影像標註</h1>
-      <LabelingNav />
+      <PageHeader title="標註資料集" subtitle={DATASETS_SUBTITLE}>
+        <LabelingNav />
+      </PageHeader>
       {labeling ? <Datasets key={labeling.projectId} labeling={labeling} /> : <NoProject />}
     </>
   );
 }
 
 function Datasets({ labeling }: { labeling: LabelingApi }) {
-  const { project } = useProjectAccess();
   const datasets = useResource(() => labeling.datasets(), [labeling]);
   const summary = useResource(() => labeling.summary(), [labeling]);
   const list = datasets.data ?? [];
@@ -49,18 +82,18 @@ function Datasets({ labeling }: { labeling: LabelingApi }) {
   };
   return (
     <>
-      <p className="text-muted">
-        專案：<strong>{project?.name}</strong>。標註資料集是一組「要拿去訓練的標註」：選任務、資料範圍與類別，內容會隨標註增加。送出訓練時系統自動記下版本，不用自己管。
-      </p>
       <ApiErrorAlert error={datasets.error} />
-      <section className="section" aria-labelledby="ds-title">
-        <h2 id="ds-title">標註資料集</h2>
+      <Card title="全部資料集" flush className="section">
         {datasets.loading && !datasets.data ? (
-          <p role="status" className="loading">
+          <p role="status" className="loading lb-card-note">
             載入中…
           </p>
         ) : list.length === 0 ? (
-          <Alert tone="info">還沒有標註資料集。專案第一次有標註時會自動建立一份；也可以在下方自己建立，或匯入診斷結果。</Alert>
+          <EmptyState
+            icon="database"
+            title="還沒有標註資料集"
+            description="專案第一次有標註時會自動建立一份；也可以在下方自己建立，或匯入診斷結果。"
+          />
         ) : (
           <div className="table-wrap">
             <table aria-label="標註資料集">
@@ -68,11 +101,12 @@ function Datasets({ labeling }: { labeling: LabelingApi }) {
                 <tr>
                   <th scope="col">名稱</th>
                   <th scope="col">任務</th>
-                  <th scope="col">已確認標註</th>
-                  <th scope="col">研究數</th>
+                  <th scope="col">已確認</th>
                   <th scope="col">待確認（不納入）</th>
+                  <th scope="col">研究數</th>
                   <th scope="col">類別分布</th>
                   <th scope="col">最新版本</th>
+                  <th scope="col">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -83,17 +117,22 @@ function Datasets({ labeling }: { labeling: LabelingApi }) {
                     </th>
                     <td>{TASK_LABELS[d.task]}</td>
                     <td>{d.current.annotations}</td>
+                    <td>{d.current.drafts_excluded > 0 ? <Badge tone="warning">{d.current.drafts_excluded}</Badge> : 0}</td>
                     <td>{d.current.studies}</td>
-                    <td>{d.current.drafts_excluded}</td>
                     <td>{distribution(d.current.by_class)}</td>
                     <td>{d.latest_version ? `第 ${d.latest_version.version} 版` : '尚未建版'}</td>
+                    <td>
+                      <Link className="btn btn--secondary btn--small" to={`/labeling/datasets/${d.id}`} aria-label={`開啟資料集 ${d.name}`}>
+                        開啟
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </section>
+      </Card>
       <CreateDataset labeling={labeling} existing={list} onCreated={reload} />
       <CsvImport labeling={labeling} studies={summary.data?.studies ?? []} datasets={list} onDone={reload} />
     </>
@@ -138,7 +177,7 @@ function CreateDataset({ labeling, existing, onCreated }: { labeling: LabelingAp
   }
 
   return (
-    <details className="card section">
+    <details className="card section lb-create">
       <summary>建立標註資料集</summary>
       <ApiErrorAlert error={error} />
       {created ? (
@@ -194,8 +233,9 @@ export function LabelDatasetPage() {
   const { datasetId = '' } = useParams();
   return (
     <>
-      <h1>影像標註</h1>
-      <LabelingNav />
+      <PageHeader title="標註資料集" subtitle={DATASETS_SUBTITLE}>
+        <LabelingNav />
+      </PageHeader>
       {labeling ? <Dataset key={`${labeling.projectId}/${datasetId}`} labeling={labeling} id={Number(datasetId)} /> : <NoProject />}
     </>
   );
@@ -203,99 +243,194 @@ export function LabelDatasetPage() {
 
 function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
   const { can, project } = useProjectAccess();
-  const [offset, setOffset] = useState(0);
+  const navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(ITEMS_PAGE);
+  const [importing, setImporting] = useState(false);
   const dataset = useResource(() => labeling.dataset(id), [labeling, id]);
-  const items = useResource(() => labeling.datasetItems(id, offset, ITEMS_PAGE), [labeling, id, offset]);
+  const datasets = useResource(() => labeling.datasets(), [labeling]);
+  const versions = useResource(() => labeling.datasetVersions(id), [labeling, id]);
+  const items = useResource(() => labeling.datasetItems(id, (page - 1) * pageSize, pageSize), [labeling, id, page, pageSize]);
+  const summary = useResource(() => labeling.summary(), [labeling]);
+  const scopes = useScopes();
   const d = dataset.data;
   const total = items.data?.total ?? 0;
 
+  // 版本選擇（F5）：空字串＝目前內容；舊版只顯示版本摘要，明細仍是目前內容
+  const versionNo = Number(search.get('version')) || null;
+  const version: LabelDatasetVersion | undefined = versionNo !== null ? versions.data?.find((v) => v.version === versionNo) : undefined;
+
+  const reload = () => {
+    dataset.reload();
+    datasets.reload();
+    versions.reload();
+    items.reload();
+    summary.reload();
+  };
+
+  function continueConfirm() {
+    if (!d) return;
+    const draft = items.data?.items.find((it) => it.status === 'draft');
+    if (draft) navigate(`${workbenchPath(draft.study_instance_uid, d.scope_id)}${d.scope_id !== null ? '&' : '?'}annotation=${draft.annotation_id}`);
+    else navigate(`/labeling?status=pending${d.scope_id !== null ? `&scope=${d.scope_id}` : ''}`);
+  }
+
+  if (dataset.loading && !d) {
+    return (
+      <p role="status" className="loading">
+        載入中…
+      </p>
+    );
+  }
+  if (!d) return <ApiErrorAlert error={dataset.error} />;
+
+  const scopeName = d.scope_id === null ? '全部影像' : (scopes.data?.find((s) => s.id === d.scope_id)?.name ?? `資料範圍 #${d.scope_id}`);
+  const classes = d.classes.length ? d.classes : Object.keys(d.current.by_class);
+  const byClass = version ? version.by_class : d.current.by_class;
+
+  const side = (
+    <SidePanel
+      title="資料集資訊"
+      footer={
+        can('training') ? (
+          <Link className="btn btn--secondary" to={`/training/new?labelDataset=${d.id}`}>
+            用這份資料建立模型
+          </Link>
+        ) : (
+          <span className="text-muted">建立模型需要 Training 權限；如需使用，請聯絡專案「{project?.name}」的負責人。</span>
+        )
+      }
+    >
+      <div data-testid="dataset-summary">
+        <InfoList
+          items={[
+            { label: '資料集名稱', value: `${d.name}・${version ? `第 ${version.version} 版` : '目前內容'}` },
+            { label: '任務', value: TASK_LABELS[d.task] },
+            { label: '來源專案', value: project?.name ?? '—' },
+            { label: '資料範圍', value: scopeName },
+            {
+              label: version ? '建版時間' : '最新版本',
+              value: version
+                ? `${when(version.created_at)}（${version.created_by}）`
+                : d.latest_version
+                  ? `第 ${d.latest_version.version} 版（${when(d.latest_version.created_at)}，${d.latest_version.annotations} 筆）`
+                  : '尚未建版，送出訓練時自動建立第 1 版',
+            },
+            { label: '標註類別', value: classes.length ? classes.join(' / ') : '—' },
+            {
+              label: '已確認標註',
+              value: version ? `${version.annotations} 筆` : `${d.current.annotations} 筆、${d.current.studies} 個研究`,
+            },
+            {
+              label: '待確認',
+              value: `${d.current.drafts_excluded} 筆${d.current.drafts_excluded > 0 ? '（訓練不會用到，請到工作台確認）' : ''}`,
+            },
+          ]}
+        />
+        <div className="lb-ds-side-section">
+          <h3>類別統計（依標註結果{version ? `，第 ${version.version} 版` : ''}）</h3>
+          <BarList label="類別統計" items={bars(byClass)} emptyText="還沒有已確認的標註" />
+        </div>
+        <div className="lb-ds-side-section">
+          <h3>來源統計{version ? '（目前內容）' : ''}</h3>
+          <BarList label="來源統計" items={bars(d.current.by_source, SOURCE_LABELS as Record<AnnotationSource, string>)} emptyText="還沒有已確認的標註" />
+        </div>
+      </div>
+    </SidePanel>
+  );
+
   return (
     <>
-      <p>
-        <Link to="/labeling/datasets">← 回標註資料集</Link>
-      </p>
-      <ApiErrorAlert error={dataset.error} />
-      {dataset.loading && !d ? (
-        <p role="status" className="loading">
-          載入中…
-        </p>
-      ) : d ? (
-        <>
-          <h2>{d.name}</h2>
-          <dl className="kv" data-testid="dataset-summary">
-            <div>
-              <dt>任務</dt>
-              <dd>{TASK_LABELS[d.task]}</dd>
+      <ApiErrorAlert error={dataset.error ?? versions.error} />
+      <SplitLayout side={side}>
+        <Card className="section">
+          <div className="lb-ds-toolbar">
+            <div className="field">
+              <label htmlFor="ds-pick">資料集</label>
+              <select id="ds-pick" className="select" value={d.id} onChange={(e) => navigate(`/labeling/datasets/${e.target.value}`)}>
+                {(datasets.data ?? [d]).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div>
-              <dt>版本</dt>
-              <dd>{d.latest_version ? `第 ${d.latest_version.version} 版（${d.latest_version.annotations} 筆）` : '尚未建版，送出訓練時自動建立第 1 版'}</dd>
+            <div className="field">
+              <label htmlFor="ds-version">版本</label>
+              <select
+                id="ds-version"
+                className="select"
+                value={version ? String(version.version) : ''}
+                onChange={(e) => {
+                  const q = new URLSearchParams(search);
+                  if (e.target.value) q.set('version', e.target.value);
+                  else q.delete('version');
+                  setSearch(q, { replace: true });
+                }}
+              >
+                <option value="">目前內容{d.latest_version ? '' : '（尚未建版）'}</option>
+                {(versions.data ?? []).map((v) => (
+                  <option key={v.version} value={v.version}>
+                    第 {v.version} 版（{when(v.created_at).slice(0, 10)}，{v.annotations} 筆）
+                  </option>
+                ))}
+              </select>
             </div>
-            <div>
-              <dt>已確認標註</dt>
-              <dd>
-                {d.current.annotations} 筆、{d.current.studies} 個研究
-              </dd>
+            <div className="lb-ds-toolbar__actions">
+              <button type="button" className="btn btn--primary" onClick={continueConfirm}>
+                繼續確認
+              </button>
+              {d.task === 'classification' ? (
+                <button type="button" className="btn btn--secondary" onClick={() => setImporting(true)}>
+                  匯入診斷結果
+                </button>
+              ) : null}
             </div>
-            <div>
-              <dt>類別分布</dt>
-              <dd>{distribution(d.current.by_class)}</dd>
-            </div>
-            <div>
-              <dt>來源分布</dt>
-              <dd>{distribution(d.current.by_source, SOURCE_LABELS as Record<AnnotationSource, string>)}</dd>
-            </div>
-            <div>
-              <dt>待確認</dt>
-              <dd>
-                {d.current.drafts_excluded} 筆{d.current.drafts_excluded > 0 ? '（訓練不會用到，請到工作台確認）' : ''}
-              </dd>
-            </div>
-          </dl>
-          <div className="row-actions section">
-            {can('training') ? (
-              <Link className="btn btn--primary" to={`/training/new?labelDataset=${d.id}`}>
-                用這份資料建立模型
-              </Link>
-            ) : (
-              <span className="text-muted">建立模型需要 Training 權限；如需使用，請聯絡專案「{project?.name}」的負責人。</span>
-            )}
           </div>
+          {version ? (
+            <Alert tone="info">
+              第 {version.version} 版建立於 {when(version.created_at)}，當時有 {version.annotations} 筆已確認標註。右側是這一版的摘要；下方明細是目前內容，不是第{' '}
+              {version.version} 版當時的內容。
+            </Alert>
+          ) : null}
+          <ConfirmProgress confirmed={d.current.annotations} pending={d.current.drafts_excluded} totalLabel="筆標註" />
+          {d.current.drafts_excluded > 0 ? <p className="field__hint">待確認的是自動標註的草稿，確認後才會用在訓練。診斷表匯入的標註直接算已確認。</p> : null}
+        </Card>
 
-          <section className="section" aria-labelledby="items-title">
-            <h3 id="items-title">標註（{total} 筆，含待確認）</h3>
-            <ApiErrorAlert error={items.error} />
-            {items.data && items.data.items.length === 0 ? (
-              <p className="text-muted">還沒有符合這份資料集的標註。</p>
-            ) : items.data ? (
+        <Card title={`明細（${total} 筆，含待確認）`} flush>
+          <ApiErrorAlert error={items.error} />
+          {items.data && items.data.items.length === 0 ? (
+            <p className="text-muted lb-card-note">還沒有符合這份資料集的標註。</p>
+          ) : items.data ? (
+            <>
               <div className="table-wrap">
                 <table aria-label="資料集內的標註">
                   <thead>
                     <tr>
-                      <th scope="col">編號</th>
                       <th scope="col">影像編號</th>
-                      <th scope="col">類別</th>
                       <th scope="col">來源</th>
-                      <th scope="col">狀態</th>
+                      <th scope="col">分類</th>
+                      <th scope="col">確認狀態</th>
                       <th scope="col">最後修改</th>
                       <th scope="col">操作</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.data.items.map((it) => (
-                      <tr key={it.annotation_id}>
-                        <th scope="row">#{it.annotation_id}</th>
-                        <td>{it.accession_number || it.study_instance_uid}</td>
-                        <td>{it.label}</td>
+                      <tr key={it.annotation_id} data-annotation={it.annotation_id}>
+                        <th scope="row">{it.accession_number || it.study_instance_uid}</th>
                         <td>{SOURCE_LABELS[it.source]}</td>
+                        <td>{it.label ? <Badge tone="info">{it.label}</Badge> : '—'}</td>
                         <td>
-                          <StatusBadge tone={it.status === 'draft' ? 'warning' : 'success'}>{STATUS_LABELS[it.status]}</StatusBadge>
+                          <Badge tone={it.status === 'draft' ? 'warning' : 'success'}>{STATUS_LABELS[it.status]}</Badge>
                         </td>
                         <td>
-                          {it.updated_by}　{it.updated_at.slice(0, 16).replace('T', ' ')}
+                          {it.updated_by}　{when(it.updated_at)}
                         </td>
                         <td>
                           <Link
+                            className="btn btn--secondary btn--small"
                             to={`/labeling/studies/${encodeURIComponent(it.study_instance_uid)}?annotation=${it.annotation_id}`}
                             aria-label={`開啟標註 #${it.annotation_id}`}
                           >
@@ -307,28 +442,32 @@ function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
                   </tbody>
                 </table>
               </div>
-            ) : null}
-            {total > ITEMS_PAGE ? (
-              <div className="row-actions section">
-                <button type="button" className="btn btn--secondary btn--small" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - ITEMS_PAGE))}>
-                  上一頁
-                </button>
-                <span>
-                  第 {offset + 1}–{Math.min(total, offset + ITEMS_PAGE)} 筆
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--small"
-                  disabled={offset + ITEMS_PAGE >= total}
-                  onClick={() => setOffset(offset + ITEMS_PAGE)}
-                >
-                  下一頁
-                </button>
-              </div>
-            ) : null}
-          </section>
-        </>
-      ) : null}
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={(n) => {
+                  setPageSize(n);
+                  setPage(1);
+                }}
+                label="明細分頁"
+              />
+            </>
+          ) : null}
+        </Card>
+      </SplitLayout>
+
+      <SlideOver open={importing} title="匯入診斷結果" onClose={() => setImporting(false)} width="40rem">
+        <CsvImport
+          labeling={labeling}
+          studies={summary.data?.studies ?? []}
+          datasets={datasets.data ?? [d]}
+          defaultDatasetId={d.id}
+          onDone={reload}
+          bare
+        />
+      </SlideOver>
     </>
   );
 }

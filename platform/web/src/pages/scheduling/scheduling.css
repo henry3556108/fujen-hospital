@@ -1,0 +1,330 @@
+/* 管理區「運算資源」「系統監控」（設計稿 B21～B23）。只用 tokens.css 變數，類名前綴 sch-。 */
+
+/* ---------- B21 GPU 卡片 ---------- */
+.sch-gpu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sch-gpu {
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+}
+
+.sch-gpu__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sch-gpu__title {
+  font-size: var(--font-size-card-title);
+}
+
+.sch-gpu__node {
+  font-size: var(--font-size-small);
+}
+
+.sch-gpu__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sch-gpu__slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-small);
+}
+
+.sch-slot {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.sch-slot--busy {
+  background: var(--color-secondary-bg);
+  color: var(--color-text-primary);
+}
+
+.sch-slot--free {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+.sch-bar {
+  height: 0.625rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--progress-track);
+}
+
+.sch-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--progress-fill);
+}
+
+.sch-ready {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.sch-ready strong {
+  color: var(--color-status-success-text);
+}
+
+/* 叢集摘要四格 */
+.sch-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 右欄表單 */
+.sch-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sch-form__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sch-note {
+  margin: 0;
+  font-size: var(--font-size-small);
+}
+
+/* ---------- B22 排隊：每個佇列一欄 ---------- */
+.sch-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.sch-queue {
+  overflow: hidden;
+}
+
+.sch-queue__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+}
+
+.sch-queue--exclusive .sch-queue__head {
+  background: var(--color-secondary-bg);
+}
+
+.sch-queue--shared .sch-queue__head {
+  background: var(--color-status-info-bg);
+}
+
+.sch-queue--cpu .sch-queue__head {
+  background: var(--color-status-warning-bg);
+}
+
+.sch-queue__title {
+  margin: 0;
+  font-size: var(--font-size-card-title);
+}
+
+.sch-queue__counts {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.sch-queue__empty,
+.sch-queue__pending {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+/* 表格保留給輔助技術與驗收腳本，外觀改成一張張工作卡 */
+.sch-queue__table,
+.sch-queue__table tbody {
+  display: block;
+  width: 100%;
+}
+
+.sch-queue__table tbody {
+  padding: var(--space-3);
+}
+
+.sch-job {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'id order'
+    'info info'
+    'actions actions';
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+}
+
+.sch-job + .sch-job {
+  margin-top: var(--space-2);
+}
+
+.sch-job td,
+.sch-job th {
+  display: block;
+  padding: 0;
+  border: none;
+  text-align: left;
+}
+
+.sch-job__id {
+  grid-area: id;
+  font-weight: 600;
+}
+
+.sch-job__id::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-status-success-icon);
+  vertical-align: 0.1rem;
+}
+
+.sch-job--held .sch-job__id::before {
+  background: var(--color-text-muted);
+}
+
+.sch-job__order {
+  grid-area: order;
+  justify-self: end;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.sch-job--waiting .sch-job__order {
+  color: var(--color-text-link);
+  font-weight: 600;
+}
+
+.sch-job .sch-job__info {
+  grid-area: info;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-small);
+}
+
+.sch-job__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sch-job__actions {
+  grid-area: actions;
+  font-size: var(--font-size-small);
+}
+
+.sch-queue__moves {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sch-move {
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-text-link);
+  font-weight: 700;
+}
+
+.sch-move:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.sch-queue__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+/* 共享設定分頁：目前設定＋表單兩欄 */
+.sch-shared {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+/* ---------- B23 系統監控 ---------- */
+.sch-mon-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-4);
+}
+
+.sch-mon-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sch-mon-link {
+  display: grid;
+  grid-template-columns: 11rem 1fr;
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+}
+
+.sch-mon-link .btn {
+  grid-row: span 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sch-mon-link .mono {
+  font-size: var(--font-size-small);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .sch-mon-link {
+    grid-template-columns: 1fr;
+  }
+
+  .sch-mon-link .btn {
+    grid-row: auto;
+  }
+}

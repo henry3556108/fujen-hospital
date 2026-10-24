@@ -3,10 +3,10 @@ import { visibleNav, type NavArea } from '../../access/entries';
 import type { Permission } from '../../api/types';
 import { useResource } from '../../api/useResource';
 import { useMe, useSession } from '../../auth/SessionContext';
-import { Alert } from '../../components/Alert';
 import { formatTime } from '../../components/format';
-import { Icon } from '../../components/Icon';
-import { StatusBadge, type BadgeTone } from '../../components/StatusBadge';
+import type { BadgeTone } from '../../components/StatusBadge';
+import { Alert, Card, DicomThumb, Icon, PageHeader, ProgressBar, StatusBadge, Stepper, type Step } from '../../components/ui';
+import { projectCover } from '../global/projectCover';
 import { nextPendingStudy } from '../labeling/pending';
 import { primaryText } from '../training/metrics';
 import type { StudySummary } from '../labeling/types';
@@ -92,8 +92,7 @@ export function primaryAction(
 function CanDo({ items }: { items: NavArea[] }) {
   const list = items.filter((a) => a.key !== 'home');
   return (
-    <section className="card section" aria-labelledby="home-cando">
-      <h2 id="home-cando">可以做的事</h2>
+    <Card title="可以做的事" className="home-section">
       {list.length === 0 ? (
         <p className="text-muted">你在這個專案沒有可使用的功能，請聯絡專案負責人或系統管理者。</p>
       ) : (
@@ -111,67 +110,45 @@ function CanDo({ items }: { items: NavArea[] }) {
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
-function Progress({ ov }: { ov: ProjectOverview }) {
+/** 資料→標註→結果步驟條（A01）：current＝第一個還沒完成的步驟 */
+export function progressSteps(ov: ProjectOverview): { steps: Step[]; current: number } {
   const studies = ov.data?.studies ?? ov.labeling?.total_studies ?? 0;
+  const tables = ov.data?.tabular_datasets ?? 0;
   const lab = ov.labeling;
-  const total = lab?.total_studies ?? studies;
-  const pct = lab && total > 0 ? Math.min(100, Math.round((lab.confirmed / total) * 100)) : 0;
   const results = ov.models?.length ?? 0;
-  const steps: { label: string; detail: string; done: boolean }[] = [
-    {
-      label: '資料',
-      detail: ov.data ? `${ov.data.studies} 筆影像、${ov.data.tabular_datasets} 份表格` : `${studies} 筆影像`,
-      done: studies > 0 || (ov.data?.tabular_datasets ?? 0) > 0,
-    },
-    {
-      label: '標註',
-      detail: lab ? (lab.pending > 0 ? `進行中，還有 ${lab.pending} 筆` : `已確認 ${lab.confirmed} 筆`) : '—',
-      done: !!lab && lab.pending === 0 && lab.confirmed > 0,
-    },
-    { label: '結果', detail: ov.models ? (results > 0 ? `${results} 個模型可用` : '待產生') : '—', done: results > 0 },
+  const done = [studies > 0 || tables > 0, !!lab && lab.pending === 0 && lab.confirmed > 0, results > 0];
+  const steps: Step[] = [
+    { label: '資料', description: tables > 0 ? `${studies} 筆影像、${tables} 份表格` : `${studies} 筆影像` },
+    { label: '標註', description: lab ? (lab.pending > 0 ? `進行中・還有 ${lab.pending} 筆` : `已確認 ${lab.confirmed} 筆`) : '—' },
+    { label: '結果', description: ov.models ? (results > 0 ? `${results} 個模型可用` : '待產生') : '—' },
   ];
+  const first = done.findIndex((d) => !d);
+  return { steps, current: first < 0 ? steps.length : first };
+}
+
+function Progress({ ov }: { ov: ProjectOverview }) {
+  const lab = ov.labeling;
+  const total = lab?.total_studies ?? ov.data?.studies ?? 0;
+  const { steps, current } = progressSteps(ov);
   return (
     <div className="home-progress">
-      {lab && (
-        <>
-          <p className="home-progress__count">
-            已確認 <strong>{lab.confirmed}</strong> / {total}
-          </p>
-          <div
-            className="home-progress__bar"
-            role="progressbar"
-            aria-label="標註進度"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pct}
-          >
-            <span style={{ width: `${pct}%` }} />
-          </div>
-        </>
-      )}
-      <ol className="home-steps" aria-label="專案進度">
-        {steps.map((s, i) => (
-          <li key={s.label} className={s.done ? 'home-steps__item home-steps__item--done' : 'home-steps__item'}>
-            <span className="home-steps__dot" aria-hidden="true">
-              {s.done ? <Icon name="success" /> : i + 1}
-            </span>
-            <span className="home-steps__label">
-              {s.label}
-              {s.done && <span className="visually-hidden">（完成）</span>}
-            </span>
-            <span className="home-steps__detail">{s.detail}</span>
-          </li>
-        ))}
-      </ol>
+      {lab && <ProgressBar value={lab.confirmed} max={total} label="已確認" />}
+      <Stepper steps={steps} current={current} label="專案進度" />
     </div>
   );
 }
 
-/** 專案首頁（03 規格 3.4）：先接著做，再看進度與最近結果。 */
+const more = (text: string) => (
+  <>
+    {text} <Icon name="chevron-right" />
+  </>
+);
+
+/** 專案首頁（A01）：先接著做，再看進度與最近結果。 */
 export function HomePage() {
   const me = useMe();
   const { api, project } = useSession();
@@ -194,12 +171,14 @@ export function HomePage() {
   const nextUid = nextPendingStudy(studies.data?.studies ?? [], lastUid)?.study_instance_uid ?? null;
   const action = primaryAction(ov, permissions, seen, nextUid);
   const nav = visibleNav(me, project);
+  // 模型卡片的示意圖（裝飾用，依專案名稱挑；不是真實影像）
+  const cover = projectCover({ name: project!.name });
+  const last = ov?.labeling?.last ?? null;
 
   let headline = '';
   let sub: string | null = null;
   if (action.kind === 'label') {
     headline = `還有 ${action.pending} 筆影像待處理`;
-    const last = ov?.labeling?.last;
     sub = last ? `上次處理 ${last.accession_number ?? last.study_instance_uid}・${formatTime(last.updated_at)}` : '包含還沒標的影像與 AI 標註的草稿';
   } else if (action.kind === 'result') {
     headline = '有剛完成的訓練結果';
@@ -209,14 +188,14 @@ export function HomePage() {
     sub = '先加入影像或表格資料，才能開始標註與訓練';
   }
 
+  const showRecent = can('labeling') && !!ov?.labeling;
+  const showTraining = can('training') && !!ov?.training;
+  const showModels = can('prediction') && !!ov?.models;
+  const showPredictions = can('prediction') && !!ov?.predictions;
+
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>專案首頁</h1>
-          <p className="text-muted home-subtitle">{project!.name}</p>
-        </div>
-      </div>
+      <PageHeader title="專案首頁" subtitle={project!.name} />
 
       {overview.loading && !ov && <p role="status">載入中…</p>}
       {overview.error != null && !ov && (
@@ -226,13 +205,13 @@ export function HomePage() {
       )}
 
       {ov && (
-        <section className="card home-hero" aria-labelledby="home-hero-title">
+        <section className="ui-card home-hero" aria-labelledby="home-hero-title">
           <div className="home-hero__head">
             <div>
               <h2 id="home-hero-title" className="home-hero__title">
                 {headline || '專案進度'}
               </h2>
-              {sub && <p className="text-muted">{sub}</p>}
+              {sub && <p className="home-hero__sub">{sub}</p>}
             </div>
             {action.kind === 'label' && (
               <Link to={action.to} className="btn btn--primary btn--large">
@@ -256,97 +235,126 @@ export function HomePage() {
 
       {(!ov || action.kind === 'none') && !overview.loading && <CanDo items={nav} />}
 
-      {ov && (
+      {ov && (showRecent || showTraining || showModels || showPredictions) && (
         <div className="home-grid">
-          {can('labeling') && ov.labeling && (
-            <section className="card" aria-labelledby="home-recent">
-              <div className="home-card-head">
-                <h2 id="home-recent">最近處理</h2>
-                <Link to="/labeling">查看全部</Link>
-              </div>
-              {ov.labeling.last ? (
-                <p>
-                  <Link to={`/labeling/studies/${encodeURIComponent(ov.labeling.last.study_instance_uid)}`}>
-                    {ov.labeling.last.accession_number ?? ov.labeling.last.study_instance_uid}
-                  </Link>
-                  <span className="text-muted">　{formatTime(ov.labeling.last.updated_at)}</span>
-                </p>
-              ) : (
-                <p className="text-muted">你還沒有存過標註。</p>
+          {(showRecent || showTraining) && (
+            <div className="home-grid__col home-grid__col--main">
+              {showRecent && (
+                <Card title="最近處理" flush extra={<Link to="/labeling">{more('查看全部')}</Link>}>
+                  {last ? (
+                    <div className="table-wrap">
+                      <table aria-label="最近處理" className="home-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">影像縮圖</th>
+                            <th scope="col">病例編號</th>
+                            <th scope="col">處理時間</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>
+                              <DicomThumb projectId={pid} studyUid={last.study_instance_uid} alt={`${last.accession_number ?? '影像'} 縮圖`} />
+                            </td>
+                            <th scope="row">
+                              <Link to={`/labeling/studies/${encodeURIComponent(last.study_instance_uid)}`}>
+                                {last.accession_number ?? last.study_instance_uid}
+                              </Link>
+                            </th>
+                            <td>{formatTime(last.updated_at)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="home-pad text-muted">你還沒有存過標註。</p>
+                  )}
+                </Card>
               )}
-            </section>
+
+              {showTraining && (
+                <Card title="最近訓練" extra={<Link to="/training">{more('訓練紀錄')}</Link>}>
+                  {ov.training!.recent.length === 0 ? (
+                    <p className="text-muted">還沒有訓練。</p>
+                  ) : (
+                    <ul className="home-list">
+                      {ov.training!.recent.map((r) => {
+                        const [text, tone] = runStatusText(r);
+                        return (
+                          <li key={r.id}>
+                            <Link to={`/training/runs/${r.id}`}>{r.setting_name || `訓練 #${r.id}`}</Link>
+                            <StatusBadge tone={tone}>{text}</StatusBadge>
+                            <span className="text-muted">{formatTime(r.finished_at ?? r.created_at)}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </Card>
+              )}
+            </div>
           )}
 
-          {can('training') && ov.training && (
-            <section className="card" aria-labelledby="home-training">
-              <div className="home-card-head">
-                <h2 id="home-training">最近訓練</h2>
-                <Link to="/training">訓練紀錄</Link>
-              </div>
-              {ov.training.recent.length === 0 ? (
-                <p className="text-muted">還沒有訓練。</p>
-              ) : (
-                <ul className="home-list">
-                  {ov.training.recent.map((r) => {
-                    const [text, tone] = runStatusText(r);
-                    return (
-                      <li key={r.id}>
-                        <Link to={`/training/runs/${r.id}`}>{r.setting_name || `訓練 #${r.id}`}</Link>
-                        <StatusBadge tone={tone}>{text}</StatusBadge>
-                        <span className="text-muted">{formatTime(r.finished_at ?? r.created_at)}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
+          {(showModels || showPredictions) && (
+            <div className="home-grid__col">
+              {showModels && (
+                <Card title="可使用的模型" extra={<Link to="/models">{more('查看全部')}</Link>}>
+                  {ov.models!.length === 0 ? (
+                    <p className="text-muted">還沒有完成的模型。</p>
+                  ) : (
+                    <ul className="home-models">
+                      {ov.models!.slice(0, 3).map((m) => (
+                        <li key={m.run_id} className="home-model">
+                          <div className="home-model__row">
+                            <img className="home-model__cover" src={cover.src} alt="" loading="lazy" />
+                            <span className="home-model__text">
+                              <span className="home-model__name">{m.name}</span>
+                              {m.metric_name && m.metric_value != null && (
+                                <span className="home-model__metric">{primaryText(m.metric_name, m.metric_value)}</span>
+                              )}
+                            </span>
+                          </div>
+                          <Link to={`/models/${m.run_id}/result`} className="btn btn--secondary btn--block" aria-label={`查看模型 ${m.name}`}>
+                            查看模型
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
               )}
-            </section>
-          )}
 
-          {can('prediction') && ov.models && (
-            <section className="card" aria-labelledby="home-models">
-              <div className="home-card-head">
-                <h2 id="home-models">可以使用的模型</h2>
-                <Link to="/models">查看全部</Link>
-              </div>
-              {ov.models.length === 0 ? (
-                <p className="text-muted">還沒有完成的模型。</p>
-              ) : (
-                <ul className="home-list">
-                  {ov.models.map((m) => (
-                    <li key={m.run_id}>
-                      <Link to={`/models/${m.run_id}/result`}>{m.name}</Link>
-                      {m.metric_name && m.metric_value != null && (
-                        <span className="text-muted">
-                          {primaryText(m.metric_name, m.metric_value)}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+              {showPredictions && (
+                <Card title="最近預測" flush extra={<Link to="/models">{more('查看更多')}</Link>}>
+                  {ov.predictions!.length === 0 ? (
+                    <p className="home-pad text-muted">還沒有預測紀錄。</p>
+                  ) : (
+                    <div className="table-wrap">
+                      <table aria-label="最近預測" className="home-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">模型</th>
+                            <th scope="col">預測時間</th>
+                            <th scope="col">筆數</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ov.predictions!.map((p) => (
+                            <tr key={p.id}>
+                              <th scope="row">
+                                <Link to={`/models/${p.run_id}/history`}>{p.model_name}</Link>
+                              </th>
+                              <td>{formatTime(p.created_at)}</td>
+                              <td>{p.rows != null ? `${p.rows} 筆` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Card>
               )}
-            </section>
-          )}
-
-          {can('prediction') && ov.predictions && (
-            <section className="card" aria-labelledby="home-predictions">
-              <div className="home-card-head">
-                <h2 id="home-predictions">最近預測</h2>
-                <Link to="/models">查看更多</Link>
-              </div>
-              {ov.predictions.length === 0 ? (
-                <p className="text-muted">還沒有預測紀錄。</p>
-              ) : (
-                <ul className="home-list">
-                  {ov.predictions.map((p) => (
-                    <li key={p.id}>
-                      <Link to={`/models/${p.run_id}/history`}>{p.model_name}</Link>
-                      {p.rows != null && <span>{p.rows} 筆</span>}
-                      <span className="text-muted">{formatTime(p.created_at)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            </div>
           )}
         </div>
       )}

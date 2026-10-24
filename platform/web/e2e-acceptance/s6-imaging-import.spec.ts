@@ -283,6 +283,7 @@ test('TC-B01-08 Accession 清單限制', async () => {
   await admin.locator('#allowlist-text').fill(list);
   await expect(admin.getByText('目前輸入 10 筆')).toBeVisible();
   await shot(admin, tc, '01-專案頁影像存取清單-貼上10筆');
+  await admin.getByRole('checkbox', { name: /已確認變更範圍/ }).check();
   await admin.getByRole('button', { name: '儲存清單' }).click();
   await expect(admin.getByText('已儲存影像存取清單，共 10 筆')).toBeVisible();
   await shot(admin, tc, '02-專案頁影像存取清單-儲存共10筆');

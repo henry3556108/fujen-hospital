@@ -1,7 +1,6 @@
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
-import { ApiErrorAlert } from '../../components/Alert';
-import { StatusBadge } from '../../components/StatusBadge';
+import { ApiErrorAlert, Card, Icon, StatusDot, type IconName } from '../../components/ui';
 import { SchedulingPage } from './SchedulingRoutes';
 import type { ClusterNode } from './types';
 
@@ -12,7 +11,22 @@ const POOL_USE: Record<string, string> = {
   'gpu-shared': 'GPU 共享',
 };
 
-/** TC-C01-01 節點清單：直接讀 Kubernetes，新增節點後自動出現（TC-C01-07）。 */
+/** 統計方塊（外觀同 ui StatTile；保留 stat-tile__label／__value 類名給驗收腳本讀數字） */
+function Tile({ label, value, icon }: { label: string; value: number; icon: IconName }) {
+  return (
+    <li className="ui-stat sch-tile">
+      <span className="ui-stat__icon ui-stat__icon--primary" aria-hidden="true">
+        <Icon name={icon} />
+      </span>
+      <span className="ui-stat__text">
+        <span className="ui-stat__label stat-tile__label">{label}</span>
+        <span className="ui-stat__value ui-stat__value--primary stat-tile__value">{value}</span>
+      </span>
+    </li>
+  );
+}
+
+/** TC-C01-01 節點清單（設計稿 B21 叢集節點）：直接讀 Kubernetes，新增節點後自動出現（TC-C01-07）。 */
 export function ClusterNodesPage() {
   const { api } = useSession();
   const nodes = useResource(() => api.get<ClusterNode[]>('/api/admin/cluster/nodes'));
@@ -22,82 +36,74 @@ export function ClusterNodesPage() {
   const capacity = list.reduce((a, n) => a + n.gpu_capacity, 0);
 
   return (
-    <SchedulingPage title="叢集節點">
-      <div className="page-head">
-        <p className="text-muted">節點清單直接讀取叢集，不需另外設定。</p>
+    <SchedulingPage
+      title="運算資源"
+      subtitle="管理 GPU 資源、群組與叢集節點"
+      actions={
         <button type="button" className="btn btn--secondary" onClick={nodes.reload} disabled={nodes.loading}>
           重新整理
         </button>
-      </div>
+      }
+    >
       <ApiErrorAlert error={nodes.error} />
       {nodes.data && (
-        <ul className="stat-grid section" aria-label="叢集摘要">
-          <li className="card stat-tile">
-            <span className="stat-tile__label">節點數</span>
-            <span className="stat-tile__value">{list.length}</span>
-          </li>
-          <li className="card stat-tile">
-            <span className="stat-tile__label">就緒節點</span>
-            <span className="stat-tile__value">{ready}</span>
-          </li>
-          <li className="card stat-tile">
-            <span className="stat-tile__label">實體 GPU</span>
-            <span className="stat-tile__value">{physical}</span>
-          </li>
-          <li className="card stat-tile">
-            <span className="stat-tile__label">可排程 GPU 份數</span>
-            <span className="stat-tile__value">{capacity}</span>
-          </li>
+        <ul className="sch-tiles" aria-label="叢集摘要">
+          <Tile label="節點數" value={list.length} icon="server" />
+          <Tile label="就緒節點" value={ready} icon="check" />
+          <Tile label="實體 GPU" value={physical} icon="cube" />
+          <Tile label="可排程 GPU 份數" value={capacity} icon="grid" />
         </ul>
       )}
-      <div className="table-wrap section">
-        <table aria-label="叢集節點列表">
-          <thead>
-            <tr>
-              <th scope="col">節點</th>
-              <th scope="col">節點池</th>
-              <th scope="col">用途</th>
-              <th scope="col">狀態</th>
-              <th scope="col" className="num">
-                實體 GPU
-              </th>
-              <th scope="col" className="num">
-                GPU 份數
-              </th>
-              <th scope="col" className="num">
-                可分配
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {nodes.loading && !nodes.data && (
+      <Card title="叢集節點" flush extra={<span className="text-muted">節點清單直接讀取叢集，不需另外設定</span>}>
+        <div className="table-wrap">
+          <table aria-label="叢集節點列表">
+            <thead>
               <tr>
-                <td colSpan={7} role="status">
-                  載入中…
-                </td>
-              </tr>
-            )}
-            {list.map((n) => (
-              <tr key={n.name}>
-                <th scope="row" className="mono">
-                  {n.name}
+                <th scope="col">節點</th>
+                <th scope="col">節點池</th>
+                <th scope="col">用途</th>
+                <th scope="col">狀態</th>
+                <th scope="col" className="num">
+                  實體 GPU
                 </th>
-                <td>{n.pool ?? '—'}</td>
-                <td>{n.pool ? (POOL_USE[n.pool] ?? n.pool) : '控制平面'}</td>
-                <td>{n.ready ? <StatusBadge tone="success">就緒</StatusBadge> : <StatusBadge tone="error">未就緒</StatusBadge>}</td>
-                <td className="num">{n.gpu_physical}</td>
-                <td className="num">{n.gpu_capacity}</td>
-                <td className="num">{n.gpu_allocatable}</td>
+                <th scope="col" className="num">
+                  GPU 份數
+                </th>
+                <th scope="col" className="num">
+                  可分配
+                </th>
               </tr>
-            ))}
-            {nodes.data?.length === 0 && (
-              <tr>
-                <td colSpan={7}>叢集沒有節點</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {nodes.loading && !nodes.data && (
+                <tr>
+                  <td colSpan={7} role="status">
+                    載入中…
+                  </td>
+                </tr>
+              )}
+              {list.map((n) => (
+                <tr key={n.name}>
+                  <th scope="row" className="mono">
+                    {n.name}
+                  </th>
+                  <td>{n.pool ?? '—'}</td>
+                  <td>{n.pool ? (POOL_USE[n.pool] ?? n.pool) : '控制平面'}</td>
+                  <td>{n.ready ? <StatusDot tone="success">就緒</StatusDot> : <StatusDot tone="error">未就緒</StatusDot>}</td>
+                  <td className="num">{n.gpu_physical}</td>
+                  <td className="num">{n.gpu_capacity}</td>
+                  <td className="num">{n.gpu_allocatable}</td>
+                </tr>
+              ))}
+              {nodes.data?.length === 0 && (
+                <tr>
+                  <td colSpan={7}>叢集沒有節點</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </SchedulingPage>
   );
 }

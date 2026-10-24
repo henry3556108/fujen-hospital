@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { ADMIN_NAV, AREAS, isActive, visibleNav, type AdminNavItem, type NavArea } from '../access/entries';
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_NAMES_ZH, ROLE_LABELS, ROLE_NAMES_ZH, type Me, type MeProject } from '../api/types';
@@ -47,12 +47,98 @@ function ProjectSwitcher() {
   );
 }
 
-function SideLink({ to, label, icon, active }: { to: string; label: string; icon: IconName; active: boolean }) {
+/** 右上角「帳號・身分」下拉：個人設定。身分文字保留「我的身分（…）」給輔助技術與驗收腳本讀取。 */
+function UserMenu({ showRole }: { showRole: boolean }) {
+  const me = useMe();
+  const { project } = useSession();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  const [roleText, roleEnglish] = projectRoleText(me, project);
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: globalThis.MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="usermenu" ref={ref}>
+      <button
+        type="button"
+        className="topbar__user"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls="user-menu"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="topbar__avatar" aria-hidden="true">
+          <Icon name="user" />
+        </span>
+        <span className="topbar__username">{me.username}</span>
+        {showRole && (
+          <>
+            <span className="topbar__sep" aria-hidden="true">
+              ・
+            </span>
+            <span className="topbar__role" title={roleEnglish} data-testid="header-role">
+              <span className="visually-hidden">我的身分（</span>
+              {roleText}
+              <span className="visually-hidden">）</span>
+            </span>
+          </>
+        )}
+        <Icon name="chevron-down" className="topbar__chevron" />
+      </button>
+      {open && (
+        <div id="user-menu" className="usermenu__panel">
+          <dl className="usermenu__info">
+            <dt>帳號</dt>
+            <dd>{me.username}</dd>
+            <dt>身分</dt>
+            <dd>
+              {roleText}（{roleEnglish}）
+            </dd>
+          </dl>
+          <Link to="/account" className="usermenu__item" onClick={guardClick}>
+            <Icon name="user" />
+            個人設定
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SideLink({
+  to,
+  label,
+  icon,
+  active,
+  ariaLabel,
+}: {
+  to: string;
+  label: string;
+  icon: IconName;
+  active: boolean;
+  ariaLabel?: string;
+}) {
   return (
     <Link
       to={to}
       className="sidenav__item"
       aria-current={active ? 'page' : undefined}
+      aria-label={ariaLabel}
       title={label}
       onClick={guardClick}
     >
@@ -90,6 +176,10 @@ function AdminNav({ items, pathname }: { items: readonly AdminNavItem[]; pathnam
   return (
     <>
       <ul>
+        <li className="sidenav__back">
+          {/* 畫面寫「返回研究區」（設計稿 B12），名稱沿用「回研究區」 */}
+          <SideLink to="/projects" label="返回研究區" ariaLabel="回研究區" icon="back" active={false} />
+        </li>
         {items.map((a) => (
           <li key={a.key}>
             <SideLink to={a.path} label={a.label} icon={a.icon} active={isActive(a, pathname)} />
@@ -99,9 +189,6 @@ function AdminNav({ items, pathname }: { items: readonly AdminNavItem[]; pathnam
       <ul className="sidenav__bottom">
         <li>
           <SideLink to="/catalog" label="功能目錄" icon="grid" active={false} />
-        </li>
-        <li>
-          <SideLink to="/projects" label="回研究區" icon="back" active={false} />
         </li>
       </ul>
     </>
@@ -121,61 +208,17 @@ export function AppLayout() {
   const items = visibleNav(me, project);
   // 標註工作台一律收起側欄（03 規格 4.2）
   const collapsed = /^\/labeling\/studies\//.test(pathname);
-  const [roleText, roleEnglish] = projectRoleText(me, project);
 
   return (
     <div className={`shell ${collapsed ? 'shell--collapsed' : ''} ${adminArea ? 'shell--admin' : ''}`}>
       <a className="skip-link" href="#main">
         跳到主要內容
       </a>
-      <header className="topbar">
-        <button
-          type="button"
-          className="btn btn--ghost topbar__menu"
-          aria-expanded={menuOpen}
-          aria-controls="main-nav"
-          onClick={() => setMenuOpen((o) => !o)}
-        >
-          <Icon name={menuOpen ? 'close' : 'menu'} />
-          <span>選單</span>
-        </button>
-        <Link to={adminArea ? '/admin' : '/'} className="topbar__brand" onClick={guardClick}>
-          AI 模型開發管理平台
+      <div className={`sidebar ${menuOpen ? 'sidebar--open' : ''}`}>
+        <Link to={adminArea ? '/admin' : '/'} className="sidebar__brand" onClick={guardClick} title="醫學研究平台">
+          <Icon name="lungs" className="sidebar__logo" />
+          <span className="sidebar__brand-text">醫學研究平台</span>
         </Link>
-        {adminArea ? (
-          <div className="topbar__context">
-            <span className="topbar__area">系統管理區</span>
-            <Link to="/projects" className="btn btn--secondary btn--small">
-              切到研究區
-            </Link>
-          </div>
-        ) : (
-          <div className="topbar__context">
-            <ProjectSwitcher />
-            {project && (
-              <span className="topbar__role" title={roleEnglish} data-testid="header-role">
-                我的身分（{roleText}）
-              </span>
-            )}
-          </div>
-        )}
-        <div className="topbar__tools">
-          <Link to="/account" className="topbar__user" onClick={guardClick} aria-label={`個人設定（${me.username}）`}>
-            <Icon name="user" />
-            <span className="topbar__username">{me.username}</span>
-          </Link>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => {
-              if (confirmLeave('登出')) void logout();
-            }}
-          >
-            登出
-          </button>
-        </div>
-      </header>
-      <div className="shell__body">
         <nav
           id="main-nav"
           aria-label={adminArea ? '系統管理選單' : '功能選單'}
@@ -183,6 +226,43 @@ export function AppLayout() {
         >
           {adminArea ? <AdminNav items={ADMIN_NAV} pathname={pathname} /> : <ResearchNav items={items} pathname={pathname} isAdmin={isAdmin} />}
         </nav>
+      </div>
+      <div className="shell__main">
+        <header className="topbar">
+          <button
+            type="button"
+            className="btn btn--ghost topbar__menu"
+            aria-expanded={menuOpen}
+            aria-controls="main-nav"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <Icon name={menuOpen ? 'close' : 'menu'} />
+            <span>選單</span>
+          </button>
+          {adminArea ? (
+            <div className="topbar__context">
+              <span className="topbar__scope-label">目前範圍</span>
+              <span className="topbar__area">系統管理區</span>
+            </div>
+          ) : (
+            <div className="topbar__context">
+              <ProjectSwitcher />
+            </div>
+          )}
+          <div className="topbar__tools">
+            <UserMenu showRole={!adminArea && !!project} />
+            <button
+              type="button"
+              className="btn btn--ghost btn--small topbar__logout"
+              onClick={() => {
+                if (confirmLeave('登出')) void logout();
+              }}
+            >
+              <Icon name="logout" />
+              登出
+            </button>
+          </div>
+        </header>
         <main id="main" tabIndex={-1} className="content">
           <Outlet />
         </main>

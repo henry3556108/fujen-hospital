@@ -196,7 +196,7 @@ describe('使用模型：頁面', () => {
     const runId = trainingMock().runs[0].id;
     const second = await renderAt(`/models/${runId}/result`);
     const tabs = await screen.findByRole('navigation', { name: '模型分頁' });
-    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['結果', '預測新資料', '預測紀錄', '分享與服務', '下載']);
+    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['模型結果', '預測新資料', '預測紀錄', '分享與服務']);
     expect(await screen.findByTestId('result-data')).toHaveTextContent('測試筆數');
     expect(screen.getByText('測試筆數少，結果僅供參考。')).toBeInTheDocument();
     expect(screen.getByTestId('key-metrics')).toHaveTextContent('敏感度');
@@ -209,11 +209,14 @@ describe('使用模型：頁面', () => {
 
 describe('語言模型', () => {
   it('seven tabs in order with plain names; old playground address redirects to chat', async () => {
-    await renderAt('/llm/playground', 'ca01');
+    const { user } = await renderAt('/llm/playground', 'ca01');
     const tabs = await screen.findByRole('navigation', { name: '語言模型分頁' });
     expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['對話', '參考文件', '問答範本', '內部服務', '模型', '工作流程', '團隊文件']);
     expect(await screen.findByRole('heading', { name: '對話測試' })).toBeInTheDocument();
-    expect(screen.getByTestId('chat-settings')).toHaveTextContent('回答規則');
+    // 回答設定在右側面板（設計稿 B14），按「設定」打開
+    expect(screen.queryByTestId('chat-settings')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '設定' }));
+    expect(await screen.findByTestId('chat-settings')).toHaveTextContent('System Prompt');
   });
 
   it('internal service shows a publish summary', async () => {

@@ -1,6 +1,7 @@
 /*
  * 色彩 Token（依 ~/.claude/guidelines/color-system.md；色碼照介面重整提案第 4 節）
- * 只做淺色主題（03 規格 4.3）：影像檢視器維持深色底，其餘一律淺色。
+ * 淺色為預設；深色版本用 :root[data-theme="dark"]，未指定主題時跟隨系統（prefers-color-scheme）。
+ * 影像檢視器不論主題都維持深色底。
  *
  * 第 1 層 Primitive：--primitive-<色相>-<色階>，只描述顏色本身，只有這一層可以寫色碼。
  * 第 2 層 Semantic：--color-*，描述用途。
@@ -44,8 +45,33 @@
 
   --primitive-teal-50: #e6f5f4;
   --primitive-teal-100: #c8eae7;
+  --primitive-teal-200: #8fd8d1;
+  --primitive-teal-300: #4fc0b6;
+  --primitive-teal-400: #22a399;
   --primitive-teal-600: #087f78;
   --primitive-teal-700: #066660;
+  --primitive-teal-950: #052a28;
+
+  /* 側欄深藍（設計稿 A01～A08） */
+  --primitive-navy-700: #2a4778;
+  --primitive-navy-800: #1d3868;
+  --primitive-navy-900: #142b57;
+  --primitive-navy-950: #0d1d3d;
+
+  /* 深色主題用的底色 */
+  --primitive-night-950: #0a1424;
+  --primitive-night-900: #101d33;
+  --primitive-night-800: #172741;
+  --primitive-night-700: #203352;
+  --primitive-night-600: #2c4266;
+
+  /* 陰影（只在 Primitive 寫顏色） */
+  --primitive-shadow-sm: 0 1px 2px color-mix(in srgb, #172b4d 6%, transparent);
+  --primitive-shadow-md: 0 4px 12px color-mix(in srgb, #172b4d 12%, transparent);
+  --primitive-shadow-lg: -8px 0 24px color-mix(in srgb, #172b4d 16%, transparent);
+  --primitive-shadow-dark-sm: 0 1px 2px color-mix(in srgb, #000000 40%, transparent);
+  --primitive-shadow-dark-md: 0 4px 12px color-mix(in srgb, #000000 50%, transparent);
+  --primitive-shadow-dark-lg: -8px 0 24px color-mix(in srgb, #000000 55%, transparent);
 
   --primitive-green-50: #ecf8f0;
   --primitive-green-300: #7cc896;
@@ -124,14 +150,20 @@
   --color-secondary: var(--primitive-teal-600);
   --color-secondary-bg: var(--primitive-teal-50);
 
-  /* 研究區／管理區側欄：深藍底 */
-  --color-sidebar-bg: var(--primitive-neutral-900);
+  /* 研究區／管理區側欄：深藍底，選中亮藍底白字 */
+  --color-sidebar-bg: var(--primitive-navy-900);
   --color-sidebar-text: var(--primitive-neutral-200);
   --color-sidebar-text-muted: var(--primitive-neutral-300);
-  --color-sidebar-bg-hover: var(--primitive-neutral-800);
+  --color-sidebar-bg-hover: var(--primitive-navy-800);
   --color-sidebar-bg-selected: var(--primitive-brand-600);
   --color-sidebar-text-selected: var(--primitive-white);
-  --color-sidebar-divider: var(--primitive-neutral-700);
+  --color-sidebar-divider: var(--primitive-navy-700);
+  --color-progress-pending: var(--primitive-neutral-400);
+  --color-avatar-bg: var(--primitive-neutral-200);
+  --color-avatar-text: var(--primitive-neutral-600);
+  --color-shadow-sm: var(--primitive-shadow-sm);
+  --color-shadow-md: var(--primitive-shadow-md);
+  --color-shadow-lg: var(--primitive-shadow-lg);
   --color-status-warning-bg: var(--primitive-amber-50);
   --color-status-warning-border: var(--primitive-amber-600);
   --color-status-warning-icon: var(--primitive-amber-600);
@@ -192,6 +224,15 @@
   --sidebar-divider: var(--color-sidebar-divider);
   --progress-track: var(--color-border-default);
   --progress-fill: var(--color-secondary);
+  --progress-fill-pending: var(--color-progress-pending);
+  --progress-fill-primary: var(--color-action-primary);
+
+  --avatar-bg: var(--color-avatar-bg);
+  --avatar-text: var(--color-avatar-text);
+
+  --shadow-card: var(--color-shadow-sm);
+  --shadow-popover: var(--color-shadow-md);
+  --shadow-panel: var(--color-shadow-lg);
 
   --card-bg: var(--color-bg-surface);
   --card-border: var(--color-border-default);
@@ -254,6 +295,35 @@
 
   color-scheme: light;
 
+  /* ---------- 字級、圓角、間距、版面（提案第 4 節：內文 16、表格 15、輔助 14、頁標題 28） ---------- */
+  --font-size-page-title: 1.75rem;
+  --font-size-card-title: 1.125rem;
+  --font-size-body: 1rem;
+  --font-size-table: 0.9375rem;
+  --font-size-small: 0.875rem;
+  --font-size-caption: 0.8125rem;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --layout-sidebar-width: 13rem;
+  --layout-sidebar-collapsed: 5rem;
+  --layout-topbar-height: 4rem;
+  --layout-content-padding: 2rem;
+  --layout-panel-width: 22rem;
+
   /* 影像標註工作台（WP5a）。影像區固定深色底：醫療影像一律在暗底上判讀 */
   --viewer-bg: var(--primitive-neutral-950);
   --viewer-text: var(--primitive-neutral-100);
@@ -265,4 +335,161 @@
   --annotation-color-4: var(--primitive-indigo-300);
   --annotation-color-5: var(--primitive-violet-300);
   --annotation-color-6: var(--primitive-brand-300);
+}
+
+/*
+ * ---------- Semantic（Dark） ----------
+ * 只覆寫 Semantic token；Primitive 與 Component 不變。
+ * 兩處內容相同：明確選深色（data-theme="dark"），以及未指定主題時跟隨系統。
+ */
+:root[data-theme="dark"] {
+  --color-bg-page: var(--primitive-night-950);
+  --color-bg-surface: var(--primitive-night-900);
+  --color-bg-raised: var(--primitive-night-800);
+  --color-bg-subtle: var(--primitive-night-800);
+  --color-bg-hover: var(--primitive-night-700);
+  --color-bg-pressed: var(--primitive-night-600);
+  --color-bg-selected: var(--primitive-brand-950);
+  --color-bg-disabled: var(--primitive-night-800);
+  --color-bg-backdrop: var(--primitive-neutral-950);
+
+  --color-text-primary: var(--primitive-neutral-100);
+  --color-text-secondary: var(--primitive-neutral-300);
+  --color-text-muted: var(--primitive-neutral-300);
+  --color-text-disabled: var(--primitive-neutral-400);
+  --color-text-link: var(--primitive-brand-300);
+  --color-text-selected: var(--primitive-brand-200);
+  --color-text-on-action: var(--primitive-white);
+  --color-text-on-danger: var(--primitive-white);
+
+  --color-border-default: var(--primitive-night-600);
+  --color-border-strong: var(--primitive-neutral-500);
+  --color-border-selected: var(--primitive-brand-300);
+  --color-border-disabled: var(--primitive-night-600);
+  --color-focus-ring: var(--primitive-brand-300);
+
+  --color-action-primary: var(--primitive-brand-500);
+  --color-action-primary-hover: var(--primitive-brand-600);
+  --color-action-primary-pressed: var(--primitive-brand-700);
+  --color-action-danger: var(--primitive-red-600);
+  --color-action-danger-hover: var(--primitive-red-700);
+  --color-action-danger-pressed: var(--primitive-red-800);
+
+  --color-accent-bg: var(--primitive-violet-950);
+  --color-accent-text: var(--primitive-violet-300);
+
+  --color-status-success-bg: var(--primitive-teal-950);
+  --color-status-success-border: var(--primitive-teal-400);
+  --color-status-success-icon: var(--primitive-teal-300);
+  --color-status-success-text: var(--primitive-teal-200);
+  --color-secondary: var(--primitive-teal-400);
+  --color-secondary-bg: var(--primitive-teal-950);
+
+  --color-sidebar-bg: var(--primitive-navy-950);
+  --color-sidebar-text: var(--primitive-neutral-200);
+  --color-sidebar-text-muted: var(--primitive-neutral-300);
+  --color-sidebar-bg-hover: var(--primitive-navy-800);
+  --color-sidebar-bg-selected: var(--primitive-brand-600);
+  --color-sidebar-text-selected: var(--primitive-white);
+  --color-sidebar-divider: var(--primitive-navy-700);
+  --color-progress-pending: var(--primitive-neutral-500);
+  --color-avatar-bg: var(--primitive-night-600);
+  --color-avatar-text: var(--primitive-neutral-200);
+  --color-shadow-sm: var(--primitive-shadow-dark-sm);
+  --color-shadow-md: var(--primitive-shadow-dark-md);
+  --color-shadow-lg: var(--primitive-shadow-dark-lg);
+
+  --color-status-warning-bg: var(--primitive-amber-950);
+  --color-status-warning-border: var(--primitive-amber-400);
+  --color-status-warning-icon: var(--primitive-amber-400);
+  --color-status-warning-text: var(--primitive-amber-300);
+  --color-status-error-bg: var(--primitive-red-950);
+  --color-status-error-border: var(--primitive-red-400);
+  --color-status-error-icon: var(--primitive-red-400);
+  --color-status-error-text: var(--primitive-red-300);
+  --color-status-info-bg: var(--primitive-indigo-950);
+  --color-status-info-border: var(--primitive-indigo-400);
+  --color-status-info-icon: var(--primitive-indigo-400);
+  --color-status-info-text: var(--primitive-indigo-300);
+
+  --color-chart-neutral: var(--primitive-chart-gray-800);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-page: var(--primitive-night-950);
+    --color-bg-surface: var(--primitive-night-900);
+    --color-bg-raised: var(--primitive-night-800);
+    --color-bg-subtle: var(--primitive-night-800);
+    --color-bg-hover: var(--primitive-night-700);
+    --color-bg-pressed: var(--primitive-night-600);
+    --color-bg-selected: var(--primitive-brand-950);
+    --color-bg-disabled: var(--primitive-night-800);
+    --color-bg-backdrop: var(--primitive-neutral-950);
+
+    --color-text-primary: var(--primitive-neutral-100);
+    --color-text-secondary: var(--primitive-neutral-300);
+    --color-text-muted: var(--primitive-neutral-300);
+    --color-text-disabled: var(--primitive-neutral-400);
+    --color-text-link: var(--primitive-brand-300);
+    --color-text-selected: var(--primitive-brand-200);
+    --color-text-on-action: var(--primitive-white);
+    --color-text-on-danger: var(--primitive-white);
+
+    --color-border-default: var(--primitive-night-600);
+    --color-border-strong: var(--primitive-neutral-500);
+    --color-border-selected: var(--primitive-brand-300);
+    --color-border-disabled: var(--primitive-night-600);
+    --color-focus-ring: var(--primitive-brand-300);
+
+    --color-action-primary: var(--primitive-brand-500);
+    --color-action-primary-hover: var(--primitive-brand-600);
+    --color-action-primary-pressed: var(--primitive-brand-700);
+    --color-action-danger: var(--primitive-red-600);
+    --color-action-danger-hover: var(--primitive-red-700);
+    --color-action-danger-pressed: var(--primitive-red-800);
+
+    --color-accent-bg: var(--primitive-violet-950);
+    --color-accent-text: var(--primitive-violet-300);
+
+    --color-status-success-bg: var(--primitive-teal-950);
+    --color-status-success-border: var(--primitive-teal-400);
+    --color-status-success-icon: var(--primitive-teal-300);
+    --color-status-success-text: var(--primitive-teal-200);
+    --color-secondary: var(--primitive-teal-400);
+    --color-secondary-bg: var(--primitive-teal-950);
+
+    --color-sidebar-bg: var(--primitive-navy-950);
+    --color-sidebar-text: var(--primitive-neutral-200);
+    --color-sidebar-text-muted: var(--primitive-neutral-300);
+    --color-sidebar-bg-hover: var(--primitive-navy-800);
+    --color-sidebar-bg-selected: var(--primitive-brand-600);
+    --color-sidebar-text-selected: var(--primitive-white);
+    --color-sidebar-divider: var(--primitive-navy-700);
+    --color-progress-pending: var(--primitive-neutral-500);
+    --color-avatar-bg: var(--primitive-night-600);
+    --color-avatar-text: var(--primitive-neutral-200);
+    --color-shadow-sm: var(--primitive-shadow-dark-sm);
+    --color-shadow-md: var(--primitive-shadow-dark-md);
+    --color-shadow-lg: var(--primitive-shadow-dark-lg);
+
+    --color-status-warning-bg: var(--primitive-amber-950);
+    --color-status-warning-border: var(--primitive-amber-400);
+    --color-status-warning-icon: var(--primitive-amber-400);
+    --color-status-warning-text: var(--primitive-amber-300);
+    --color-status-error-bg: var(--primitive-red-950);
+    --color-status-error-border: var(--primitive-red-400);
+    --color-status-error-icon: var(--primitive-red-400);
+    --color-status-error-text: var(--primitive-red-300);
+    --color-status-info-bg: var(--primitive-indigo-950);
+    --color-status-info-border: var(--primitive-indigo-400);
+    --color-status-info-icon: var(--primitive-indigo-400);
+    --color-status-info-text: var(--primitive-indigo-300);
+
+    --color-chart-neutral: var(--primitive-chart-gray-800);
+
+    color-scheme: dark;
+  }
 }

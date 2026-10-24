@@ -55,7 +55,8 @@ describe('pending list', () => {
     studyLabel('nodule', MOCK_STUDIES[1], { source: 'autolabel', status: 'draft' });
     await renderArea('/labeling', 'ra01');
     const progress = await screen.findByTestId('label-progress');
-    expect(progress).toHaveTextContent(`已確認 1／共 ${MOCK_STUDY_COUNT} 個研究`);
+    expect(progress).toHaveTextContent(`已確認（共 ${MOCK_STUDY_COUNT} 個研究）`);
+    expect(within(progress).getByRole('progressbar')).toHaveAttribute('aria-valuetext', `1 / ${MOCK_STUDY_COUNT}`);
     // 9 個沒有已確認標註的研究＋1 筆草稿
     expect(screen.getByTestId('pending-count')).toHaveTextContent('10');
     expect(screen.getAllByTestId('study-classes')[0]).toHaveTextContent('abnormal');
@@ -161,12 +162,22 @@ describe('label datasets', () => {
     const summary = await screen.findByTestId('dataset-summary');
     expect(summary).toHaveTextContent('影像分類');
     expect(summary).toHaveTextContent('2 筆、2 個研究');
-    expect(summary).toHaveTextContent('abnormal 1、normal 1');
-    expect(summary).toHaveTextContent('手動 1、CSV 匯入 1');
+    // 右側資訊欄的類別統計、來源統計（設計稿 A04）
+    const byClass = within(summary).getByRole('list', { name: '類別統計' });
+    expect(byClass).toHaveTextContent('abnormal1（50.0%）');
+    expect(byClass).toHaveTextContent('normal1（50.0%）');
+    const bySource = within(summary).getByRole('list', { name: '來源統計' });
+    expect(bySource).toHaveTextContent('手動1（50.0%）');
+    expect(bySource).toHaveTextContent('CSV 匯入1（50.0%）');
     expect(summary).toHaveTextContent('1 筆（訓練不會用到');
+    // 已確認／待確認進度
+    expect(screen.getByRole('progressbar', { name: '已確認' })).toHaveAttribute('aria-valuetext', '2 / 3');
+    expect(screen.getByRole('progressbar', { name: '待確認' })).toHaveAttribute('aria-valuetext', '1 / 3');
     const items = await screen.findByRole('table', { name: '資料集內的標註' });
     expect(within(items).getAllByRole('row')).toHaveLength(4);
-    expect(within(items).getByRole('row', { name: /#3.*ACC0003.*自動標註.*待確認/ })).toBeInTheDocument();
+    expect(within(items).getByRole('row', { name: /ACC0003.*自動標註.*abnormal.*待確認/ })).toBeInTheDocument();
+    // CSV 匯入的標註是已確認
+    expect(within(items).getByRole('row', { name: /ACC0002.*CSV 匯入.*normal.*已確認/ })).toBeInTheDocument();
     // ra01 有 Training 權限
     expect(screen.getByRole('link', { name: '用這份資料建立模型' })).toHaveAttribute('href', expect.stringMatching(/^\/training\/new\?labelDataset=\d+$/));
   });
@@ -181,6 +192,43 @@ describe('label datasets', () => {
     await screen.findByTestId('dataset-summary');
     expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
     expect(screen.getByText(/建立模型需要 Training 權限/)).toBeInTheDocument();
+  });
+
+  it('F5 the version picker shows an old version summary and says the items are the current content', async () => {
+    studyLabel('abnormal');
+    studyLabel('normal', MOCK_STUDIES[1]);
+    labelingMock().datasets.push({
+      id: 78, project_id: 1, name: '胸部標註', task: 'classification', scope_id: null, classes: [], created_by: 'pi01',
+      created_at: '2026-09-29T00:00:00Z',
+      versions: [{ version: 1, created_at: '2026-10-01T08:00:00Z', created_by: 'pi01', annotations: 1, by_class: { abnormal: 1 }, members: [] }],
+    } as never);
+    const { user } = await renderArea('/labeling/datasets/78', 'ra01');
+    const summary = await screen.findByTestId('dataset-summary');
+    expect(summary).toHaveTextContent('胸部標註・目前內容');
+    const picker = screen.getByLabelText('版本');
+    await waitFor(() => expect(within(picker).getAllByRole('option')).toHaveLength(2));
+    await user.selectOptions(picker, '1');
+    await waitFor(() => expect(screen.getByTestId('dataset-summary')).toHaveTextContent('胸部標註・第 1 版'));
+    expect(screen.getByTestId('dataset-summary')).toHaveTextContent('2026-10-01 08:00（pi01）');
+    expect(within(screen.getByTestId('dataset-summary')).getByRole('list', { name: '類別統計' })).toHaveTextContent('abnormal1（100.0%）');
+    expect(screen.getByText(/下方明細是目前內容/)).toBeInTheDocument();
+    // 明細仍是目前內容（2 筆）
+    expect(within(screen.getByRole('table', { name: '資料集內的標註' })).getAllByRole('row')).toHaveLength(3);
+  });
+
+  it('繼續確認 opens the first draft of the dataset in the workbench', async () => {
+    studyLabel('abnormal');
+    studyLabel('nodule', MOCK_STUDIES[2], { source: 'autolabel', status: 'draft' });
+    labelingMock().datasets.push({
+      id: 79, project_id: 1, name: '待確認測試', task: 'classification', scope_id: null, classes: [], created_by: 'pi01',
+      created_at: '2026-09-29T00:00:00Z', versions: [],
+    } as never);
+    const { user } = await renderArea('/labeling/datasets/79', 'ra01');
+    await screen.findByRole('table', { name: '資料集內的標註' });
+    await user.click(screen.getByRole('button', { name: '繼續確認' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(`/labeling/studies/${MOCK_STUDIES[2].study_instance_uid}?annotation=2`),
+    );
   });
 
   it('createTrainingJob saves a training setting from the labels and submits a training run (WP5b)', async () => {
@@ -220,6 +268,12 @@ describe('workbench', () => {
   it('TC-B02-01 toolbar has layout, rotation, WW/WC and at least 3 organ presets', async () => {
     const { user } = await openWorkbench();
     const toolbar = screen.getByRole('toolbar', { name: '檢視工具列' });
+    // 設計稿 A03 的工具列
+    for (const name of ['移動', '放大', '窗位', '圈選', '塗抹', '復原', '更多工具']) {
+      expect(within(toolbar).getByRole('button', { name })).toBeInTheDocument();
+    }
+    // 器官窗與 WW/WL 收在「窗位」選單
+    await user.click(within(toolbar).getByRole('button', { name: '窗位' }));
     const presets = within(within(toolbar).getByRole('group', { name: '器官窗' })).getAllByRole('button');
     expect(presets.length).toBeGreaterThanOrEqual(3);
 
@@ -228,6 +282,9 @@ describe('workbench', () => {
     expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-window-width', '1500');
     expect(within(toolbar).getByRole('button', { name: '肺窗' })).toHaveAttribute('aria-pressed', 'true');
 
+    // 排列、旋轉收在「更多工具」
+    await user.click(within(toolbar).getByRole('button', { name: '更多工具' }));
+    expect(within(toolbar).queryByRole('group', { name: '器官窗' })).toBeNull();
     await user.click(within(toolbar).getByRole('button', { name: '向右轉 90°' }));
     expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-rotation', '90');
     await user.click(within(toolbar).getByRole('button', { name: '向左轉 90°' }));
@@ -238,6 +295,7 @@ describe('workbench', () => {
     expect(screen.getByTestId('viewport-grid')).toHaveAttribute('data-layout', '2x2');
     expect(screen.getAllByTestId('viewport')).toHaveLength(3); // 這個序列只有 3 張
 
+    await user.click(within(toolbar).getByRole('button', { name: '窗位' }));
     await user.clear(within(toolbar).getByLabelText('窗寬 WW'));
     await user.type(within(toolbar).getByLabelText('窗寬 WW'), '350');
     await user.clear(within(toolbar).getByLabelText('窗位 WL'));
@@ -288,7 +346,7 @@ describe('workbench', () => {
     // 分類預設是整個研究，並且直接標在影像左上角
     expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toHaveTextContent('整個研究：pneumonia');
 
-    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: '偵測' }));
+    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: /偵測/ }));
     const form = screen.getByRole('form', { name: '以座標新增框' });
     for (const [name, value] of [['x1', '4'], ['y1', '6'], ['x2', '20'], ['y2', '30']]) {
       await user.type(within(form).getByLabelText(name), value);
@@ -310,7 +368,7 @@ describe('workbench', () => {
 
   it('rejects a box outside the image before it reaches the server', async () => {
     const { user } = await openWorkbench();
-    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: '偵測' }));
+    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: /偵測/ }));
     const form = screen.getByRole('form', { name: '以座標新增框' });
     for (const [name, value] of [['x1', '4'], ['y1', '6'], ['x2', '70'], ['y2', '30']]) {
       await user.type(within(form).getByLabelText(name), value);
@@ -353,7 +411,7 @@ describe('workbench', () => {
   it('warns before leaving the page with an unsaved box', async () => {
     const { user } = await openWorkbench();
     await user.type(screen.getByLabelText('標籤'), 'nodule');
-    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: '偵測' }));
+    await user.click(within(screen.getByRole('group', { name: '標註種類' })).getByRole('button', { name: /偵測/ }));
     const form = screen.getByRole('form', { name: '以座標新增框' });
     for (const [name, value] of [['x1', '4'], ['y1', '6'], ['x2', '20'], ['y2', '30']]) {
       await user.type(within(form).getByLabelText(name), value);
@@ -383,6 +441,59 @@ describe('workbench', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '刪除' }));
     await status('已刪除標註 #1');
     expect(labelingMock().annotations).toHaveLength(0);
+  });
+
+  it('A03 slice strip switches images, undo removes the last box, and the panel shows the state', async () => {
+    const { user } = await openWorkbench();
+    const strip = screen.getByRole('navigation', { name: '影像序列' });
+    expect(within(strip).getAllByRole('button', { name: /^切換到第 \d+ 張$/ })).toHaveLength(3);
+    await user.click(within(strip).getByRole('button', { name: '切換到第 2 張' }));
+    await waitFor(() => expect(screen.getByTestId('image-position')).toHaveTextContent('第 2 / 3 張'));
+    expect(within(strip).getByRole('button', { name: '切換到第 2 張' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByTestId('annotation-state')).toHaveTextContent('尚未標註');
+
+    await user.type(screen.getByLabelText('標籤'), 'nodule');
+    await user.click(within(screen.getByRole('toolbar', { name: '檢視工具列' })).getByRole('button', { name: '圈選' }));
+    expect(screen.getByRole('button', { name: '畫框工具' })).toHaveAttribute('aria-pressed', 'true');
+    for (const box of [['4', '6', '20', '30'], ['1', '1', '5', '5']]) {
+      const form = screen.getByRole('form', { name: '以座標新增框' });
+      for (const [i, name] of ['x1', 'y1', 'x2', 'y2'].entries()) {
+        await user.clear(within(form).getByLabelText(name));
+        await user.type(within(form).getByLabelText(name), box[i]);
+      }
+      await user.click(within(form).getByRole('button', { name: '新增框' }));
+    }
+    expect(within(screen.getByRole('list', { name: '草稿中的框' })).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByTestId('annotation-state')).toHaveTextContent('尚未儲存');
+
+    // 有沒存的框時不能換張
+    await user.click(within(strip).getByRole('button', { name: '切換到第 1 張' }));
+    await status('尚未儲存的標註');
+    expect(screen.getByTestId('image-position')).toHaveTextContent('第 2 / 3 張');
+
+    await user.click(screen.getByRole('button', { name: '復原' }));
+    await status('已復原上一步');
+    expect(within(screen.getByRole('list', { name: '草稿中的框' })).getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByRole('list', { name: '草稿中的框' })).toHaveTextContent('[4, 6, 20, 30]');
+  });
+
+  it('zoom from 更多工具 and 重設檢視; 顯示標註範圍 hides the classification badges', async () => {
+    const { user } = await openWorkbench();
+    await user.type(screen.getByLabelText('標籤'), 'nodule');
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
+    await status('已儲存分類標註 #1');
+    expect(await screen.findByRole('list', { name: '這張影像的分類標註' })).toBeInTheDocument();
+    await user.click(screen.getByRole('switch', { name: '顯示標註範圍' }));
+    expect(screen.queryByRole('list', { name: '這張影像的分類標註' })).toBeNull();
+
+    const toolbar = screen.getByRole('toolbar', { name: '檢視工具列' });
+    await user.click(within(toolbar).getByRole('button', { name: '更多工具' }));
+    await user.click(within(toolbar).getByRole('button', { name: '放大一級' }));
+    expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-zoom', '1.50');
+    await user.click(within(toolbar).getByRole('button', { name: '重設檢視' }));
+    expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-zoom', '1.00');
+    // 進階檢視保留 OHIF 連結
+    expect(screen.getByRole('link', { name: /進階檢視/ })).toHaveAttribute('href', expect.stringContaining('StudyInstanceUIDs='));
   });
 
   it('a study outside the project shows a clear message', async () => {
@@ -441,8 +552,10 @@ describe('workbench: pending flow', () => {
     const { user } = await openWorkbench('ra01');
     const table = await screen.findByRole('table', { name: '標註清單' });
     expect(within(table).getByRole('row', { name: /#1.*自動標註.*待確認/ })).toBeInTheDocument();
+    expect(screen.getByTestId('annotation-state')).toHaveTextContent('自動標註・待確認');
     await user.click(screen.getByRole('button', { name: '確認標註 #1' }));
     await status('已確認標註 #1');
+    await waitFor(() => expect(screen.getByTestId('annotation-state')).toHaveTextContent('自動標註・已確認'));
     expect(labelingMock().annotations[0]).toMatchObject({ status: 'confirmed', confirmed_by: 'ra01' });
     await waitFor(() => expect(screen.queryByRole('button', { name: '確認標註 #1' })).toBeNull());
   });

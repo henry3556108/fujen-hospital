@@ -12,6 +12,7 @@ export function modelRoutes() {
       <Route path=":runId/history" element={<ModelPage tab="history" />} />
       <Route path=":runId/share" element={<ModelPage tab="share" />} />
       <Route path=":runId/download" element={<ModelPage tab="download" />} />
+      <Route path=":runId/call" element={<ModelPage tab="call" />} />
     </>
   );
 }

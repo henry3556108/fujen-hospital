@@ -418,7 +418,8 @@ export function chartsFor(run: TrainingRun): Charts | null {
   if (run.kind === 'tabular_classification') {
     return {
       ...base, regression: null,
-      confusion_matrix: { labels: ['0', '1'], matrix: [[9, 2], [3, 6]] },
+      // 與 metricsFor 的測試集敏感度 0.7（7/10）、特異度 0.75（6/8）一致，畫面才會顯示「7 / 10」這類計數
+      confusion_matrix: { labels: ['0', '1'], matrix: [[6, 2], [3, 7]] },
       roc: { positive: '1', auc: (run.metrics.test as { auc: number }).auc,
         points: [[0, 0], [0, 0.4], [0.1, 0.55], [0.2, 0.7], [0.35, 0.85], [0.6, 0.95], [1, 1]] },
     };

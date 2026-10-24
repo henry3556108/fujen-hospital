@@ -63,7 +63,7 @@ describe('B1 從資料集建立訓練', () => {
 
     // 建立訓練精靈直接到「確認資料」，研究目的依 Target 預選為分類
     expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '確認資料：表格資料：分類' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '確認資料：判斷類別' })).toBeInTheDocument();
     await first.user.click(screen.getByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
@@ -178,7 +178,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
       '訓練資料中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
     expect(within(details).getByText(/測試集只有 20 人/)).toHaveTextContent('上方的結論用 K 折平均');
     expect(screen.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toHaveTextContent(/準確率\d+(\.\d)?% ± \d/);
-    expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('9 人（82%），正確');
+    expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('6 人（75%），正確');
     expect(screen.getByText(/ROC 曲線（測試集，陽性＝「1」）/)).toBeInTheDocument();
     expect(screen.getByText('特徵重要性（打亂後分數下降多少）')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '下載報表（可列印）' }));

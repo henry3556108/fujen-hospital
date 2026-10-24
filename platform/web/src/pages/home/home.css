@@ -1,10 +1,6 @@
-/* 專案首頁：只引用 Token，不寫色碼。 */
-.home-subtitle {
-  margin: -0.75rem 0 0;
-}
-
+/* 專案首頁（A01）：只引用 Token，不寫色碼。 */
 .home-hero {
-  margin-top: 1.5rem;
+  padding: var(--space-6);
 }
 
 .home-hero__head {
@@ -12,16 +8,18 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-}
-
-.home-hero__head p {
-  margin: 0.25rem 0 0;
+  gap: var(--space-4);
 }
 
 .home-hero__title {
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
   margin: 0;
+}
+
+.home-hero__sub {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-card-title);
 }
 
 .btn--large {
@@ -31,89 +29,46 @@
 }
 
 .home-progress {
-  margin-top: 1.25rem;
-}
-
-.home-progress__count {
-  margin: 0 0 0.375rem;
-}
-
-.home-progress__bar {
-  height: 0.625rem;
-  border-radius: 999px;
-  background: var(--progress-track);
-  overflow: hidden;
-}
-
-.home-progress__bar span {
-  display: block;
-  height: 100%;
-  background: var(--progress-fill);
-}
-
-.home-steps {
-  list-style: none;
-  margin: 1.25rem 0 0;
-  padding: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-  text-align: center;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
 }
 
-.home-steps__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.125rem;
-}
-
-.home-steps__dot {
-  display: inline-grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  border: 2px solid var(--color-border-strong);
-  color: var(--color-text-secondary);
-  font-weight: 700;
-}
-
-.home-steps__item--done .home-steps__dot {
-  border-color: var(--color-secondary);
-  color: var(--color-secondary);
-}
-
-.home-steps__label {
-  font-weight: 700;
-}
-
-.home-steps__detail {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
+.home-section {
+  margin-top: var(--space-4);
 }
 
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  align-items: start;
 }
 
-.home-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.5rem;
+.home-grid__col {
+  display: grid;
+  gap: var(--space-4);
 }
 
-.home-card-head h2 {
+/* 只有一欄時佔滿 */
+.home-grid__col:only-child {
+  grid-column: 1 / -1;
+}
+
+.home-pad {
   margin: 0;
+  padding: var(--space-4);
+}
+
+.home-table td,
+.home-table th {
+  vertical-align: middle;
 }
 
 .home-list {
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: 0;
   padding: 0;
 }
 
@@ -121,13 +76,62 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
-  padding: 0.5rem 0;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-border-default);
 }
 
 .home-list li:last-child {
   border-bottom: none;
+}
+
+.home-models {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.home-model {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.home-model__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home-model__cover {
+  flex: none;
+  width: 4rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.home-model__text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.home-model__name {
+  font-weight: 700;
+}
+
+.home-model__metric {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+@media (max-width: 1023px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .home-cando {
@@ -232,8 +236,3 @@
   font-weight: 600;
 }
 
-@media (max-width: 767px) {
-  .home-steps {
-    grid-template-columns: 1fr;
-  }
-}

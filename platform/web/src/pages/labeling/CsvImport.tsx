@@ -53,11 +53,17 @@ export function CsvImport({
   studies,
   datasets,
   onDone,
+  defaultDatasetId,
+  bare,
 }: {
   labeling: LabelingApi;
   studies: StudySummary[];
   datasets: LabelDataset[];
   onDone: () => void;
+  /** 從某一份資料集打開時，預設加入這一份 */
+  defaultDatasetId?: number;
+  /** 放在滑出面板裡：不畫外框與標題（面板自己有標題） */
+  bare?: boolean;
 }) {
   const { project } = useSession();
   const [file, setFile] = useState<File | null>(null);
@@ -65,9 +71,9 @@ export function CsvImport({
   const [key, setKey] = useState<CsvKey>('patient_id');
   const [keyColumn, setKeyColumn] = useState('');
   const [labelColumn, setLabelColumn] = useState('');
-  const [target, setTarget] = useState<'new' | 'existing'>('new');
+  const [target, setTarget] = useState<'new' | 'existing'>(defaultDatasetId !== undefined ? 'existing' : 'new');
   const [name, setName] = useState('');
-  const [existing, setExisting] = useState('');
+  const [existing, setExisting] = useState(defaultDatasetId !== undefined ? String(defaultDatasetId) : '');
   const [result, setResult] = useState<CsvResult | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -124,8 +130,12 @@ export function CsvImport({
 
   const problems = result?.results.filter((r) => r.status !== 'matched') ?? [];
   return (
-    <section className="card section" aria-labelledby="csv-title">
-      <h2 id="csv-title">匯入診斷結果</h2>
+    <section className={bare ? 'stack' : 'ui-card lb-csv section'} aria-labelledby={bare ? undefined : 'csv-title'}>
+      {bare ? null : (
+        <h2 id="csv-title" className="ui-card__title">
+          匯入診斷結果
+        </h2>
+      )}
       <p className="text-muted">
         用醫師既有的診斷表（CSV）一次完成分類標註。第一列是欄名，需要有病歷號或影像編號一欄，以及診斷一欄。匯入的標註直接算已確認；重新匯入會更新，不會重複。
       </p>

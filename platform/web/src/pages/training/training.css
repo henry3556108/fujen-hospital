@@ -32,3 +32,94 @@
 .stage-code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: 0.875rem; white-space: pre; overflow: auto; tab-size: 4; }
 .stage-lock { width: 1em; height: 1em; vertical-align: -0.125em; }
 .fieldset-plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+/* ---------- 照設計稿重做（A06、A07、B02、B08、B11）：類名一律 trn- 開頭，只用 tokens ---------- */
+/* 指標方塊（A07）：圓環＋大數字＋計數 */
+.trn-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--space-4); list-style: none; margin: 0; padding: 0; }
+.trn-tile { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-5); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); box-shadow: var(--shadow-card); min-width: 0; }
+.trn-tile__label { font-weight: 700; color: var(--color-text-primary); }
+.trn-tile__main { display: flex; align-items: center; gap: var(--space-4); }
+.trn-tile__numbers { display: flex; flex-direction: column; min-width: 0; }
+.trn-tile__value { font-size: var(--font-size-page-title); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--color-text-primary); }
+.trn-tile__count { color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.trn-tile__plain { font-weight: 600; }
+.trn-tile__help { color: var(--color-text-muted); font-size: var(--font-size-small); }
+.trn-ring { flex: none; }
+.trn-ring circle { fill: none; stroke-width: 8; }
+.trn-ring__track { stroke: var(--color-bg-subtle); }
+.trn-ring__fill { stroke: var(--color-secondary); stroke-linecap: round; }
+
+/* 圖表兩欄（混淆矩陣＋ROC、預測值＋殘差） */
+.trn-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--space-4); align-items: start; }
+.trn-chart-card { min-width: 0; margin: 0; padding: var(--space-4); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); }
+
+/* 卡片式小節（1. 選擇研究目的） */
+.trn-section { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) var(--space-5); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); box-shadow: var(--shadow-card); min-width: 0; }
+.trn-section__title { margin: 0; font-size: var(--font-size-card-title); font-weight: 700; }
+.trn-section__hint { margin: calc(-1 * var(--space-2)) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-small); }
+.trn-section__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+
+/* 資料集卡片（A06「2. 確認資料」） */
+.trn-dataset { display: flex; gap: var(--space-4); align-items: flex-start; padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.trn-dataset__body { display: flex; flex-direction: column; gap: var(--space-2); flex: 1; min-width: 0; }
+.trn-dataset__name { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-weight: 700; font-size: var(--font-size-card-title); }
+.trn-dataset__meta { color: var(--color-text-secondary); font-size: var(--font-size-small); }
+.trn-dataset__icon { flex: none; display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-secondary); }
+.trn-dataset__icon .icon { width: 2rem; height: 2rem; }
+
+/* 資料分割比例：三格「訓練資料 70 %」 */
+.trn-split-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-3); }
+
+/* 右側「送出前確認」 */
+.trn-summary-note { display: flex; gap: var(--space-2); align-items: flex-start; color: var(--color-text-secondary); font-size: var(--font-size-small); margin: 0; }
+.trn-side-actions { display: flex; flex-direction: column; gap: var(--space-2); }
+.trn-side-actions .btn { width: 100%; justify-content: center; }
+.trn-class-lines { display: flex; flex-direction: column; gap: var(--space-1); color: var(--color-text-secondary); font-size: var(--font-size-small); }
+
+/* 特徵欄位做成可點的膠囊（B03「4. 選擇用來預測的欄位」） */
+.trn-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.trn-chips .checkbox { padding: var(--space-1) var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-pill); background: var(--color-bg-surface); }
+.trn-chips .checkbox:has(input:checked) { border-color: var(--color-border-selected); background: var(--color-bg-selected); color: var(--color-text-selected); }
+
+/* 已存設定（B02）：清單列 */
+.trn-settings-table tbody tr { cursor: pointer; }
+.trn-settings-table tbody tr[aria-selected='true'] > * { background: var(--color-bg-selected); }
+.trn-settings-table tbody tr[aria-selected='true'] > th { box-shadow: inset 3px 0 0 var(--color-border-selected); }
+.trn-row-actions { display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: flex-end; }
+.trn-link-btn { background: none; border: 0; padding: var(--space-1) var(--space-2); font: inherit; font-size: var(--font-size-small); color: var(--color-text-link); cursor: pointer; border-radius: var(--radius-sm); text-decoration: none; white-space: nowrap; }
+.trn-link-btn:hover { background: var(--color-bg-hover); }
+.trn-link-btn:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 1px; }
+.trn-params { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0 0; font-size: var(--font-size-small); }
+.trn-params dt { color: var(--color-text-secondary); }
+.trn-params dd { margin: 0; overflow-wrap: anywhere; }
+
+/* 流程程式碼（B08） */
+.trn-stage-steps { padding: var(--space-4) var(--space-5); border: 1px solid var(--card-border); border-radius: var(--radius-lg); background: var(--card-bg); }
+.trn-stage-pick { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.trn-code-edit { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); font-size: var(--font-size-small); white-space: pre; overflow: auto; tab-size: 4; width: 100%; }
+.trn-check { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-status-success-bg); color: var(--color-status-success-text); }
+.trn-check--warning { background: var(--color-status-warning-bg); color: var(--color-status-warning-text); }
+.trn-check p { margin: 0; }
+.trn-source { color: var(--color-text-secondary); font-size: var(--font-size-small); margin: 0; overflow-wrap: anywhere; }
+
+/* 模型頁（A07、B11） */
+.trn-tabs-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; border-bottom: 1px solid var(--color-border-default); margin-bottom: var(--space-5); }
+.trn-tabs-row .tabs { border-bottom: 0; margin-bottom: 0; }
+.trn-tabs-note { display: inline-flex; align-items: center; gap: var(--space-1); padding-bottom: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-small); }
+.trn-model-head { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; }
+.trn-model-head__cover { width: 4.5rem; height: 4.5rem; object-fit: cover; border-radius: var(--radius-md); flex: none; }
+.trn-model-head__name { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: 0; font-size: var(--font-size-card-title); }
+.trn-facts-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); margin: var(--space-2) 0 0; }
+.trn-facts-row > div { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.trn-facts-row dt { color: var(--color-text-secondary); font-size: var(--font-size-small); }
+.trn-facts-row dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.trn-formats { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--space-3); }
+.trn-format { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.trn-format--active { border-color: var(--color-border-selected); box-shadow: 0 0 0 1px var(--color-border-selected); }
+.trn-format__title { display: flex; gap: var(--space-2); align-items: flex-start; }
+.trn-format__title strong { display: block; }
+.trn-format__title .icon { flex: none; color: var(--color-text-link); }
+.trn-format .btn { justify-content: center; }
+.trn-compare tr[aria-current='true'] > * { background: var(--color-bg-selected); color: var(--color-text-selected); font-weight: 600; }
+.trn-full > summary { cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: var(--space-2); }
+.trn-model-head__icon { width: 3rem; height: 3rem; flex: none; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-secondary-bg); color: var(--color-secondary); }

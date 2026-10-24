@@ -1,13 +1,14 @@
 // 影像標註首頁＝待處理清單：進度、繼續標註、篩選（文字、狀態、資料範圍）、分頁。
+// 版面照補充設計 B01：標題列＋分頁、進度卡、篩選卡、表格卡（操作是白底藍框按鈕）。
 // CSV 診斷匯入搬到「標註資料集」；訓練改由建立模型精靈處理。
 import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
-import { StatusBadge } from '../../components/StatusBadge';
+import { Badge, Card, EmptyState, PageHeader, Pagination, ProgressBar } from '../../components/ui';
 import { useLabelingApi, type LabelingApi } from './api';
-import { LabelingNav } from './LabelingNav';
+import { LABELING_SUBTITLE, LabelingNav } from './LabelingNav';
 import { formatDate } from './parts';
 import { isPendingStudy, nextPendingStudy, progressOf, useScopeStudyUids, useScopes, workbenchPath } from './pending';
 import type { StudySummary } from './types';
@@ -18,19 +19,19 @@ export const PENDING_PAGE = 20;
 
 type StatusFilter = '' | 'pending' | 'confirmed';
 
+
 export function LabelingPage() {
   const labeling = useLabelingApi();
   if (!labeling) {
     return (
       <>
-        <h1>影像標註</h1>
+        <PageHeader title="影像標註" subtitle={LABELING_SUBTITLE} />
         <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>
       </>
     );
   }
   return <Labeling key={labeling.projectId} labeling={labeling} />;
 }
-
 
 function Labeling({ labeling }: { labeling: LabelingApi }) {
   const { project } = useSession();
@@ -57,7 +58,6 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
         (status === '' || (status === 'pending') === isPendingStudy(s)),
     );
   }, [inScope, text, status]);
-  const lastPage = Math.max(1, Math.ceil(filtered.length / PENDING_PAGE));
   const shown = filtered.slice((page - 1) * PENDING_PAGE, page * PENDING_PAGE);
   // 有選資料範圍時進度只算範圍內；沒選就用 API 的數字
   const progress = scopeId !== null ? progressOf(inScope) : progressOf(inScope, data?.pending, data?.confirmed);
@@ -75,40 +75,37 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
 
   return (
     <>
-      <h1>影像標註</h1>
-      <LabelingNav />
-      <p className="text-muted">
-        專案：<strong>{project?.name}</strong>。待處理包括還沒標的影像，以及自動標註後等你確認的草稿。
-      </p>
+      <PageHeader title="影像標註" subtitle={LABELING_SUBTITLE}>
+        <LabelingNav />
+      </PageHeader>
       <ApiErrorAlert error={summary.error ?? scopeUids.error} />
       {data ? (
-        <div className="card section stack" data-testid="label-progress">
-          <p>
-            <strong>
-              已確認 {progress.confirmed}／共 {progress.total} 個研究
-            </strong>
-            　待處理 <strong data-testid="pending-count">{progress.pending}</strong>
-          </p>
-          <p className="text-muted" data-testid="label-totals">
-            共 {data.studies.length} 個研究、{data.total} 筆標註（分類 {data.by_kind.classification}、分割 {data.by_kind.segmentation}、偵測{' '}
-            {data.by_kind.detection}），已評分 {data.rated} 筆。
-          </p>
-          <div className="row-actions">
+        <Card className="section">
+          <div className="lb-progress-card" data-testid="label-progress">
+            <div className="lb-progress-card__bar">
+              <ProgressBar label={`已確認（共 ${progress.total} 個研究）`} value={progress.confirmed} max={progress.total} showPercent />
+            </div>
+            <p className="lb-progress-card__pending">
+              待處理 <strong data-testid="pending-count">{progress.pending}</strong> 筆
+            </p>
             {next ? (
               <button type="button" className="btn btn--primary" onClick={() => navigate(workbenchPath(next.study_instance_uid, scopeId))}>
                 繼續標註
               </button>
             ) : data.studies.length > 0 ? (
-              <span>目前沒有待處理的影像。</span>
+              <span className="text-muted">目前沒有待處理的影像。</span>
             ) : null}
           </div>
-        </div>
+          <p className="text-muted" data-testid="label-totals">
+            專案「{project?.name}」共 {data.studies.length} 個研究、{data.total} 筆標註（分類 {data.by_kind.classification}、分割{' '}
+            {data.by_kind.segmentation}、偵測 {data.by_kind.detection}），已評分 {data.rated} 筆。待處理包括還沒標的影像，以及自動標註後等你確認的草稿。
+          </p>
+        </Card>
       ) : null}
 
-      <section className="section" aria-labelledby="studies-title">
-        <h2 id="studies-title">待處理清單</h2>
-        <form className="form-grid" aria-label="篩選研究" onSubmit={(e) => e.preventDefault()}>
-          <div className="field">
+      <Card className="section">
+        <form className="lb-filters" aria-label="篩選研究" onSubmit={(e) => e.preventDefault()}>
+          <div className="field lb-filters__search">
             <label htmlFor="pending-q">搜尋</label>
             <input
               id="pending-q"
@@ -143,39 +140,38 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
             </div>
           ) : null}
         </form>
+      </Card>
 
+      <Card title="待處理清單" flush>
         {summary.loading && !data ? (
-          <p role="status" className="loading">
+          <p role="status" className="loading lb-card-note">
             載入中…
           </p>
         ) : data && data.studies.length === 0 ? (
-          <Alert tone="info">
-            專案「{project?.name}」還沒有影像。請先到 <Link to="/data/imaging/import">研究資料 → 加入資料</Link> 匯入影像。
-          </Alert>
+          <EmptyState
+            icon="image"
+            title="還沒有影像"
+            description={<>專案「{project?.name}」還沒有影像，請先到研究資料匯入。</>}
+            action={
+              <Link className="btn btn--primary" to="/data/imaging/import">
+                研究資料 → 加入資料
+              </Link>
+            }
+          />
         ) : data ? (
           <>
-            <p className="text-muted" role="status">
-              符合條件 {filtered.length} 個研究{filtered.length > PENDING_PAGE ? `，第 ${page}／${lastPage} 頁` : ''}
+            <p className="visually-hidden" role="status">
+              符合條件 {filtered.length} 個研究
             </p>
             <StudyTable studies={shown} scopeId={scopeId} />
             {filtered.length > PENDING_PAGE ? (
-              <div className="row-actions section">
-                <button type="button" className="btn btn--secondary btn--small" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>
-                  上一頁
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--small"
-                  disabled={page >= lastPage}
-                  onClick={() => update({ page: String(page + 1) })}
-                >
-                  下一頁
-                </button>
-              </div>
-            ) : null}
+              <Pagination page={page} pageSize={PENDING_PAGE} total={filtered.length} onPageChange={(p) => update({ page: String(p) })} label="待處理清單分頁" />
+            ) : (
+              <p className="text-muted lb-card-note">符合條件 {filtered.length} 個研究</p>
+            )}
           </>
         ) : null}
-      </section>
+      </Card>
     </>
   );
 }
@@ -212,10 +208,14 @@ function StudyTable({ studies, scopeId }: { studies: StudySummary[]; scopeId: nu
                 <td>{s.by_kind.detection}</td>
                 <td>{s.drafts ?? 0}</td>
                 <td>
-                  <StatusBadge tone={pending ? 'warning' : 'success'}>{pending ? '待處理' : '已確認'}</StatusBadge>
+                  <Badge tone={pending ? 'warning' : 'success'}>{pending ? '待處理' : '已確認'}</Badge>
                 </td>
                 <td>
-                  <Link to={workbenchPath(s.study_instance_uid, scopeId)} aria-label={`開啟 ${s.accession_number || s.study_instance_uid} 的標註工作台`}>
+                  <Link
+                    className="btn btn--secondary btn--small"
+                    to={workbenchPath(s.study_instance_uid, scopeId)}
+                    aria-label={`開啟 ${s.accession_number || s.study_instance_uid} 的標註工作台`}
+                  >
                     開啟標註
                   </Link>
                 </td>

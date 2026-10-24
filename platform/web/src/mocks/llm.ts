@@ -8,10 +8,13 @@ interface LlmMock {
   fault: Fault;
   params: Record<string, unknown>;
   kbs: { id: number; name: string; description: string; embed_model: string; documents: number; chunks: number }[];
-  docs: { id: number; kb_id: number; filename: string; format: string; chunks: number; size: number; uploaded_by: string }[];
+  docs: { id: number; kb_id: number; filename: string; format: string; chunks: number; size: number; uploaded_by: string; uploaded_at: string }[];
   prompts: { id: number; owner: string; visibility: string; title: string; content: string; tags: string[] }[];
   services: { id: number; slug: string; name: string; model: string; kb_id: number | null; enabled: boolean; grants: string[]; endpoint: string }[];
   workflows: { id: number; name: string; description: string; definition: Record<string, unknown> }[];
+  runs: Record<string, unknown>[];
+  chatLoaded: boolean;
+  loadConfig: { quantization: string; cpu: number; memory_gb: number; gpu_type: string; gpu_count: number };
   pages: { id: number; path: string; title: string; content: string; description: string; versions: string[] }[];
   sessions: number;
   next: number;
@@ -30,6 +33,9 @@ function seed(): LlmMock {
     prompts: [{ id: 1, owner: 'ca01', visibility: 'public', title: '出院摘要', content: '請整理成出院摘要：{input}', tags: ['摘要'] }],
     services: [],
     workflows: [],
+    runs: [],
+    chatLoaded: true,
+    loadConfig: { quantization: '4bit', cpu: 4, memory_gb: 16, gpu_type: 'gpu-exclusive', gpu_count: 1 },
     pages: [],
     sessions: 0,
     next: 100,
@@ -105,7 +111,7 @@ export const llmHandlers = [
       if (!['pdf', 'docx', 'txt', 'csv', 'json', 'html'].includes(ext)) {
         return { filename: file.name, status: 'failed', reason: '不支援的檔案格式', document: null };
       }
-      const doc = { id: ++db.next, kb_id: kb.id, filename: file.name, format: ext, chunks: 1, size: file.size, uploaded_by: 'ca01' };
+      const doc = { id: ++db.next, kb_id: kb.id, filename: file.name, format: ext, chunks: 1, size: file.size, uploaded_by: 'ca01', uploaded_at: new Date().toISOString() };
       db.docs.push(doc);
       kb.documents++;
       kb.chunks++;
@@ -113,6 +119,17 @@ export const llmHandlers = [
     });
     const count = (s: string) => results.filter((r) => r.status === s).length;
     return json({ kb_id: kb.id, counts: { indexed: count('indexed'), duplicate: 0, failed: count('failed') }, results }, 201);
+  }),
+  http.delete(`${P}/knowledge-bases/:id/documents/:doc`, ({ params }) => {
+    const doc = db.docs.find((d) => d.id === Number(params.doc) && d.kb_id === Number(params.id));
+    if (!doc) return json({ detail: '找不到文件' }, 404);
+    db.docs = db.docs.filter((d) => d !== doc);
+    const kb = db.kbs.find((k) => k.id === doc.kb_id);
+    if (kb) {
+      kb.documents--;
+      kb.chunks -= doc.chunks;
+    }
+    return new HttpResponse(null, { status: 204 });
   }),
 
   // ---- Prompt
@@ -136,7 +153,27 @@ export const llmHandlers = [
     json([
       { name: 'fake-llm-small', source: 'models.test.invalid', repo: 'fake-org/fake-llm-small', revision: 'a'.repeat(40), sha256: 'f'.repeat(64),
         license: 'apache-2.0', requires_token: false, has_remote_code: false, installed: false, loaded: false, remote_code_approved: false },
+      { name: 'fake-llm-chat', source: 'models.test.invalid', repo: 'fake-org/fake-llm-chat', revision: 'b'.repeat(40), sha256: 'e'.repeat(64),
+        license: 'apache-2.0', requires_token: false, has_remote_code: false, installed: true, loaded: db.chatLoaded, remote_code_approved: false },
     ]),
+  ),
+  // 已下載的 fake-llm-chat：載入設定、載入／卸載、執行狀態
+  http.get(`${P}/models/:name/load-config`, ({ params }) => json({ name: params.name, ...db.loadConfig })),
+  http.put(`${P}/models/:name/load-config`, async ({ request }) => {
+    db.loadConfig = (await body(request)) as typeof db.loadConfig;
+    return json(db.loadConfig);
+  }),
+  http.post(`${P}/models/:name/load`, () => {
+    db.chatLoaded = true;
+    return json({ loaded: true, trust_remote_code: false });
+  }),
+  http.post(`${P}/models/:name/unload`, () => {
+    db.chatLoaded = false;
+    return json({ loaded: false });
+  }),
+  http.get(`${P}/models/:name/runtime`, ({ params }) =>
+    json({ name: params.name, loaded: db.chatLoaded, config: db.loadConfig,
+      runtime: db.chatLoaded ? { running: true, quantization_level: db.loadConfig.quantization === '8bit' ? 'Q8_0' : 'Q4_K_M', num_thread: db.loadConfig.cpu, processor: 'gpu', vram_bytes: 0, runtime: 'mock' } : null }),
   ),
   http.get(`${P}/models/downloads`, () => json([])),
   http.get('*/api/admin/llm/downloads', () => json([])),
@@ -155,15 +192,36 @@ export const llmHandlers = [
   http.get(`${P}/workflows`, () => json(db.workflows)),
   http.post(`${P}/workflows`, async ({ request }) => {
     const b = await body(request);
-    const w = { id: ++db.next, name: String(b.name), description: '', definition: b.definition as Record<string, unknown> };
+    const w = { id: ++db.next, name: String(b.name), description: String(b.description ?? ''), definition: b.definition as Record<string, unknown> };
     db.workflows.push(w);
     return json(w, 201);
   }),
-  http.post(`${P}/workflows/:id/runs`, () =>
-    json({ id: ++db.next, status: 'succeeded', error: '', final_state: { answer: '答覆：…' },
+  http.put(`${P}/workflows/:id`, async ({ request, params }) => {
+    const w = db.workflows.find((x) => x.id === Number(params.id));
+    if (!w) return json({ detail: '找不到工作流' }, 404);
+    const b = await body(request);
+    Object.assign(w, { name: String(b.name), description: String(b.description ?? ''), definition: b.definition as Record<string, unknown> });
+    return json(w);
+  }),
+  http.delete(`${P}/workflows/:id`, ({ params }) => {
+    db.workflows = db.workflows.filter((w) => w.id !== Number(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.post(`${P}/workflows/:id/runs`, async ({ request, params }) => {
+    const run = { id: ++db.next, workflow_id: Number(params.id), status: 'succeeded', error: '', input: (await body(request)).input ?? {},
+      final_state: { answer: '答覆：…' }, started_at: '2026-10-23T03:12:00Z', finished_at: '2026-10-23T03:12:02Z',
       nodes: ['retrieve', 'draft', 'final'].map((node, i) => ({ seq: i + 1, node, type: node === 'draft' ? 'llm' : 'template', status: 'succeeded',
-        state_out: {}, error: '', context_source: node === 'draft' ? 'vector' : null, llm_request: null, llm_response: null })) }, 201),
+        state_out: {}, error: '', context_source: node === 'draft' ? 'vector' : null, llm_request: null, llm_response: null })) };
+    db.runs.push(run);
+    return json(run, 201);
+  }),
+  http.get(`${P}/workflows/:id/runs`, ({ params }) =>
+    json(db.runs.filter((r) => r.workflow_id === Number(params.id)).map(({ nodes: _nodes, ...rest }) => rest)),
   ),
+  http.get(`${P}/workflows/:id/runs/:run`, ({ params }) => {
+    const run = db.runs.find((r) => r.id === Number(params.run));
+    return run ? json(run) : json({ detail: '找不到執行紀錄' }, 404);
+  }),
 
   // ---- Wiki
   http.get(`${P}/wiki/pages`, () => json(db.pages.map(({ id, path, title }) => ({ id, path, title })))),
