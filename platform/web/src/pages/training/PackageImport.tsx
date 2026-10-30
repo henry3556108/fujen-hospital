@@ -43,6 +43,8 @@ export function PackageImport({ api, onImported, onClose }: Props) {
   const [datasetId, setDatasetId] = useState('');
   const [studiesMode, setStudiesMode] = useState<'all' | 'selected'>('all');
   const [studiesText, setStudiesText] = useState('');
+  // 上次檢查時送出的對應選擇。匯入時平台會用同樣的選擇再檢查一次，所以要原樣送回
+  const [checked, setChecked] = useState<PackageChoice>({});
   const image = plan ? isImageKind(plan.kind) : false;
   const choosing = plan?.mapping?.mode === 'choose' || plan?.mapping?.mode === 'chosen';
 
@@ -59,8 +61,10 @@ export function PackageImport({ api, onImported, onClose }: Props) {
     setBusy(true);
     try {
       setPlan(await api.packageCheck(file, with_));
+      setChecked(with_);
     } catch (err) {
       setPlan(null);
+      setChecked({});
       setError(err);
     } finally {
       setBusy(false);
@@ -72,7 +76,7 @@ export function PackageImport({ api, onImported, onClose }: Props) {
     setError(null);
     setBusy(true);
     try {
-      onImported(await api.packageImport(file, choice()));
+      onImported(await api.packageImport(file, checked));
     } catch (err) {
       setError(err);
     } finally {
@@ -97,7 +101,7 @@ export function PackageImport({ api, onImported, onClose }: Props) {
       <div className="field">
         <label htmlFor="package-file">專案包（zip）</label>
         <input id="package-file" type="file" accept=".zip,application/zip"
-          onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPlan(null); setError(null); }} />
+          onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPlan(null); setChecked({}); setError(null); }} />
       </div>
       <div className="row-actions">
         <button type="button" className="btn btn--secondary" disabled={!file || busy} onClick={() => void check({})}>

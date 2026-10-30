@@ -547,6 +547,27 @@ describe('workbench: pending flow', () => {
     expect(labelingMock().annotations[0]).toMatchObject({ study_instance_uid: STUDY.study_instance_uid, status: 'confirmed', payload: { label: 'normal' } });
   });
 
+  it('after 只儲存 the same classification is not saved again; the next press just opens the next study', async () => {
+    const { user } = await openWorkbench('ra01');
+    await user.type(screen.getByLabelText('標籤'), 'normal');
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
+    await status('已儲存分類標註 #1：normal');
+    expect(screen.getByRole('button', { name: '只儲存' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '開啟下一筆' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/labeling/studies/${MOCK_STUDIES[1].study_instance_uid}`));
+    expect(labelingMock().annotations.filter((a) => a.study_instance_uid === STUDY.study_instance_uid)).toHaveLength(1);
+  });
+
+  it('changing the class after 只儲存 makes it savable again', async () => {
+    const { user } = await openWorkbench('ra01');
+    await user.type(screen.getByLabelText('標籤'), 'normal');
+    await user.click(screen.getByRole('button', { name: '只儲存' }));
+    await status('已儲存分類標註 #1：normal');
+    await user.type(screen.getByLabelText('標籤'), 'x');
+    expect(screen.getByRole('button', { name: '儲存並開啟下一筆' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '只儲存' })).toBeEnabled();
+  });
+
   it('an autolabel draft shows 待確認 and the 確認 button confirms it', async () => {
     studyLabel('nodule', STUDY, { source: 'autolabel', status: 'draft', confirmed_by: null, confirmed_at: null });
     const { user } = await openWorkbench('ra01');

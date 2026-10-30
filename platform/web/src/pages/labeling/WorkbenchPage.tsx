@@ -169,6 +169,8 @@ function Workbench({
   const [brush, setBrush] = useState(3);
   // 預設整個研究：訓練時研究內每張影像都會用到這個類別；只標這張影像的話，其他張會被略過
   const [classDraft, setClassDraft] = useState<ClassDraft>({ editingId: null, scope: 'study' });
+  // 剛存好的分類（範圍＋影像＋類別）。內容沒變就不算要存，避免再按一次存出一筆一模一樣的標註
+  const [savedClass, setSavedClass] = useState<string | null>(null);
   const [boxDraft, setBoxDraft] = useState<BoxDraft | null>(null);
   const [maskDraft, setMaskDraft] = useState<MaskDraft | null>(null);
   const [history, setHistory] = useState<Snapshot[]>([]);
@@ -364,6 +366,7 @@ function Workbench({
       if (at >= 0) setIndex(at);
       setMode(a.kind);
       if (isClassification(a)) {
+        setSavedClass(null);
         setLabel(a.payload.label);
         setClassDraft({ editingId: a.id, scope: a.sop_instance_uid ? 'image' : 'study' });
         setTool('none');
@@ -445,6 +448,9 @@ function Workbench({
     scope === 'image' && current
       ? { study_instance_uid: studyUid, series_instance_uid: current.seriesInstanceUid, sop_instance_uid: current.sopInstanceUid }
       : { study_instance_uid: studyUid };
+  const classKey = (text: string) =>
+    [classDraft.scope, studyUid, classDraft.scope === 'image' ? (current?.sopInstanceUid ?? '') : '', text].join('|');
+  const classUnchanged = savedClass !== null && classDraft.editingId === null && savedClass === classKey(label.trim());
 
   function saveClassification(): Promise<boolean> {
     const text = label.trim();
@@ -452,13 +458,21 @@ function Workbench({
       setMessage('請先填寫標籤。');
       return Promise.resolve(false);
     }
+    if (classUnchanged) {
+      setMessage(`分類「${text}」已經儲存過了。`);
+      return Promise.resolve(true);
+    }
+    const key = classKey(text);
     return run(async () => {
       if (classDraft.editingId !== null) {
         const a = await labeling.update(classDraft.editingId, { label: text });
         setClassDraft({ editingId: null, scope: 'study' });
+        // 更新後範圍回到整個研究；原本就是整個研究時，畫面上的類別就是剛存的內容
+        setSavedClass(classDraft.scope === 'study' ? key : null);
         return `已更新分類標註 #${a.id}：${text}（版本 ${a.version}）`;
       }
       const a = await labeling.create({ ...target(classDraft.scope), kind: 'classification', payload: { label: text } });
+      setSavedClass(key);
       return `已儲存分類標註 #${a.id}：${text}`;
     });
   }
@@ -512,7 +526,7 @@ function Workbench({
   /** 目前的標註種類有沒有可以存的內容 */
   const canSave =
     mode === 'classification'
-      ? Boolean(current && label.trim())
+      ? Boolean(current && label.trim()) && !classUnchanged
       : mode === 'detection'
         ? Boolean(boxDraft && boxDraft.boxes.length > 0)
         : Boolean(maskDraft);

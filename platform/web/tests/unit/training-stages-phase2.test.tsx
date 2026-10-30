@@ -239,6 +239,26 @@ describe('匯入整個流程（專案包）', () => {
     await user.click(within(region).getByRole('button', { name: '用這個資料重新檢查' }));
     await waitFor(() => expect(within(region).getByTestId('package-mapping')).toHaveTextContent('影像範圍：本專案全部研究。'));
     expect(within(region).getByRole('button', { name: '匯入「胸腔 X 光」' })).toBeEnabled();
+    // 重新檢查後選項會收起來，匯入時仍要送出檢查時選的範圍（平台匯入會用同樣的選擇再檢查一次）
+    await user.click(within(region).getByRole('button', { name: '匯入「胸腔 X 光」' }));
+    await screen.findByText(/^已匯入專案包，建立訓練設定「胸腔 X 光」/);
+    const created = trainingMock().settings.find((s) => s.name === '胸腔 X 光')!;
+    expect(created.config.source).toMatchObject({ type: 'dicom', studies: 'all' });
+  });
+
+  it('an image package imports with the studies chosen when it was checked', async () => {
+    const { user, region } = await openImport();
+    await user.upload(within(region).getByLabelText('專案包（zip）'), pkg({ name: '腦部 MRI', kind: 'image_classification' }));
+    await user.click(within(region).getByRole('button', { name: '檢查專案包' }));
+    const range = await within(region).findByRole('radiogroup', { name: '要使用的影像範圍' });
+    await user.click(within(range).getByRole('radio', { name: '指定研究' }));
+    await user.type(within(region).getByLabelText('研究 UID（每行一個）'), '1.2.3{enter}1.2.4');
+    await user.click(within(region).getByRole('button', { name: '用這個資料重新檢查' }));
+    await waitFor(() => expect(within(region).getByTestId('package-mapping')).toHaveTextContent('影像範圍：2 個研究。'));
+    await user.click(within(region).getByRole('button', { name: '匯入「腦部 MRI」' }));
+    await screen.findByText(/^已匯入專案包，建立訓練設定「腦部 MRI」/);
+    const created = trainingMock().settings.find((s) => s.name === '腦部 MRI')!;
+    expect(created.config.source).toMatchObject({ type: 'dicom', studies: ['1.2.3', '1.2.4'] });
   });
 
   it('is not offered to members without Coding', async () => {

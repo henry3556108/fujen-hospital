@@ -74,7 +74,7 @@ function ModelList({ inference }: { inference: InferenceApi }) {
   if (models.data.length === 0) {
     return (
       <Alert tone="info">
-        這個專案還沒有訓練完成的模型。{canTrain ? <Link to="/training/new">建立訓練</Link> : '請請有訓練權限的成員建立訓練'}，完成後會出現在這裡。
+        這個專案還沒有訓練完成的模型。{canTrain ? <Link to="/training/new">建立訓練</Link> : '請有訓練權限的成員建立訓練'}，完成後會出現在這裡。
       </Alert>
     );
   }
