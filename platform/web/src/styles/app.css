@@ -469,6 +469,12 @@ fieldset {
   font-weight: 600;
 }
 
+.topbar__all-projects {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .topbar__area,
 .topbar__project-name {
   display: inline-flex;

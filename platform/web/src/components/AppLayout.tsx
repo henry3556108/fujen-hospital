@@ -43,6 +43,9 @@ function ProjectSwitcher() {
           </option>
         ))}
       </select>
+      <Link to="/projects" className="topbar__all-projects" onClick={guardClick}>
+        所有專案
+      </Link>
     </div>
   );
 }
