@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { useMe } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert, Badge, Card, ConfirmDialog, EmptyState, SegmentedTabs, SidePanel, SplitLayout, tabPanelId, type BadgeTone } from '../../components/ui';
-import type { CatalogModel, Download, LoadConfig } from './api';
+import type { CatalogModel, Download, LoadConfig, ModelInspection } from './api';
 import { LlmHeader } from './LlmLayout';
-import { MoreMenu, fmtDateTime } from './parts';
+import { fmtDateTime } from './parts';
 import { useLlm } from './useLlm';
 
 const STATUS: Record<Download['status'], string> = {
@@ -204,6 +204,88 @@ function LoadPanel({ model, onClose, onChange }: { model: CatalogModel; onClose:
   );
 }
 
+/** 右側「新增模型」（限管理者）：輸入 Hugging Face 模型名稱與 Token，系統查出版本與內容後加入白名單。 */
+function AddModelPanel({ onClose, onAdded }: { onClose: () => void; onAdded: (name: string) => void }) {
+  const { llm } = useLlm();
+  const [repo, setRepo] = useState('');
+  const [token, setToken] = useState('');
+  const [patterns, setPatterns] = useState('');
+  const [seen, setSeen] = useState<ModelInspection | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const files = patterns.split(/[,，\s]+/).filter(Boolean);
+  const name = repo.trim().split('/').pop() ?? '';
+  // 改了內容就要重新檢查，才不會把舊的查詢結果加進白名單
+  const edit = (set: (v: string) => void) => (e: ChangeEvent<HTMLInputElement>) => {
+    set(e.target.value);
+    setSeen(null);
+  };
+  async function run(work: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <SidePanel title="新增模型" onClose={onClose}>
+      <form
+        aria-label="新增模型"
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(async () => setSeen(await llm!.inspectModel(repo.trim(), token, files)));
+        }}
+      >
+        <div className="field">
+          <label htmlFor="add-model-repo">Hugging Face 模型名稱</label>
+          <input id="add-model-repo" className="input" required pattern="[^\s/]+/[^\s/]+" title="格式：組織/模型" placeholder="例如 ggml-org/gemma-3-4b-it-GGUF" value={repo} onChange={edit(setRepo)} />
+        </div>
+        <div className="field">
+          <label htmlFor="add-model-token">Token（選填）</label>
+          <input id="add-model-token" className="input" type="password" autoComplete="off" placeholder="需要授權的模型才要填，不會被儲存" value={token} onChange={edit(setToken)} />
+        </div>
+        <div className="field">
+          <label htmlFor="add-model-files">只下載這些檔案（選填）</label>
+          <input id="add-model-files" className="input" placeholder="例如 *Q4_K_M.gguf" value={patterns} onChange={edit(setPatterns)} />
+          <p className="field__hint">不填就下載整個模型。多個條件用空白或逗號分開。</p>
+        </div>
+        <button type="submit" className="btn btn--secondary llm-block-btn" disabled={busy}>
+          檢查模型
+        </button>
+      </form>
+      <ApiErrorAlert error={error} />
+      {seen && (
+        <section aria-label="檢查結果" className="stack">
+          <Alert tone="success" title="檢查完成">
+            {name}：版本 {seen.commit.slice(0, 8)}，{seen.files.length} 個檔案，共 {megabytes(seen.total_bytes)}
+            {seen.gated ? '，下載時需要 Token' : ''}
+            {seen.has_remote_code ? '，夾帶程式碼，需另外核准才能載入' : ''}。
+          </Alert>
+          {!seen.files.some((f) => f.toLowerCase().endsWith('.gguf')) && (
+            <Alert tone="warning">這個模型沒有 GGUF 檔案，下載後可能無法載入。</Alert>
+          )}
+          <button
+            type="button"
+            className="btn btn--primary llm-block-btn"
+            disabled={busy}
+            onClick={() => void run(async () => {
+              await llm!.addModel(name, seen, files);
+              onAdded(name);
+            })}
+          >
+            加入白名單
+          </button>
+        </section>
+      )}
+    </SidePanel>
+  );
+}
+
 export function ModelsPage() {
   const me = useMe();
   const { llm } = useLlm();
@@ -215,6 +297,8 @@ export function ModelsPage() {
   // undefined＝還沒選，自動開第一個已載入（或已下載）的模型
   const [selected, setSelected] = useState<string | null | undefined>(undefined);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState('');
   const [token, setToken] = useState('');
   const [error, setError] = useState<unknown>(null);
   const reload = () => {
@@ -255,9 +339,33 @@ export function ModelsPage() {
 
   return (
     <>
-      <LlmHeader title="語言模型管理" subtitle="管理可用的語言模型，申請下載並設定載入參數。下載前需管理者核准。" />
+      <LlmHeader
+        title="語言模型管理"
+        subtitle="管理可用的語言模型，申請下載並設定載入參數。下載前需管理者核准。"
+        actions={me.account_type === 'admin' && (
+          <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+            新增模型
+          </button>
+        )}
+      />
       <div className="llm-stretch">
-        <SplitLayout side={open ? <LoadPanel key={open.name} model={open} onClose={() => setSelected(null)} onChange={catalog.reload} /> : undefined}>
+        <SplitLayout
+          side={
+            adding ? (
+              <AddModelPanel
+                onClose={() => setAdding(false)}
+                onAdded={(name) => {
+                  setAdding(false);
+                  setAdded(name);
+                  setTab('catalog');
+                  reload();
+                }}
+              />
+            ) : open ? (
+              <LoadPanel key={open.name} model={open} onClose={() => setSelected(null)} onChange={catalog.reload} />
+            ) : undefined
+          }
+        >
           <SegmentedTabs
             label="語言模型管理分頁"
             idPrefix="llm-models"
@@ -270,10 +378,11 @@ export function ModelsPage() {
             ]}
           />
           <ApiErrorAlert error={catalog.error ?? downloads.error ?? error} />
+          {added && <Alert tone="success">已將 {added} 加入白名單，可以在清單上按「申請下載」。</Alert>}
           <div role="tabpanel" id={tabPanelId('llm-models', tab)} aria-labelledby={`llm-models-${tab}-tab`} className="stack llm-fill">
             {tab === 'catalog' && (
               <>
-                <p className="text-muted">只有白名單內的模型可以下載；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
+                <p className="text-muted">只有白名單內的模型可以下載，要用清單外的模型請由管理者按「新增模型」；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
                 <div className="llm-model-filters">
                   <div className="field">
                     <label htmlFor="model-q">搜尋模型</label>
@@ -342,7 +451,11 @@ export function ModelsPage() {
                                   <button type="button" className="btn btn--small btn--ghost" onClick={() => showRecords(m.name)}>
                                     下載紀錄
                                   </button>
-                                  {m.installed && <MoreMenu label={`${m.name} 更多操作`} items={[{ label: '刪除模型', danger: true, onSelect: () => setRemoving(m.name) }]} />}
+                                  {m.installed && (
+                                    <button type="button" className="btn btn--small btn--danger" onClick={() => setRemoving(m.name)}>
+                                      刪除模型
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -438,9 +551,14 @@ export function ModelsPage() {
                               <Badge tone={m.loaded ? 'success' : 'info'}>{m.loaded ? '已載入' : '已下載'}</Badge>
                             </td>
                             <td>
-                              <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
-                                載入設定
-                              </button>
+                              <div className="row-actions">
+                                <button type="button" className="btn btn--small btn--secondary" aria-pressed={open?.name === m.name} onClick={() => setSelected(m.name)}>
+                                  載入設定
+                                </button>
+                                <button type="button" className="btn btn--small btn--danger" onClick={() => setRemoving(m.name)}>
+                                  刪除模型
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}

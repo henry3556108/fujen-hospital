@@ -28,9 +28,9 @@ class WhitelistIn(BaseModel):
 
 
 class InspectIn(BaseModel):
-    source: str
+    source: str = ""        # 空＝平台設定的來源
     repo: str
-    revision: str
+    revision: str = ""      # 空＝目前最新的 commit
     token: str | None = None
     files: list[str] = Field(default_factory=list, max_length=50)
 

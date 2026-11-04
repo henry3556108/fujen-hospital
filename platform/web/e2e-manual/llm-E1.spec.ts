@@ -4,8 +4,9 @@ import { startScenario } from './kit';
 import { PROJECT, llmTabLink, prep, rowOf, sideLink } from './llm-common';
 
 // E1 準備大型語言模型（系統管理者）。本機是假模型服務：下載的是只有設定檔的測試模型，畫面流程與正式環境相同。
-// 鏡頭外：白名單登記 fake-llm-small（要示範下載）與 fake-llm-old（已下載，示範刪除）。
+// 鏡頭外：白名單登記 fake-llm-old（已下載，示範刪除）；fake-llm-small 在鏡頭內用「新增模型」加入。
 const MODEL = 'fake-llm-small';
+const REPO = 'fake-org/fake-llm-small';
 const OLD = 'fake-llm-old';
 
 test('E1 準備大型語言模型', async ({ browser }) => {
@@ -17,17 +18,29 @@ test('E1 準備大型語言模型', async ({ browser }) => {
   s.section(
     '開始前準備',
     [
-      '- 要使用的模型已由資訊室登記在模型白名單（白名單由資訊室維護，網頁上沒有登記畫面）。',
+      '- 知道要使用的模型在 Hugging Face 上的名稱（格式是「組織/模型」，例如 ggml-org/gemma-3-4b-it-GGUF）。',
       `- 已選好要使用語言模型的專案（本例為「${PROJECT}」）。`,
-      '- 模型若需要 Token（例如受限的 Hugging Face 模型），先向資訊室取得。',
+      '- 模型若需要 Token（例如受限的 Hugging Face 模型），先準備好 Token。',
     ].join('\n'),
   );
 
   await s.step('按左側選單的「語言模型」', sideLink(p, '語言模型'), 'click');
   await s.step('按上方分頁「模型」', llmTabLink(p, '模型'), 'click');
   const table = p.getByRole('table', { name: '白名單模型' });
+  await expect(table).toBeVisible();
+
+  // 新增模型
+  await s.step('按右上角的「新增模型」', p.getByRole('button', { name: '新增模型' }), 'click');
+  await s.step(`在「Hugging Face 模型名稱」輸入 ${REPO}`, p.getByLabel('Hugging Face 模型名稱'), { fill: REPO }, {
+    detail: '模型需要授權時，在「Token」填入 Token；Token 不會被儲存。只要模型的部分檔案時，在「只下載這些檔案」填入條件，例如 *Q4_K_M.gguf。',
+  });
+  await s.step('按「檢查模型」', p.getByRole('button', { name: '檢查模型' }), 'click');
+  const seen = p.getByRole('region', { name: '檢查結果' });
+  await expect(seen).toBeVisible();
+  await s.step('確認系統查到的版本、檔案數與大小', seen, undefined, { detail: '模型名稱打錯時不會出現這段結果，而是顯示錯誤訊息，請確認名稱後再按一次。' });
+  await s.step('按「加入白名單」', p.getByRole('button', { name: '加入白名單' }), 'click');
   await expect(rowOf(table, MODEL)).toBeVisible();
-  await s.step('「可用模型」列出白名單內的模型', table, undefined, { zoom: false, detail: '狀態欄顯示「可申請」「申請中」「已下載」「已載入」。' });
+  await s.step('新模型出現在「可用模型」清單', table, undefined, { zoom: false, detail: '狀態欄顯示「可申請」「申請中」「已下載」「已載入」。' });
   const row = rowOf(table, MODEL);
   await s.step(`在 ${MODEL} 這一列按「申請下載」`, row.getByRole('button', { name: '申請下載' }), 'click');
   await expect(row).toContainText('申請中');
@@ -80,8 +93,7 @@ test('E1 準備大型語言模型', async ({ browser }) => {
 
   // 刪除不用的模型
   const oldRow = rowOf(table, OLD);
-  await s.step(`按 ${OLD} 這一列最右邊的三點按鈕`, oldRow.getByRole('button', { name: `${OLD} 更多操作` }), 'click');
-  await s.step('選「刪除模型」', p.getByRole('menuitem', { name: '刪除模型' }), 'click');
+  await s.step(`按 ${OLD} 這一列的「刪除模型」`, oldRow.getByRole('button', { name: '刪除模型' }), 'click');
   const dialog = p.getByRole('dialog');
   await s.step('確認提示後按「刪除模型」', dialog.getByRole('button', { name: '刪除模型' }), 'click');
   await expect(oldRow.getByRole('button', { name: '載入設定', exact: true })).toHaveCount(0);
@@ -95,7 +107,9 @@ test('E1 準備大型語言模型', async ({ browser }) => {
   s.section(
     '常見問題',
     [
-      '- 找不到想用的模型：只有白名單內的模型會出現在「可用模型」；要新增模型請聯絡資訊室登記白名單。',
+      '- 找不到想用的模型：只有白名單內的模型會出現在「可用模型」；請由系統管理者按「新增模型」加入。',
+      '- 檢查模型時顯示需要 Token：這是受限的模型，先到 Hugging Face 的模型頁面同意授權條款，再填入 Token 重新檢查。',
+      '- 檢查結果提示沒有 GGUF 檔案：平台的模型服務載入 GGUF 格式，請改用 GGUF 版本的模型。',
       '- 按「申請下載」後一直是「申請中」：需要系統管理者到「系統管理 › 稽核與審核 › 模型下載審核」按「核准」。',
       '- 下載失敗：「下載申請」分頁的狀態欄會寫出原因；申請會回到「已核准，待下載」，可以再按一次「下載」。',
       '- 調整了量化或資源沒有變化：修改資源後要重新載入才會生效（已載入時按「套用並重新載入」）。',

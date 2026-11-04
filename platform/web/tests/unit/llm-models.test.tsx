@@ -62,4 +62,77 @@ describe('模型管理', () => {
     expect(sent).toEqual([{ quantization: '8bit', cpu: 8, memory_gb: 16, gpu_type: 'gpu-exclusive', gpu_count: 1 }]);
     expect(loads).toBe(1);
   });
+
+  it('admin adds a model by Hugging Face name after inspecting it', async () => {
+    const inspected: Record<string, unknown>[] = [];
+    const added: Record<string, unknown>[] = [];
+    server.use(
+      catalog(false, false),
+      http.post('*/api/admin/llm/whitelist/inspect', async ({ request }) => {
+        inspected.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({ source: 'huggingface.co', repo: 'ggml-org/new-GGUF', commit: 'c'.repeat(40), sha256: 'd'.repeat(64),
+          has_remote_code: false, gated: true, files: ['new-Q4_K_M.gguf'], sizes: {}, total_bytes: 2 * 1024 * 1024 });
+      }),
+      http.post('*/api/admin/llm/whitelist', async ({ request }) => {
+        added.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({}, { status: 201 });
+      }),
+    );
+    const { user } = await renderApp('/llm/models', 'admin01');
+    await user.click(await screen.findByRole('button', { name: '新增模型' }));
+    await user.type(screen.getByLabelText('Hugging Face 模型名稱'), 'ggml-org/new-GGUF');
+    await user.type(screen.getByLabelText('Token（選填）'), 'hf_x');
+    await user.type(screen.getByLabelText('只下載這些檔案（選填）'), '*Q4_K_M.gguf');
+    await user.click(screen.getByRole('button', { name: '檢查模型' }));
+    await screen.findByRole('region', { name: '檢查結果' });
+    expect(inspected).toEqual([{ repo: 'ggml-org/new-GGUF', token: 'hf_x', files: ['*Q4_K_M.gguf'] }]);
+    await user.click(screen.getByRole('button', { name: '加入白名單' }));
+    await screen.findByText(/已將 new-GGUF 加入白名單/);
+    expect(added).toEqual([{ name: 'new-GGUF', source: 'huggingface.co', repo: 'ggml-org/new-GGUF', revision: 'c'.repeat(40),
+      sha256: 'd'.repeat(64), requires_token: true, has_remote_code: false, files: ['*Q4_K_M.gguf'] }]);
+  });
+
+  it('editing the form after inspecting hides the old result', async () => {
+    server.use(
+      catalog(false, false),
+      http.post('*/api/admin/llm/whitelist/inspect', () =>
+        HttpResponse.json({ source: 'huggingface.co', repo: 'org/a', commit: 'c'.repeat(40), sha256: 'd'.repeat(64),
+          has_remote_code: false, gated: false, files: ['config.json'], sizes: {}, total_bytes: 10 })),
+    );
+    const { user } = await renderApp('/llm/models', 'admin01');
+    await user.click(await screen.findByRole('button', { name: '新增模型' }));
+    await user.type(screen.getByLabelText('Hugging Face 模型名稱'), 'org/a');
+    await user.click(screen.getByRole('button', { name: '檢查模型' }));
+    await screen.findByText(/沒有 GGUF 檔案/);
+    await user.type(screen.getByLabelText('Hugging Face 模型名稱'), 'b');
+    expect(screen.queryByRole('button', { name: '加入白名單' })).not.toBeInTheDocument();
+  });
+
+  it('only admins see 新增模型', async () => {
+    server.use(catalog(false, false));
+    await renderApp('/llm/models', 'ca01');
+    await screen.findByRole('rowheader', { name: 'gemma-test' });
+    expect(screen.queryByRole('button', { name: '新增模型' })).not.toBeInTheDocument();
+  });
+
+  it('刪除模型 is a visible button on both the catalog and 載入設定 tabs', async () => {
+    const deleted: string[] = [];
+    server.use(
+      catalog(true, false),
+      http.get(`${P}/models/:name/load-config`, () =>
+        HttpResponse.json({ name: 'gemma-test', quantization: '4bit', cpu: 8, memory_gb: 16, gpu_type: 'gpu-exclusive', gpu_count: 1 })),
+      http.delete(`${P}/models/:name`, ({ params }) => {
+        deleted.push(String(params.name));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { user } = await renderApp('/llm/models', 'ca01');
+    const row = (await screen.findByRole('rowheader', { name: 'gemma-test' })).closest('tr')!;
+    expect(within(row).getByRole('button', { name: '刪除模型' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: '載入設定' }));
+    const loadRow = (await screen.findByRole('rowheader', { name: 'gemma-test' })).closest('tr')!;
+    await user.click(within(loadRow).getByRole('button', { name: '刪除模型' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '刪除模型' }));
+    await waitFor(() => expect(deleted).toEqual(['gemma-test']));
+  });
 });

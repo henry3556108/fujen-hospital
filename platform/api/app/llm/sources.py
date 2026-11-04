@@ -132,6 +132,8 @@ class ModelArtifact:
 
 
 class ModelSource(Protocol):
+    def latest_commit(self, repo: str, token: str | None) -> str: ...
+
     def inspect(self, repo: str, revision: str, token: str | None,
                 include: Iterable[str] = ()) -> SourceListing: ...
 
@@ -170,6 +172,13 @@ class InMemoryModelSource:
             raise SourceAuthError("Token 無效或沒有這個模型的存取權")
         return artifact
 
+    def latest_commit(self, repo, token) -> str:
+        if not self.reachable:
+            raise SourceUnreachable("無法連到模型來源")
+        if repo not in self.repos:
+            raise SourceNotFound(f"來源沒有 {repo}")
+        return self.repos[repo].commit
+
     def inspect(self, repo, revision, token, include=()) -> SourceListing:
         return self._get(repo, revision, token).listing(include)
 
@@ -204,7 +213,7 @@ class HuggingFaceSource:
         if response.status_code in (401, 403):
             if token:
                 raise SourceAuthError("Token 無效，或這個帳號沒有取得模型的使用授權（請先到模型頁面同意授權條款）")
-            raise SourceAuthError("這個模型需要 Token（請先到模型頁面同意授權條款並提供 Token）")
+            raise SourceAuthError("找不到這個模型，或這個模型需要 Token（請確認名稱；受限的模型請先到模型頁面同意授權條款並提供 Token）")
         if response.status_code == 404:
             raise SourceNotFound(f"來源沒有 {what}")
         if response.status_code >= 500:
@@ -212,17 +221,24 @@ class HuggingFaceSource:
         if response.status_code >= 400:
             raise SourceError(f"模型來源回報錯誤（{response.status_code}）")
 
-    def _meta(self, repo: str, revision: str, token: str | None) -> dict:
+    def _fetch_meta(self, repo: str, revision: str, token: str | None) -> dict:
         url = f"{self.endpoint}/api/models/{quote(repo)}/revision/{quote(revision, safe='')}"
         try:
             response = self._http.get(url, params={"blobs": "true"}, headers=self._headers(token))
         except httpx.TransportError:
             raise SourceUnreachable("無法連到模型來源")
         self._raise_for(response, f"{repo}@{revision}", token)
-        meta = response.json()
+        return response.json()
+
+    def _meta(self, repo: str, revision: str, token: str | None) -> dict:
+        meta = self._fetch_meta(repo, revision, token)
         if not str(meta.get("sha", "")).startswith(revision.lower()):
             raise SourceNotFound(f"來源的 {repo}@{revision} 不是固定的 commit")
         return meta
+
+    def latest_commit(self, repo: str, token: str | None) -> str:
+        """預設分支目前的 commit；只用來幫管理者查出要固定的版本，白名單與下載一律用固定的 commit。"""
+        return self._fetch_meta(repo, "main", token)["sha"]
 
     def _url(self, repo: str, commit: str, name: str) -> str:
         return f"{self.endpoint}/{quote(repo)}/resolve/{commit}/{quote(name)}"

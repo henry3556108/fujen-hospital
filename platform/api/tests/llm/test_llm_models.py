@@ -235,3 +235,12 @@ def test_inspect_shows_commit_hash_and_code_flag(client, llm, source, admin):
     body = client.post("/api/admin/llm/whitelist/inspect", headers=admin,
                        json={"source": HOST, "repo": "org/remote-code", "revision": "c" * 40}).json()
     assert body["sha256"] == source.repos["org/remote-code"].sha256 and body["has_remote_code"] is True
+
+
+def test_inspect_with_only_a_repo_uses_the_configured_source_and_latest_commit(client, llm, source, admin):
+    body = client.post("/api/admin/llm/whitelist/inspect", headers=admin, json={"repo": "org/remote-code"}).json()
+    assert body["source"] == HOST and body["commit"] == "c" * 40
+
+
+def test_inspect_unknown_repo_is_not_found(client, llm, admin):
+    assert client.post("/api/admin/llm/whitelist/inspect", headers=admin, json={"repo": "org/none"}).status_code == 404

@@ -13,7 +13,7 @@ from app.audit import AuditCategory, record
 from app.llm.errors import Conflict, Forbidden, Invalid, LlmServiceError, NotFound, Unavailable
 from app.llm.models import InstalledModel, ModelDownload, ModelLoadConfig, ModelWhitelist, RemoteCodeApproval
 from app.llm.runtime import LoadRequest, ModelRuntime, RuntimeLoadError, digests_path, write_digests
-from app.llm.sources import (ModelSource, SourceAuthError, SourceError, SourceIntegrityError, SourceListing,
+from app.llm.sources import (HF_SOURCE_HOST, ModelSource, SourceAuthError, SourceError, SourceIntegrityError, SourceListing,
                              SourceNotFound, SourceUnreachable)
 from app.models import utcnow
 from app.llm.util import iso
@@ -100,14 +100,16 @@ def _source_errors(exc: SourceError) -> LlmServiceError:
     return Unavailable(str(exc) or "無法連到模型來源")
 
 
-def inspect_source(sources: dict[str, ModelSource], *, source: str, repo: str, revision: str,
-                   token: str | None, files: list[str] | None = None) -> dict:
+def inspect_source(sources: dict[str, ModelSource], *, repo: str, source: str = "", revision: str = "",
+                   token: str | None = None, files: list[str] | None = None) -> dict:
     """審核時查看來源上的內容（commit、hash、是否夾帶程式碼、檔案大小），供管理者填白名單。只讀中繼資料，不下載大檔。"""
+    # 網頁只填模型名稱：來源取平台設定的（優先 Hugging Face），版本取目前最新的 commit
+    source = source or (HF_SOURCE_HOST if HF_SOURCE_HOST in sources else next(iter(sources), ""))
     client = sources.get(source)
     if client is None:
         raise Unavailable(f"平台沒有設定模型來源 {source}")
     try:
-        listing = client.inspect(repo, revision, token, files or [])
+        listing = client.inspect(repo, revision or client.latest_commit(repo, token), token, files or [])
     except SourceError as exc:
         raise _source_errors(exc)
     return {"source": source, "repo": repo, "commit": listing.commit, "sha256": listing.sha256,

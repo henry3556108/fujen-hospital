@@ -33,6 +33,8 @@ def hub(*, gated=False, tamper=False, down=False, calls=None):
                                                                     "size": len(d)}} for n, d in WEIGHTS.items()]
             return httpx.Response(200, json={"sha": COMMIT, "gated": "manual" if gated else False,
                                              "siblings": siblings})
+        if path == f"/api/models/{REPO}/revision/main":
+            return httpx.Response(200, json={"sha": COMMIT, "siblings": []})
         if path.startswith(f"/api/models/{REPO}/revision/"):
             return httpx.Response(404, json={"error": "Revision Not Found"})
         prefix = f"/{REPO}/resolve/{COMMIT}/"
@@ -44,6 +46,13 @@ def hub(*, gated=False, tamper=False, down=False, calls=None):
             return httpx.Response(200, content=data + (b"x" if tamper and name in WEIGHTS else b""))
         return httpx.Response(401, json={"error": "Repository Not Found"})
     return HuggingFaceSource("https://hub.test", http=httpx.Client(transport=httpx.MockTransport(handler))), calls
+
+
+def test_hf_latest_commit_resolves_main_but_inspect_still_needs_a_fixed_commit():
+    source, _ = hub()
+    assert source.latest_commit(REPO, None) == COMMIT
+    with pytest.raises(SourceNotFound):
+        source.inspect(REPO, "main", None)
 
 
 def expected_hash(names):

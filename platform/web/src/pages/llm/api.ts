@@ -93,6 +93,18 @@ export interface CatalogModel {
   remote_code_approved: boolean;
 }
 
+/** 管理者新增模型前，系統向來源查到的內容 */
+export interface ModelInspection {
+  source: string;
+  repo: string;
+  commit: string;
+  sha256: string;
+  has_remote_code: boolean;
+  gated: boolean;
+  files: string[];
+  total_bytes: number;
+}
+
 export interface Download {
   id: number;
   name: string;
@@ -303,6 +315,13 @@ export function llmApi(api: ApiClient, projectId: number, options: { auth?: Auth
     modelRuntime: (name: string) => api.get<ModelRuntimeStatus>(`${base}/models/${name}/runtime`),
     adminDownloads: () => api.get<Download[]>('/api/admin/llm/downloads'),
     review: (id: number, approve: boolean) => api.post<Download>(`/api/admin/llm/downloads/${id}/${approve ? 'approve' : 'reject'}`, {}),
+    inspectModel: (repo: string, token: string, files: string[]) =>
+      api.post<ModelInspection>('/api/admin/llm/whitelist/inspect', { repo, token: token || null, files }),
+    addModel: (name: string, seen: ModelInspection, files: string[]) =>
+      api.post('/api/admin/llm/whitelist', {
+        name, source: seen.source, repo: seen.repo, revision: seen.commit, sha256: seen.sha256,
+        requires_token: seen.gated, has_remote_code: seen.has_remote_code, files,
+      }),
     approveRemoteCode: (name: string) => api.post(`/api/admin/llm/models/${name}/remote-code-approval`),
     // 發布 API
     services: () => api.get<PublishedService[]>(`${base}/services`),
