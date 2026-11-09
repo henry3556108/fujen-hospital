@@ -10,7 +10,7 @@
 | ☐ | 和院方約好離峰時段，通知使用者平台會暫停約 10 分鐘 | — | 時段： |
 | ☐ | 部署機有 `git`、`docker`、`kubectl`（1.27+）、Helm **v4.3.0**、`python3`（含 PyYAML） | `helm version`、`kubectl version --client` | |
 | ☐ | 部署機連得到叢集，context 正確 | `kubectl config current-context`、`kubectl get nodes` | context： |
-| ☐ | 部署機拿得到程式（GitHub 讀取權限，或 bundle 檔） | `git ls-remote git@github.com:henry3556108/fujen-hospital.git ui/redesign` | commit： |
+| ☐ | 部署機拿得到程式（唯讀 token 以 HTTPS 讀取，見 `一鍵部署Prompt.md`「HTTPS clone 的權限」；或 bundle 檔） | `git ls-remote https://github.com/henry3556108/fujen-hospital.git ui/redesign` | commit： |
 | ☐ | 有甲方 registry 的推送權限 | `docker login <registry>` | registry： |
 | ☐ | 知道甲方的網域、TLS 憑證、SMTP、PACS 設定放在哪（升級時就是部署機上既有的 `overlays/production`） | — | |
 
