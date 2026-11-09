@@ -25,7 +25,7 @@ const AUG = { rotation_range: 15, width_shift_range: 0.1, height_shift_range: 0.
 /** 影像分類：指定 2 個研究、Label、Resize、切分、種子、6 項增強 */
 async function fillImageSetting(user: UserEvent, form: HTMLElement) {
   await fill(user, form, '設定名稱', '胸部 CT 分類');
-  await user.click(within(form).getByRole('radio', { name: '指定研究' }));
+  await user.click(within(form).getByRole('radio', { name: '部分影像' }));
   const studies = await within(form).findByRole('group', { name: '研究清單' });
   await user.click(await within(studies).findByRole('checkbox', { name: /^ACC0012/ }));
   await user.click(within(studies).getByRole('checkbox', { name: /^ACC0011/ }));
@@ -35,7 +35,7 @@ async function fillImageSetting(user: UserEvent, form: HTMLElement) {
   await fill(user, form, '訓練集（%）', '70');
   await fill(user, form, '驗證集（%）', '20');
   await fill(user, form, '測試集（%）', '10');
-  await fill(user, form, '亂數種子', '7');
+  await fill(user, form, '隨機種子', '7');
   await fill(user, form, '旋轉角度範圍（度）', '15');
   await fill(user, form, '寬度位移比例', '0.1');
   await fill(user, form, '長度位移比例', '0.2');
@@ -52,7 +52,7 @@ function formValues(form: HTMLElement) {
   return {
     name: value('設定名稱'), kind: value('訓練種類'), labels: value('Label（以逗號分隔）'),
     resize: [value('Resize 高（像素）'), value('Resize 寬（像素）')],
-    split: [value('訓練集（%）'), value('驗證集（%）'), value('測試集（%）')], seed: value('亂數種子'),
+    split: [value('訓練集（%）'), value('驗證集（%）'), value('測試集（%）')], seed: value('隨機種子'),
     aug: [value('旋轉角度範圍（度）'), value('寬度位移比例'), value('長度位移比例'), value('Shear 角度範圍（度）'), value('Zoom 比例範圍'),
       checked('水平翻轉'), checked('垂直翻轉')],
     epochs: value('訓練回合數'),
@@ -64,7 +64,7 @@ describe('建模管理：訓練設定', () => {
     const { user } = await renderApp('/training/settings', 'ra01');
     const form = await openForm(user);
     const options = within(within(form).getByLabelText('訓練種類')).getAllByRole('option').map((o) => o.textContent);
-    expect(options).toEqual(['影像分類', '影像分割', '物件偵測', '結構式分類', '結構式迴歸']);
+    expect(options).toEqual(['影像分類', '影像分割', '物件偵測', '結構式資料分類', '結構式資料迴歸']);
   });
 
   it('TC-B05-02 / 03 image range, label, resize, split, seed and six augmentations are saved and read back identical', async () => {
@@ -92,7 +92,7 @@ describe('建模管理：訓練設定', () => {
       name: '胸部 CT 分類', kind: 'image_classification', labels: 'nodule, normal', resize: ['64', '48'], split: ['70', '20', '10'], seed: '7',
       aug: ['15', '0.1', '0.2', '5', '0.3', true, true], epochs: '2',
     });
-    expect(within(edit).getByRole('radio', { name: '指定研究' })).toBeChecked();
+    expect(within(edit).getByRole('radio', { name: '部分影像' })).toBeChecked();
     const studies = within(edit).getByRole('group', { name: '研究清單' });
     await waitFor(() => expect(within(studies).getAllByRole('checkbox', { checked: true })).toHaveLength(2));
 
@@ -133,9 +133,9 @@ describe('建模管理：訓練設定', () => {
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_regression');
     expect(within(form).queryByLabelText('旋轉角度範圍（度）')).toBeNull();
     await user.selectOptions(await within(form).findByLabelText('資料集'), await within(form).findByRole('option', { name: /^lung-clinical/ }));
-    await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toBeEnabled());
-    await user.selectOptions(within(form).getByLabelText('要預測的結果（Target）'), 'sbp');
-    const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
+    await waitFor(() => expect(within(form).getByLabelText('Target 欄位')).toBeEnabled());
+    await user.selectOptions(within(form).getByLabelText('Target 欄位'), 'sbp');
+    const features = within(form).getByRole('group', { name: 'Feature 欄位' });
     await user.click(within(features).getByRole('checkbox', { name: 'age' }));
     await user.click(within(features).getByRole('checkbox', { name: 'bmi' }));
     await user.selectOptions(within(form).getByLabelText('演算法'), 'random_forest');
@@ -190,9 +190,9 @@ describe('建模管理：送出訓練與狀態', () => {
     const { user } = await renderApp('/training/settings', 'ra01');
     for (const k of kinds) {
       await user.click(await screen.findByRole('button', { name: `送出訓練「run-${k}」` }));
-      // 送出後進入該次訓練頁，再回已存設定送下一個
-      await screen.findByText(new RegExp(`已送出訓練 #\\d+（run-${k}），目前排隊中`));
-      await user.click(screen.getByRole('link', { name: '已存設定' }));
+      // 送出後進入該次訓練頁，再回訓練設定送下一個
+      await screen.findByText(new RegExp(`已送出訓練 #\\d+（run-${k}），目前等待中`));
+      await user.click(screen.getByRole('link', { name: '訓練設定' }));
     }
     await user.click(screen.getByRole('link', { name: '訓練紀錄' }));
     const table = await screen.findByRole('table', { name: '訓練清單' });
@@ -212,7 +212,7 @@ describe('建模管理：送出訓練與狀態', () => {
     const { user } = await renderApp('/training/settings', 'ra01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「ok」' }));
     const status = await screen.findByTestId('run-status');
-    expect(status).toHaveTextContent('排隊中');
+    expect(status).toHaveTextContent('等待中');
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('訓練中'));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
@@ -221,13 +221,13 @@ describe('建模管理：送出訓練與狀態', () => {
     await user.click(screen.getByRole('button', { name: '檢視訓練輸出' }));
     expect(await screen.findByLabelText('訓練 #1 的輸出')).toHaveTextContent('完成，輸出 model.h5');
 
-    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(screen.getByRole('link', { name: '訓練設定' }));
     await user.click(await screen.findByRole('button', { name: '送出訓練「會失敗的設定」' }));
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('失敗'));
     const alert = screen.getAllByRole('alert').find((a) => a.textContent?.includes('訓練失敗'))!;
-    expect(alert).toHaveTextContent('訓練資料不足，驗證集沒有任何資料（模擬）');
+    expect(alert).toHaveTextContent('訓練集不足，驗證集沒有任何資料（模擬）');
     // 只顯示中文原因；Python 堆疊收在「技術細節」
     const details = within(alert).getByText('技術細節（給資訊人員）').closest('details')!;
     expect(details.open).toBe(false);
@@ -282,7 +282,7 @@ describe('模型匯出', () => {
     await user.click(screen.getByRole('button', { name: '下載模型（PKL）' }));
     await screen.findByText(/^已下載 cls-run1\.pkl/);
     for (let i = 0; i < 3; i += 1) {
-      await user.click(screen.getByRole('button', { name: '匯出原始碼' }));
+      await user.click(screen.getByRole('button', { name: '匯出原始程式碼' }));
       await screen.findByText('已下載 training-run-1-source.zip');
     }
     expect(saved).toEqual(['cls-run1.pkl', 'training-run-1-source.zip', 'training-run-1-source.zip', 'training-run-1-source.zip']);
@@ -291,7 +291,7 @@ describe('模型匯出', () => {
   it('without Coding the source export is hidden and explained', async () => {
     await finishedRun('ra01', 'tabular_regression', 'reg');
     expect(screen.getByRole('button', { name: '下載模型（PKL）' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '匯出原始碼' })).toBeNull();
-    expect(screen.getByText(/匯出原始碼需要 Coding 權限/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '匯出原始程式碼' })).toBeNull();
+    expect(screen.getByText(/匯出原始程式碼需要 Coding 權限/)).toBeInTheDocument();
   });
 });

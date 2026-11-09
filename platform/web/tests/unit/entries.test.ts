@@ -22,24 +22,24 @@ describe('entry visibility rule (需與甲方確認)', () => {
 
   it('every contract entry names its new location in the research or admin area', () => {
     expect(Object.fromEntries(ENTRIES.map((e) => [e.label, e.location]))).toEqual({
-      帳號管理: '系統管理／帳號、專案',
-      數據管理: '研究資料',
+      帳號管理: '管理後台／帳號管理、專案管理',
+      數據管理: '數據管理',
       影像標註: '影像標註／待處理',
       自動影像分類標註: '影像標註／自動標註',
-      建模管理: '建立模型／訓練紀錄',
-      'AI 模型部署': '使用模型／分享與服務',
-      推論服務管理: '使用模型／預測新資料與紀錄',
-      '大型語言模型 No-code 開發': '語言模型',
+      建模管理: '建模管理／訓練紀錄',
+      'AI 模型部署': '模型部署與推論服務／模型部署',
+      推論服務管理: '模型部署與推論服務／推論與歷史紀錄',
+      '大型語言模型 No-code 開發': '大型語言模型',
     });
   });
 
   it('sidebar areas follow the same permissions', () => {
     const names = (u: string) => visibleNav(fixtureMe(u), fixtureMe(u).projects[0] ?? null).map((a) => a.label);
-    expect(names('vw01')).toEqual(['專案首頁', '研究資料', '使用模型']);
-    expect(names('md01')).toEqual(['專案首頁', '研究資料', '影像標註', '使用模型']);
-    expect(names('ra01')).toEqual(['專案首頁', '研究資料', '影像標註', '建立模型', '使用模型']);
-    expect(names('ca01')).toEqual(['專案首頁', '研究資料', '建立模型', '使用模型', '語言模型']);
-    expect(names('pi01')).toEqual(['專案首頁', '研究資料', '影像標註', '建立模型', '使用模型', '語言模型']);
+    expect(names('vw01')).toEqual(['專案首頁', '數據管理', '模型部署與推論服務']);
+    expect(names('md01')).toEqual(['專案首頁', '數據管理', '影像標註', '模型部署與推論服務']);
+    expect(names('ra01')).toEqual(['專案首頁', '數據管理', '影像標註', '建模管理', '模型部署與推論服務']);
+    expect(names('ca01')).toEqual(['專案首頁', '數據管理', '建模管理', '模型部署與推論服務', '大型語言模型']);
+    expect(names('pi01')).toEqual(['專案首頁', '數據管理', '影像標註', '建模管理', '模型部署與推論服務', '大型語言模型']);
     expect(names('user01')).toEqual([]);
   });
 

@@ -162,12 +162,17 @@ def execute(download_id: int, body: ExecuteIn, request: Request, ctx: ProjectCon
     return registry.download_out(d)
 
 
+def protected_models(services: LlmServices) -> dict[str, str]:
+    return {services.settings.chat_model: "預設的對話模型", services.settings.embed_model: "預設的嵌入模型（RAG 知識庫向量化）"}
+
+
 @router.delete(P + "/{name}", status_code=204)
 def delete_model(name: str, request: Request, ctx: ProjectContext = Depends(coding),
                  services: LlmServices = Depends(get_services)) -> Response:
     with errors():
         registry.delete_model(ctx.session, runtime=services.runtime, actor=ctx.user.username,
-                              is_admin=is_admin(ctx.user), source_ip=client_ip(request), name=name)
+                              is_admin=is_admin(ctx.user), source_ip=client_ip(request), name=name,
+                              protected=protected_models(services))
     return Response(status_code=204)
 
 
@@ -205,4 +210,5 @@ def unload(name: str, request: Request, ctx: ProjectContext = Depends(coding),
            services: LlmServices = Depends(get_services)) -> dict:
     with errors():
         return registry.unload_model(ctx.session, runtime=services.runtime, actor=ctx.user.username,
-                                     source_ip=client_ip(request), name=name)
+                                     source_ip=client_ip(request), name=name, is_admin=is_admin(ctx.user),
+                                     protected=protected_models(services))

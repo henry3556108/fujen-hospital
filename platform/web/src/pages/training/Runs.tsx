@@ -1,4 +1,4 @@
-// 訓練紀錄：所有訓練一張清單（合併原「專案工作」），可依狀態、種類、建立者、日期篩選；排隊中的顯示第幾位。
+// 訓練紀錄：所有訓練一張清單（合併原「專案工作」），可依狀態、種類、建立者、日期篩選；等待中的顯示第幾位。
 // 每列可取消（先確認）、查看進度或結果；失敗時顯示白話原因與「前往修正」。單次訓練的細節在 /training/runs/:runId（RunDetail）。
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -25,7 +25,7 @@ const LABELS: Record<RunStatus, string> = { ...JOB_STATUS_LABELS, running: '訓�
 const active = (s: RunStatus) => s === 'queued' || s === 'running';
 /** 還沒結束、可以取消（含暫存） */
 export const unfinished = (s: RunStatus) => active(s) || s === 'held';
-const EXECUTORS: Record<string, string> = { fake: '快速測試', source: '修改後的原始碼' };
+const EXECUTORS: Record<string, string> = { fake: '快速測試', source: '修改後的原始程式碼' };
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {
   return <StatusBadge tone={TONE[status] ?? 'neutral'}>{LABELS[status] ?? status}</StatusBadge>;
@@ -46,7 +46,7 @@ function scoreText(run: TrainingRun): string {
   return verdict(run)?.text ?? '—';
 }
 
-/** 排隊中的訓練在本專案佇列的位置（依送出先後，1 起算）；不在排隊時沒有。 */
+/** 等待中的訓練在本專案佇列的位置（依送出先後，1 起算）；不在排隊時沒有。 */
 export function queuePositions(runs: Pick<TrainingRun, 'id' | 'status'>[]): Map<number, number> {
   const queued = runs.filter((r) => r.status === 'queued').sort((a, b) => a.id - b.id);
   return new Map(queued.map((r, i) => [r.id, i + 1]));
@@ -69,7 +69,7 @@ function dayOf(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** 依篩選條件過濾；「排隊中」包含暫存；日期以建立日比較。 */
+/** 依篩選條件過濾；「等待中」包含暫存；日期以建立日比較。 */
 export function filterRuns(runs: TrainingRun[], f: RunFilter): TrainingRun[] {
   return runs.filter((r) => {
     if (f.status && (f.status === 'queued' ? !(r.status === 'queued' || r.status === 'held') : r.status !== f.status)) return false;
@@ -81,10 +81,10 @@ export function filterRuns(runs: TrainingRun[], f: RunFilter): TrainingRun[] {
   });
 }
 
-/** 失敗訓練「前往修正」的位置：結構式到資料集的整理資料，影像到標註資料集，其餘回到精靈帶入這次的設定。 */
+/** 失敗訓練「前往修正」的位置：結構式到資料集的資料清洗，影像到標註資料集，其餘回到精靈帶入這次的設定。 */
 export function fixLink(run: Pick<TrainingRun, 'id' | 'config' | 'label_dataset'>): { to: string; text: string } {
   const source = run.config?.source;
-  if (source?.type === 'tabular') return { to: `/data/tabular/${source.dataset_id}/prepare`, text: '前往修正：資料集的整理資料' };
+  if (source?.type === 'tabular') return { to: `/data/tabular/${source.dataset_id}/prepare`, text: '前往修正：資料集的資料清洗' };
   if (run.label_dataset) return { to: `/labeling/datasets/${run.label_dataset.id}`, text: '前往修正：標註資料集' };
   return { to: `/training/new?from=${run.id}`, text: '前往修正：重新設定這次訓練' };
 }
@@ -147,7 +147,7 @@ export function Runs({ api, extra }: { api: TrainingApi; extra?: ReactNode }) {
           <label htmlFor="runs-status">狀態</label>
           <select id="runs-status" className="select" value={filter.status} onChange={(e) => set('status', e.target.value as RunFilter['status'])}>
             <option value="">全部</option>
-            <option value="queued">排隊中</option>
+            <option value="queued">等待中</option>
             <option value="running">訓練中</option>
             <option value="succeeded">已完成</option>
             <option value="failed">失敗</option>
@@ -194,7 +194,7 @@ export function Runs({ api, extra }: { api: TrainingApi; extra?: ReactNode }) {
       {hasActive ? <p className="text-muted">有訓練在排隊或訓練中，狀態每 {POLL_MS / 1000} 秒自動更新。</p> : null}
       {runs.data && all.length === 0 ? (
         <p className="text-muted" data-testid="runs-empty">
-          這個專案還沒有訓練。按「建立訓練」選好研究目的與資料，就能送出第一次訓練。
+          這個專案還沒有訓練。按「建立訓練任務」選好訓練種類與資料，就能送出第一次訓練。
         </p>
       ) : null}
       {runs.data && all.length > 0 && total === 0 ? <p className="text-muted">沒有符合篩選條件的訓練。</p> : null}
@@ -295,7 +295,7 @@ function datasetOf(run: TrainingRun, settings: TrainingSetting[]): number | null
   return source?.type === 'tabular' ? source.dataset_id : null;
 }
 
-/** position：排隊中的位置（由呼叫端從訓練清單算出，避免多查一次）。 */
+/** position：等待中的位置（由呼叫端從訓練清單算出，避免多查一次）。 */
 export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSaved, position }: {
   api: TrainingApi; run: TrainingRun; settings: TrainingSetting[]; onChanged: () => void; onSelect: (id: number) => void;
   onSettingSaved?: (setting: TrainingSetting, run: TrainingRun) => void;
@@ -336,8 +336,8 @@ export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSa
             <span>{failure.reason}</span>
             {dataset !== null ? (
               <span>
-                <Link to={`/data/tabular/${dataset}/prepare`}>前往修正：資料集的整理資料</Link>
-                ，修改後到「已存設定」按「套用資料集設定」再送出。
+                <Link to={`/data/tabular/${dataset}/prepare`}>前往修正：資料集的資料清洗</Link>
+                ，修改後到「訓練設定」按「套用資料集設定」再送出。
               </span>
             ) : (
               <span>
@@ -363,17 +363,17 @@ export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSa
             run.model_id === null ? null : canPredict ? (
               <div className="row-actions">
                 <Link className="btn btn--primary" to={`/models/${run.id}/result`}>
-                  前往使用模型
+                  前往模型部署與推論服務
                 </Link>
                 <Link className="btn btn--secondary" to={`/models/${run.id}/predict`}>
-                  用新資料測試
+                  執行推論
                 </Link>
                 <Link className="btn btn--secondary" to={`/models/${run.id}/share`}>
-                  分享給同事使用
+                  部署並設定權限
                 </Link>
               </div>
             ) : (
-              <p className="text-muted">預測病人與分享模型需要 Prediction 權限，請聯絡專案負責人。</p>
+              <p className="text-muted">預測病人與部署模型需要 Prediction 權限，請聯絡專案負責人。</p>
             )
           }
         />
@@ -384,7 +384,7 @@ export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSa
           <dt>種類</dt>
           <dd>{KIND_NAMES[run.kind]}</dd>
           <dt>驗證方式</dt>
-          <dd>{run.config.validation?.method === 'kfold' ? `K 折交叉驗證（K = ${run.config.validation.folds}）` : '固定比例切分'}</dd>
+          <dd>{run.config.validation?.method === 'kfold' ? `K 折交叉驗證（K = ${run.config.validation.folds}）` : '固定比例分群'}</dd>
           <dt>資料版本</dt>
           <dd>
             {run.label_dataset ? `標註資料集「${run.label_dataset.name}」第 ${run.label_dataset.version} 版；` : ''}#{run.dataset_version_id}
@@ -396,7 +396,7 @@ export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSa
               <dd>{run.test_count}</dd>
             </>
           ) : null}
-          <dt>亂數種子</dt>
+          <dt>隨機種子</dt>
           <dd>{run.seed}</dd>
           <dt>開始</dt>
           <dd>{formatTime(run.started_at)}</dd>
@@ -464,7 +464,7 @@ export function RunDetail({ api, run, settings, onChanged, onSelect, onSettingSa
       ) : null}
       {savedAs ? (
         <Alert tone="success">
-          已另存為訓練設定「{savedAs}」，可在<Link to="/training/settings">已存設定</Link>套用（會重新凍結當時的資料）。
+          已另存為訓練設定「{savedAs}」，可在<Link to="/training/settings">訓練設定</Link>套用（會重新凍結當時的資料）。
         </Alert>
       ) : null}
       {log !== null ? (

@@ -4,23 +4,23 @@ import { DescribeTab } from './DescribeTab';
 import { PreviewTab } from './PreviewTab';
 import { StatsTab } from './StatsTab';
 
-/** 「查看資料」的四個段落（B09）；網址 ?show= 記住目前段落，可直接連結。統計分析與上方「統計分析」分頁是同一個功能。 */
+/** 「資料視覺化」的四個段落（B09）；網址 ?show= 記住目前段落，可直接連結。醫學統計分析與上方「醫學統計分析」分頁是同一個功能。 */
 const SECTIONS = [
   { key: 'preview', label: '資料預覽' },
-  { key: 'describe', label: '欄位統計' },
-  { key: 'correlation', label: '相關與散佈圖' },
-  { key: 'stats', label: '統計分析' },
+  { key: 'describe', label: '欄位描述性統計' },
+  { key: 'correlation', label: 'Correlation Matrix 與 Scatter Chart' },
+  { key: 'stats', label: '醫學統計分析' },
 ] as const;
 
 type Section = (typeof SECTIONS)[number]['key'];
 
-/** 查看資料：預覽（可隱藏欄位）、描述統計、相關矩陣與散佈圖、統計分析。 */
+/** 資料視覺化：預覽（可隱藏欄位）、描述性統計、Correlation Matrix 與 Scatter Chart、醫學統計分析。 */
 export function ViewTab() {
   const [params, setParams] = useSearchParams();
   const show = (SECTIONS.find((s) => s.key === params.get('show'))?.key ?? 'preview') as Section;
   return (
     <>
-      <div className="tabs rd-tabs" role="group" aria-label="查看資料的段落">
+      <div className="tabs rd-tabs" role="group" aria-label="資料視覺化的段落">
         {SECTIONS.map((s) => (
           <button
             key={s.key}

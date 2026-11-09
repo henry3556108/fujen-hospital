@@ -3,7 +3,7 @@ import { screen, within } from '@testing-library/react';
 import { mockDb } from '../../src/mocks/handlers';
 import { renderApp } from '../render';
 
-// 管理區單一專案頁：基本資料與 GPU 群組／成員與權限／標註群組／影像存取清單
+// 管理區單一專案頁：基本資料與 GPU 群組／成員與權限／標註群組／Accession Number 清單
 describe('admin project detail', () => {
   it('opens from the project list and shows the four tabs', async () => {
     const { user } = await renderApp('/admin/projects');
@@ -15,7 +15,7 @@ describe('admin project detail', () => {
       '基本資料與 GPU 群組',
       '成員與權限',
       '標註群組',
-      '影像存取清單',
+      'Accession Number 清單',
     ]);
     await user.click(within(tabs).getByRole('link', { name: '成員與權限' }));
     const members = await screen.findByRole('table', { name: '目前的專案成員' });
@@ -38,8 +38,8 @@ describe('admin project detail', () => {
 
   it('the image access list tab is editable here', async () => {
     await renderApp('/admin/projects/1/allowlist');
-    expect(await screen.findByRole('heading', { name: '影像存取清單' })).toBeInTheDocument();
-    expect(await screen.findByRole('form', { name: '設定影像存取清單' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Accession Number 清單' })).toBeInTheDocument();
+    expect(await screen.findByRole('form', { name: '設定 Accession Number 清單' })).toBeInTheDocument();
   });
 
   it('an unknown project id says so', async () => {

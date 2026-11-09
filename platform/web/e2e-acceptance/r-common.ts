@@ -73,8 +73,8 @@ export async function logout(page: Page) {
 }
 
 /**
- * 頂端「帳號（身分）」文字：帳號取自右上角，身分取自「我的身分（…）」；
- * Admin 在管理區顯示「系統管理區」；沒有專案時只回帳號（頂端改顯示「尚未加入任何專案」）。
+ * 頂端「帳號（身分）」文字：帳號取自右上角，身分取自「我的角色（…）」；
+ * Admin 在管理區顯示「管理後台」；沒有專案時只回帳號（頂端改顯示「尚未加入任何專案」）。
  */
 export async function headerUser(page: Page) {
   const user = (await page.locator('.topbar__username').innerText()).trim();

@@ -14,10 +14,10 @@ type Model = 'logistic' | 'linear' | 'kaplan-meier' | 'cox';
 type Result = LogisticResult | LinearResult | KmResult | CoxResult;
 
 const MODELS: [Model, string, string][] = [
-  ['logistic', 'Logistic 迴歸', '二元結果（0／1）'],
-  ['linear', 'Linear 迴歸', '連續數值結果'],
-  ['kaplan-meier', 'Kaplan-Meier 存活分析', '存活曲線與 log-rank 檢定'],
-  ['cox', 'Cox 比例風險模型', '存活時間與多個共變項'],
+  ['logistic', 'Logistic Regression', '二元結果（0／1）'],
+  ['linear', 'Linear Regression', '連續數值結果'],
+  ['kaplan-meier', 'Survival Analysis（Kaplan-Meier）', '存活曲線與 log-rank 檢定'],
+  ['cox', 'Cox Proportional Hazard Model', '存活時間與多個共變項'],
 ];
 
 const f = (v: number | null | undefined) => formatNumber(v ?? null, 4);
@@ -106,7 +106,7 @@ function ResultView({ r }: { r: Result }) {
     return (
       <>
         <p role="status">
-          Logistic 迴歸：結果 {r.target}，樣本 {r.n} 筆{dropped}，事件 {r.events} 筆{r.converged ? '' : '。模型未收斂，結果僅供參考'}
+          Logistic Regression：結果 {r.target}，樣本 {r.n} 筆{dropped}，事件 {r.events} 筆{r.converged ? '' : '。模型未收斂，結果僅供參考'}
         </p>
         <Tiles items={[['AUC', f(r.roc.auc)], ['Pseudo R²', f(r.pseudo_r2)], ['AIC', f(r.aic)], ['BIC', f(r.bic)], ['LLR p 值', f(r.llr_p_value)]]} />
         <Coefficients rows={r.coefficients} ratio="odds_ratio" />
@@ -125,7 +125,7 @@ function ResultView({ r }: { r: Result }) {
     return (
       <>
         <p role="status">
-          Linear 迴歸：結果 {r.target}，樣本 {r.n} 筆{dropped}
+          Linear Regression：結果 {r.target}，樣本 {r.n} 筆{dropped}
         </p>
         <Tiles items={[['R²', f(r.r2)], ['調整後 R²', f(r.adj_r2)], ['F 統計量', f(r.f_statistic)], ['F 檢定 p 值', f(r.f_p_value)], ['AIC', f(r.aic)]]} />
         <Coefficients rows={r.coefficients} />
@@ -192,7 +192,7 @@ function ResultView({ r }: { r: Result }) {
   return (
     <>
       <p role="status">
-        Cox 比例風險模型：時間 {r.duration}，事件 {r.event}，樣本 {r.n} 筆{dropped}，事件 {r.events} 筆
+        Cox Proportional Hazard Model：時間 {r.duration}，事件 {r.event}，樣本 {r.n} 筆{dropped}，事件 {r.events} 筆
       </p>
       <Tiles items={[['Concordance', f(r.concordance)], ['Partial AIC', f(r.aic_partial)], ['Log-likelihood', f(r.log_likelihood)]]} />
       <Coefficients rows={r.coefficients} ratio="hr" />
@@ -208,7 +208,7 @@ export function StatsTab() {
   const names = dataset.columns.map((c) => c.name);
   const has = (c: string, fallback: string) => (names.includes(c) ? c : fallback);
   const [params] = useSearchParams();
-  // 從「相關與散佈圖」的「進一步分析」進來時預選模型（?model=）
+  // 從「Correlation Matrix 與 Scatter Chart」的「進一步分析」進來時預選模型（?model=）
   const [model, setModel] = useState<Model>(() => MODELS.find(([v]) => v === params.get('model'))?.[0] ?? 'logistic');
   const [target, setTarget] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
@@ -222,7 +222,7 @@ export function StatsTab() {
   const [busy, setBusy] = useState(false);
   const survival = model === 'kaplan-meier' || model === 'cox';
   const picksVariables = model !== 'kaplan-meier';
-  // 只排除「目前模型」用到的欄位：迴歸排除結果欄位，存活分析排除時間與事件欄位。
+  // 只排除「目前模型」用到的欄位：迴歸排除結果欄位，Survival Analysis 排除時間與事件欄位。
   // 其他模型選過的欄位（例如 Linear 的結果 sbp）切到 Cox 後要能當共變項。
   const excluded = survival ? [duration, event] : [target];
   const candidates = names.filter((c) => !excluded.includes(c));
@@ -267,8 +267,8 @@ export function StatsTab() {
 
   return (
     <>
-      <form aria-label="統計分析" className="card" onSubmit={run} noValidate>
-        <h3>統計分析</h3>
+      <form aria-label="醫學統計分析" className="card" onSubmit={run} noValidate>
+        <h3>醫學統計分析</h3>
         <div className="form-grid">
           <div className="field">
             <label htmlFor="stats-model">模型</label>
@@ -305,7 +305,7 @@ export function StatsTab() {
         </div>
         {picksVariables && (
           <fieldset className="section">
-            <legend>{model === 'cox' ? '共變項' : '特徵欄位'}</legend>
+            <legend>{model === 'cox' ? '共變項' : 'Feature 欄位'}</legend>
             <div className="col-picker">
               {candidates.map((c) => (
                   <label key={c} className="checkbox">

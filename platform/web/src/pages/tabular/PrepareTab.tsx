@@ -28,11 +28,11 @@ import { KIND_LABELS, type CatalogueItem, type Describe, type MissingChoice, typ
 
 const PREVIEW_ROWS = 10;
 
-/** 欄位的「處理方式」：套用到這一欄的整理步驟；沒有步驟但有缺值時說明缺值怎麼處理。 */
+/** 欄位的「處理方式」：套用到這一欄的前處理步驟；沒有步驟但有缺值時說明缺值怎麼處理。 */
 export function handlingText(name: string, missingCount: number, used: boolean, steps: Step[], catalogue: CatalogueItem[], missing: MissingChoice): string {
   const mine = steps.filter((s) => s.columns.includes(name)).map((s) => catalogue.find((c) => c.id === s.id)?.name_zh ?? s.id);
   if (mine.length) return mine.join(' → ');
-  if (used && missingCount > 0) return missing === 'impute' ? '自動補缺值' : '有缺值的列不使用';
+  if (used && missingCount > 0) return missing === 'impute' ? '補值' : '有缺值的列不使用';
   return '不需處理';
 }
 
@@ -78,8 +78,8 @@ function Compare({ before, after, steps }: { before: Preview; after: PipelinePre
 }
 
 /**
- * 整理資料（A05；TC-B04-03、04、06）：想預測哪個欄位、用哪些欄位預測、逐欄處理方式、右側整理步驟（可就地修改）與處理前後比較，
- * 在本頁「儲存整理步驟」一次存下；需要 Training 權限才能儲存，沒有時唯讀。
+ * 資料清洗（A05；TC-B04-03、04、06）：Target 哪個欄位、用哪些欄位預測、逐欄處理方式、右側前處理步驟（可就地修改）與處理前後比較，
+ * 在本頁「儲存前處理步驟」一次存下；需要 Training 權限才能儲存，沒有時唯讀。
  */
 export function PrepareTab() {
   const { api } = useSession();
@@ -121,10 +121,10 @@ export function PrepareTab() {
   function chooseTarget(name: string) {
     setTarget(name);
     setFeatures((fs) => fs.filter((x) => x !== name));
-    if (encoded.has(name)) changeSteps(unencode(steps, name)); // 想預測的欄位不拆成 0／1 欄位
+    if (encoded.has(name)) changeSteps(unencode(steps, name)); // Target 欄位不拆成 0／1 欄位
   }
 
-  /** 「全部勾選」：除了想預測的欄位與識別碼（每列都不同）以外都拿來預測。 */
+  /** 「全部勾選」：除了 Target 欄位與識別碼（每列都不同）以外都拿來預測。 */
   function selectAll() {
     setFeatures(table.filter((f) => f.name !== target && !isIdentifier(f)).map((f) => f.name));
   }
@@ -153,7 +153,7 @@ export function PrepareTab() {
     setNotice(null);
     const typed = extra.split(/[,，\s]+/).filter(Boolean);
     try {
-      // One-Hot 等步驟會把原欄位換成新欄位：以整理後的欄位為準，用來預測的欄位跟著換
+      // One Hot Encoding 等步驟會把原欄位換成新欄位：以整理後的欄位為準，Feature 欄位跟著換
       let chosen = [...new Set([...features, ...typed])].filter((f) => f !== target);
       if (steps.length) {
         const after = await api.post<PipelinePreview>(`${base}/preprocess/preview`, { steps, offset: 0, limit: 1 });
@@ -177,15 +177,15 @@ export function PrepareTab() {
   }
 
   const side = (
-    <SidePanel title="整理步驟" sticky={false}>
+    <SidePanel title="前處理步驟" sticky={false}>
       <StepsEditor catalogue={catalogue} columns={dataset.columns} steps={steps} onChange={changeSteps} readOnly={!writable} request={request} />
       <details>
         <summary data-testid="method-count">
-          全部整理方法：共 {catalogue.length} 種（
+          全部前處理方式：共 {catalogue.length} 種（
           {categories.map(([id, label]) => `${label} ${catalogue.filter((c) => c.category === id).length} 種`).join('、')}）
         </summary>
         <div className="table-wrap">
-          <table aria-label="整理方法清單">
+          <table aria-label="前處理方式清單">
             <thead>
               <tr>
                 <th scope="col">方法</th>
@@ -215,17 +215,17 @@ export function PrepareTab() {
       {notice && <Alert tone="success">{notice}</Alert>}
       {!writable && (
         <Alert tone="warning" title="只能查看">
-          {missing('training', '儲存整理步驟')}
+          {missing('training', '儲存前處理步驟')}
         </Alert>
       )}
       <SplitLayout side={side} sideWidth="21rem">
         {writable ? (
-          <form id="prepare-form" aria-label="整理資料" className="card" onSubmit={submit} noValidate>
+          <form id="prepare-form" aria-label="資料清洗" className="card" onSubmit={submit} noValidate>
             <ApiErrorAlert error={error} />
             <ApiErrorAlert error={describe.error} />
             <div className="form-grid">
               <div className="field">
-                <label htmlFor="prep-target">想預測哪個欄位？</label>
+                <label htmlFor="prep-target">Target 欄位</label>
                 <select id="prep-target" className="select" value={target} onChange={(e) => chooseTarget(e.target.value)}>
                   <option value="">請選擇</option>
                   {names.map((n) => (
@@ -237,28 +237,28 @@ export function PrepareTab() {
                 <p className="field__hint">模型要學會猜的結果，例如是否確診（專業名稱：Target）。只能選一個。</p>
               </div>
               <div className="field">
-                <strong id="prep-features-label">用哪些欄位預測？</strong>
+                <strong id="prep-features-label">Feature 欄位</strong>
                 <p data-testid="chosen-features" className="rd-chosen">
-                  {features.length ? `${features.length} 個：${features.join('、')}` : '尚未選擇，請在下表「用來預測」勾選'}
+                  {features.length ? `${features.length} 個：${features.join('、')}` : '尚未選擇，請在下表「Feature」勾選'}
                 </p>
                 <p className="field__hint">模型拿來猜的資料，例如年齡、血壓（專業名稱：Feature）。</p>
               </div>
             </div>
             {unencodedText.length > 0 && (
-              <Alert tone="warning" title="有欄位還不能用來建立模型">
-                <p>{unencodedText.map((f) => f.name).join('、')} 是文字或類別，需要先拆成 0／1 欄位（One-Hot 編碼）。</p>
+              <Alert tone="warning" title="有欄位還不能用來訓練">
+                <p>{unencodedText.map((f) => f.name).join('、')} 是文字或類別，需要先拆成 0／1 欄位（One Hot Encoding）。</p>
                 <button
                   type="button"
                   className="btn btn--secondary btn--small"
                   onClick={() => changeSteps(unencodedText.reduce((s, f) => encode(s, f.name, false), steps))}
                 >
-                  全部拆成 0／1 欄位
+                  全部 One Hot Encoding
                 </button>
               </Alert>
             )}
-            {/* 「用來預測」欄的批次操作：貼在欄位表上緣，和表格左右對齊 */}
+            {/* 「Feature」欄的批次操作：貼在欄位表上緣，和表格左右對齊 */}
             <div className="rd-prep-toolbar">
-              <span className="text-muted">用來預測：</span>
+              <span className="text-muted">Feature：</span>
               <button type="button" className="btn btn--ghost btn--small" onClick={selectAll}>
                 全部勾選（不含識別碼）
               </button>
@@ -267,7 +267,7 @@ export function PrepareTab() {
               </button>
             </div>
             <div className="table-wrap rd-hscroll rd-prep-wrap">
-              <table aria-label="欄位整理" className="rd-prep-table">
+              <table aria-label="欄位設定" className="rd-prep-table">
                 <thead>
                   <tr>
                     <th scope="col">欄位名稱</th>
@@ -278,13 +278,13 @@ export function PrepareTab() {
                     <th scope="col" className="num">
                       不同值
                     </th>
-                    <th scope="col" className="rd-prep-flag" title="選一個欄位當作模型要預測的結果（Target）">
-                      想預測
+                    <th scope="col" className="rd-prep-flag" title="選一個欄位當作 Target 欄位（模型要預測的結果）">
+                      Target
                     </th>
                     <th scope="col" className="rd-prep-flag" title="勾選的欄位拿來預測（Feature）">
-                      用來預測
+                      Feature
                     </th>
-                    <th scope="col" className="rd-prep-flag" title="把文字或代碼拆成 0／1 欄位（One-Hot 編碼）">
+                    <th scope="col" className="rd-prep-flag" title="One Hot Encoding（把文字或代碼拆成 0／1 欄位）">
                       當作類別
                     </th>
                     <th scope="col">處理方式</th>
@@ -311,7 +311,7 @@ export function PrepareTab() {
                         <td className={`num${f.missing > 0 ? ' rd-num--warning' : ''}`}>{f.missing}</td>
                         <td className="num">{f.unique}</td>
                         <td>
-                          <input type="radio" name="prep-target" aria-label={`想預測 ${f.name}`} checked={f.name === target} onChange={() => chooseTarget(f.name)} />
+                          <input type="radio" name="prep-target" aria-label={`Target ${f.name}`} checked={f.name === target} onChange={() => chooseTarget(f.name)} />
                         </td>
                         <td>
                           {f.name !== target && (
@@ -343,7 +343,7 @@ export function PrepareTab() {
                           <button
                             type="button"
                             className="btn btn--ghost btn--small"
-                            aria-label={`替 ${f.name} 加整理步驟`}
+                            aria-label={`替 ${f.name} 加前處理步驟`}
                             onClick={() => setRequest((r) => ({ column: f.name, key: (r?.key ?? 0) + 1 }))}
                           >
                             加步驟
@@ -357,9 +357,9 @@ export function PrepareTab() {
             </div>
             <MissingChoiceField id="prep" columns={gaps} value={missingChoice} onChange={setMissing} />
             <details>
-              <summary>進階：其他用來預測的欄位</summary>
+              <summary>進階：其他 Feature 欄位</summary>
               <div className="field">
-                <label htmlFor="prep-extra">其他欄位（整理步驟產生的新欄位，以逗號分隔）</label>
+                <label htmlFor="prep-extra">其他欄位（前處理步驟產生的新欄位，以逗號分隔）</label>
                 <input id="prep-extra" className="input" value={extra} onChange={(e) => setExtra(e.target.value)} />
               </div>
             </details>
@@ -368,29 +368,29 @@ export function PrepareTab() {
 
         <section className="card" aria-labelledby="prep-compare">
           <h3 id="prep-compare">資料預覽：處理前後比較</h3>
-          <p className="text-muted">按下方「預覽處理結果」看前 {PREVIEW_ROWS} 列套用整理步驟後的樣子，不會改動原始資料。</p>
+          <p className="text-muted">按下方「預覽處理結果」看前 {PREVIEW_ROWS} 列套用前處理步驟後的樣子，不會改動原始資料。</p>
           <ApiErrorAlert error={compareError} />
           {compare && <Compare before={compare.before} after={compare.after} steps={steps.length} />}
           <div className="rd-bottom-bar">
-            {writable && <span className="text-muted">想預測的欄位、用來預測的欄位、缺值處理與整理步驟會一起儲存。</span>}
+            {writable && <span className="text-muted">Target 欄位、Feature 欄位、缺值處理與前處理步驟會一起儲存。</span>}
             <button type="button" className="btn btn--secondary" onClick={() => void runCompare()} disabled={comparing}>
               {comparing ? '處理中…' : '預覽處理結果'}
             </button>
             {writable && (
               <button type="submit" form="prepare-form" className="btn btn--primary" disabled={busy}>
-                {busy ? '儲存中…' : '儲存整理步驟'}
+                {busy ? '儲存中…' : '儲存前處理步驟'}
               </button>
             )}
           </div>
         </section>
 
         <section className="card" aria-labelledby="prep-saved">
-          <h3 id="prep-saved">已儲存的整理設定</h3>
+          <h3 id="prep-saved">已儲存的前處理設定</h3>
           {saved ? (
             <dl className="kv">
-              <dt>想預測的欄位</dt>
+              <dt>Target 欄位</dt>
               <dd data-testid="saved-target">{saved.config.target}</dd>
-              <dt>用來預測的欄位</dt>
+              <dt>Feature 欄位</dt>
               <dd>
                 <span data-testid="saved-features">{saved.config.features.join('、')}</span>
                 <span className="field__hint" data-testid="saved-feature-count">
@@ -400,10 +400,10 @@ export function PrepareTab() {
               {saved.config.missing ? (
                 <>
                   <dt>有缺值的病人</dt>
-                  <dd data-testid="saved-missing">{saved.config.missing === 'impute' ? '補上缺值後使用' : '不使用'}</dd>
+                  <dd data-testid="saved-missing">{saved.config.missing === 'impute' ? '補值後使用' : '不使用'}</dd>
                 </>
               ) : null}
-              <dt>整理步驟</dt>
+              <dt>前處理步驟</dt>
               <dd data-testid="saved-steps">
                 {saved.config.steps.length ? saved.config.steps.map((s) => stepSummary(s, catalogue)).join(' → ') : '無'}
               </dd>
@@ -413,7 +413,7 @@ export function PrepareTab() {
               </dd>
             </dl>
           ) : (
-            <p>這個資料集還沒有儲存整理設定。</p>
+            <p>這個資料集還沒有儲存前處理設定。</p>
           )}
         </section>
       </SplitLayout>
@@ -421,10 +421,10 @@ export function PrepareTab() {
   );
 }
 
-/** 儲存後的一句話：數目以使用者勾的欄位計，並列出缺值處理與整理步驟（讓人確定都存了）。 */
+/** 儲存後的一句話：數目以使用者勾的欄位計，並列出缺值處理與前處理步驟（讓人確定都存了）。 */
 export function savedSummary(tf: TargetFeature, original: string[], catalogue: CatalogueItem[]): string {
   const c = tf.config;
-  const parts = [`要預測的結果 ${c.target}`, `用來預測的資料 ${featureCountText(c.features, original, c.steps)}`];
+  const parts = [`Target 欄位 ${c.target}`, `Feature 欄位 ${featureCountText(c.features, original, c.steps)}`];
   if (missingText(c.missing)) parts.push(missingText(c.missing));
   parts.push(c.steps.length ? `前處理 ${c.steps.length} 個步驟（${c.steps.map((s) => stepSummary(s, catalogue)).join(' → ')}）` : '沒有前處理步驟');
   return `已儲存：${parts.join('；')}`;

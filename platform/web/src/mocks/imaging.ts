@@ -583,7 +583,7 @@ export const imagingHandlers = [
     const ctx = requireProject(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
     const study = studiesOf(state(), ctx.project.id).find((st) => st.study_instance_uid === params.uid);
-    return study ? json(study) : detail(404, '找不到研究，或不在本專案的 Accession 清單內');
+    return study ? json(study) : detail(404, '找不到研究，或不在本專案的 Accession Number 清單內');
   }),
 
   // DICOMweb 代理的序列縮圖（Gateway 的 .../series/{series}/thumbnail）：回一張合成的灰階圖
@@ -591,7 +591,7 @@ export const imagingHandlers = [
     const ctx = requireProject(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
     const known = studiesOf(state(), ctx.project.id).some((st) => st.study_instance_uid === params.study);
-    if (!known) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    if (!known) return detail(403, '研究不在本專案，或不在 Accession Number 清單內');
     return new HttpResponse(THUMBNAIL_SVG, { headers: { 'Content-Type': 'image/svg+xml' } });
   }),
 
@@ -604,7 +604,7 @@ export const imagingHandlers = [
   http.put(`${BASE}/accession-allowlist`, async ({ request, params }) => {
     const ctx = requireProject(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
-    if (ctx.user.account_type !== 'admin') return detail(403, '需要 Admin 權限才能設定 Accession 清單');
+    if (ctx.user.account_type !== 'admin') return detail(403, '需要 Admin 權限才能設定 Accession Number 清單');
     const b = await jsonBody(request);
     if (!Array.isArray(b.accession_numbers) || b.accession_numbers.some((x) => typeof x !== 'string')) {
       return json({ detail: [{ type: 'list_type', loc: ['body', 'accession_numbers'], msg: 'Input should be a valid list', input: null }] }, 422);

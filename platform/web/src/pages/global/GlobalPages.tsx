@@ -71,7 +71,7 @@ export function NoProjectPage() {
       <div className="row-actions gp-empty__more">
         {me.account_type === 'admin' && (
           <Link to="/admin/projects" className="btn btn--secondary">
-            到系統管理建立專案
+            到管理後台建立專案
           </Link>
         )}
         <Link to="/account" className="btn btn--secondary">
@@ -212,12 +212,12 @@ export function AccountPage() {
 
   return (
     <>
-      <PageHeader title="個人帳號設定" subtitle="帳號由醫院統一身分管理；角色與權限由管理者調整。" />
+      <PageHeader title="個人帳號設定" subtitle="帳號由本系統管理；角色與權限由管理者調整。" />
       <div className="gp-settings">
         <Card title="帳號資料">
           <dl className="gp-rows">
             <div>
-              <dt>院方帳號</dt>
+              <dt>本系統帳號</dt>
               <dd>{me.username}</dd>
             </div>
             <div>
@@ -237,12 +237,12 @@ export function AccountPage() {
           <p className="text-muted">這裡的資料不能修改。</p>
         </Card>
 
-        <Card title="我在各專案的身分" flush>
+        <Card title="我在各專案的角色" flush>
           {me.projects.length === 0 ? (
             <p className="gp-pad">你尚未加入任何專案，請聯絡管理者將你加入專案。</p>
           ) : (
             <div className="table-wrap">
-              <table aria-label="我在各專案的身分">
+              <table aria-label="我在各專案的角色">
                 <thead>
                   <tr>
                     <th scope="col">專案</th>
@@ -291,9 +291,9 @@ export function AccountPage() {
         <Card title="安全性">
           <div className="gp-security">
             <span className="gp-security__label">密碼修改</span>
-            <span>如需修改密碼，請前往院方帳號服務進行變更。</span>
+            <span>如需修改密碼，請前往本系統帳號服務進行變更。</span>
             <a className="btn btn--secondary" href={keycloakAccountUrl()} target="_blank" rel="noreferrer">
-              <Icon name="external" /> 前往院方帳號服務修改密碼
+              <Icon name="external" /> 前往本系統帳號服務修改密碼
             </a>
           </div>
           {auth.mode === 'test' && <p className="text-muted">目前是測試登入模式，帳號頁不會有作用。</p>}
@@ -364,7 +364,7 @@ function CatalogRows({ entries }: { entries: Entry[] }) {
   );
 }
 
-/** 功能目錄（B12）：依權限列出契約 8 個入口的原名稱與日常名稱，點了直接進入 */
+/** 功能目錄（B12）：依權限列出契約 8 個入口的名稱與所在位置，點了直接進入 */
 export function CatalogPage() {
   const me = useMe();
   const { project } = useSession();
@@ -389,7 +389,7 @@ export function CatalogPage() {
               <tr>
                 <th scope="col">圖示</th>
                 <th scope="col">功能名稱</th>
-                <th scope="col">日常名稱</th>
+                <th scope="col">所在位置</th>
                 <th scope="col">說明</th>
                 <th scope="col">開啟</th>
               </tr>

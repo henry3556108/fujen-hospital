@@ -130,11 +130,11 @@ function AllowlistForm({ projectId, initial, onSaved }: { projectId: number; ini
   }
 
   return (
-    <form aria-label="設定影像存取清單" className="ui-card adm-allow" onSubmit={submit} noValidate>
+    <form aria-label="設定 Accession Number 清單" className="ui-card adm-allow" onSubmit={submit} noValidate>
       <ApiErrorAlert error={error} />
       <div className="adm-allow__top">
         <div className="adm-allow__input">
-          <h3 className="ui-card__title">上傳影像編號清單</h3>
+          <h3 className="ui-card__title">上傳識別號或單號（Accession Number）清單</h3>
           <div
             className={`adm-drop ${dragging ? 'adm-drop--over' : ''}`}
             onDragOver={(e) => {
@@ -240,7 +240,7 @@ function AllowlistForm({ projectId, initial, onSaved }: { projectId: number; ini
       )}
 
       <Alert tone="info">
-        清空清單表示不限制。此清單是本專案的影像範圍：清單外的影像仍可匯入，但網頁、API、DICOMweb 都看不到；從院內影像系統取得時會直接拒絕。
+        清空清單表示不限制。此清單是本專案的影像範圍：清單外的影像仍可匯入，但網頁、API、DICOMweb 都看不到；從影像儲傳系統取得時會直接拒絕。
       </Alert>
 
       <div className="adm-allow__foot">
@@ -265,7 +265,7 @@ function AllowlistForm({ projectId, initial, onSaved }: { projectId: number; ini
 }
 
 /**
- * 影像存取清單的編輯元件（設計稿 B07，給管理區的專案頁用；寫入需要 Admin）。
+ * Accession Number 清單的編輯元件（設計稿 B07，給管理區的專案頁用；寫入需要 Admin）。
  * projectId：要設定的專案；onSaved：儲存成功後通知（選用）。
  * 元件自己讀取目前清單、上傳或貼上新清單、儲存前顯示差異並要求確認。
  */
@@ -277,7 +277,7 @@ export function AllowlistEditor({ projectId, projectName, onSaved }: { projectId
   return (
     <div className="adm-allowlist">
       <p className="text-muted">
-        用影像編號（Accession Number）限制{projectName ? `專案「${projectName}」` : '這個專案'}能看的資料，與一般篩選分開。設定後網頁、API、DICOMweb 都只看得到清單內的影像。研究資料頁只能看，不能修改。
+        用 DICOM 影像中的識別號或單號（Accession Number，標籤 0008,0050）限制{projectName ? `專案「${projectName}」` : '這個專案'}能看的資料，與一般篩選分開。設定後網頁、API、DICOMweb 都只看得到清單內的影像。數據管理頁只能看，不能修改。
       </p>
       <ApiErrorAlert error={list.error} />
       {notice && <Alert tone="success">{notice}</Alert>}
@@ -290,7 +290,7 @@ export function AllowlistEditor({ projectId, projectName, onSaved }: { projectId
             initial={items}
             onSaved={(saved) => {
               list.setData({ accession_numbers: saved });
-              setNotice(saved.length ? `已儲存影像存取清單，共 ${saved.length} 筆` : '已清空影像存取清單，影像不受限制');
+              setNotice(saved.length ? `已儲存 Accession Number 清單，共 ${saved.length} 筆` : '已清空 Accession Number 清單，影像不受限制');
               onSaved?.(saved);
             }}
           />

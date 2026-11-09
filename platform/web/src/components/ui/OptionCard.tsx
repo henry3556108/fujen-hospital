@@ -3,7 +3,7 @@ import { Icon, type IconName } from '../Icon';
 import './ui.css';
 
 /**
- * 卡片式單選（設計稿 A06「1. 選擇研究目的」判斷影像類別／圈出位置／標出範圍）。
+ * 卡片式單選（設計稿 A06「1. 選擇訓練種類」影像分類／物件偵測／影像分割）。
  * 內部是原生 radio，同一組請給相同 name；外層建議包 OptionCardGroup（fieldset＋legend）。
  */
 export function OptionCard({

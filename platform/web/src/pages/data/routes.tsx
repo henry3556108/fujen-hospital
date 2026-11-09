@@ -18,14 +18,14 @@ import { ViewTab } from '../tabular/ViewTab';
 import '../../styles/pages.css';
 import './data.css';
 
-/** 研究資料區外框（A02）：頁標題＋影像／表格分頁；沒有專案時提示，切換專案時整區重新載入。 */
+/** 數據管理區外框（A02）：頁標題＋影像／表格分頁；沒有專案時提示，切換專案時整區重新載入。 */
 function DataLayout() {
   const { project } = useSession();
   if (!project) return <Alert tone="info">目前沒有專案。請先選擇或建立專案。</Alert>;
   return (
     <div key={project.id}>
       <PageHeader
-        title="研究資料"
+        title="數據管理"
         subtitle={
           <>
             目前專案：<strong>{project.name}</strong>。資料只在這個專案內可見。
@@ -33,10 +33,10 @@ function DataLayout() {
         }
       >
         <Tabs
-          label="研究資料分頁"
+          label="數據管理分頁"
           items={[
-            { to: '/data/imaging', label: '影像' },
-            { to: '/data/tabular', label: '表格資料' },
+            { to: '/data/imaging', label: '醫療影像' },
+            { to: '/data/tabular', label: '結構式資料' },
           ]}
         />
       </PageHeader>
@@ -45,14 +45,14 @@ function DataLayout() {
   );
 }
 
-/** 研究資料（/data/*）的子路由，路徑相對於 /data。 */
+/** 數據管理（/data/*）的子路由，路徑相對於 /data。 */
 export function dataRoutes() {
   return (
     <Route element={<DataLayout />}>
       <Route index element={<Navigate to="imaging" replace />} />
       <Route path="imaging" element={<StudiesPage />} />
       <Route path="imaging/studies/:studyUid" element={<StudyDetailPage />} />
-      {/* 加入資料：影像清單上的滑出面板（A02），網址保留 /imaging/import，可直接連結 */}
+      {/* 匯入資料：影像清單上的滑出面板（A02），網址保留 /imaging/import，可直接連結 */}
       <Route path="imaging/import" element={<StudiesPage adding />} />
       <Route path="imaging/jobs" element={<ImportJobsPage />} />
       <Route path="imaging/jobs/:jobId" element={<ImportJobsPage />} />

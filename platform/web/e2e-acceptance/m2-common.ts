@@ -4,9 +4,9 @@ import path from 'node:path';
 import { expect, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { EVIDENCE_DIR, clickMenu, clickTab, login, note, useProject } from './helpers';
 
-// M2 流程程式碼驗證（Desktop\workspace\M2驗證\00～09）共用：專案、帳號、流程程式碼表格、下載上傳、訓練紀錄、指標比對。
+// M2 各階段處理程式碼驗證（Desktop\workspace\M2驗證\00～09）共用：專案、帳號、各階段處理程式碼表格、下載上傳、訓練紀錄、指標比對。
 // 截圖與紀錄存到 <EVIDENCE_DIR>/<編號>/（run-m2.sh 指到 Desktop\workspace\M2測試紀錄）。
-// 文字一律照原始碼（StagesPanel.tsx、stages.ts、api/app/training/stages.py 等）；與 md 不同處在紀錄裡標「與 md 不同」。
+// 文字一律照原始程式碼（StagesPanel.tsx、stages.ts、api/app/training/stages.py 等）；與 md 不同處在紀錄裡標「與 md 不同」。
 
 export const PA = 'M2-FLOW-A';
 export const PB = 'M2-FLOW-B';
@@ -19,7 +19,7 @@ export const FEATURES = ['age', 'sex', 'bmi', 'sbp', 'dbp', 'glucose', 'smoker']
 export const SERVICE = 'M2 驗證服務';
 export const TRAIN_TIMEOUT = Number(process.env.M2_TRAIN_TIMEOUT_MIN || 20) * 60_000;
 
-/** 流程環節表格的列名稱：來自 API（stages.py 的 STAGE_NAMES），部署是「模型匯出與部署」 */
+/** 流程階段表格的列名稱：來自 API（stages.py 的 STAGE_NAMES），部署是「模型匯出與部署」 */
 export const ROW = { import: '資料匯入', labels: '標註', preprocess: '資料清理與前處理', train: '訓練', deploy: '模型匯出與部署' } as const;
 /** 編輯區標題與「套用」按鈕：來自網頁（stages.ts 的 STAGE_NAMES），部署是「部署」 */
 export const WEB = { import: '資料匯入', labels: '標註', preprocess: '資料清理與前處理', train: '訓練', deploy: '部署' } as const;
@@ -43,7 +43,7 @@ export function step(tc: string, n: number | string, text: string) {
   note(tc, `步驟 ${n}：${text}`);
 }
 
-/** 通過條件：逐項記錄，不中斷；finish() 時有不通過就讓測試失敗。與 md 不同但照原始碼的行為用 diff() 記錄。 */
+/** 通過條件：逐項記錄，不中斷；finish() 時有不通過就讓測試失敗。與 md 不同但照原始程式碼的行為用 diff() 記錄。 */
 export class Checks {
   readonly items: { name: string; ok: boolean }[] = [];
   constructor(readonly tc: string) {}
@@ -100,10 +100,10 @@ export async function switchProject(page: Page, name: string) {
   await page.waitForLoadState('networkidle');
 }
 
-/** 功能目錄「數據管理」（＝研究資料）→ 分頁「表格資料」 */
+/** 功能目錄「數據管理」（＝數據管理）→ 分頁「結構式資料」 */
 export async function gotoTabular(page: Page) {
   await clickMenu(page, '數據管理');
-  await clickTab(page, '表格資料', page.getByRole('navigation', { name: '研究資料分頁' }));
+  await clickTab(page, '結構式資料', page.getByRole('navigation', { name: '數據管理分頁' }));
   const table = page.getByRole('table', { name: '資料集列表' });
   await expect(table).toBeVisible();
   await page.waitForLoadState('networkidle');
@@ -111,27 +111,27 @@ export async function gotoTabular(page: Page) {
   await expect(table.getByRole('status').filter({ hasText: '載入中…' })).toHaveCount(0, { timeout: 30_000 });
 }
 
-// ---------------------------------------------------------------- 建立模型（原建模管理）
+// ---------------------------------------------------------------- 建模管理（原建模管理）
 
-const trainingTabs = (page: Page) => page.getByRole('navigation', { name: '建立模型分頁' });
+const trainingTabs = (page: Page) => page.getByRole('navigation', { name: '建模管理分頁' });
 
-/** 功能目錄「建模管理」（＝建立模型）→ 分頁「已存設定」（訓練設定清單在這裡） */
+/** 功能目錄「建模管理」（＝建模管理）→ 分頁「訓練設定」（訓練設定清單在這裡） */
 export async function gotoTraining(page: Page) {
   await clickMenu(page, '建模管理');
-  await expect(page.getByRole('heading', { level: 1, name: '建立模型' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '建模管理' })).toBeVisible();
   await gotoSettings(page);
 }
 
-/** 建立模型 → 分頁「已存設定」（不在建立模型區時先從功能目錄進入） */
+/** 建模管理 → 分頁「訓練設定」（不在建模管理區時先從功能目錄進入） */
 export async function gotoSettings(page: Page) {
   if (!(await trainingTabs(page).count())) await clickMenu(page, '建模管理');
-  await clickTab(page, '已存設定', trainingTabs(page));
-  await expect(page.getByRole('heading', { name: '已存設定', exact: true })).toBeVisible();
-  await settingsTable(page).or(page.getByText('還沒有已存設定。')).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+  await clickTab(page, '訓練設定', trainingTabs(page));
+  await expect(page.getByRole('heading', { name: '訓練設定', exact: true })).toBeVisible();
+  await settingsTable(page).or(page.getByText('還沒有訓練設定。')).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
   await page.waitForLoadState('networkidle');
 }
 
-/** 建立模型 → 分頁「訓練紀錄」 */
+/** 建模管理 → 分頁「訓練紀錄」 */
 export async function gotoRuns(page: Page) {
   if (!(await trainingTabs(page).count())) await clickMenu(page, '建模管理');
   await clickTab(page, '訓練紀錄', trainingTabs(page));
@@ -139,15 +139,15 @@ export async function gotoRuns(page: Page) {
   await page.waitForLoadState('networkidle');
 }
 
-/** 建立模型 → 分頁「程式與專案包」（需 Coding） */
+/** 建模管理 → 分頁「原始程式碼與專案包」（需 Coding） */
 export async function gotoCode(page: Page) {
   if (!(await trainingTabs(page).count())) await clickMenu(page, '建模管理');
-  await clickTab(page, '程式與專案包', trainingTabs(page));
-  await expect(page.getByRole('heading', { name: '流程程式碼', exact: true })).toBeVisible();
+  await clickTab(page, '原始程式碼與專案包', trainingTabs(page));
+  await expect(page.getByRole('heading', { name: '各階段處理程式碼', exact: true })).toBeVisible();
   await page.waitForLoadState('networkidle');
 }
 
-/** 已存設定的「修改「名稱」」（原「編輯」），回傳修改表單 */
+/** 訓練設定的「修改「名稱」」（原「編輯」），回傳修改表單 */
 export async function editSetting(page: Page, name: string) {
   if (!(await settingsTable(page).isVisible().catch(() => false))) await gotoSettings(page);
   await page.getByRole('button', { name: `修改「${name}」`, exact: true }).click();
@@ -174,25 +174,25 @@ export async function lockBadge(page: Page, name: string) {
   return (await badge.count()) ? flat(await badge.innerText()) : '';
 }
 
-/** 已存設定按「流程程式碼「設定名稱」」（連到「程式與專案包」分頁），回傳「流程程式碼「設定名稱」」區塊 */
+/** 訓練設定按「各階段處理程式碼「設定名稱」」（連到「原始程式碼與專案包」分頁），回傳「各階段處理程式碼「設定名稱」」區塊 */
 export async function openFlow(page: Page, name: string) {
-  const panel = page.getByRole('region', { name: `流程程式碼「${name}」` });
+  const panel = page.getByRole('region', { name: `各階段處理程式碼「${name}」` });
   if (!(await panel.count())) {
     if (!(await settingsTable(page).isVisible().catch(() => false))) await gotoSettings(page);
-    await page.getByRole('link', { name: `流程程式碼「${name}」`, exact: true }).click();
+    await page.getByRole('link', { name: `各階段處理程式碼「${name}」`, exact: true }).click();
     await expect(page).toHaveURL(/\/training\/code\?setting=\d+/);
   }
-  await expect(panel.getByRole('table', { name: '流程環節' })).toBeVisible();
+  await expect(panel.getByRole('table', { name: '流程階段' })).toBeVisible();
   await panel.scrollIntoViewIfNeeded();
   return panel;
 }
 
 export async function closeFlow(panel: Locator) {
-  if (await panel.count()) await panel.getByRole('button', { name: '關閉流程程式碼', exact: true }).click();
+  if (await panel.count()) await panel.getByRole('button', { name: '關閉各階段處理程式碼', exact: true }).click();
 }
 
 export function stageRow(panel: Locator, rowName: string) {
-  return panel.getByRole('table', { name: '流程環節' }).getByRole('row').filter({ has: panel.page().getByRole('rowheader', { name: rowName, exact: true }) });
+  return panel.getByRole('table', { name: '流程階段' }).getByRole('row').filter({ has: panel.page().getByRole('rowheader', { name: rowName, exact: true }) });
 }
 
 /** 某一列「目前由誰控制」：介面設定／匯入檔控制（含說明） */
@@ -252,7 +252,7 @@ export async function openUnlock(panel: Locator, rowName: string) {
 
 // ---------------------------------------------------------------- 匯入專案包
 
-/** 「建立模型」→「程式與專案包」→「匯入專案包」，回傳「匯入整個流程（專案包）」區塊 */
+/** 「建模管理」→「原始程式碼與專案包」→「匯入專案包」，回傳「匯入整個流程（專案包）」區塊 */
 export async function openPackageImport(page: Page) {
   const region = page.getByRole('region', { name: '匯入整個流程（專案包）' });
   if (!(await region.count())) {
@@ -347,9 +347,9 @@ export async function selectByPrefix(select: Locator, prefix: string) {
   return label;
 }
 
-/** 「用來預測的資料（Feature）」只勾 wanted，其他取消 */
+/** 「Feature 欄位」只勾 wanted，其他取消 */
 export async function setFeatures(form: Locator, wanted: string[]) {
-  const group = form.getByRole('group', { name: '用來預測的資料（Feature）' });
+  const group = form.getByRole('group', { name: 'Feature 欄位' });
   await expect(group).toBeVisible();
   const labels = group.locator('label');
   const n = await labels.count();
@@ -372,7 +372,7 @@ export function runRow(page: Page, id: number) {
   return runsTable(page).getByRole('row').filter({ has: page.getByRole('cell', { name: `#${id}`, exact: true }) });
 }
 
-/** 已存設定按「送出訓練「名稱」」：送出後直接進入單次訓練頁（/training/runs/:id），回傳網址中的訓練編號 */
+/** 訓練設定按「送出訓練「名稱」」：送出後直接進入單次訓練頁（/training/runs/:id），回傳網址中的訓練編號 */
 export async function submitTraining(page: Page, name: string) {
   if (!(await settingsTable(page).isVisible().catch(() => false))) await gotoSettings(page);
   await page.getByRole('button', { name: `送出訓練「${name}」`, exact: true }).click();
@@ -382,7 +382,7 @@ export async function submitTraining(page: Page, name: string) {
     .toBe(true);
   const m = /\/training\/runs\/(\d+)/.exec(page.url());
   if (!m) throw new Error(`送出訓練失敗：${flat(await err.innerText())}`);
-  // 頂端訊息隨狀態變化：「已送出訓練 #id（名稱），目前排隊中。」→「訓練 #id（名稱）訓練中…／已完成。」
+  // 頂端訊息隨狀態變化：「已送出訓練 #id（名稱），目前等待中。」→「訓練 #id（名稱）訓練中…／已完成。」
   await expect(page.getByRole('status').or(page.getByRole('alert')).filter({ hasText: `訓練 #${m[1]}（${name}）` }).first()).toBeVisible();
   return Number(m[1]);
 }
@@ -476,7 +476,7 @@ export async function latestUiRun(page: Page, settingName: string): Promise<numb
 
 const METRIC_LABEL: Record<string, string> = {
   accuracy: '準確率', f1_macro: 'F1 分數（各類平均）', auc: 'AUC（ROC 曲線下面積）', sensitivity: '敏感度', specificity: '特異度',
-  baseline_accuracy: '比較基準：全部猜訓練資料最常見的類別', r2: 'R²（解釋量）', rmse: 'RMSE（均方根誤差）', mae: 'MAE（平均絕對誤差）',
+  baseline_accuracy: '比較基準：全部猜訓練集最常見的類別', r2: 'R²（解釋量）', rmse: 'RMSE（均方根誤差）', mae: 'MAE（平均絕對誤差）',
   baseline_rmse: '比較基準：每次都猜平均值', pixel_accuracy: '像素準確率', dice: 'Dice 係數', mean_iou: '平均 IoU', score: '分數（快速測試）',
 };
 const PERCENT = new Set(['accuracy', 'sensitivity', 'specificity', 'baseline_accuracy', 'pixel_accuracy']);

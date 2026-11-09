@@ -9,7 +9,7 @@ import type { Allowlist } from './types';
 
 export { parseAccessions } from './AllowlistEditor';
 
-/** TC-B01-08 影像存取清單（研究區唯讀）：由 Admin 在管理區的專案頁設定；空清單代表不限制。 */
+/** TC-B01-08 Accession Number 清單（研究區唯讀）：由 Admin 在管理區的專案頁設定；空清單代表不限制。 */
 export function AllowlistPage() {
   const { api, project } = useSession();
   const { isAdmin } = useProjectAccess();
@@ -18,9 +18,9 @@ export function AllowlistPage() {
   return (
     <>
       <ImagingNav />
-      <h2>影像存取清單</h2>
+      <h2>Accession Number 清單</h2>
       <p className="text-muted">
-        這份清單決定專案「看得到哪些影像」（以 Accession Number 列出）。清單外的影像不會顯示，從院內影像系統取得時也會被拒絕。
+        這份清單決定專案「看得到哪些影像」（以 Accession Number 列出）。清單外的影像不會顯示，從影像儲傳系統取得時也會被拒絕。
       </p>
       <ApiErrorAlert error={list.error} />
       {list.loading && !list.data && <p role="status">載入中…</p>}

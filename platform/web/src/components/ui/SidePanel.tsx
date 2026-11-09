@@ -3,7 +3,7 @@ import { Icon } from '../Icon';
 import './ui.css';
 
 /**
- * 右側資訊／編輯欄（設計稿 A04 資料集資訊、A06 送出前確認、B02 設定詳情、A02 加入資料）。
+ * 右側資訊／編輯欄（設計稿 A04 資料集資訊、A06 送出前確認、B02 設定詳情、A02 匯入資料）。
  * 放在頁面格線的右欄；給 onClose 才出現關閉鈕。搭配 SplitLayout 排版。
  */
 export function SidePanel({

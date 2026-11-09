@@ -1,4 +1,4 @@
-// 研究資料區的測試渲染：不經過 App.tsx，只掛 /data/* 子路由，外加最小的專案切換器。
+// 數據管理區的測試渲染：不經過 App.tsx，只掛 /data/* 子路由，外加最小的專案切換器。
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';

@@ -14,7 +14,7 @@ function invalid(error: unknown, field: string): boolean {
 
 /**
  * TC-A02-07 共享排程設定：時間片份數與共享池工作時限。儲存後以伺服器回傳值為準。
- * 「共享設定」分頁與「排隊順序」右欄（設計稿 B22）共用。
+ * 「共享排程設定」分頁與「佇列排程」右欄（設計稿 B22）共用。
  */
 export function SharedSettingsForm({
   initial,
@@ -27,7 +27,7 @@ export function SharedSettingsForm({
   onSaved: (s: SharedSchedulingSettings) => void;
   submitLabel?: string;
   idPrefix?: string;
-  /** true＝次要按鈕（排隊順序右欄：主要按鈕是「套用順序」） */
+  /** true＝次要按鈕（佇列排程右欄：主要按鈕是「套用順序」） */
   secondary?: boolean;
 }) {
   const { api } = useSession();
@@ -111,7 +111,7 @@ export function SharedSchedulingPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   return (
-    <SchedulingPage title="排隊與共享設定" subtitle="管理不同資源類型的排隊順序與共享規則">
+    <SchedulingPage title="佇列排程與共享排程設定" subtitle="管理不同資源類型的佇列排程與共享規則">
       <p className="text-muted">共享池（gpu-shared）以時間片讓多件工作共用同一張 GPU。</p>
       <ApiErrorAlert error={settings.error} />
       {notice && <Alert tone="success">{notice}</Alert>}

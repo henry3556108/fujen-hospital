@@ -1,4 +1,4 @@
-// 網頁缺口（2026-10-12）：非 Admin 選帳號、部署顯示模型名稱、網頁上試呼叫部署、訓練紀錄分頁。
+// 網頁缺口（2026-10-12）：非 Admin 選帳號、部署顯示模型名稱、網頁上線上推論測試部署、訓練紀錄分頁。
 import { makeFile } from '../upload-env';
 import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
@@ -30,8 +30,8 @@ describe('選帳號（UserPicker）', () => {
 
   it('a non-admin with Training picks a colleague by typing the start of the account', async () => {
     const { user } = await renderApp('/models/101/share', 'ra01');
-    const form = await screen.findByRole('form', { name: '分享給同事使用' });
-    const input = within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）');
+    const form = await screen.findByRole('form', { name: '部署並設定權限' });
+    const input = within(form).getByLabelText('授權帳號（以逗號分隔）');
     await user.type(input, 'md01, u');
     const list = await within(form).findByRole('list', { name: '符合的帳號' });
     expect(within(list).getAllByRole('button').map((b) => b.textContent)).toEqual(['user01（不是本專案成員）', 'user02（不是本專案成員）']);
@@ -59,7 +59,7 @@ describe('選帳號（UserPicker）', () => {
   });
 });
 
-describe('部署：模型名稱與試呼叫', () => {
+describe('部署：模型名稱與線上推論測試', () => {
   const model = { id: 101, name: 'diagnosis-rf-run1', kind: 'tabular_classification', card: { features: ['age', 'bmi'] } } as unknown as Model;
 
   it('sample rows follow the model features and bad JSON is explained', () => {
@@ -80,28 +80,28 @@ describe('部署：模型名稱與試呼叫', () => {
     const { training } = client('pi01');
     await training.deploy({ model_id: 101, title: '確診預測', allowed_users: ['md01'] });
     const { user } = await renderApp('/models/101/share', 'pi01');
-    const form = await screen.findByRole('form', { name: '試呼叫' });
-    expect(within(form).getByText(/你（pi01）不在「確診預測」的分享對象中/)).toBeInTheDocument();
+    const form = await screen.findByRole('form', { name: '線上推論測試' });
+    expect(within(form).getByText(/你（pi01）不在「確診預測」的授權帳號中/)).toBeInTheDocument();
     const body = within(form).getByLabelText('送出的 JSON');
     expect(JSON.parse((body as HTMLTextAreaElement).value)).toEqual({ rows: [{ age: null, bmi: null, glucose: null, sbp: null }] });
-    await user.click(within(form).getByRole('button', { name: /^送出試呼叫/ }));
+    await user.click(within(form).getByRole('button', { name: /^送出線上推論測試/ }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('你沒有呼叫這個推論服務的授權');
 
-    // 把自己加入分享對象後再呼叫
-    const table = screen.getByRole('table', { name: '已分享的模型' });
+    // 把自己加入授權帳號後再呼叫
+    const table = screen.getByRole('table', { name: '已部署的模型' });
     expect(within(table).getByRole('row', { name: /確診預測/ })).toHaveTextContent('diagnosis-rf-run1');
-    await user.click(within(table).getByRole('button', { name: '修改分享對象「確診預測」' }));
-    const access = screen.getByRole('form', { name: '修改分享對象' });
-    await user.type(within(access).getByLabelText(/分享給/), ', pi01');
-    await user.click(within(access).getByRole('button', { name: '儲存分享對象' }));
-    await waitFor(() => expect(within(screen.getByRole('form', { name: '試呼叫' })).queryByText(/不在「確診預測」的分享對象中/)).toBeNull());
-    const call = screen.getByRole('form', { name: '試呼叫' });
+    await user.click(within(table).getByRole('button', { name: '修改授權帳號「確診預測」' }));
+    const access = screen.getByRole('form', { name: '修改授權帳號' });
+    await user.type(within(access).getByLabelText(/授權帳號/), ', pi01');
+    await user.click(within(access).getByRole('button', { name: '儲存授權帳號' }));
+    await waitFor(() => expect(within(screen.getByRole('form', { name: '線上推論測試' })).queryByText(/不在「確診預測」的授權帳號中/)).toBeNull());
+    const call = screen.getByRole('form', { name: '線上推論測試' });
     const input = within(call).getByLabelText('送出的 JSON');
     await user.clear(input);
     await user.click(input);
     await user.paste('{"rows": [{"age": 51, "bmi": 24}, {"age": 70, "bmi": 30}]}');
-    await user.click(within(call).getByRole('button', { name: /^送出試呼叫/ }));
-    const reply = await within(call).findByLabelText('試呼叫的回應');
+    await user.click(within(call).getByRole('button', { name: /^送出線上推論測試/ }));
+    const reply = await within(call).findByLabelText('線上推論測試的回應');
     expect(JSON.parse(reply.textContent!)).toMatchObject({ deployment: 'model-101', predictions: ['1', '0'] });
     expect(within(call).getByText(/^呼叫成功/)).toBeInTheDocument();
   });
@@ -110,12 +110,12 @@ describe('部署：模型名稱與試呼叫', () => {
     const { training } = client('pi01');
     await training.deploy({ model_id: 102, title: '影像分類', allowed_users: ['pi01'] });
     const { user } = await renderApp('/models/102/share', 'pi01');
-    const form = await screen.findByRole('form', { name: '試呼叫' });
-    await user.click(within(form).getByRole('button', { name: /^送出試呼叫/ }));
+    const form = await screen.findByRole('form', { name: '線上推論測試' });
+    await user.click(within(form).getByRole('button', { name: /^送出線上推論測試/ }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('請選擇至少一個影像檔');
     await user.upload(within(form).getByLabelText(/影像檔/), [makeFile('x', 'IM0001.dcm'), makeFile('y', 'IM0002.dcm')]);
-    await user.click(within(form).getByRole('button', { name: /^送出試呼叫/ }));
-    const reply = JSON.parse((await within(form).findByLabelText('試呼叫的回應')).textContent!) as { results: { name: string }[] };
+    await user.click(within(form).getByRole('button', { name: /^送出線上推論測試/ }));
+    const reply = JSON.parse((await within(form).findByLabelText('線上推論測試的回應')).textContent!) as { results: { name: string }[] };
     expect(reply.results.map((r) => r.name)).toEqual(['IM0001.dcm', 'IM0002.dcm']);
   });
 });

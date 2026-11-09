@@ -2,7 +2,7 @@
 // 路徑、權限、狀態碼、錯誤訊息照 platform/api/app/training；設定的正規化照 config.py（存檔 → 重新載入逐欄相同）。
 // 只在 dev server 與單元測試使用。
 //
-// 訓練狀態：送出後是「排隊中」；之後查詢（清單或單筆）第 2 次變執行中、第 3 次完成，每個狀態至少停留 trainingMockOptions.stepMs。
+// 訓練狀態：送出後是「等待中」；之後查詢（清單或單筆）第 2 次變執行中、第 3 次完成，每個狀態至少停留 trainingMockOptions.stepMs。
 // 設定名稱含「失敗」的訓練會以失敗結束，用來示範失敗訊息。
 import { http, HttpResponse } from 'msw';
 import type { Model } from '../pages/inference/api';
@@ -31,7 +31,7 @@ const IMAGE_KINDS: TrainingKind[] = ['image_classification', 'image_segmentation
 const TABULAR_KINDS: TrainingKind[] = ['tabular_classification', 'tabular_regression'];
 const KIND_NAMES: Record<TrainingKind, string> = {
   image_classification: '影像分類', image_segmentation: '影像分割', image_detection: '物件偵測',
-  tabular_classification: '結構式分類', tabular_regression: '結構式迴歸',
+  tabular_classification: '結構式資料分類', tabular_regression: '結構式資料迴歸',
 };
 const FORMAT = (kind: TrainingKind) => (kind.startsWith('image_') ? 'h5' : 'pkl');
 const SOURCE_TYPES: Record<TrainingKind, string[]> = {
@@ -84,16 +84,16 @@ const HYPER: Partial<Record<TrainingKind, Record<string, Spec>>> = {
 };
 // 白話說明與是否收在進階設定（照 config.py 的 PARAM_HELP）
 const PARAM_HELP: Record<string, [help: string, advanced: boolean]> = {
-  epochs: ['模型把全部訓練影像看過幾遍。太少學不會，太多可能只記住訓練資料；先用預設值試跑，再視結果調整（常見 10～50）。', false],
+  epochs: ['模型把全部訓練影像看過幾遍。太少學不會，太多可能只記住訓練集；先用預設值試跑，再視結果調整（常見 10～50）。', false],
   batch_size: ['一次交給模型幾張影像。電腦記憶體不足時調小；一般用預設值即可。', true],
   learning_rate: ['每一步修正模型的幅度。太大學得不穩，太小學得很慢；一般用預設值即可。', true],
   filters: ['模型的大小（每一層找幾種影像特徵）。越大越能學複雜的影像，但需要更多資料與時間；一般用預設值。', true],
   augmentation_copies: ['每張原始影像另外產生幾份「資料增強」後的影像。資料少時可設 1～3；設 0 代表不增強。', false],
   max_boxes: ['每張影像最多找出幾個方框。請設成一張影像中病灶可能出現的最多數量。', false],
-  C: ['數值越小，模型越保守、越不容易只記住訓練資料；一般用預設值 1。', true],
+  C: ['數值越小，模型越保守、越不容易只記住訓練集；一般用預設值 1。', true],
   max_iter: ['模型最多計算幾輪來找答案。訓練輸出出現「未收斂」時再調大；一般用預設值。', true],
   n_estimators: ['用幾棵決策樹一起判斷。越多通常越穩定但訓練越久；建議 50～300。', false],
-  max_depth: ['每棵樹最多連續問幾個問題。越深越能抓細節，但容易只記住訓練資料；留白代表不限制，梯度提升建議 2～5。', true],
+  max_depth: ['每棵樹最多連續問幾個問題。越深越能抓細節，但容易只記住訓練集；留白代表不限制，梯度提升建議 2～5。', true],
   min_samples_leaf: ['每個最後分組至少要有幾筆資料。調大可避免被少數特殊個案帶偏；資料多時可設 5～20。', true],
   fit_intercept: ['一般保持勾選。只有確定所有特徵都是 0 時結果也應該是 0，才取消。', true],
   rotation_range: ['隨機旋轉影像的最大角度，模擬擺位不同；建議 0～15 度。', false],
@@ -105,7 +105,7 @@ const PARAM_HELP: Record<string, [help: string, advanced: boolean]> = {
   vertical_flip: ['隨機上下翻轉。多數醫學影像不適合，一般不勾選。', false],
 };
 const VALIDATION_METHODS: ValidationMethod[] = [
-  { method: 'holdout', name: '固定比例切分', help: '依上面的比例把資料分成訓練、驗證、測試三份，訓練一次。速度快，資料多（數千筆以上）時建議使用。' },
+  { method: 'holdout', name: '固定比例分群', help: '依上面的比例把資料分成訓練、驗證、測試三份，訓練一次。速度快，資料多（數千筆以上）時建議使用。' },
   {
     method: 'kfold', name: 'K 折交叉驗證',
     help: '先保留測試集，其餘資料平均分成 K 份，輪流拿一份檢查、其他份訓練，共訓練 K 次再取平均。結果比較穩定，資料少（幾百筆）時建議使用；K 通常用 5。',
@@ -148,12 +148,12 @@ function augmentation(value: unknown) {
 }
 
 function split(value: unknown) {
-  let raw = dict(value, '資料切分');
+  let raw = dict(value, '資料分群');
   if (Object.keys(raw).length === 0) raw = { train: 0.6, validation: 0.2, test: 0.2 };
   const extra = unknownKeys(raw, ['train', 'validation', 'test']);
-  if (extra.length) throw new ConfigError(`資料切分只能有 train、validation、test，多了：${extra.join('、')}`);
+  if (extra.length) throw new ConfigError(`資料分群只能有 train、validation、test，多了：${extra.join('、')}`);
   const out = Object.fromEntries(
-    (['train', 'validation', 'test'] as const).map((k) => [k, number(raw[k] ?? 0, 'float', `資料切分 ${k}`, 0, 1) as number]),
+    (['train', 'validation', 'test'] as const).map((k) => [k, number(raw[k] ?? 0, 'float', `資料分群 ${k}`, 0, 1) as number]),
   ) as { train: number; validation: number; test: number };
   if (out.train <= 0) throw new ConfigError('訓練集比例必須大於 0');
   if (Math.abs(out.train + out.validation + out.test - 1) > 1e-6) throw new ConfigError('訓練、驗證、測試的比例總和必須等於 1');
@@ -180,11 +180,11 @@ function validation(value: unknown) {
   if (extra.length) throw new ConfigError(`不支援的驗證方式設定：${extra.join('、')}`);
   const method = raw.method ?? 'holdout';
   if (method === 'holdout') {
-    if ('folds' in raw) throw new ConfigError('固定比例切分不需要折數（folds），要用 K 折請把 method 設為 kfold');
+    if ('folds' in raw) throw new ConfigError('固定比例分群不需要折數（folds），要用 K 折請把 method 設為 kfold');
     return { method: 'holdout' as const };
   }
   if (method === 'kfold') return { method: 'kfold' as const, folds: number(raw.folds ?? 5, 'int', '交叉驗證折數（K）', 2, 10) as number };
-  throw new ConfigError('驗證方式 method 必須是 holdout（固定比例切分）或 kfold（K 折交叉驗證）');
+  throw new ConfigError('驗證方式 method 必須是 holdout（固定比例分群）或 kfold（K 折交叉驗證）');
 }
 
 function labels(value: unknown): string[] | null {
@@ -253,13 +253,13 @@ function tabular(value: unknown, kind: TrainingKind) {
   const algorithms = ALGORITHMS[kind]!;
   const algorithm = (raw.algorithm as string) || Object.keys(algorithms)[0];
   if (!(algorithm in algorithms)) throw new ConfigError(`${KIND_NAMES[kind]}可用的演算法：${Object.keys(algorithms).join('、')}`);
-  if (typeof raw.target !== 'string' || !raw.target) throw new ConfigError('請指定目標欄位（Target）');
+  if (typeof raw.target !== 'string' || !raw.target) throw new ConfigError('請指定 Target 欄位（Target）');
   const features = raw.features;
-  if (!Array.isArray(features) || features.length === 0) throw new ConfigError('請至少選擇一個特徵欄位（Feature）');
-  if (features.includes(raw.target)) throw new ConfigError(`目標欄位「${raw.target}」不可同時作為特徵欄位`);
+  if (!Array.isArray(features) || features.length === 0) throw new ConfigError('請至少選擇一個 Feature 欄位（Feature）');
+  if (features.includes(raw.target)) throw new ConfigError(`Target 欄位「${raw.target}」不可同時作為 Feature 欄位`);
   const steps = Array.isArray(raw.steps) ? raw.steps : [];
   const missing = raw.missing;
-  if (missing !== undefined && missing !== 'impute' && missing !== 'drop') throw new ConfigError('缺值處理必須是 impute（補上缺值）或 drop（不使用有缺值的病人）');
+  if (missing !== undefined && missing !== 'impute' && missing !== 'drop') throw new ConfigError('缺值處理必須是 impute（補值）或 drop（不使用有缺值的病人）');
   return { value: { target: raw.target, features: [...features], steps, algorithm, ...(missing ? { missing } : {}) }, allowed: algorithms[algorithm] };
 }
 
@@ -271,10 +271,10 @@ export function normalise(data: unknown): TrainingConfig {
   const kind = raw.kind as TrainingKind;
   if (![...IMAGE_KINDS, ...TABULAR_KINDS].includes(kind)) throw new ConfigError(`訓練種類必須是：${[...IMAGE_KINDS, ...TABULAR_KINDS].join('、')}`);
   const out: Obj = { version: 1, kind, source: source(raw.source, kind), split: split(raw.split),
-    seed: number(raw.seed ?? 42, 'int', '亂數種子', 0, 2 ** 31 - 1) };
+    seed: number(raw.seed ?? 42, 'int', '隨機種子', 0, 2 ** 31 - 1) };
   if (IMAGE_KINDS.includes(kind)) {
     if (raw.tabular) throw new ConfigError('影像訓練不可帶結構式設定（tabular）');
-    if (raw.validation !== undefined && raw.validation !== null) throw new ConfigError('影像訓練目前只支援固定比例切分，不可設定驗證方式（validation）');
+    if (raw.validation !== undefined && raw.validation !== null) throw new ConfigError('影像訓練目前只支援固定比例分群，不可設定驗證方式（validation）');
     out.image = image(raw.image, kind);
     out.augmentation = augmentation(raw.augmentation);
     out.hyperparameters = hyperparameters(raw.hyperparameters, HYPER[kind]!);
@@ -434,15 +434,15 @@ export function chartsFor(run: TrainingRun): Charts | null {
   };
 }
 
-/** 瀏覽器裡每個狀態至少停留 stepMs，畫面上看得到排隊中與執行中；單元測試設為 0，只看查詢次數。 */
+/** 瀏覽器裡每個狀態至少停留 stepMs，畫面上看得到等待中與執行中；單元測試設為 0，只看查詢次數。 */
 export const trainingMockOptions = { stepMs: 1200 };
 
-/** 查詢時往前推一步：排隊中 → 執行中 → 完成（或失敗）。 */
+/** 查詢時往前推一步：等待中 → 執行中 → 完成（或失敗）。 */
 function advance(run: StoredRun) {
   if (!['queued', 'running'].includes(run.status)) return;
   if (Date.now() - run.changedMs < trainingMockOptions.stepMs) return;
   run.ticks += 1;
-  if (run.ticks === 1) return; // 第一次查詢仍在排隊，畫面上看得到「排隊中」
+  if (run.ticks === 1) return; // 第一次查詢仍在排隊，畫面上看得到「等待中」
   run.changedMs = Date.now();
   if (run.ticks === 2) {
     run.status = 'running';
@@ -452,7 +452,7 @@ function advance(run: StoredRun) {
   run.finished_at = isoNow();
   if (run.fail) {
     run.status = 'failed';
-    run.message = '訓練資料不足，驗證集沒有任何資料（模擬）\n---\n訓練程式以 1 結束：\nTraceback (most recent call last):\n  File "/work/template/runtime.py", line 131, in main\nValueError: 訓練資料不足，驗證集沒有任何資料（模擬）';
+    run.message = '訓練集不足，驗證集沒有任何資料（模擬）\n---\n訓練程式以 1 結束：\nTraceback (most recent call last):\n  File "/work/template/runtime.py", line 131, in main\nValueError: 訓練集不足，驗證集沒有任何資料（模擬）';
     return;
   }
   const s = state();
@@ -475,7 +475,7 @@ function advance(run: StoredRun) {
           target: run.config.tabular?.target, features: run.config.tabular?.features, metrics: run.metrics,
           missing: run.config.tabular?.missing ?? 'drop',
           ...(run.kind === 'tabular_classification' ? { classes: ['0', '1'] } : {}),
-          // 推論時給原始欄位：One-Hot 產生的 sex_F、smoker_never… 對回 sex、smoker
+          // 推論時給原始欄位：One Hot Encoding 產生的 sex_F、smoker_never… 對回 sex、smoker
           inputs: [...new Set((run.config.tabular?.features ?? []).map((f) => f.replace(/^(sex|smoker)_.*$/, '$1')))].map((name) =>
             ['sex', 'smoker'].includes(name)
               ? { name, type: 'category' as const, values: name === 'sex' ? ['F', 'M'] : ['current', 'former', 'never'] }
@@ -560,7 +560,7 @@ function onlineAnswer(row: Deployment, model: Model, rows: Record<string, unknow
   };
 }
 
-/** 模型的顯示名稱（照 service.model_titles）：優先用分享給這位使用者的最新一次，否則用最新一次分享。 */
+/** 模型的顯示名稱（照 service.model_titles）：優先用授權給這位使用者的最新一次，否則用最新一次部署。 */
 export function modelTitles(projectId: number, username: string): Map<number, string> {
   const newest = new Map<number, string>();
   const mine = new Map<number, string>();
@@ -572,7 +572,7 @@ export function modelTitles(projectId: number, username: string): Map<number, st
   return new Map([...newest, ...mine]);
 }
 
-/** 分享給這位使用者的模型（模型編號 → 分享者），照 service.shared_with。 */
+/** 授權給這位使用者的模型（模型編號 → 部署者），照 service.shared_with。 */
 export function sharedWith(projectId: number, username: string): Map<number, string> {
   const out = new Map<number, string>();
   for (const d of state().deployments) {
@@ -778,7 +778,7 @@ export const trainingHandlers = [
     if (run instanceof Response) return run;
     const log = run.status === 'queued' ? '' : [
       `[runner] 下載資料包：資料版本 ${run.dataset_version_id}`,
-      `[template] ${KIND_NAMES[run.kind]}，亂數種子 ${run.seed}`,
+      `[template] ${KIND_NAMES[run.kind]}，隨機種子 ${run.seed}`,
       ...(run.status === 'running' ? ['[template] 訓練中…'] : []),
       ...(run.status === 'succeeded' ? [`[template] 完成，輸出 model.${FORMAT(run.kind)}`] : []),
       ...(run.status === 'failed' ? [`[template] ${run.message}`] : []),
@@ -808,7 +808,7 @@ export const trainingHandlers = [
     if (ctx instanceof Response) return ctx;
     const run = findRun(ctx.project.id, params.rid);
     if (run instanceof Response) return run;
-    const text = `PK\u0003\u0004 模擬的原始碼 zip：${run.kind}.py、runtime.py、config.json\n${JSON.stringify(run.config)}`;
+    const text = `PK\u0003\u0004 模擬的原始程式碼 zip：${run.kind}.py、runtime.py、config.json\n${JSON.stringify(run.config)}`;
     return file(text, `training-run-${run.id}-source.zip`, 'application/zip');
   }),
 
@@ -856,7 +856,7 @@ export const trainingHandlers = [
     if (ctx instanceof Response) return ctx;
     const row = state().deployments.find((d) => d.id === Number(params.did) && d.project_id === ctx.project.id);
     if (!row) return detail(404, `找不到部署 ${String(params.did)}`);
-    if (row.stage_lock) return detail(409, '這個部署由匯入的 deploy.json 控制，可呼叫的帳號不能在這裡修改；請到建模管理該訓練設定的「流程程式碼」修改部署環節，或改回用介面設定');
+    if (row.stage_lock) return detail(409, '這個部署由匯入的 deploy.json 控制，可呼叫的帳號不能在這裡修改；請到建模管理該訓練設定的「各階段處理程式碼」修改部署階段，或改回用介面設定');
     const allowed = users((await jsonBody(request)).allowed_users);
     if (allowed instanceof Response) return allowed;
     row.allowed_users = allowed;
@@ -873,7 +873,7 @@ export const trainingHandlers = [
     return noContent();
   }),
 
-  // 線上推論（照 router.online_predict）：只有分享對象可以呼叫；部署不存在與未授權都回 403
+  // 線上推論（照 router.online_predict）：只有授權帳號可以呼叫；部署不存在與未授權都回 403
   http.post(`${API}/inference/:name/predict`, async ({ request, params }) => {
     const user = authUser(request);
     if (user instanceof Response) return user;

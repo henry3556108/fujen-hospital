@@ -1,5 +1,5 @@
 // 影像標註工作台（設計稿 A03）：頂部進度、左側切片條、中間影像與工具列、右側標註面板。
-// 工具列：移動、放大、窗位（器官窗、WW/WL）、圈選、塗抹、復原、更多工具（排列、旋轉、反相、重設、快捷鍵）。
+// 工具列：移動、放大、WC（預設器官數值、WW/WL）、圈選、塗抹、復原、更多工具（排列、旋轉、反相、重設、快捷鍵）。
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -47,9 +47,9 @@ import { MAX_ZOOM, Viewport, type Overlay, type Tool } from './Viewport';
 import './labeling.css';
 
 export const HOTKEYS: Hotkey[] = [
-  { keys: 'H Z W', description: '檢視工具：移動、放大、窗位（拖曳影像調整）' },
+  { keys: 'H Z W', description: '檢視工具：移動、放大、WW/WC（拖曳影像調整）' },
   { keys: 'Ctrl+Z', description: '復原上一步（畫框、塗抹）' },
-  { keys: '1 2 3 4 5', description: '套用器官窗（軟組織、肺、骨、腦、腹部）' },
+  { keys: '1 2 3 4 5', description: '套用預設器官數值（軟組織、肺、骨、腦、腹部）' },
   { keys: 'R L', description: '向右、向左旋轉 90 度' },
   { keys: '↑ ↓', description: '上一張、下一張' },
   { keys: 'G', description: '切換排列（1×1 → 1×2 → 2×2）' },
@@ -90,11 +90,11 @@ const UNDO_LIMIT = 20;
 
 type Popover = 'window' | 'more' | null;
 
-/** 右側面板分頁（設計稿：分類／圈位置／塗範圍），名稱後面帶原本的標註種類 */
+/** 右側面板分頁（設計稿：分類／物件偵測／影像分割），名稱後面帶原本的標註種類 */
 const KIND_TABS: { kind: AnnotationKind; text: string; name: string }[] = [
   { kind: 'classification', text: '分類', name: '分類' },
-  { kind: 'detection', text: '圈位置', name: '圈位置（偵測）' },
-  { kind: 'segmentation', text: '塗範圍', name: '塗範圍（分割）' },
+  { kind: 'detection', text: '物件偵測', name: '物件偵測' },
+  { kind: 'segmentation', text: '影像分割', name: '影像分割' },
 ];
 
 function labelsText(a: Annotation): string {
@@ -213,7 +213,7 @@ function Workbench({
     const clean = { center: Math.round(w.center), width: Math.max(1, Math.round(w.width)) };
     setWindowSetting(clean);
     setShownWindow(clean);
-    setMessage(`${name ? `${name}：` : ''}窗寬 ${clean.width}、窗位 ${clean.center}`);
+    setMessage(`${name ? `${name}：` : ''}WW ${clean.width}、WC ${clean.center}`);
   }
 
   function turn(direction: 'cw' | 'ccw') {
@@ -246,7 +246,7 @@ function Workbench({
     setMessage(`標註工具：${KIND_LABELS[kind]}`);
   }
 
-  const VIEW_TOOL_NAMES: Partial<Record<Tool, string>> = { pan: '移動', zoom: '放大', window: '窗位' };
+  const VIEW_TOOL_NAMES: Partial<Record<Tool, string>> = { pan: '移動', zoom: '放大', window: 'WW/WC' };
   function pickViewTool(next: 'pan' | 'zoom' | 'window') {
     setTool(next);
     setMessage(`檢視工具：${VIEW_TOOL_NAMES[next]}（在影像上拖曳）`);
@@ -263,7 +263,7 @@ function Workbench({
     setShownWindow(clean);
   }, []);
 
-  // 點工具列以外的地方就收起窗位／更多工具的選單
+  // 點工具列以外的地方就收起 WC／更多工具的選單
   useEffect(() => {
     if (!popover) return;
     const close = (e: MouseEvent) => {
@@ -639,7 +639,7 @@ function Workbench({
     const width = Number(form.get('ww'));
     const center = Number(form.get('wl'));
     if (!Number.isFinite(width) || !Number.isFinite(center) || width < 1) {
-      setMessage('窗寬必須是大於 0 的數字，窗位必須是數字。');
+      setMessage('WW 必須是大於 0 的數字，WC 必須是數字。');
       return;
     }
     applyWindow({ center, width });
@@ -754,7 +754,7 @@ function Workbench({
               <div className="lb-toolbar" role="toolbar" aria-label="檢視工具列" ref={toolbarRef}>
                 {viewTool('pan', 'hand', '移動')}
                 {viewTool('zoom', 'zoom', '放大')}
-                {viewTool('window', 'contrast', '窗位')}
+                {viewTool('window', 'contrast', 'WW/WC')}
                 <span className="lb-toolbar__sep" aria-hidden="true" />
                 <button type="button" className="lb-tool" aria-pressed={mode === 'detection' && tool === 'box'} onClick={() => pick('detection')}>
                   <ToolIcon name="select" />
@@ -787,7 +787,7 @@ function Workbench({
                 {popover === 'window' ? (
                   <div className="lb-popover" data-testid="window-menu">
                     <fieldset className="viewer-toolbar__group">
-                      <legend>器官窗</legend>
+                      <legend>預設器官數值</legend>
                       {WINDOW_PRESETS.map((p) => (
                         <button
                           key={p.key}
@@ -800,20 +800,20 @@ function Workbench({
                         </button>
                       ))}
                     </fieldset>
-                    <form className="viewer-toolbar__group lb-window-form" aria-label="窗寬窗位" onSubmit={submitWindow} key={`${display?.width}/${display?.center}`}>
+                    <form className="viewer-toolbar__group lb-window-form" aria-label="WW/WC" onSubmit={submitWindow} key={`${display?.width}/${display?.center}`}>
                       <div className="field">
-                        <label htmlFor="ww">窗寬 WW</label>
+                        <label htmlFor="ww">WW</label>
                         <input id="ww" name="ww" className="input" type="number" min={1} step={1} defaultValue={display?.width ?? ''} />
                       </div>
                       <div className="field">
-                        <label htmlFor="wl">窗位 WL</label>
+                        <label htmlFor="wl" title="Window Center，也稱 Window Level（WL）">WC</label>
                         <input id="wl" name="wl" className="input" type="number" step={1} defaultValue={display?.center ?? ''} />
                       </div>
                       <button type="submit" className="btn btn--small btn--secondary">
                         套用
                       </button>
                     </form>
-                    <p className="field__hint">選了「窗位」後，也可以在影像上左右拖曳調窗寬、上下拖曳調窗位。</p>
+                    <p className="field__hint">選了「WW/WC」後，也可以在影像上左右拖曳調 WW、上下拖曳調 WC。WC（Window Center）與 WL（Window Level）是同一個數值。</p>
                   </div>
                 ) : null}
 
@@ -1086,11 +1086,11 @@ function Workbench({
                 </div>
               </div>
               <div className="lb-field">
-                <span className="lb-field__label">標註信心</span>
+                <span className="lb-field__label">標註評分</span>
                 {focus ? (
                   <Rating
                     name={`標註 #${focus.id}`}
-                    label={`標註 #${focus.id} 的標註信心`}
+                    label={`標註 #${focus.id} 的標註評分`}
                     value={focus.rating}
                     disabled={busy}
                     onChange={(rating) => rate(focus, rating)}

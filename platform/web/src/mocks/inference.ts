@@ -1,5 +1,5 @@
 // MSW：推論服務管理（/api/projects/:pid/models、/inference）。路徑、狀態碼、錯誤訊息照 platform/api/app/training。
-// 每個專案有一個結構式分類模型與一個影像分類模型、一個物件偵測模型；結果由輸入決定（可重現）。只在 dev server 與測試使用。
+// 每個專案有一個結構式資料分類模型與一個影像分類模型、一個物件偵測模型；結果由輸入決定（可重現）。只在 dev server 與測試使用。
 // 批次推論是背景工作：POST 回 202（queued），之後每次 GET /inference/:iid 往前推一步：queued → running → succeeded。
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import type { Permission } from '../api/types';
@@ -85,14 +85,14 @@ function tabular(model: Model, rows: Record<string, string>[], columns: string[]
   const out = rows.map((r) => {
     const gaps = features.filter((f) => (r[f] ?? '') === '');
     const missing = gaps.length > 0 && !impute;
-    const filled = gaps.map((f) => `${f} 缺值，已用訓練資料的中位數補上`).join('；');
+    const filled = gaps.map((f) => `${f} 缺值，已用訓練集的中位數補上`).join('；');
     const h = hash(JSON.stringify(r));
     const prediction = missing ? '' : classify ? String(h % 2) : String(100 + (h % 50));
     const p = 0.5 + (h % 50) / 100;
     const probability = missing ? '' : String(p);
     const chance = missing || positive === null ? '' : String(prediction === positive ? p : Math.round((1 - p) * 10000) / 10000);
     const head = positive !== null ? `${target}＝${positive} 的機率 ${Math.round(Number(chance) * 100)}%` : `預測為「${prediction}」的機率 ${Math.round(p * 100)}%`;
-    const note = missing ? '特徵含缺值，無法預測' : classify ? `${head}${filled ? `（${filled}）` : ''}` : filled;
+    const note = missing ? '特徵含缺值，無法推論' : classify ? `${head}${filled ? `（${filled}）` : ''}` : filled;
     return [...columns.map((c) => r[c] ?? ''), ...(positive !== null ? [chance] : []), prediction, ...(classify ? [probability] : []), note];
   });
   return {
@@ -184,11 +184,11 @@ const inferenceHandlers = [
       return json(view(store(ctx, model, 'upload', { results, label_names: model.card.label_names ?? [], blocked })), 201);
     }
     const source = form.get('source');
-    if (source !== null && source !== '' && source !== 'try') return detail(422, 'source 只能是 try（單人試用）或省略');
+    if (source !== null && source !== '' && source !== 'try') return detail(422, 'source 只能是 try（即時推論）或省略');
     const { columns, rows } = parseCsv(await files[0].text());
     const needed = model.card.inputs?.map((i) => i.name) ?? model.card.features ?? FEATURES;
     const missing = needed.filter((f) => !columns.includes(f));
-    if (missing.length) return detail(422, `資料缺少特徵欄位：${missing.join('、')}`);
+    if (missing.length) return detail(422, `資料缺少 Feature 欄位：${missing.join('、')}`);
     const record = store(ctx, model, 'upload', tabular(model, rows, columns));
     record.input = { files: files.map((f) => ({ name: f.name, size: f.size })), ...(source === 'try' ? { source: 'try' } : {}) };
     return json(view(record), 201);

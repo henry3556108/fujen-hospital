@@ -88,7 +88,7 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByText(/^共 \d+ 個研究（已套用 1 個篩選條件）/)).toBeVisible();
     await expect(page.getByRole('table', { name: '研究列表' }).getByRole('row', { name: /ACC0001/ })).toBeVisible();
 
-    // 結構式資料：選 CSV → 自動判斷欄位、預檢 → 上傳（不必寫 JSON）→ 開啟資料集 → 描述統計、相關矩陣
+    // 結構式資料：選 CSV → 自動判斷欄位、預檢 → 上傳（不必寫 JSON）→ 開啟資料集 → 描述性統計、Correlation Matrix
     await page.getByRole('navigation', { name: '數據管理分頁' }).getByRole('link', { name: '結構式資料' }).click();
     const csv = page.getByRole('form', { name: '上傳 CSV' });
     await csv.getByLabel(/^CSV 檔案/).setInputFiles(fixture('tabular/cohort_01.csv'));
@@ -101,21 +101,21 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByRole('heading', { name: '資料集：demo-cohort' })).toBeVisible();
 
     const tabs = page.getByRole('navigation', { name: '資料集分頁' });
-    await tabs.getByRole('link', { name: '描述統計' }).click();
-    await expect(page.getByRole('table', { name: '描述統計' }).getByRole('row', { name: /^age / })).toBeVisible();
+    await tabs.getByRole('link', { name: '描述性統計' }).click();
+    await expect(page.getByRole('table', { name: '描述性統計' }).getByRole('row', { name: /^age / })).toBeVisible();
     await expect(page.getByRole('figure', { name: 'age 的分布' }).getByRole('img').first()).toBeVisible();
-    await tabs.getByRole('link', { name: '相關與散佈圖' }).click();
-    await page.getByRole('button', { name: '產生相關矩陣' }).click();
-    await expect(page.getByRole('table', { name: '相關矩陣（pearson）' }).getByRole('row', { name: /^sbp/ })).toBeVisible();
+    await tabs.getByRole('link', { name: 'Correlation Matrix 與 Scatter Chart' }).click();
+    await page.getByRole('button', { name: '產生 Correlation Matrix' }).click();
+    await expect(page.getByRole('table', { name: 'Correlation Matrix（pearson）' }).getByRole('row', { name: /^sbp/ })).toBeVisible();
 
-    // Target 與 Feature：在欄位總覽選要預測的欄位與用來預測的欄位，文字欄位一鍵轉成 One-Hot
+    // Target 與 Feature：在欄位總覽選要預測的欄位與 Feature 欄位，文字欄位一鍵轉成 One Hot Encoding
     await tabs.getByRole('link', { name: 'Target／Feature' }).click();
     const tf = page.getByRole('form', { name: '設定 Target 與 Feature' });
     await tf.getByRole('radio', { name: '以 diagnosis 為 Target' }).check();
     for (const f of ['age', 'sbp', 'sex']) await tf.getByRole('checkbox', { name: f, exact: true }).check();
-    await tf.getByRole('button', { name: '全部轉成 One-Hot' }).click();
+    await tf.getByRole('button', { name: '全部轉成 One Hot Encoding' }).click();
     await tf.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex）$/)).toBeVisible();
+    await expect(page.getByText(/^已儲存：Target 欄位 diagnosis；Feature 欄位 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補值後使用；前處理 1 個步驟（One Hot Encoding：sex）$/)).toBeVisible();
   });
 
   test('段落 3：影像標註、自動標註、修改後儲存', async ({ page }) => {
@@ -163,37 +163,37 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(page.getByRole('table', { name: '標註清單' }).locator('tbody tr[data-source="autolabel"]')).toHaveCount(1);
   });
 
-  test('段落 4：建立訓練、匯出模型、部署與推論', async ({ page }) => {
+  test('段落 4：建立訓練任務、匯出模型、部署與推論', async ({ page }) => {
     test.setTimeout(90_000);
-    // pi01（計畫主持人，Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始碼、部署
+    // pi01（計畫主持人，Principal Investigator）有 Training 與 Coding：可訓練、下載模型、匯出原始程式碼、部署
     await loginAs(page, 'pi01');
     await page.goto('/');
 
-    // 數據管理 → 結構式資料 → 資料集「lung-clinical」→「用這份資料建立訓練」
+    // 數據管理 → 結構式資料 → 資料集「lung-clinical」→「用這份資料建立訓練任務」
     await openEntry(page, '數據管理');
     await page.getByRole('navigation', { name: '數據管理分頁' }).getByRole('link', { name: '結構式資料' }).click();
     await page.getByRole('table', { name: '資料集列表' }).getByRole('link', { name: 'lung-clinical' }).click();
-    await page.getByRole('link', { name: '用這份資料建立訓練' }).click();
+    await page.getByRole('link', { name: '用這份資料建立訓練任務' }).click();
 
-    // 建模管理的新增表單已帶入資料集並預選「結構式分類」：選 Target、Feature，驗證方式選 K 折，儲存後送出
+    // 建模管理的新增表單已帶入資料集並預選「結構式資料分類」：選 Target、Feature，驗證方式選 K 折，儲存後送出
     const form = page.getByRole('form', { name: '新增訓練設定' });
     await expect(form.getByLabel('訓練種類')).toHaveValue('tabular_classification');
     await form.getByLabel('設定名稱').fill('demo-diagnosis');
-    await form.getByLabel('要預測的結果（Target）').selectOption('diagnosis');
-    const features = form.getByRole('group', { name: '用來預測的資料（Feature）' });
+    await form.getByLabel('Target 欄位').selectOption('diagnosis');
+    const features = form.getByRole('group', { name: 'Feature 欄位' });
     for (const f of ['age', 'sex', 'bmi', 'smoker']) await features.getByRole('checkbox', { name: f, exact: true }).check();
     await form.getByRole('radio', { name: 'K 折交叉驗證' }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
     await expect(page.getByText('已新增訓練設定「demo-diagnosis」。')).toBeVisible();
     await page.getByRole('button', { name: '送出訓練「demo-diagnosis」' }).click();
-    await expect(page.getByText(/^完成：已送出訓練 #1（demo-diagnosis），目前排隊中。$/)).toBeVisible();
+    await expect(page.getByText(/^完成：已送出訓練 #1（demo-diagnosis），目前等待中。$/)).toBeVisible();
 
-    // 步驟條自動更新：已送出 → 排隊中 → 訓練中 → 完成；最上方一句結論（K 折平均），重點指標（白話說明），
+    // 步驟條自動更新：已送出 → 等待中 → 訓練中 → 完成；最上方一句結論（K 折平均），重點指標（白話說明），
     // 測試集數字、提醒與 K 折各折收在「詳細」；圖表；下載報表
     await expect(page.getByTestId('run-status')).toContainText('已完成');
-    // 頂端的訊息跟著狀態更新，不再寫「目前排隊中」
+    // 頂端的訊息跟著狀態更新，不再寫「目前等待中」
     await expect(page.getByText(/^完成：訓練 #1（demo-diagnosis）已完成，結果在下方「訓練紀錄」。$/)).toBeVisible();
-    await expect(page.getByText(/目前排隊中/)).toHaveCount(0);
+    await expect(page.getByText(/目前等待中/)).toHaveCount(0);
     await expect(page.getByTestId('verdict')).toHaveText(/^整體表現：(優秀|良好|尚可|偏弱|接近亂猜)（AUC 0\.\d\d，5 折平均）/);
     await expect(page.getByRole('table', { name: '訓練清單' })).toContainText(/（AUC 0\.\d\d，5 折平均）/);
     await expect(page.getByRole('list', { name: '訓練 #1 的重點指標' })).toContainText(/80 人輪流當檢查資料，平均猜對 \d+%/);
@@ -204,24 +204,24 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await page.getByRole('button', { name: '下載報表（可列印）' }).click();
     expect((await report).suggestedFilename()).toBe('training-run-1-report.html');
 
-    // 模型匯出：下載 scikit-learn PKL、匯出原始碼
+    // 模型匯出：下載 scikit-learn PKL、匯出原始程式碼
     const model = page.waitForEvent('download');
     await page.getByRole('button', { name: '下載模型（PKL）' }).click();
     expect((await model).suggestedFilename()).toBe('demo-diagnosis-run1.pkl');
     const source = page.waitForEvent('download');
-    await page.getByRole('button', { name: '匯出原始碼' }).click();
+    await page.getByRole('button', { name: '匯出原始程式碼' }).click();
     expect((await source).suggestedFilename()).toBe('training-run-1-source.zip');
 
-    // 「分享給同事使用」：AI 模型部署頁已選好模型並帶入顯示名稱，填同事帳號後分享，再用「試用預測」
-    await page.getByRole('link', { name: '分享給同事使用' }).click();
-    const deploy = page.getByRole('form', { name: '分享給同事使用' });
+    // 「部署並設定權限」：AI 模型部署頁已選好模型並帶入顯示名稱，填同事帳號後部署，再用「即時推論」
+    await page.getByRole('link', { name: '部署並設定權限' }).click();
+    const deploy = page.getByRole('form', { name: '部署並設定權限' });
     await expect(deploy.getByLabel('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('demo-diagnosis');
     await deploy.getByLabel('顯示名稱（同事看到的名稱，可用中文）').fill('心臟科確診預測');
-    await deploy.getByLabel('分享給（同事的帳號，以逗號分隔）').fill('md01, pi01');
-    await deploy.getByRole('button', { name: '分享給同事使用' }).click();
-    await expect(page.getByText(/^已把「心臟科確診預測」分享給 md01、pi01。他們登入後點左側「推論服務管理」/)).toBeVisible();
-    await expect(page.getByRole('table', { name: '已分享的模型' }).getByRole('row', { name: /心臟科確診預測/ })).toContainText('md01、pi01');
-    const trial = page.getByRole('form', { name: '試用預測' });
+    await deploy.getByLabel('授權帳號（以逗號分隔）').fill('md01, pi01');
+    await deploy.getByRole('button', { name: '部署並設定權限' }).click();
+    await expect(page.getByText(/^已把「心臟科確診預測」授權給 md01、pi01。他們登入後點左側「推論服務管理」/)).toBeVisible();
+    await expect(page.getByRole('table', { name: '已部署的模型' }).getByRole('row', { name: /心臟科確診預測/ })).toContainText('md01、pi01');
+    const trial = page.getByRole('form', { name: '即時推論' });
     await trial.getByLabel('age').fill('61');
     await trial.getByLabel('sex').selectOption('M');
     await trial.getByLabel('bmi').fill('27');
@@ -229,12 +229,12 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await trial.getByRole('button', { name: '預測' }).click();
     await expect(trial.getByTestId('try-result')).toHaveText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）。$/);
 
-    // 回到建模管理的結果：「用這個模型預測病人」→ 推論服務管理已選好模型（顯示分享時取的名稱）
+    // 回到建模管理的結果：「用這個模型預測病人」→ 推論服務管理已選好模型（顯示部署時取的名稱）
     await openEntry(page, '建模管理');
     await page.getByRole('button', { name: '展開訓練 #1' }).click();
     await page.getByRole('link', { name: '用這個模型預測病人' }).click();
     await expect(page.getByRole('heading', { level: 1, name: '推論服務管理' })).toBeVisible();
-    await expect(page.getByText('用模型預測病人')).toBeVisible();
+    await expect(page.getByText('執行推論')).toBeVisible();
     await expect(page.getByRole('heading', { name: '預測：心臟科確診預測' })).toBeVisible();
     const one = page.getByRole('form', { name: '一位病人' });
     await one.getByLabel('age').fill('58');
@@ -245,17 +245,17 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await expect(one.getByTestId('try-result')).toHaveText(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）/);
     await page.getByRole('button', { name: '多位病人一起預測' }).click();
     await expect(page.getByTestId('table-correct')).toContainText(/^有實際的 diagnosis 可以對照：\d+ 位中預測對 \d+ 位/);
-    // AI 模型部署頁的試用預測與這裡的「一位病人」都記成「單人試用」
-    await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('row', { name: /單人試用/ })).toHaveCount(2);
+    // AI 模型部署頁的即時推論與這裡的「一位病人」都記成「即時推論」
+    await expect(page.getByRole('table', { name: '推論服務歷史紀錄' }).getByRole('row', { name: /即時推論/ })).toHaveCount(2);
 
-    // 影像模型：選模型，上傳影像預測
+    // 影像模型：選模型，上傳影像推論
     await page.getByRole('button', { name: '選擇 modality-cnn-run2' }).click();
     await page.getByLabel('影像檔').setInputFiles([DICOM(0), DICOM(1)]);
-    await page.getByRole('button', { name: '上傳並預測' }).click();
+    await page.getByRole('button', { name: '上傳並推論' }).click();
     const cards = page.getByTestId('image-result');
     await expect(cards).toHaveCount(2);
     await expect(cards.first().getByTestId('result-label')).toHaveText(/^分類：(CT|MR)（\d+%）$/);
-    await expect(page.getByRole('table', { name: '預測紀錄' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
+    await expect(page.getByRole('table', { name: '推論服務歷史紀錄' }).getByRole('button', { name: /^下載 #\d+$/ })).toBeVisible();
   });
 
   test('段落 5：FHIR 資料來源、對應規則、排程', async ({ page }) => {
@@ -263,11 +263,11 @@ test.describe('TC-D02-03 教育訓練示範流程', () => {
     await page.goto('/');
     await openEntry(page, '帳號管理');
     await page.getByRole('navigation', { name: '帳號管理分頁' }).getByRole('link', { name: '資料交換（FHIR）' }).click();
-    await expect(page.getByRole('heading', { level: 1, name: '醫療資料交換（FHIR）' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'HL7 FHIR 醫療資料交換' })).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'FHIR 分頁' });
 
     // 來源：貼上 CSV 內容
-    await tabs.getByRole('link', { name: '來源與對應' }).click();
+    await tabs.getByRole('link', { name: '資料接入與對應' }).click();
     const source = page.getByRole('form', { name: '新增來源' });
     await source.getByLabel('來源名稱（必填）').fill('demo-encounters');
     await source.getByLabel('來源類型').selectOption('csv');

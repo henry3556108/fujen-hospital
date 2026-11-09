@@ -52,7 +52,7 @@ export async function userPage(browser: Browser, user: string): Promise<{ ctx: B
   return { ctx, page };
 }
 
-/** 進入管理區並點側欄項目（在研究區時先按側欄底部「系統管理」） */
+/** 進入管理區並點側欄項目（在研究區時先按側欄底部「管理後台」） */
 export async function adminSide(page: Page, name: string) {
   if (!/\/admin(\/|$)/.test(new URL(page.url() || 'about:blank', 'http://x').pathname)) {
     const link = sideNav(page).getByRole('link', { name: SIDE.admin, exact: true });
@@ -90,7 +90,7 @@ export const PROJECT_TABS = {
   basic: '基本資料與 GPU 群組',
   members: '成員與權限',
   labelGroups: '標註群組',
-  allowlist: '影像存取清單',
+  allowlist: 'Accession Number 清單',
 } as const;
 
 /** 管理區「專案」→ 點專案名稱 → 專案頁分頁 */
@@ -104,9 +104,9 @@ export async function projectTab(page: Page, project: string, tab: string) {
 
 /** 舊「排程與叢集」分頁名稱 → 新「運算資源」分頁名稱與網址 */
 const COMPUTE_MAP: Record<string, { tab: string; path: string }> = {
-  'GPU Dashboard': { tab: 'GPU 使用對照', path: '/admin/compute/gpu' },
-  佇列順序: { tab: '排隊順序', path: '/admin/compute/queues' },
-  共享排程設定: { tab: '共享設定', path: '/admin/compute/shared' },
+  'GPU Dashboard': { tab: 'GPU Dashboard', path: '/admin/compute/gpu' },
+  佇列順序: { tab: '佇列排程', path: '/admin/compute/queues' },
+  共享排程設定: { tab: '共享排程設定', path: '/admin/compute/shared' },
   'GPU 群組': { tab: 'GPU 群組', path: '/admin/compute/groups' },
   叢集節點: { tab: '節點', path: '/admin/compute/nodes' },
 };
@@ -130,7 +130,7 @@ export async function schedulingTab(page: Page, tab: string) {
  */
 export async function gotoJobs(page: Page, project: string) {
   await adminSide(page, ADMIN_SIDE.compute);
-  await clickTab(page, '測試工作', page.getByRole('navigation', { name: '運算資源分頁' }));
+  await clickTab(page, '測試工作', page.getByRole('navigation', { name: 'GPU／CPU 伺服器管理分頁' }));
   await expect(page).toHaveURL(/\/admin\/compute\/jobs/);
   const picker = page.locator('#jobs-project');
   await picker.waitFor();

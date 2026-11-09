@@ -119,7 +119,7 @@ export function ConfirmProgress({
   );
 }
 
-/** 分段條（設計稿 B02「資料切分 70% / 15% / 15%」）。 */
+/** 分段條（設計稿 B02「資料分群 70% / 15% / 15%」）。 */
 export function SegmentBar({
   label,
   segments,

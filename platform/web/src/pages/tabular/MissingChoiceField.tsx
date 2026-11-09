@@ -1,4 +1,4 @@
-// 有缺值的 Feature：說出哪些欄位缺幾位，一鍵選擇補上缺值或不使用這些病人。
+// 有缺值的 Feature：說出哪些欄位缺幾位，一鍵選擇補值或不使用這些病人。
 // 資料集的 Target／Feature 分頁與建模管理的訓練設定共用。
 import type { MissingChoice } from './types';
 
@@ -27,7 +27,7 @@ export function MissingChoiceField({ id, columns, value, onChange }: {
       <div className="stack" role="radiogroup" aria-label="有缺值的病人怎麼處理">
         <label className="checkbox">
           <input type="radio" name={`${id}-missing`} checked={value === 'impute'} onChange={() => onChange('impute')} />
-          補上缺值，所有病人都使用（建議）：數字補訓練資料的中位數，類別補最常見的值；預測時也照樣補上
+          補值，所有病人都使用（建議）：數字補訓練集的中位數，類別補最常見的值；預測時也照樣補上
         </label>
         <label className="checkbox">
           <input type="radio" name={`${id}-missing`} checked={value === 'drop'} onChange={() => onChange('drop')} />

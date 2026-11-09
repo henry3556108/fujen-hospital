@@ -37,7 +37,7 @@ const FIELD_LABELS: Record<string, string> = {
   gpu_count: 'GPU 數量',
   pool: 'GPU 池',
   mode: '模式',
-  accession_numbers: 'Accession 清單',
+  accession_numbers: 'Accession Number 清單',
   study_instance_uid: 'Study Instance UID',
 };
 
@@ -68,7 +68,7 @@ function toApiError(status: number, body: unknown): ApiError {
   }
   if (detail && typeof detail === 'object' && 'message' in detail) {
     const d = detail as { code?: string; permission?: string; message: string; errors?: unknown };
-    // 一次列出全部錯誤的回應（例如流程程式碼不符合框架）：{"message", "errors": [str, ...]}
+    // 一次列出全部錯誤的回應（例如各階段處理程式碼不符合框架）：{"message", "errors": [str, ...]}
     const list = Array.isArray(d.errors) ? d.errors.map((m) => ({ field: '', message: String(m) })) : [];
     return new ApiError(status, d.message, list, d.code, d.permission);
   }

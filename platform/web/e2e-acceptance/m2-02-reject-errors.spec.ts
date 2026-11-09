@@ -20,7 +20,7 @@ test('M2 02 不符框架的檔案被擋下', async ({ browser }) => {
   await gotoTraining(page);
   const panel = await openFlow(page, SETTING);
   const before = await stageStates(panel);
-  note(TC, `開始前五環節：${statesText(before)}`);
+  note(TC, `開始前五階段：${statesText(before)}`);
   let rejected = 0;
   let accepted = 0;
 
@@ -42,21 +42,21 @@ test('M2 02 不符框架的檔案被擋下', async ({ browser }) => {
     if (await ed.count()) await ed.getByRole('button', { name: '不套用，關閉', exact: true }).click();
   }
 
-  // 1 錯誤環節：把 01 下載的「訓練」zip 上傳到「標註」
-  step(TC, 1, '「上傳環節檔「標註」」選 01 下載的「訓練」zip');
+  // 1 錯誤階段：把 01 下載的「訓練」zip 上傳到「標註」
+  step(TC, 1, '「上傳階段檔「標註」」選 01 下載的「訓練」zip');
   const exportDir = path.join(EVIDENCE_DIR, '01', '匯出');
   const trainZip = fs.existsSync(exportDir) ? fs.readdirSync(exportDir).find((f) => f.endsWith('.zip') && f.includes('train')) : undefined;
   if (!c.check('找到 01\\匯出\\ 裡檔名有 train 的 zip', Boolean(trainZip), trainZip ?? '（沒有，請先跑 01）')) {
     await ctx.close();
     return c.finish();
   }
-  await chooseFile(page, () => panel.getByRole('button', { name: `上傳環節檔「${ROW.labels}」`, exact: true }).click(), path.join(exportDir, trainZip!));
+  await chooseFile(page, () => panel.getByRole('button', { name: `上傳階段檔「${ROW.labels}」`, exact: true }).click(), path.join(exportDir, trainZip!));
   const e1 = await errorAlert(panel);
   rejected++;
   note(TC, `紅框：${e1.text}`);
   await panel.getByRole('alert').first().scrollIntoViewIfNeeded();
-  await shot(page, TC, '01-錯誤環節');
-  c.check('步驟 1 提示「這個檔案是「訓練」環節，請到「訓練」匯入」', e1.text.includes('這個檔案是「訓練」環節，請到「訓練」匯入'));
+  await shot(page, TC, '01-錯誤階段');
+  c.check('步驟 1 提示「這個檔案是「訓練」階段，請到「訓練」匯入」', e1.text.includes('這個檔案是「訓練」階段，請到「訓練」匯入'));
   c.diff('步驟 1 是上傳檔案，畫面上沒有編輯區，所以沒有「不套用，關閉」可按');
 
   // 2 缺進入點＋不支援的套件
@@ -109,10 +109,10 @@ test('M2 02 不符框架的檔案被擋下', async ({ browser }) => {
   await closeEditor('labels');
 
   // 5 設定沒變
-  step(TC, 5, '關掉後看流程程式碼表格');
+  step(TC, 5, '關掉後看各階段處理程式碼表格');
   const after = await stageStates(panel);
-  note(TC, `五環節：${statesText(after)}`);
-  await panel.getByRole('table', { name: '流程環節' }).scrollIntoViewIfNeeded();
+  note(TC, `五階段：${statesText(after)}`);
+  await panel.getByRole('table', { name: '流程階段' }).scrollIntoViewIfNeeded();
   await shot(page, TC, '05-狀態未改變');
   c.check('步驟 5 標註、前處理仍是「介面設定」，訓練仍是「匯入檔控制」',
     after[ROW.labels] === '介面設定' && after[ROW.preprocess] === '介面設定' && after[ROW.train] === '匯入檔控制', statesText(after));

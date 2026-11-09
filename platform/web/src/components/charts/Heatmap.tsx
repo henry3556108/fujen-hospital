@@ -8,7 +8,7 @@ export function cellColor(value: number | null): string {
   return `color-mix(in srgb, ${pole} ${pct}%, var(--chart-neutral))`;
 }
 
-/** 相關矩陣：本身就是表格，數值直接寫在格子裡，顏色只是輔助。 */
+/** Correlation Matrix：本身就是表格，數值直接寫在格子裡，顏色只是輔助。 */
 export function Heatmap({ title, columns, matrix }: { title: string; columns: string[]; matrix: (number | null)[][] }) {
   return (
     <figure className="chart">

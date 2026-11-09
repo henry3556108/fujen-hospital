@@ -108,7 +108,7 @@ test.describe('專案工作', () => {
     expect(context.pages()).toHaveLength(1);
   });
 
-  test('TC-C01-08 取消排隊中的工作後，下一件照順序執行', async ({ page }) => {
+  test('TC-C01-08 取消等待中的工作後，下一件照順序執行', async ({ page }) => {
     test.setTimeout(60_000); // 模擬工作真的要跑幾秒
     await loginAs(page, 'pi01');
     await page.goto('/training/jobs');
@@ -119,8 +119,8 @@ test.describe('專案工作', () => {
       await expect(page.getByText(`已送出工作 ${i}，進入佇列 gpu-exclusive`)).toBeVisible();
     }
     const table = page.getByRole('table', { name: '工作列表' });
-    await expect(table.getByRole('row', { name: /^3 / })).toContainText('排隊中');
-    await expect(table.getByRole('row', { name: /^4 / })).toContainText('排隊中');
+    await expect(table.getByRole('row', { name: /^3 / })).toContainText('等待中');
+    await expect(table.getByRole('row', { name: /^4 / })).toContainText('等待中');
     await table.getByRole('button', { name: '取消工作 3' }).click();
     await page.getByRole('dialog', { name: '取消工作' }).getByRole('button', { name: '確定取消工作' }).click();
     await expect(table.getByRole('row', { name: /^3 / })).toContainText('已取消');
@@ -189,7 +189,7 @@ test.describe('磚與卡片對齊', () => {
   test('TC-C01-04 GPU Dashboard 的卡片同一列頂端對齊', async ({ page }) => {
     await loginAs(page, 'admin01');
     await page.goto('/admin/scheduling/gpu-dashboard');
-    const t = await tops(page.getByRole('list', { name: 'GPU 使用狀況' }));
+    const t = await tops(page.getByRole('list', { name: 'GPU Dashboard' }));
     expect(t.length).toBe(3);
     expect(new Set(t).size, `頂端：${t.join(', ')}`).toBe(1);
   });
@@ -197,7 +197,7 @@ test.describe('磚與卡片對齊', () => {
   test('Admin Dashboard 的總覽磚同一列頂端對齊', async ({ page }) => {
     await loginAs(page, 'admin01');
     await page.goto('/admin/dashboard');
-    const t = await tops(page.getByRole('list', { name: '平台總覽' }));
+    const t = await tops(page.getByRole('list', { name: 'Dashboard' }));
     expect(t.length).toBe(8);
     const firstRow = t.filter((y) => y === t[0]);
     expect(firstRow.length, `頂端：${t.join(', ')}`).toBeGreaterThan(1);

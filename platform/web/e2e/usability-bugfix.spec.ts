@@ -12,7 +12,7 @@ for (const width of [1280, 1440]) {
     await page.goto('/inference');
     // 上傳一份 12 欄的 CSV（與使用性測試相同的欄位）
     await page.getByLabel('CSV 檔').setInputFiles(fixture('tabular/cohort_01.csv'));
-    await page.getByRole('button', { name: '上傳並預測' }).click();
+    await page.getByRole('button', { name: '上傳並推論' }).click();
     const table = page.getByRole('table', { name: '預測結果' });
     await expect(table.getByRole('row')).toHaveCount(101);
     const box = page.locator('.inference-table');
@@ -27,7 +27,7 @@ for (const width of [1280, 1440]) {
     }
     // 其餘輸入欄位放在後面，可在表格內左右捲動；畫面上說出右側還有哪些欄位
     await expect(page.getByTestId('table-more-columns')).toHaveText(
-      /^右側還有 \d+ 欄輸入的資料（age、sex、bmi.*），可在表格內左右捲動查看；「下載結果」有完整內容。$/);
+      /^右側還有 \d+ 欄輸入的資料（age、sex、bmi.*），可在表格內左右捲動查看；「下載推論結果」有完整內容。$/);
     await snap(page, testInfo.project.name, `inference/batch-${width}`);
   });
 }

@@ -1,4 +1,4 @@
-// 使用模型 › 結果：依任務挑 3 個以內的主要指標（03 規格 3.5），以及跨次比較時判斷測試資料是否相同。
+// 模型部署與推論服務 › 結果：依任務挑 3 個以內的主要指標（03 規格 3.5），以及跨次比較時判斷測試集是否相同。
 import type { ModelKind } from '../inference/api';
 import type { TrainingRun } from '../training/api';
 import { formatMetric, metricLabel } from '../training/metrics';
@@ -66,7 +66,7 @@ export function keyMetrics(kind: ModelKind, metrics: Record<string, unknown> | u
   return out;
 }
 
-/** 測試資料筆數：run.test_count，否則 metrics 的 rows／samples。 */
+/** 測試集筆數：run.test_count，否則 metrics 的 rows／samples。 */
 export function testCount(run: Pick<TrainingRun, 'test_count' | 'metrics'> | null, metrics?: Record<string, unknown>): number | null {
   if (run?.test_count != null) return run.test_count;
   const m = run?.metrics ?? metrics ?? {};
@@ -80,7 +80,7 @@ export function testCount(run: Pick<TrainingRun, 'test_count' | 'metrics'> | nul
 /** 測試筆數少於這個數字時提醒結果僅供參考。 */
 export const FEW_TESTS = 30;
 
-/** 兩次訓練的測試資料是否相同：資料版本、標註資料集版本、切分比例、驗證方式與亂數種子都一樣。 */
+/** 兩次訓練的測試集是否相同：資料版本、標註資料集版本、切分比例、驗證方式與隨機種子都一樣。 */
 export function sameTestData(a: TrainingRun, b: TrainingRun): boolean {
   const key = (r: TrainingRun) =>
     JSON.stringify([

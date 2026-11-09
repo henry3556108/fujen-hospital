@@ -37,7 +37,7 @@ export interface FormState {
   algorithm: string;
   /** 有缺值的病人：補值或不使用（新設定預設補值；舊設定沒有＝不使用） */
   missing: MissingChoice;
-  /** 結構式的驗證方式（舊設定沒有＝固定比例切分） */
+  /** 結構式的驗證方式（舊設定沒有＝固定比例分群） */
   validationMethod: 'holdout' | 'kfold';
   folds: string;
   // 共用
@@ -112,7 +112,7 @@ export function emptyForm(catalogue: Catalogue, kind: TrainingKind = 'image_clas
 /** 資料少於這麼多列時，新設定預選 K 折交叉驗證（只切一次時測試集太小，分數容易受分組影響）。 */
 export const KFOLD_BELOW_ROWS = 1000;
 
-/** 依資料列數建議驗證方式：少於 1,000 列用 K 折，否則固定比例切分。只用在新設定；既有設定照存的設定。 */
+/** 依資料列數建議驗證方式：少於 1,000 列用 K 折，否則固定比例分群。只用在新設定；既有設定照存的設定。 */
 export function suggestedValidation(rows: number): FormState['validationMethod'] {
   return rows < KFOLD_BELOW_ROWS ? 'kfold' : 'holdout';
 }
@@ -224,13 +224,13 @@ export function configFromForm(catalogue: Catalogue, form: FormState): TrainingC
   };
 }
 
-/** 訓練表單的一個 Feature 選項：原始欄位一項；One-Hot 過的欄位也只有一項，勾選時列入它產生的全部欄位。 */
+/** 訓練表單的一個 Feature 選項：原始欄位一項；One Hot Encoding 過的欄位也只有一項，勾選時列入它產生的全部欄位。 */
 export interface FeatureChoice {
-  /** 畫面上的名稱（原始欄位名，或前處理產生、不屬於任何 One-Hot 的新欄位） */
+  /** 畫面上的名稱（原始欄位名，或前處理產生、不屬於任何 One Hot Encoding 的新欄位） */
   name: string;
   /** 勾選時列入 features 的欄位（前處理後的欄位名稱） */
   columns: string[];
-  /** 是否為 One-Hot 轉換過的原始欄位 */
+  /** 是否為 One Hot Encoding 轉換過的原始欄位 */
   encoded: boolean;
 }
 
@@ -240,7 +240,7 @@ function onehotSources(steps: Step[]): Set<string> {
 
 /**
  * 由原始欄位與前處理後的欄位組出 Feature 選項。processed 為 null（還不知道前處理結果）時每個原始欄位一項。
- * One-Hot 產生的欄位以「原始欄位名_」開頭；多個來源都符合時歸給名稱最長的來源（例如 smoker 與 smoker_x）。
+ * One Hot Encoding 產生的欄位以「原始欄位名_」開頭；多個來源都符合時歸給名稱最長的來源（例如 smoker 與 smoker_x）。
  */
 export function featureChoices(original: string[], processed: string[] | null, steps: Step[], target: string): FeatureChoice[] {
   if (!processed) return original.filter((c) => c !== target).map((c) => ({ name: c, columns: [c], encoded: false }));
@@ -265,7 +265,7 @@ export function featureChoices(original: string[], processed: string[] | null, s
   return [...out, ...extra.map((c) => ({ name: c, columns: [c], encoded: false }))];
 }
 
-/** 把 features 裡 One-Hot 過的原始欄位換成它產生的欄位（舊設定可能同時存原始欄位與 One-Hot 步驟）；不重複、保留順序。 */
+/** 把 features 裡 One Hot Encoding 過的原始欄位換成它產生的欄位（舊設定可能同時存原始欄位與 One Hot Encoding 步驟）；不重複、保留順序。 */
 export function normaliseFeatures(features: string[], choices: FeatureChoice[]): string[] {
   const encoded = new Map(choices.filter((c) => c.encoded).map((c) => [c.name, c.columns]));
   return [...new Set(features.flatMap((f) => encoded.get(f) ?? [f]))];
@@ -299,7 +299,7 @@ function canonical(value: unknown): unknown {
 
 const stepKey = (steps: Step[]) => JSON.stringify(canonical(steps.map((s) => ({ id: s.id, columns: s.columns ?? [], params: s.params ?? {} }))));
 
-const MISSING_NAMES: Record<MissingChoice, string> = { impute: '補上缺值', drop: '不使用有缺值的病人' };
+const MISSING_NAMES: Record<MissingChoice, string> = { impute: '補值', drop: '不使用有缺值的病人' };
 
 /**
  * 訓練設定與資料集目前的 Target／Feature／前處理／缺值處理的差異，一句話；相同時回傳 null。
@@ -310,7 +310,7 @@ export function settingDifference(
   dataset: { target: string; features: string[]; steps: Step[]; missing?: MissingChoice },
 ): string | null {
   const parts: string[] = [];
-  if (setting.target !== dataset.target) parts.push(`要預測的結果是「${setting.target}」，資料集是「${dataset.target}」`);
+  if (setting.target !== dataset.target) parts.push(`Target 欄位是「${setting.target}」，資料集是「${dataset.target}」`);
   const more = setting.features.filter((f) => !dataset.features.includes(f));
   const fewer = dataset.features.filter((f) => !setting.features.includes(f));
   if (more.length || fewer.length) {

@@ -180,7 +180,7 @@ function UploadForm({
 export type Source = 'upload' | 'pacs' | 'bundle';
 export const SOURCES: { key: Source; title: string; desc: string; icon: IconName }[] = [
   { key: 'upload', title: '從電腦上傳', desc: '支援 DICOM（單檔或整個資料夾）、NIfTI、MHA、makesense JSON', icon: 'upload' },
-  { key: 'pacs', title: '從院內影像系統取得', desc: '向院內影像系統（PACS）查詢，挑選後匯入影像', icon: 'database' },
+  { key: 'pacs', title: '從影像儲傳系統取得', desc: '向影像儲傳系統（PACS）查詢，挑選後匯入影像', icon: 'database' },
   { key: 'bundle', title: '匯入影像與標註檔', desc: '影像和對應的標註檔一起匯入（NIfTI 的 _image／_label、MHA、makesense JSON）', icon: 'doc' },
 ];
 
@@ -189,7 +189,7 @@ export function sourceOf(value: string | null): Source {
 }
 
 /**
- * TC-B01-02～07 加入資料（A02 滑出面板內容）：目標專案、三種來源卡片、選中來源的上傳或查詢表單；需要 Labeling 權限。
+ * TC-B01-02～07 匯入資料（A02 滑出面板內容）：目標專案、三種來源卡片、選中來源的上傳或查詢表單；需要 Labeling 權限。
  * source／onSource：目前選的來源（由呼叫端放在網址）。
  */
 export function AddDataPanel({ source, onSource }: { source: Source; onSource: (s: Source) => void }) {
@@ -197,7 +197,7 @@ export function AddDataPanel({ source, onSource }: { source: Source; onSource: (
   if (!can('labeling')) {
     return (
       <Alert tone="warning" title="沒有權限">
-        {missing('labeling', '加入影像')}
+        {missing('labeling', '匯入影像')}
       </Alert>
     );
   }
@@ -249,8 +249,8 @@ export function AddDataPanel({ source, onSource }: { source: Source; onSource: (
         />
       )}
       {source === 'pacs' && (
-        <section className="card section" aria-label="從院內影像系統取得">
-          <h3>從院內影像系統取得</h3>
+        <section className="card section" aria-label="從影像儲傳系統取得">
+          <h3>從影像儲傳系統取得</h3>
           <PacsPage embedded />
         </section>
       )}

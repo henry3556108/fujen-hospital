@@ -112,7 +112,7 @@ export function ProjectForm({
             ))}
           </select>
           <span id={`${idp}-gpu-hint`} className="field__hint">
-            群組在「運算資源 › GPU 群組」定義
+            群組在「GPU／CPU 伺服器管理 › GPU 群組」定義
           </span>
         </div>
       </div>
@@ -196,7 +196,7 @@ export function ProjectsPage() {
 
   return (
     <div className="adm-page">
-      <PageHeader title="專案" subtitle="點專案名稱設定 GPU 群組、成員與權限、標註群組、影像存取清單。" />
+      <PageHeader title="專案管理" subtitle="點專案名稱設定 GPU 群組、成員與權限、標註群組、Accession Number 清單。" />
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />
       <ApiErrorAlert error={projects.error} />

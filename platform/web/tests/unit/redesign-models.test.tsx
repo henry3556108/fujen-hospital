@@ -1,4 +1,4 @@
-// 介面改版：建立模型（訓練紀錄、建立訓練精靈、單次訓練、已存設定）、使用模型（清單與五個分頁）、語言模型（七個分頁、下載審核）。
+// 介面改版：建模管理（訓練紀錄、建立訓練任務精靈、單次訓練、訓練設定）、模型部署與推論服務（清單與五個分頁）、大型語言模型（七個分頁、下載審核）。
 // 直接掛各區的 routes（不經 App.tsx），只測這幾區自己的行為。
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -49,7 +49,7 @@ const run = (over: Partial<TrainingRun>): TrainingRun =>
     started_at: null, finished_at: null, custom_source: false, model_id: null, ...over,
   }) as TrainingRun;
 
-describe('建立模型：純函式', () => {
+describe('建模管理：純函式', () => {
   it('queue positions follow submission order', () => {
     const pos = queuePositions([run({ id: 5, status: 'queued' }), run({ id: 2, status: 'queued' }), run({ id: 3, status: 'running' })]);
     expect([...pos]).toEqual([[2, 1], [5, 2]]);
@@ -90,7 +90,7 @@ describe('建立模型：純函式', () => {
   });
 });
 
-describe('使用模型：純函式', () => {
+describe('模型部署與推論服務：純函式', () => {
   it('key metrics follow the task (max 3) and fall back to existing metrics', () => {
     const binary = keyMetrics('tabular_classification', { test: { accuracy: 0.8, sensitivity: 0.7, specificity: 0.75, auc: 0.85 } });
     expect(binary.map((k) => k.label)).toEqual(['敏感度', '特異度', 'AUC（ROC 曲線下面積）']);
@@ -108,23 +108,23 @@ describe('使用模型：純函式', () => {
     expect(sameTestData(run({ id: 1 }), run({ id: 2, seed: 7 }))).toBe(false);
     expect(loadExample({ format: 'pkl', filename: 'm.pkl', card: { features: ['age'] } })).toContain('joblib.load("m.pkl")');
     expect(loadExample({ format: 'h5', filename: 'm.h5', card: {} })).toContain('keras.models.load_model("m.h5")');
-    expect(ENTRY_NOTES.deployment).toContain('分享與服務');
+    expect(ENTRY_NOTES.deployment).toContain('模型部署');
   });
 });
 
-describe('建立模型：頁面', () => {
+describe('建模管理：頁面', () => {
   it('empty training list offers creating a training; tabs show records and saved settings', async () => {
     await renderAt('/training');
     expect(await screen.findByTestId('runs-empty')).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: '建立訓練' })[0]).toHaveAttribute('href', '/training/new');
-    const tabs = screen.getByRole('navigation', { name: '建立模型分頁' });
+    expect(screen.getAllByRole('link', { name: '建立訓練任務' })[0]).toHaveAttribute('href', '/training/new');
+    const tabs = screen.getByRole('navigation', { name: '建模管理分頁' });
     expect(within(tabs).getByRole('link', { name: '訓練紀錄' })).toBeInTheDocument();
-    expect(within(tabs).getByRole('link', { name: '已存設定' })).toBeInTheDocument();
+    expect(within(tabs).getByRole('link', { name: '訓練設定' })).toBeInTheDocument();
   });
 
   it('wizard: purpose → data → submit saves the setting and opens the run page', async () => {
     const { user } = await renderAt('/training/new');
-    await user.click(await screen.findByRole('radio', { name: /判斷影像類別/ }));
+    await user.click(await screen.findByRole('radio', { name: /影像分類/ }));
     await user.click(screen.getByRole('button', { name: '下一步：確認資料' }));
     await user.click(await screen.findByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
@@ -142,7 +142,7 @@ describe('建立模型：頁面', () => {
 
   it('saved settings: apply opens the wizard, copy creates a copy', async () => {
     const first = await renderAt('/training/new');
-    await first.user.click(await screen.findByRole('radio', { name: /判斷影像類別/ }));
+    await first.user.click(await screen.findByRole('radio', { name: /影像分類/ }));
     await first.user.click(screen.getByRole('button', { name: '下一步：確認資料' }));
     await first.user.click(await screen.findByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
@@ -160,11 +160,11 @@ describe('建立模型：頁面', () => {
   }, 20_000);
 });
 
-describe('使用模型：頁面', () => {
+describe('模型部署與推論服務：頁面', () => {
   it('list shows the entry note and a finished model opens with five tabs', async () => {
     // 先完成一次結構式以外的訓練
     const first = await renderAt('/training/new');
-    await first.user.click(await screen.findByRole('radio', { name: /判斷影像類別/ }));
+    await first.user.click(await screen.findByRole('radio', { name: /影像分類/ }));
     await first.user.click(screen.getByRole('button', { name: '下一步：確認資料' }));
     await first.user.click(await screen.findByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
@@ -176,14 +176,14 @@ describe('使用模型：頁面', () => {
 
     const runId = trainingMock().runs[0].id;
     await renderAt('/models?entry=deployment');
-    expect(await screen.findByTestId('entry-note')).toHaveTextContent('分享與服務');
+    expect(await screen.findByTestId('entry-note')).toHaveTextContent('模型部署');
     expect(await screen.findByRole('link', { name: /M-run/ })).toHaveAttribute('href', `/models/${runId}/result`);
     screen.getByRole('table', { name: '模型清單' });
   }, 30_000);
 
   it('model page result tab shows data version, test count and key metrics; download tab has the Python example', async () => {
     const first = await renderAt('/training/new');
-    await first.user.click(await screen.findByRole('radio', { name: /判斷影像類別/ }));
+    await first.user.click(await screen.findByRole('radio', { name: /影像分類/ }));
     await first.user.click(screen.getByRole('button', { name: '下一步：確認資料' }));
     await first.user.click(await screen.findByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
@@ -196,7 +196,7 @@ describe('使用模型：頁面', () => {
     const runId = trainingMock().runs[0].id;
     const second = await renderAt(`/models/${runId}/result`);
     const tabs = await screen.findByRole('navigation', { name: '模型分頁' });
-    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['模型結果', '預測新資料', '預測紀錄', '分享與服務']);
+    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['訓練結果', '推論', '推論服務歷史紀錄', '模型部署']);
     expect(await screen.findByTestId('result-data')).toHaveTextContent('測試筆數');
     expect(screen.getByText('測試筆數少，結果僅供參考。')).toBeInTheDocument();
     expect(screen.getByTestId('key-metrics')).toHaveTextContent('敏感度');
@@ -207,13 +207,13 @@ describe('使用模型：頁面', () => {
   }, 30_000);
 });
 
-describe('語言模型', () => {
-  it('seven tabs in order with plain names; old playground address redirects to chat', async () => {
+describe('大型語言模型', () => {
+  it('seven tabs in order with contract names; old playground address redirects to chat', async () => {
     const { user } = await renderAt('/llm/playground', 'ca01');
-    const tabs = await screen.findByRole('navigation', { name: '語言模型分頁' });
-    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['對話', '參考文件', '問答範本', '內部服務', '模型', '工作流程', '團隊文件']);
-    expect(await screen.findByRole('heading', { name: '對話測試' })).toBeInTheDocument();
-    // 回答設定在右側面板（設計稿 B14），按「設定」打開
+    const tabs = await screen.findByRole('navigation', { name: '大型語言模型分頁' });
+    expect(within(tabs).getAllByRole('link').map((a) => a.textContent)).toEqual(['LLM Playground', 'RAG 知識庫', 'Prompt Template', '內部服務', 'LLM 模型管理', 'LangGraph 工作流', 'Wiki 知識庫']);
+    expect(await screen.findByRole('heading', { name: 'LLM Playground' })).toBeInTheDocument();
+    // System Prompt 與文字產生設定參數在右側面板（設計稿 B14），按「設定」打開
     expect(screen.queryByTestId('chat-settings')).toBeNull();
     await user.click(screen.getByRole('button', { name: '設定' }));
     expect(await screen.findByTestId('chat-settings')).toHaveTextContent('System Prompt');

@@ -53,7 +53,7 @@ describe('admin audit view (read-only)', () => {
     await user.type(within(form).getByLabelText('專案名稱（必填）'), 'AUDIT-P');
     await user.click(within(form).getByRole('button', { name: '新增專案' }));
     await screen.findByText('已新增專案「AUDIT-P」');
-    await user.click(within(screen.getByRole('navigation', { name: '系統管理選單' })).getByRole('link', { name: '稽核與審核' }));
+    await user.click(within(screen.getByRole('navigation', { name: '管理後台選單' })).getByRole('link', { name: '稽核與審核' }));
     const table = await screen.findByRole('table', { name: '稽核紀錄' });
     const first = (await within(table).findAllByRole('row'))[1];
     expect(first).toHaveTextContent('專案');

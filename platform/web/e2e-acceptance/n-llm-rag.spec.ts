@@ -7,7 +7,7 @@ import {
 // 新功能情境 B5–B7（docs/05-新增功能使用情境.md）：知識庫（RAG）、Prompt 範本、發布 API，搭配真模型 gemma-3-4b-it。
 // 角色：ca01（P1-lung-ct 的 Coding 權限）；B7 以 md01（授權）與 vw01（未授權）呼叫發布的服務。
 // 文件：sample-data/M2/documents 的 6 份合成院內文件（N_DOCS_DIR 可改）。
-// 每個情境都可單獨執行：B6、B7 缺知識庫時以 API 先建好。全部結束（afterAll）刪除服務、Prompt、知識庫並還原 ca01 的生成參數。
+// 每個情境都可單獨執行：B6、B7 缺知識庫時以 API 先建好。全部結束（afterAll）刪除服務、Prompt、知識庫並還原 ca01 的文字產生設定參數。
 
 const KB = 'KIT-B5-衛教';
 const PROMPT = 'KIT-B6 病人聽得懂';
@@ -27,20 +27,20 @@ test.afterAll(async () => {
     if (p.title.startsWith('KIT-B6')) s.log(`刪除 Prompt「${p.title}」→ HTTP ${(await api('ca01', 'DELETE', `${base}/prompts/${p.id}`)).status}`);
   }
   await deleteKbs(s, KB);
-  if (origParams) s.log(`還原 ca01 生成參數 → HTTP ${(await api('ca01', 'PUT', `${base}/generation-params`, origParams)).status}`);
+  if (origParams) s.log(`還原 ca01 文字產生設定參數 → HTTP ${(await api('ca01', 'PUT', `${base}/generation-params`, origParams)).status}`);
 });
 
-// 改版後用語：Playground→對話、知識庫→參考文件、Prompt 範本→問答範本、發布 API→內部服務；
-// 對話模式 Free Chat→一般問答、Chat with Knowledge Base→文件問答（改版後是頁內分頁「問答模式」，不再是下拉）。
-const MODE_FREE = '一般問答';
-const MODE_KB = '文件問答';
+// 改版後用語：Playground→對話、知識庫→RAG 知識庫、Prompt 範本→Prompt Template、發布 API→內部服務；
+// 對話模式 Free Chat→Free Chat、Chat with Knowledge Base→Chat with Knowledge Base（改版後是頁內分頁「Playground 模式」，不再是下拉）。
+const MODE_FREE = 'Free Chat';
+const MODE_KB = 'Chat with Knowledge Base';
 
-const modeTab = (page: Page, name: string) => page.getByRole('tablist', { name: '問答模式' }).getByRole('tab', { name, exact: true });
+const modeTab = (page: Page, name: string) => page.getByRole('tablist', { name: 'Playground 模式' }).getByRole('tab', { name, exact: true });
 
-/** 語言模型 › 對話（原 Playground） */
+/** 大型語言模型 › 對話（原 Playground） */
 async function playground(page: Page) {
   await llmTab(page, 'Playground');
-  await expect(page.getByRole('tablist', { name: '問答模式' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Playground 模式' })).toBeVisible();
 }
 
 /** 切換對話模式分頁（已是該分頁就不再點，點了會開新對話） */
@@ -50,22 +50,22 @@ async function setMode(page: Page, name: string) {
   await expect(t).toHaveAttribute('aria-selected', 'true');
 }
 
-/** 「文件問答」分頁左側的「參考文件」下拉（label 視覺隱藏） */
-const kbSelect = (page: Page) => page.getByLabel('參考文件', { exact: true });
+/** 「Chat with Knowledge Base」分頁左側的「RAG 知識庫」下拉（label 視覺隱藏） */
+const kbSelect = (page: Page) => page.getByLabel('RAG 知識庫', { exact: true });
 
-/** 「一般問答」分頁左側的「問答範本」清單：切到範圍分頁、點一下套用；輸入框上方出現「使用範本：標題」 */
-async function pickPrompt(page: Page, title: string, scope: '個人範本' | '共用範本' = '共用範本') {
+/** 「Free Chat」分頁左側的「Prompt Template」清單：切到範圍分頁、點一下套用；輸入框上方出現「使用 Prompt：標題」 */
+async function pickPrompt(page: Page, title: string, scope: '個人 Prompt' | '公開 Prompt' = '公開 Prompt') {
   await setMode(page, MODE_FREE);
-  await page.getByRole('tablist', { name: '範本範圍' }).getByRole('tab', { name: scope, exact: true }).click();
-  const item = page.getByRole('list', { name: '範本清單' }).getByRole('button', { name: title });
+  await page.getByRole('tablist', { name: 'Prompt 範圍' }).getByRole('tab', { name: scope, exact: true }).click();
+  const item = page.getByRole('list', { name: 'Prompt 清單' }).getByRole('button', { name: title });
   await expect(item).toBeVisible({ timeout: 30_000 });
   if ((await item.getAttribute('aria-pressed')) !== 'true') await item.click();
-  await expect(page.getByRole('form', { name: '送出訊息' })).toContainText(`使用範本：${title}`);
+  await expect(page.getByRole('form', { name: '送出訊息' })).toContainText(`使用 Prompt：${title}`);
 }
 
-/** 不使用範本（原下拉選「不使用」）：按輸入框上方的「不使用範本」 */
+/** 不使用 Prompt（原下拉選「不使用」）：按輸入框上方的「不使用 Prompt」 */
 async function clearPrompt(page: Page) {
-  const off = page.getByRole('form', { name: '送出訊息' }).getByRole('button', { name: '不使用範本', exact: true });
+  const off = page.getByRole('form', { name: '送出訊息' }).getByRole('button', { name: '不使用 Prompt', exact: true });
   if (await off.isVisible()) await off.click();
   await expect(off).toHaveCount(0);
 }
@@ -89,17 +89,17 @@ test('B5 用院內文件建知識問答', async ({ browser }) => {
     await deleteKbs(s, KB); // 重跑時先刪掉上次留下的同名知識庫
     const ca = await s.open(browser, 'ca01');
 
-    // 第 1 步：「參考文件」（原知識庫）輸入文件集名稱，按「新增文件集」
+    // 第 1 步：「RAG 知識庫」（原知識庫）輸入 RAG 知識庫名稱，按「新增 RAG 知識庫」
     await llmTab(ca, '知識庫');
-    await ca.getByLabel('文件集名稱', { exact: true }).fill(KB);
-    await s.step(ca, '步驟 1', '輸入參考文件集名稱', { line: KB });
-    await ca.getByRole('button', { name: '新增文件集' }).click();
+    await ca.getByLabel('RAG 知識庫名稱', { exact: true }).fill(KB);
+    await s.step(ca, '步驟 1', '輸入 RAG 知識庫名稱', { line: KB });
+    await ca.getByRole('button', { name: '新增 RAG 知識庫' }).click();
 
     // 第 2 步：新知識庫自動選取，出現「文件（名稱）」區塊
     const docs = ca.getByRole('heading', { name: `文件（${KB}）` });
     await expect(docs).toBeVisible();
-    await expect(rowOf(ca.getByRole('table', { name: '參考文件集' }), KB)).toBeVisible();
-    await s.step(ca, '步驟 2', '新文件集自動選取', { focus: docs });
+    await expect(rowOf(ca.getByRole('table', { name: 'RAG 知識庫' }), KB)).toBeVisible();
+    await s.step(ca, '步驟 2', '新 RAG 知識庫自動選取', { focus: docs });
 
     // 第 3 步：「選擇檔案」選 6 份文件，按「加入文件」（原「上傳並建立向量」）
     const chooser = ca.waitForEvent('filechooser');
@@ -133,11 +133,11 @@ test('B5 用院內文件建知識問答', async ({ browser }) => {
       focus: ca.getByRole('list', { name: '上傳結果' }),
     });
 
-    // 第 5 步：對話（原 Playground），「對話模式」選「根據文件回答」（原 Chat with Knowledge Base），「參考文件」選剛建立的
+    // 第 5 步：對話（原 Playground），「對話模式」選「Chat with Knowledge Base」（原 Chat with Knowledge Base），「RAG 知識庫」選剛建立的
     await playground(ca);
     await setMode(ca, MODE_KB);
     await selectContaining(kbSelect(ca), KB);
-    await s.step(ca, '步驟 5', '選擇對話模式與參考文件', { line: oneLine(await kbSelect(ca).locator('option:checked').innerText()) });
+    await s.step(ca, '步驟 5', '選擇對話模式與 RAG 知識庫', { line: oneLine(await kbSelect(ca).locator('option:checked').innerText()) });
 
     // 第 6–7 步：輸入問題按「送出」（第二題用 Enter），回應下方「出處：檔名…」「回應時間 N 秒」
     const q1 = '複診病人可以用什麼方式報到？';
@@ -165,21 +165,21 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
     }
     const ca = await s.open(browser, 'ca01');
 
-    // 第 1 步：「問答範本」（原 Prompt 範本）的「新增問答範本」表單
+    // 第 1 步：「Prompt Template」（原 Prompt 範本）的「新增 Prompt Template」表單
     await llmTab(ca, 'Prompt 範本');
-    const form = ca.getByRole('form', { name: '新增問答範本' });
+    const form = ca.getByRole('form', { name: '新增 Prompt Template' });
     await form.getByLabel('標題（必填）', { exact: true }).fill(PROMPT);
     await form.getByLabel('tag（以逗號分隔）', { exact: true }).fill('衛教,KIT');
     await form.getByLabel('可見範圍', { exact: true }).selectOption({ label: '公開（專案成員都看得到）' });
     await form.getByLabel('內容（必填').fill('請用病人聽得懂的話回答：{input}');
-    await s.step(ca, '步驟 1', '填寫新增問答範本', { focus: form });
+    await s.step(ca, '步驟 1', '填寫新增 Prompt Template', { focus: form });
 
-    // 第 2 步：按「新增問答範本」，出現「已新增問答範本「…」」
-    await form.getByRole('button', { name: '新增問答範本' }).click();
-    await expect(okMsg(ca, `已新增問答範本「${PROMPT}」`)).toBeVisible();
-    const row = rowOf(ca.getByRole('table', { name: '問答範本' }), PROMPT);
+    // 第 2 步：按「新增 Prompt Template」，出現「已新增 Prompt Template「…」」
+    await form.getByRole('button', { name: '新增 Prompt Template' }).click();
+    await expect(okMsg(ca, `已新增 Prompt Template「${PROMPT}」`)).toBeVisible();
+    const row = rowOf(ca.getByRole('table', { name: 'Prompt Template' }), PROMPT);
     await expect(row).toContainText('共用'); // 改版後可見範圍欄顯示「共用」（表單選項仍是「公開（專案成員都看得到）」）
-    await s.step(ca, '步驟 2', '已新增問答範本', { line: oneLine(await row.innerText()), full: true });
+    await s.step(ca, '步驟 2', '已新增 Prompt Template', { line: oneLine(await row.innerText()), full: true });
 
     // 第 3–4 步：Playground 三種組合
     await playground(ca);
@@ -196,13 +196,13 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
       expect(callA).toMatch(/prompt_id=\d+/);
     });
 
-    // 第 5 步：「開新對話」清空 → (b) 只用參考文件：根據文件回答＋參考文件、範本「不使用」
+    // 第 5 步：「開新對話」清空 → (b) 只用 RAG 知識庫：Chat with Knowledge Base＋RAG 知識庫、範本「不使用」
     await ca.getByRole('button', { name: '開新對話' }).click();
     await expect(ca.getByRole('list', { name: '對話內容' }).locator('li')).toHaveCount(0);
     await setMode(ca, MODE_KB);
     await selectContaining(kbSelect(ca), KB);
     await clearPrompt(ca);
-    await s.step(ca, '步驟 3b', '只用參考文件（範本不使用）');
+    await s.step(ca, '步驟 3b', '只用 RAG 知識庫（範本不使用）');
     const rb = await ask(s, ca, q, '步驟 4b');
     const callB = await lastCall();
     await s.step(ca, '步驟 4b', '只用知識庫的回應', { line: `${replyLine(rb)}；${callB}`, focus: ca.getByRole('list', { name: '對話內容' }).locator('li').last() });
@@ -210,12 +210,12 @@ test('B6 Prompt 範本與知識庫一起用', async ({ browser }) => {
 
     // (c) 兩者一起：知識庫＋範本
     await ca.getByRole('button', { name: '開新對話' }).click();
-    // 範本清單只在「一般問答」分頁：先切過去點範本，再切回「文件問答」（文件集與範本都會保留）
+    // Prompt 清單只在「Free Chat」分頁：先切過去點範本，再切回「Chat with Knowledge Base」（RAG 知識庫與範本都會保留）
     await pickPrompt(ca, PROMPT);
     await setMode(ca, MODE_KB);
     await expect(kbSelect(ca).locator('option:checked')).toContainText(KB);
-    await expect(ca.getByRole('form', { name: '送出訊息' })).toContainText(`使用範本：${PROMPT}`);
-    await s.step(ca, '步驟 3c', '參考文件與範本一起用');
+    await expect(ca.getByRole('form', { name: '送出訊息' })).toContainText(`使用 Prompt：${PROMPT}`);
+    await s.step(ca, '步驟 3c', 'RAG 知識庫與範本一起用');
     const rc = await ask(s, ca, q, '步驟 4c');
     const callC = await lastCall();
     await s.step(ca, '步驟 4c', '兩者一起的回應', { line: `${replyLine(rc)}；${callC}`, focus: ca.getByRole('list', { name: '對話內容' }).locator('li').last() });
@@ -237,27 +237,27 @@ test('B7 把知識問答發布給其他系統呼叫', async ({ browser }) => {
       if (svc.slug === SLUG) s.log(`前置清理：取消上次留下的服務 #${svc.id} → HTTP ${(await api('ca01', 'DELETE', `${base}/services/${svc.id}`)).status}`);
     }
     origParams ??= (await api('ca01', 'GET', `${base}/generation-params`)).json;
-    s.log(`ca01 原本的生成參數：${JSON.stringify(origParams)}`);
+    s.log(`ca01 原本的文字產生設定參數：${JSON.stringify(origParams)}`);
     const ca = await s.open(browser, 'ca01');
 
-    // 第 1 步：「對話 →（右上）設定 → 右側『回答設定』面板」調整生成參數並按「儲存設定」（原「儲存生成參數」）
+    // 第 1 步：「對話 →（右上）設定 → 右側『System Prompt 與文字產生設定參數』面板」調整文字產生設定參數並按「儲存設定」（原「儲存文字產生設定參數」）
     await playground(ca);
     const open = ca.getByRole('button', { name: '設定', exact: true });
     if ((await open.getAttribute('aria-expanded')) !== 'true') await open.click();
-    await expect(ca.getByRole('complementary', { name: '回答設定' })).toBeVisible();
-    const params = ca.getByRole('form', { name: '生成參數' });
+    await expect(ca.getByRole('complementary', { name: 'System Prompt 與文字產生設定參數' })).toBeVisible();
+    const params = ca.getByRole('form', { name: '文字產生設定參數' });
     await params.getByLabel('Temperature', { exact: true }).fill('0.3');
     await params.getByLabel('Max New Tokens', { exact: true }).fill('256');
     await params.getByRole('button', { name: '儲存設定', exact: true }).click();
-    await expect(okMsg(ca, '已儲存生成參數')).toBeVisible();
-    await s.step(ca, '步驟 1', '儲存生成參數', { line: 'Temperature 0.3、Max New Tokens 256', focus: params });
+    await expect(okMsg(ca, '已儲存文字產生設定參數')).toBeVisible();
+    await s.step(ca, '步驟 1', '儲存文字產生設定參數', { line: 'Temperature 0.3、Max New Tokens 256', focus: params });
 
     // 第 2 步：「內部服務」（原發布 API）的「發布為內部服務」表單
     await llmTab(ca, '發布 API');
     const form = ca.getByRole('form', { name: '發布為內部服務' });
     await form.getByLabel('服務代號（小寫英數字與 -）', { exact: true }).fill(SLUG);
     await form.getByLabel('名稱', { exact: true }).fill(SERVICE);
-    await form.getByLabel('參考文件', { exact: true }).selectOption({ label: KB });
+    await form.getByLabel('RAG 知識庫', { exact: true }).selectOption({ label: KB });
     const grants = form.getByLabel('授權帳號（以逗號分隔）', { exact: true });
     await grants.pressSequentially('md');
     const pick = form.getByRole('list', { name: '符合的帳號' }).getByRole('button', { name: 'md01', exact: true });
@@ -265,7 +265,7 @@ test('B7 把知識問答發布給其他系統呼叫', async ({ browser }) => {
     await s.step(ca, '步驟 2', '輸入帳號開頭md列出符合帳號', { focus: form });
     await pick.click();
     await expect(grants).toHaveValue(/md01/);
-    await s.step(ca, '步驟 2', '填好發布表單', { line: `服務代號 ${SLUG}、名稱 ${SERVICE}、參考文件 ${KB}、授權帳號「${await grants.inputValue()}」`, focus: form });
+    await s.step(ca, '步驟 2', '填好發布表單', { line: `服務代號 ${SLUG}、名稱 ${SERVICE}、RAG 知識庫 ${KB}、授權帳號「${await grants.inputValue()}」`, focus: form });
 
     // 第 3 步：按「發布」，出現「已發布「名稱」：POST 端點」，列表「端點」欄
     await form.getByRole('button', { name: '發布', exact: true }).click();
@@ -309,7 +309,7 @@ test('B7 把知識問答發布給其他系統呼叫', async ({ browser }) => {
     await s.step(ca, '步驟 4', '已取消發布', { focus: ca.getByRole('table', { name: '已發布的服務' }) });
     const gone = await call('md01', '取消發布後 md01 呼叫');
     await s.soft('取消發布後呼叫被拒（非 200）', () => expect(gone).not.toBe('200'));
-    s.log(`要注意｜發布表單沒有問答範本欄位：${(await form.getByLabel('問答範本', { exact: true }).count()) === 0 ? '確認沒有' : '有（與文件不同）'}`);
-    return `儲存生成參數、發布（授權 md01）後端點 ${endpoint}；md01 HTTP ${ok}、vw01 HTTP ${denied}、未登入 HTTP ${anon}；停用 HTTP ${off}、啟用 HTTP ${on}、取消發布 HTTP ${gone}`;
+    s.log(`要注意｜發布表單沒有 Prompt Template 欄位：${(await form.getByLabel('Prompt Template', { exact: true }).count()) === 0 ? '確認沒有' : '有（與文件不同）'}`);
+    return `儲存文字產生設定參數、發布（授權 md01）後端點 ${endpoint}；md01 HTTP ${ok}、vw01 HTTP ${denied}、未登入 HTTP ${anon}；停用 HTTP ${off}、啟用 HTTP ${on}、取消發布 HTTP ${gone}`;
   });
 });

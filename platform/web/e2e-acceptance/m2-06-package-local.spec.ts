@@ -48,7 +48,7 @@ test('M2 06 專案包匯出與地端重做', async ({ browser }) => {
   const { ctx, page } = await openAs(browser, 'pi01', PA);
   await gotoTraining(page);
   const panel = await openFlow(page, SETTING);
-  note(TC, `五環節：${statesText(await stageStates(panel))}`);
+  note(TC, `五階段：${statesText(await stageStates(panel))}`);
 
   // 1 勾選附上原始資料
   step(TC, 1, '「整個流程（專案包）」勾「附上原始資料」');
@@ -98,15 +98,15 @@ test('M2 06 專案包匯出與地端重做', async ({ browser }) => {
   const noDataNames = zipList(noData.file);
   const listing = [
     `專案包-附資料.zip（${names.length} 個檔案）`, ...names.map((n) => `  ${n}`), '',
-    `最上層：${top.join('、')}`, `stages\\ 環節資料夾：${stagesDirs.join('、')}`,
+    `最上層：${top.join('、')}`, `stages\\ 階段資料夾：${stagesDirs.join('、')}`,
     `附的 CSV（dataset/blobs/${blob ?? '—'}）欄位：${header || '（找不到）'}`, '',
     `專案包-不附資料.zip（${noDataNames.length} 個檔案）`, ...noDataNames.map((n) => `  ${n}`), '',
   ].join('\n');
   fs.writeFileSync(path.join(out, '06-檔案清單.txt'), listing);
-  note(TC, `最上層：${top.join('、')}；環節資料夾：${stagesDirs.join('、')}；CSV 欄位：${header}`);
+  note(TC, `最上層：${top.join('、')}；階段資料夾：${stagesDirs.join('、')}；CSV 欄位：${header}`);
   const need = ['flow.json', 'README.md', 'requirements.txt', 'run_all.py', 'stages/', 'dataset/'];
   c.check('步驟 4 有 flow.json、README.md、requirements.txt、run_all.py、stages\\、dataset\\', need.every((n) => top.includes(n)), top.join('、'));
-  c.check('步驟 4 stages\\ 有五個環節資料夾', ['deploy', 'import', 'labels', 'preprocess', 'train'].every((s) => stagesDirs.includes(s)), stagesDirs.join('、'));
+  c.check('步驟 4 stages\\ 有五個階段資料夾', ['deploy', 'import', 'labels', 'preprocess', 'train'].every((s) => stagesDirs.includes(s)), stagesDirs.join('、'));
   c.check('步驟 4 附的 CSV 沒有 patient_id、study_accession', cols.length > 0 && !cols.includes('patient_id') && !cols.includes('study_accession'), header);
   c.check('步驟 4 不附資料的專案包沒有原始資料（dataset/blobs）', !noDataNames.some((n) => n.startsWith('dataset/blobs/')));
 

@@ -120,23 +120,23 @@ describe('資料集列表', () => {
     expect(screen.getByText(/沒有 Training 權限，無法上傳或刪除資料集/)).toBeInTheDocument();
   });
 
-  it('dataset header: name, rows, columns, three tabs; 用這份資料建立模型 only with Training', async () => {
+  it('dataset header: name, rows, columns, three tabs; 用這份資料建立訓練任務 only with Training', async () => {
     const first = await renderApp('/data/tabular/2', 'pi01');
     expect(await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' })).toBeInTheDocument();
     expect(screen.getByTestId('dataset-size')).toHaveTextContent('100 筆・12 個欄位');
     const tabs = within(screen.getByRole('navigation', { name: '資料集分頁' })).getAllByRole('link');
-    expect(tabs.map((t) => t.textContent)).toEqual(['查看資料', '整理資料', '統計分析']);
-    await waitFor(() => expect(within(screen.getByRole('navigation', { name: '資料集分頁' })).getByRole('link', { name: '查看資料' })).toHaveAttribute('aria-current', 'page'));
-    expect(screen.getByRole('link', { name: '用這份資料建立模型' })).toHaveAttribute('href', '/training/new?tabular=2');
+    expect(tabs.map((t) => t.textContent)).toEqual(['資料視覺化', '資料清洗', '醫學統計分析']);
+    await waitFor(() => expect(within(screen.getByRole('navigation', { name: '資料集分頁' })).getByRole('link', { name: '資料視覺化' })).toHaveAttribute('aria-current', 'page'));
+    expect(screen.getByRole('link', { name: '用這份資料建立訓練任務' })).toHaveAttribute('href', '/training/new?tabular=2');
     first.unmount();
     await renderApp('/data/tabular/2/view', 'md01');
     await screen.findByRole('heading', { level: 2, name: '資料集：lung-clinical' });
-    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '用這份資料建立訓練任務' })).toBeNull();
   });
 
   it('old sub-paths redirect to the new tabs', async () => {
     const first = await renderApp('/data/tabular/2/target', 'pi01');
-    expect(await screen.findByRole('form', { name: '整理資料' })).toBeInTheDocument();
+    expect(await screen.findByRole('form', { name: '資料清洗' })).toBeInTheDocument();
     first.unmount();
     await renderApp('/data/tabular/2/preview', 'vw01');
     expect(await screen.findByRole('table', { name: '資料預覽' })).toBeInTheDocument();
@@ -208,10 +208,10 @@ describe('預覽與欄位顯示／隱藏', () => {
   });
 });
 
-describe('描述統計與分布', () => {
+describe('描述性統計與分布', () => {
   it('TC-B04-01 shows the statistics returned by the API', async () => {
     await renderApp('/data/tabular/2/view?show=describe', 'vw01');
-    const table = await screen.findByRole('table', { name: '描述統計' });
+    const table = await screen.findByRole('table', { name: '描述性統計' });
     const row = (name: string) => cellsOf(within(table).getByRole('row', { name: new RegExp(`^${name} `) }));
     // 欄位, 類型, 筆數, 缺值, 相異值, 平均, 標準差, 最小, P25, 中位數, P75, 最大, 最常見值, 次數
     expect(row('age')).toEqual(['age', '整數', '100', '0', '51', '59.15', '19.8', '25', '41.75', '61', '77', '89', '—', '—']);

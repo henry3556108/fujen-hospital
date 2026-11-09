@@ -150,3 +150,10 @@ def test_store_from_env_defaults_to_sql_and_rejects_unknown():
     assert store_from_env(None, {}).name == "sql"
     with pytest.raises(RuntimeError):
         store_from_env(None, {"VECTOR_STORE": "faiss"})
+
+
+def test_pdf_radical_lookalikes_become_normal_characters():
+    """Chromium 產生的 PDF 文字層把「生」「用」記成康熙部首 U+2F63、U+2F64；要轉回一般字，提問才比對得到。"""
+    from app.llm.documents import normalise
+    assert normalise("抗\u2f63素使\u2f64規範，\u2f6c標\u2f95底濃度 15 \u2f84 20") == "抗生素使用規範，目標谷底濃度 15 至 20"
+    assert normalise("全形Ａ１（不變）") == "全形Ａ１（不變）"

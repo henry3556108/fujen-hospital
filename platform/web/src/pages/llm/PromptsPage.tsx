@@ -25,7 +25,7 @@ export function PromptsPage() {
     try {
       const tags = form.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean);
       const p = await llm!.createPrompt({ ...form, tags });
-      setDone(`已新增問答範本「${p.title}」`);
+      setDone(`已新增 Prompt Template「${p.title}」`);
       setForm({ title: '', content: '', tags: '', visibility: 'personal' });
       list.reload();
     } catch (err) {
@@ -51,8 +51,8 @@ export function PromptsPage() {
   const shown = inScope.filter((p) => !tag || p.tags.includes(tag));
 
   const side = (
-    <SidePanel title="新增問答範本">
-      <form aria-label="新增問答範本" className="stack" onSubmit={create} noValidate>
+    <SidePanel title="新增 Prompt Template">
+      <form aria-label="新增 Prompt Template" className="stack" onSubmit={create} noValidate>
         {done && <Alert tone="success">{done}</Alert>}
         <ApiErrorAlert error={error} />
         <div className="field">
@@ -75,7 +75,7 @@ export function PromptsPage() {
           </select>
         </div>
         <button type="submit" className="btn btn--primary llm-block-btn">
-          新增問答範本
+          新增 Prompt Template
         </button>
       </form>
     </SidePanel>
@@ -83,18 +83,18 @@ export function PromptsPage() {
 
   return (
     <>
-      <LlmHeader title="文件問答" subtitle="常用的提問方式存成範本，對話時從左側點選套用。個人範本只有自己看得到，共用範本專案成員都看得到。" />
+      <LlmHeader title="LLM No-code 開發" subtitle="常用的提問方式存成範本，對話時從左側點選套用。個人 Prompt 只有自己看得到，公開 Prompt 專案成員都看得到。" />
       <div className="llm-stretch">
         <SplitLayout side={side}>
-          <Card title="問答範本" flush>
+          <Card title="Prompt Template" flush>
             <div className="llm-toolbar">
               <SegmentedTabs
-                label="範本範圍"
+                label="Prompt 範圍"
                 idPrefix="prompt-scope"
                 items={[
                   { key: 'all', label: '全部' },
-                  { key: 'personal', label: '個人範本' },
-                  { key: 'public', label: '共用範本' },
+                  { key: 'personal', label: '個人 Prompt' },
+                  { key: 'public', label: '公開 Prompt' },
                 ]}
                 value={scope}
                 onChange={(k) => {
@@ -104,7 +104,7 @@ export function PromptsPage() {
               />
               <form
                 role="search"
-                aria-label="搜尋問答範本"
+                aria-label="搜尋 Prompt Template"
                 className="llm-inline-form"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -131,7 +131,7 @@ export function PromptsPage() {
             </div>
             <ApiErrorAlert error={list.error} />
             <div role="tabpanel" id={tabPanelId('prompt-scope', scope)} aria-labelledby={`prompt-scope-${scope}-tab`} className="table-wrap">
-              <table aria-label="問答範本">
+              <table aria-label="Prompt Template">
                 <thead>
                   <tr>
                     <th>標題</th>
@@ -157,7 +157,7 @@ export function PromptsPage() {
                         </span>
                       </td>
                       <td>
-                        <Badge tone={p.visibility === 'public' ? 'info' : 'neutral'}>{p.visibility === 'public' ? '共用' : '個人'}</Badge>
+                        <Badge tone={p.visibility === 'public' ? 'info' : 'neutral'}>{p.visibility === 'public' ? '公開' : '個人'}</Badge>
                       </td>
                       <td>{p.owner}</td>
                       <td>
@@ -170,7 +170,7 @@ export function PromptsPage() {
                   {list.data && shown.length === 0 && (
                     <tr>
                       <td colSpan={5} className="llm-empty-row">
-                        沒有符合的範本。
+                        沒有符合的 Prompt。
                       </td>
                     </tr>
                   )}
@@ -181,7 +181,7 @@ export function PromptsPage() {
         </SplitLayout>
       </div>
       {removing && (
-        <ConfirmDialog title="刪除問答範本" confirmLabel="刪除" onConfirm={() => void remove()} onCancel={() => setRemoving(null)}>
+        <ConfirmDialog title="刪除 Prompt Template" confirmLabel="刪除" onConfirm={() => void remove()} onCancel={() => setRemoving(null)}>
           確定刪除「{removing.title}」？刪除後無法復原。
         </ConfirmDialog>
       )}

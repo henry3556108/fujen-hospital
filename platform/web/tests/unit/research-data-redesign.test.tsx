@@ -12,7 +12,7 @@ import { renderData } from './imaging-render';
 
 const STUDY1 = [1, 2, 3].map((s) => `imaging/study_0001/series_001/IM000${s}.dcm`);
 
-describe('研究資料改版：影像清單（A02、B06）', () => {
+describe('數據管理改版：影像清單（A02、B06）', () => {
   it('each row shows a thumbnail next to the accession number', async () => {
     await renderData('/data/imaging', 'ra01');
     await screen.findByText(/^共 6 筆影像/);
@@ -21,11 +21,11 @@ describe('研究資料改版：影像清單（A02、B06）', () => {
     expect(within(table).getByRole('rowheader', { name: /ACC0011/ })).toContainElement(within(table).getAllByTestId('dicom-thumb')[0]);
   });
 
-  it('加入資料 opens the slide-over on the list; closing it goes back and the new study shows up', async () => {
+  it('匯入資料 opens the slide-over on the list; closing it goes back and the new study shows up', async () => {
     const { user } = await renderData('/data/imaging', 'ra01');
     await screen.findByText(/^共 6 筆影像/);
-    await user.click(screen.getByRole('link', { name: '加入資料' }));
-    const dialog = await screen.findByRole('dialog', { name: '加入資料' });
+    await user.click(screen.getByRole('link', { name: '匯入資料' }));
+    const dialog = await screen.findByRole('dialog', { name: '匯入資料' });
     // 只列現有支援的格式
     const sources = within(dialog).getByRole('list', { name: '資料來源' });
     expect(sources).toHaveTextContent('DICOM');
@@ -43,7 +43,7 @@ describe('研究資料改版：影像清單（A02、B06）', () => {
   });
 });
 
-describe('研究資料改版：匯入結果（B05）', () => {
+describe('數據管理改版：匯入結果（B05）', () => {
   const job: ImportJob = {
     id: 3,
     kind: 'dicom',
@@ -83,13 +83,13 @@ describe('研究資料改版：匯入結果（B05）', () => {
   });
 });
 
-describe('研究資料改版：表格資料（B09、B10、A05）', () => {
-  it('查看資料 has four sections; 統計分析 opens inline and 進一步分析 preselects the model', async () => {
+describe('數據管理改版：結構式資料（B09、B10、A05）', () => {
+  it('資料視覺化 has four sections; 醫學統計分析 opens inline and 進一步分析 preselects the model', async () => {
     const { user } = await renderApp('/data/tabular/2/view?show=correlation', 'vw01');
-    const group = await screen.findByRole('group', { name: '查看資料的段落' });
-    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['資料預覽', '欄位統計', '相關與散佈圖', '統計分析']);
-    await user.click(await screen.findByRole('link', { name: 'Cox 迴歸' }));
-    const form = await screen.findByRole('form', { name: '統計分析' });
+    const group = await screen.findByRole('group', { name: '資料視覺化的段落' });
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['資料預覽', '欄位描述性統計', 'Correlation Matrix 與 Scatter Chart', '醫學統計分析']);
+    await user.click(await screen.findByRole('link', { name: 'Cox Proportional Hazard Model' }));
+    const form = await screen.findByRole('form', { name: '醫學統計分析' });
     expect(within(form).getByLabelText('模型')).toHaveValue('cox');
   });
 
@@ -119,8 +119,8 @@ describe('研究資料改版：表格資料（B09、B10、A05）', () => {
 
   it('F4 a step can be edited in place; 加步驟 on a column opens the form with that column ticked', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'ra01');
-    const fieldTable = await screen.findByRole('table', { name: '欄位整理' });
-    await user.click(within(fieldTable).getByRole('button', { name: '替 glucose 加整理步驟' }));
+    const fieldTable = await screen.findByRole('table', { name: '欄位設定' });
+    await user.click(within(fieldTable).getByRole('button', { name: '替 glucose 加前處理步驟' }));
     const form = await screen.findByRole('form', { name: '加入前處理步驟' });
     expect(within(form).getByRole('checkbox', { name: 'glucose' })).toBeChecked();
     expect(within(form).getByLabelText('類別')).toHaveValue('imputation');

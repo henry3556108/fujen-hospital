@@ -1,4 +1,4 @@
-// 工作台工具列的圖示（設計稿 A03：移動、放大、窗位、圈選、塗抹、復原、更多工具）。
+// 工作台工具列的圖示（設計稿 A03：移動、放大、WC、圈選、塗抹、復原、更多工具）。
 // 共用 Icon 沒有這幾個，先放在標註區自己用。
 
 export type ToolIconName = 'hand' | 'zoom' | 'contrast' | 'select' | 'brush' | 'undo' | 'more';

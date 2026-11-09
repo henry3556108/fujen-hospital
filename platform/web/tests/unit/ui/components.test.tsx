@@ -36,18 +36,18 @@ describe('PageHeader', () => {
   it('shows an h1, the grey subtitle, actions and breadcrumbs', () => {
     inRouter(
       <PageHeader
-        title="研究資料"
+        title="數據管理"
         subtitle="胸腔影像研究"
-        actions={<button type="button">加入資料</button>}
-        breadcrumbs={[{ label: '使用模型', to: '/models' }, { label: '模型結果' }]}
+        actions={<button type="button">匯入資料</button>}
+        breadcrumbs={[{ label: '模型部署與推論服務', to: '/models' }, { label: '訓練結果' }]}
       />,
     );
-    expect(screen.getByRole('heading', { level: 1, name: '研究資料' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '數據管理' })).toBeInTheDocument();
     expect(screen.getByText('胸腔影像研究')).toHaveClass('ui-page-header__subtitle');
-    expect(screen.getByRole('button', { name: '加入資料' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '匯入資料' })).toBeInTheDocument();
     const crumbs = screen.getByRole('navigation', { name: '目前位置' });
-    expect(within(crumbs).getByRole('link', { name: '使用模型' })).toHaveAttribute('href', '/models');
-    expect(within(crumbs).getByText('模型結果')).toHaveAttribute('aria-current', 'page');
+    expect(within(crumbs).getByRole('link', { name: '模型部署與推論服務' })).toHaveAttribute('href', '/models');
+    expect(within(crumbs).getByText('訓練結果')).toHaveAttribute('aria-current', 'page');
   });
 });
 
@@ -85,11 +85,11 @@ describe('StatTile', () => {
 });
 
 describe('Stepper', () => {
-  const steps = [{ label: '選研究目的' }, { label: '確認資料' }, { label: '確認並送出', description: '最後一步' }];
+  const steps = [{ label: '選訓練種類' }, { label: '確認資料' }, { label: '確認並送出', description: '最後一步' }];
 
   it('numbers steps itself once, marks done / current / todo', () => {
-    render(<Stepper steps={steps} current={1} label="建立模型步驟" />);
-    const list = screen.getByRole('list', { name: '建立模型步驟' });
+    render(<Stepper steps={steps} current={1} label="建模管理步驟" />);
+    const list = screen.getByRole('list', { name: '建模管理步驟' });
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(3);
     expect(items[0]).toHaveClass('ui-stepper__step--done');
@@ -109,19 +109,19 @@ describe('OptionCard', () => {
     function Demo() {
       const [v, setV] = useState('classify');
       return (
-        <OptionCardGroup legend="選擇研究目的">
-          <OptionCard name="task" value="classify" title="判斷影像類別" description="輸入影像後判斷類別" selected={v === 'classify'} onSelect={setV} />
-          <OptionCard name="task" value="detect" title="圈出位置" selected={v === 'detect'} onSelect={setV} />
-          <OptionCard name="task" value="segment" title="標出範圍" selected={v === 'segment'} onSelect={setV} disabled />
+        <OptionCardGroup legend="選擇訓練種類">
+          <OptionCard name="task" value="classify" title="影像分類" description="輸入影像後結構式資料分類" selected={v === 'classify'} onSelect={setV} />
+          <OptionCard name="task" value="detect" title="物件偵測" selected={v === 'detect'} onSelect={setV} />
+          <OptionCard name="task" value="segment" title="影像分割" selected={v === 'segment'} onSelect={setV} disabled />
         </OptionCardGroup>
       );
     }
     render(<Demo />);
-    const group = screen.getByRole('group', { name: '選擇研究目的' });
-    expect(within(group).getByRole('radio', { name: /判斷影像類別/ })).toBeChecked();
-    await userEvent.click(within(group).getByText('圈出位置'));
-    expect(within(group).getByRole('radio', { name: /圈出位置/ })).toBeChecked();
-    expect(within(group).getByRole('radio', { name: /標出範圍/ })).toBeDisabled();
+    const group = screen.getByRole('group', { name: '選擇訓練種類' });
+    expect(within(group).getByRole('radio', { name: /影像分類/ })).toBeChecked();
+    await userEvent.click(within(group).getByText('物件偵測'));
+    expect(within(group).getByRole('radio', { name: /物件偵測/ })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: /影像分割/ })).toBeDisabled();
   });
 });
 
@@ -145,17 +145,17 @@ describe('SlideOver', () => {
   it('opens as a modal dialog; Esc, the close button and the backdrop close it', async () => {
     const onClose = vi.fn();
     const { rerender } = render(
-      <SlideOver open={false} title="加入資料" onClose={onClose}>
+      <SlideOver open={false} title="匯入資料" onClose={onClose}>
         內容
       </SlideOver>,
     );
     expect(screen.queryByRole('dialog')).toBeNull();
     rerender(
-      <SlideOver open title="加入資料" onClose={onClose} footer={<button type="button">確定</button>}>
+      <SlideOver open title="匯入資料" onClose={onClose} footer={<button type="button">確定</button>}>
         內容
       </SlideOver>,
     );
-    const dialog = screen.getByRole('dialog', { name: '加入資料' });
+    const dialog = screen.getByRole('dialog', { name: '匯入資料' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -186,8 +186,8 @@ describe('ProgressBar / ConfirmProgress / SegmentBar', () => {
   });
 
   it('segment bar describes each part', () => {
-    render(<SegmentBar label="資料切分" segments={[{ label: '訓練資料', value: 70 }, { label: '驗證資料', value: 15 }, { label: '測試資料', value: 15 }]} />);
-    expect(screen.getByRole('img', { name: '資料切分：訓練資料 70%、驗證資料 15%、測試資料 15%' })).toBeInTheDocument();
+    render(<SegmentBar label="資料分群" segments={[{ label: '訓練集', value: 70 }, { label: '驗證集', value: 15 }, { label: '測試集', value: 15 }]} />);
+    expect(screen.getByRole('img', { name: '資料分群：訓練集 70%、驗證集 15%、測試集 15%' })).toBeInTheDocument();
     expect(formatPercent(1, 0)).toBe('0.0%');
   });
 });
@@ -285,14 +285,14 @@ describe('Badge / StatusDot / EmptyState', () => {
         <Badge tone="success">已確認</Badge>
         <Badge tone="warning">待確認</Badge>
         <StatusDot tone="success">運作正常</StatusDot>
-        <EmptyState title="還沒有資料" description="先加入影像" action={<button type="button">加入資料</button>} />
+        <EmptyState title="還沒有資料" description="先匯入影像" action={<button type="button">匯入資料</button>} />
       </>,
     );
     expect(screen.getByText('已確認')).toHaveClass('ui-badge--success');
     expect(screen.getByText('待確認')).toHaveClass('ui-badge--warning');
     expect(screen.getByText('運作正常')).toHaveClass('ui-dot--success');
     expect(screen.getByText('還沒有資料')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '加入資料' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '匯入資料' })).toBeInTheDocument();
   });
 });
 

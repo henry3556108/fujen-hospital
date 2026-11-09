@@ -11,22 +11,22 @@ import { SourcesPage } from './SourcesPage';
 import './fhir.css';
 
 const TABS = [
-  ['resources', '資源'],
-  ['sources', '來源與對應'],
-  ['schedules', '排程'],
-  ['graph', '關聯圖'],
-  ['alerts', '流量告警'],
-  ['gateway', 'Gateway 路由'],
+  ['resources', 'FHIR Resource'],
+  ['sources', '資料接入與對應'],
+  ['schedules', '排程任務'],
+  ['graph', 'FHIR Resource 關聯圖'],
+  ['alerts', '流量監測與告警'],
+  ['gateway', 'API Gateway 路由'],
 ] as const;
 
 /** 各分頁的標題與副標（設計稿 B24～B28） */
 const HEADS: Record<string, { title: string; subtitle: string }> = {
-  resources: { title: '醫療資料交換', subtitle: '瀏覽 FHIR 資源並檢視病人關聯' },
-  sources: { title: 'FHIR 來源與對應', subtitle: '設定資料來源並對應至 FHIR 資料結構' },
-  schedules: { title: 'FHIR 轉換排程', subtitle: '設定定期轉換任務，自動匯入並轉換為 FHIR 資料' },
-  graph: { title: 'FHIR 關聯圖', subtitle: '以病歷號查看病人與就醫、觀察值的參照關係' },
-  alerts: { title: 'FHIR 流量告警', subtitle: '監控 FHIR 介面的使用流量，請求數超過門檻時發出通知' },
-  gateway: { title: 'Gateway 路由與流量門檻', subtitle: '設定各 API 路由的上游服務與每人每分鐘請求門檻' },
+  resources: { title: 'HL7 FHIR 醫療資料交換', subtitle: '瀏覽 FHIR 資源並檢視病人關聯' },
+  sources: { title: '資料接入與對應', subtitle: '設定資料來源並對應至 FHIR 資料結構' },
+  schedules: { title: 'FHIR 排程任務', subtitle: '設定定期轉換任務，自動匯入並轉換為 FHIR 資料' },
+  graph: { title: 'FHIR Resource 關聯圖', subtitle: '以病歷號查看病人與就醫、觀察值的參照關係' },
+  alerts: { title: 'FHIR 流量監測與告警', subtitle: '監控 FHIR 介面的使用流量，請求數超過門檻時發出通知' },
+  gateway: { title: 'API Gateway 路由與流量門檻', subtitle: '設定各 API 路由的上游服務與每人每分鐘請求門檻' },
 };
 
 /** 需要選定專案（＝FHIR 租戶）的分頁 */

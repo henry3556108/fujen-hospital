@@ -151,7 +151,7 @@ function SourceForm({ onCreated }: { onCreated: (s: FhirSource) => void }) {
   );
 }
 
-/** FHIR 來源與對應（設計稿 B25）：左側選來源與規則並執行，右側轉換結果與執行紀錄；來源、規則清單在下方。 */
+/** 資料接入與對應（設計稿 B25）：左側選來源與規則並執行，右側轉換結果與執行紀錄；來源、規則清單在下方。 */
 export function SourcesPage() {
   const { api, project } = useSession();
   const base = `/api/projects/${project!.id}/fhir`;

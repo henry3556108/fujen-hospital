@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.audit import AuditCategory, record
 from app.llm.errors import Conflict, Forbidden, Invalid, LlmServiceError, NotFound, Unavailable
-from app.llm.models import InstalledModel, ModelDownload, ModelLoadConfig, ModelWhitelist, RemoteCodeApproval
+from app.llm.models import (InstalledModel, KnowledgeBase, ModelDownload, ModelLoadConfig, ModelWhitelist,
+                            PublishedService, RemoteCodeApproval)
 from app.llm.runtime import LoadRequest, ModelRuntime, RuntimeLoadError, digests_path, write_digests
 from app.llm.sources import (HF_SOURCE_HOST, ModelSource, SourceAuthError, SourceError, SourceIntegrityError, SourceListing,
                              SourceNotFound, SourceUnreachable)
@@ -387,11 +388,24 @@ def _installed(session: Session, name: str) -> InstalledModel:
     return model
 
 
+def guard_in_use(session: Session, name: str, *, protected: dict[str, str] | None, action: str) -> None:
+    """模型全平台共用：預設模型、內部服務或 RAG 知識庫正在用的模型，卸載或刪除會讓其他專案的功能直接失敗。"""
+    if protected and name in protected:
+        raise Conflict(f"{name} 是平台{protected[name]}，所有專案的 LLM Playground、RAG 知識庫與內部服務都在使用，不能{action}")
+    services = list(session.scalars(select(PublishedService.slug).where(PublishedService.model == name)))
+    if services:
+        raise Conflict(f"內部服務 {'、'.join(services)} 正在使用模型 {name}，請先改用其他模型或取消發布再{action}")
+    kbs = list(session.scalars(select(KnowledgeBase.name).where(KnowledgeBase.embed_model == name)))
+    if kbs:
+        raise Conflict(f"RAG 知識庫 {'、'.join(kbs[:5])}{' 等' if len(kbs) > 5 else ''} 用模型 {name} 建立向量，不能{action}")
+
+
 def delete_model(session: Session, *, runtime: ModelRuntime, actor: str, is_admin: bool, source_ip: str | None,
-                 name: str) -> None:
+                 name: str, protected: dict[str, str] | None = None) -> None:
     model = _installed(session, name)
     if model.installed_by != actor and not is_admin:
         raise Forbidden("只有下載這個模型的人或管理者可以刪除")
+    guard_in_use(session, name, protected=protected, action="刪除")
     _runtime(lambda: runtime.unload(name))
     shutil.rmtree(model.location, ignore_errors=True)
     digests_path(Path(model.location)).unlink(missing_ok=True)
@@ -512,8 +526,12 @@ def describe_model(session: Session, *, runtime: ModelRuntime, name: str) -> dic
             "runtime": _runtime(lambda: runtime.describe(name)) if model.loaded else None}
 
 
-def unload_model(session: Session, *, runtime: ModelRuntime, actor: str, source_ip: str | None, name: str) -> dict:
+def unload_model(session: Session, *, runtime: ModelRuntime, actor: str, source_ip: str | None, name: str,
+                 is_admin: bool = True, protected: dict[str, str] | None = None) -> dict:
     model = _installed(session, name)
+    if model.installed_by != actor and not is_admin:
+        raise Forbidden("只有下載這個模型的人或管理者可以卸載")
+    guard_in_use(session, name, protected=protected, action="卸載")
     _runtime(lambda: runtime.unload(name))
     model.loaded = False
     record(session, actor=actor, category=AuditCategory.INFERENCE, action="llm.model.unload",

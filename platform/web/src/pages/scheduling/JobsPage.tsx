@@ -96,7 +96,7 @@ export function JobsPage() {
   const list = [...(jobs.data ?? [])].sort((a, b) => b.id - a.id);
 
   return (
-    <SchedulingPage title="運算資源" subtitle="測試工作：送出示範工作，查看排隊與執行情形">
+    <SchedulingPage title="GPU／CPU 伺服器管理" subtitle="測試工作：送出示範工作，查看排隊與執行情形">
       <ProjectPicker id="jobs-project" label="送出到專案" />
       <p className="text-muted">
         專案「{project.name}」的排程工作。訓練工作進入專案綁定 GPU 群組的佇列，資料清洗工作進入 CPU 佇列。
@@ -171,7 +171,7 @@ export function JobsPage() {
           {hasActive ? '有工作在排隊或執行中，每 2 秒自動更新。' : '沒有進行中的工作。'}
         </p>
         <p className="field__hint">開始與結束時間是叢集實際啟動與結束工作的時間（不是畫面更新的時間），可與叢集紀錄比對。</p>
-        <p className="field__hint">排隊中的工作可以「暫存」移出佇列、保留工作內容，之後按「恢復排隊」會重新排到佇列最後。</p>
+        <p className="field__hint">等待中的工作可以「暫存」移出佇列、保留工作內容，之後按「恢復排隊」會重新排到佇列最後。</p>
         <div className="table-wrap">
           <table aria-label="工作列表">
             <thead>

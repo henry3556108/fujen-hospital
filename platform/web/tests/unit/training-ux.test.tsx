@@ -1,5 +1,5 @@
-// 建模端使用性（2026-10-03 B 組與使用性測試回饋）：從資料集建立訓練、超參數說明與進階收合、K 折、
-// 步驟條、排序與展開、指標白話與圖表、報表、失敗訊息、設定同步、部署此模型、試用預測。
+// 建模端使用性（2026-10-03 B 組與使用性測試回饋）：從資料集建立訓練任務、超參數說明與進階收合、K 折、
+// 步驟條、排序與展開、指標白話與圖表、報表、失敗訊息、設定同步、部署此模型、即時推論。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import type { UserEvent } from '@testing-library/user-event';
@@ -53,22 +53,22 @@ async function finish(user: UserEvent, name: string) {
   await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
 }
 
-describe('B1 從資料集建立訓練', () => {
+describe('B1 從資料集建立訓練任務', () => {
   it('the dataset page links to a prefilled training form with the kind chosen from the target', async () => {
     await saveTargetFeature('diagnosis', ['age', 'sex', 'smoker']);   // 數字編碼的 0／1 → 分類
     const first = await renderApp('/data/tabular/2', 'pi01');
-    const link = await screen.findByRole('link', { name: '用這份資料建立模型' }, { timeout: 10_000 });
+    const link = await screen.findByRole('link', { name: '用這份資料建立訓練任務' }, { timeout: 10_000 });
     expect(link).toHaveAttribute('href', '/training/new?tabular=2');
     await first.user.click(link);
 
-    // 建立訓練精靈直接到「確認資料」，研究目的依 Target 預選為分類
-    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位/)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: '確認資料：判斷類別' })).toBeInTheDocument();
+    // 建立訓練任務精靈直接到「確認資料」，訓練種類依 Target 預選為分類
+    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：Target 欄位 diagnosis；Feature 欄位 3 個欄位/)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '確認資料：結構式資料分類' })).toBeInTheDocument();
     await first.user.click(screen.getByRole('button', { name: '下一步：確認並送出' }));
     const form = await screen.findByRole('form', { name: '確認並送出' });
     expect(within(form).getByLabelText('設定名稱')).toHaveValue('lung-clinical 訓練');
-    await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toHaveValue('diagnosis'));
-    const features = within(form).getByRole('group', { name: '用來預測的資料（Feature）' });
+    await waitFor(() => expect(within(form).getByLabelText('Target 欄位')).toHaveValue('diagnosis'));
+    const features = within(form).getByRole('group', { name: 'Feature 欄位' });
     expect(within(features).getByRole('checkbox', { name: 'sex' })).toBeChecked();
     expect(within(form).getByTestId('text-features')).toHaveTextContent('「sex、smoker」是文字或類別欄位，訓練時會自動轉成 0／1 欄位');
     await first.user.click(within(form).getByRole('button', { name: '確認並送出訓練' }));
@@ -80,7 +80,7 @@ describe('B1 從資料集建立訓練', () => {
   it('users without Training do not see the link', async () => {
     await renderApp('/data/tabular/2', 'md01');
     await screen.findByRole('heading', { name: /資料集：/ }, { timeout: 10_000 });
-    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '用這份資料建立訓練任務' })).toBeNull();
   });
 
   it('numeric targets with many values suggest regression', () => {
@@ -99,7 +99,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
     const advanced = within(form).getByText('進階設定（一般不需要調整）').closest('details')!;
     expect(advanced.open).toBe(false);
     expect(within(advanced).getByLabelText('學習率')).toHaveAccessibleDescription(/修正模型的幅度/);
-    expect(within(form).getByLabelText('亂數種子')).toHaveAccessibleDescription(/完全相同的結果/);
+    expect(within(form).getByLabelText('隨機種子')).toHaveAccessibleDescription(/完全相同的結果/);
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
     await user.selectOptions(within(form).getByLabelText('演算法'), 'logistic_regression');
     expect(within(form).getByText('這個演算法使用建議值即可，不需要調整。')).toBeInTheDocument();
@@ -112,9 +112,9 @@ describe('B2 超參數說明與 B3 K 折', () => {
     await user.type(within(form).getByLabelText('設定名稱'), 'kfold');
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
     await user.selectOptions(await within(form).findByLabelText('資料集'), await within(form).findByRole('option', { name: /^lung-clinical/ }));
-    await waitFor(() => expect(within(form).getByLabelText('要預測的結果（Target）')).toBeEnabled());
-    await user.selectOptions(within(form).getByLabelText('要預測的結果（Target）'), 'diagnosis');
-    await user.click(within(within(form).getByRole('group', { name: '用來預測的資料（Feature）' })).getByRole('checkbox', { name: 'age' }));
+    await waitFor(() => expect(within(form).getByLabelText('Target 欄位')).toBeEnabled());
+    await user.selectOptions(within(form).getByLabelText('Target 欄位'), 'diagnosis');
+    await user.click(within(within(form).getByRole('group', { name: 'Feature 欄位' })).getByRole('checkbox', { name: 'age' }));
     await user.click(within(form).getByRole('radio', { name: 'K 折交叉驗證' }));
     expect(within(form).queryByLabelText('訓練集（%）')).toBeNull();
     const folds = within(form).getByLabelText('交叉驗證折數（K）');
@@ -140,7 +140,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
     const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '修改「old」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「old」' });
-    expect(within(edit).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    expect(within(edit).getByRole('radio', { name: '固定比例分群' })).toBeChecked();
     await user.click(within(edit).getByRole('button', { name: '儲存設定' }));
     await screen.findByText('已儲存訓練設定「old」的修改。');
     expect(trainingMock().settings[0].config.validation).toEqual({ method: 'holdout' });
@@ -150,7 +150,7 @@ describe('B2 超參數說明與 B3 K 折', () => {
 
 describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
   it('step bar shows submitted → queued → training → done with icons and text', () => {
-    expect(stepsOf('queued').map((s) => `${s.label}:${s.state}`)).toEqual(['已送出:done', '排隊中:current', '訓練中:todo', '完成:todo']);
+    expect(stepsOf('queued').map((s) => `${s.label}:${s.state}`)).toEqual(['已送出:done', '等待中:current', '訓練中:todo', '完成:todo']);
     expect(stepsOf('running').map((s) => s.state)).toEqual(['done', 'done', 'current', 'todo']);
     expect(stepsOf('failed').at(-1)).toEqual({ label: '失敗', state: 'failed' });
   });
@@ -160,7 +160,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「cls」' }));
     const steps = await screen.findByRole('list', { name: '訓練 #1 的進度' });
-    expect(within(steps).getByText('排隊中').closest('li')).toHaveAttribute('aria-current', 'step');
+    expect(within(steps).getByText('等待中').closest('li')).toHaveAttribute('aria-current', 'step');
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已完成'));
@@ -171,11 +171,11 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     expect(cards).toHaveTextContent('0.5 等於亂猜');
     expect(cards).toHaveTextContent(/敏感度\d+(\.\d)?%實際為「1」的人，模型抓到 \d+%/);
     expect(cards).toHaveTextContent('特異度');
-    expect(screen.getByTestId('baseline')).toHaveTextContent(/比較基準：每個人都猜「0」（訓練資料最常見的）可猜對 \d+%/);
+    expect(screen.getByTestId('baseline')).toHaveTextContent(/比較基準：每個人都猜「0」（訓練集最常見的）可猜對 \d+%/);
     // 測試集的比較基準細節、提醒、K 折表在「詳細」裡
     const details = screen.getByTestId('result-details');
-    expect(within(details).getByText(/比較基準：全部猜訓練資料最常見的類別（測試集）：55%/).closest('p')).toHaveTextContent(
-      '訓練資料中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
+    expect(within(details).getByText(/比較基準：全部猜訓練集最常見的類別（測試集）：55%/).closest('p')).toHaveTextContent(
+      '訓練集中最常見的是「0」（80 人中 48 人）；如果測試集每個人都猜「0」，20 人中會猜對 11 人');
     expect(within(details).getByText(/測試集只有 20 人/)).toHaveTextContent('上方的結論用 K 折平均');
     expect(screen.getByRole('table', { name: '訓練 #1 的 K 折結果' })).toHaveTextContent(/準確率\d+(\.\d)?% ± \d/);
     expect(await screen.findByRole('table', { name: '訓練 #1 的混淆矩陣' })).toHaveTextContent('6 人（75%），正確');
@@ -185,7 +185,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     await screen.findByText('已下載 training-run-1-report.html');
     expect(saved).toEqual(['training-run-1-report.html']);
 
-    const deploy = screen.getByRole('link', { name: '分享給同事使用' });
+    const deploy = screen.getByRole('link', { name: '部署並設定權限' });
     expect(deploy.getAttribute('href')).toBe('/models/1/share');
     await user.click(screen.getByRole('link', { name: '訓練紀錄' }));
     expect(await screen.findByRole('table', { name: '訓練清單' })).toHaveTextContent(/（AUC 0\.\d\d，5 折平均）/);
@@ -206,7 +206,7 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     seed('b', tabularConfig('tabular_classification'));
     const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, 'a');
-    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(screen.getByRole('link', { name: '訓練設定' }));
     await finish(user, 'b');
     const run = (id: number) => trainingMock().runs.find((r) => r.id === id)!;
     trainingMock().runs.push({ ...run(1), id: 99, name: '別人的訓練', created_by: 'ra01' });
@@ -227,11 +227,11 @@ describe('B4 結果、B5 步驟條、B6 部署此模型', () => {
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('失敗'));
-    expect(screen.getByRole('link', { name: '前往修正：資料集的整理資料' })).toHaveAttribute('href', '/data/tabular/2/prepare');
+    expect(screen.getByRole('link', { name: '前往修正：資料集的資料清洗' })).toHaveAttribute('href', '/data/tabular/2/prepare');
   });
 });
 
-describe('設定與資料集同步、執行方式、部署捷徑、試用預測', () => {
+describe('設定與資料集同步、執行方式、部署捷徑、即時推論', () => {
   it('a setting whose dataset Target/Feature changed offers to apply the new ones', async () => {
     seed('舊的', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'smoker_current'], steps: [], algorithm: 'random_forest' } }));
     await saveTargetFeature('diagnosis', ['age', 'smoker']);
@@ -258,12 +258,12 @@ describe('設定與資料集同步、執行方式、部署捷徑、試用預測'
     seed('心臟科確診預測', tabularConfig('tabular_classification', { tabular: { target: 'diagnosis', features: ['age', 'sex'], steps: [], algorithm: 'random_forest' } }));
     const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, '心臟科確診預測');
-    await user.click(screen.getByRole('link', { name: '分享給同事使用' }));
-    const form = await screen.findByRole('form', { name: '分享給同事使用' });
+    await user.click(screen.getByRole('link', { name: '部署並設定權限' }));
+    const form = await screen.findByRole('form', { name: '部署並設定權限' });
     await waitFor(() => expect(within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）')).toHaveValue('心臟科確診預測'));
 
-    // 預測新資料分頁：模型已選好，填一位病人
-    await user.click(screen.getByRole('link', { name: '預測新資料' }));
+    // 推論分頁：模型已選好，填一位病人
+    await user.click(screen.getByRole('link', { name: '推論' }));
     const tryForm = await screen.findByRole('form', { name: '一位病人' });
     expect(within(tryForm).queryByLabelText('模型')).toBeNull();
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
@@ -279,8 +279,8 @@ describe('metric helpers', () => {
   const run = (metrics: Record<string, unknown>, kind: TrainingKind = 'tabular_classification') => ({ kind, metrics, executor: 'template' }) as TrainingRun;
 
   it('old failure messages with a Python stack keep only the reason on top', () => {
-    const old = '訓練程式以 1 結束： File "/work/template/runtime.py", line 131, in main ^^^ tabular.errors.TabularError: 特徵欄位「sex、smoker」不是數值，請先做類別編碼（例如 One-Hot）';
-    expect(splitFailure(old)).toEqual({ reason: '特徵欄位「sex、smoker」不是數值，請先做類別編碼（例如 One-Hot）', details: old });
+    const old = '訓練程式以 1 結束： File "/work/template/runtime.py", line 131, in main ^^^ tabular.errors.TabularError: Feature 欄位「sex、smoker」不是數值，請先做類別編碼（例如 One Hot Encoding）';
+    expect(splitFailure(old)).toEqual({ reason: 'Feature 欄位「sex、smoker」不是數值，請先做類別編碼（例如 One Hot Encoding）', details: old });
     expect(splitFailure('原因\n---\n細節')).toEqual({ reason: '原因', details: '細節' });
     expect(splitFailure('由 pi01 取消')).toEqual({ reason: '由 pi01 取消', details: '' });
   });
@@ -289,7 +289,7 @@ describe('metric helpers', () => {
     const notes = warnings(run({ rows: { train: 300, validation: 100, test: 100 }, train: { accuracy: 0.95 }, validation: { accuracy: 0.8 },
       test: { accuracy: 0.62, baseline_accuracy: 0.6 } }));
     expect(notes.join('\n')).toMatch(/驗證集與測試集的準確率差很多（80% 對 62%）/);
-    expect(notes.join('\n')).toMatch(/模型可能只記住了訓練資料/);
+    expect(notes.join('\n')).toMatch(/模型可能只記住了訓練集/);
     expect(notes.join('\n')).toMatch(/沒有明顯高於「全部都猜最常見類別」/);
     expect(notes.join('\n')).not.toMatch(/測試集只有/);
   });

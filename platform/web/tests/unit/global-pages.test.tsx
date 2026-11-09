@@ -94,7 +94,7 @@ describe('A01 專案首頁步驟條', () => {
       models: [{ run_id: 1, name: 'm', task: 'x', metric_name: null, metric_value: null, finished_at: null }],
     });
     expect(done.current).toBe(3);
-    expect(done.steps[0].description).toBe('3 筆影像、1 份表格');
+    expect(done.steps[0].description).toBe('3 筆影像、1 份結構式資料');
   });
 
   it('md01 首頁有進度條、步驟條與最近處理表', async () => {

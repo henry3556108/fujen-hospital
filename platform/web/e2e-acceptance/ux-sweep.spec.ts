@@ -48,7 +48,7 @@ const ROLES: Record<string, string[]> = {
 const pick = (process.env.SWEEP_ROLES || '').split(',').filter(Boolean);
 // 瀏覽器對每個 4xx 都會印 console「Failed to load resource」；HTTP 狀態另由 response 檢查，這裡不重複算
 const NOISE = /favicon|ResizeObserver loop|Download the React DevTools|net::ERR_ABORTED|Failed to load resource/;
-// 本來就會 404 的查詢：資料集還沒設定想預測的欄位
+// 本來就會 404 的查詢：資料集還沒設定 Target 欄位
 const EXPECTED_404 = /\/tabular\/datasets\/\d+\/target-feature$/;
 
 type Row = { role: string; route: string; status: 'ok' | 'fail' | 'denied'; issues: string[]; shot: string };

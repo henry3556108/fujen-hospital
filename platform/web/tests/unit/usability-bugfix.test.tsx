@@ -52,11 +52,11 @@ describe('缺陷 1：機率一律是陽性類別的機率', () => {
 
   it('the single try-out says the probability of diagnosis＝1, whichever class was predicted', () => {
     expect(resultText(binary, { prediction: '0', probability: '0.94', note: 'diagnosis＝1 的機率 6%' })).toBe('diagnosis＝1 的機率 6%（模型預測為「0」）。');
-    expect(resultText(binary, { prediction: '1', probability: '0.83', positive: '0.83', note: 'diagnosis＝1 的機率 83%（glucose 缺值，已用訓練資料的中位數 100 補上）' }))
-      .toBe('diagnosis＝1 的機率 83%（模型預測為「1」）。glucose 缺值，已用訓練資料的中位數 100 補上。');
+    expect(resultText(binary, { prediction: '1', probability: '0.83', positive: '0.83', note: 'diagnosis＝1 的機率 83%（glucose 缺值，已用訓練集的中位數 100 補上）' }))
+      .toBe('diagnosis＝1 的機率 83%（模型預測為「1」）。glucose 缺值，已用訓練集的中位數 100 補上。');
     // 舊格式的說明欄（升級前的紀錄）也一樣換成陽性的機率
-    expect(resultText(binary, { prediction: '0', probability: '0.94', note: '預測為「0」的機率 94%（glucose 缺值，已用訓練資料的中位數補上）' }))
-      .toBe('diagnosis＝1 的機率 6%（模型預測為「0」）。glucose 缺值，已用訓練資料的中位數補上。');
+    expect(resultText(binary, { prediction: '0', probability: '0.94', note: '預測為「0」的機率 94%（glucose 缺值，已用訓練集的中位數補上）' }))
+      .toBe('diagnosis＝1 的機率 6%（模型預測為「0」）。glucose 缺值，已用訓練集的中位數補上。');
     expect(resultText(multi, { prediction: 'b', probability: '0.7', note: '預測為「b」的機率 70%' })).toBe('grade 預測為「b」的機率 70%。');
   });
 
@@ -87,17 +87,17 @@ describe('缺陷 1：機率一律是陽性類別的機率', () => {
 });
 
 describe('缺陷 2：送出訓練的訊息跟著狀態更新', () => {
-  it('replaces 「目前排隊中」 with 訓練中 and then 已完成', async () => {
+  it('replaces 「目前等待中」 with 訓練中 and then 已完成', async () => {
     seed('心臟科');
     const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「心臟科」' }));
     const id = trainingMock().runs[0].id;
-    expect(await screen.findByText(`已送出訓練 #${id}（心臟科），目前排隊中。`)).toBeInTheDocument();
+    expect(await screen.findByText(`已送出訓練 #${id}（心臟科），目前等待中。`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     expect(await screen.findByText(`訓練 #${id}（心臟科）訓練中，完成後會顯示結果。`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     expect(await screen.findByText(`訓練 #${id}（心臟科）已完成。`)).toBeInTheDocument();
-    expect(screen.queryByText(/目前排隊中/)).toBeNull();
+    expect(screen.queryByText(/目前等待中/)).toBeNull();
   });
 
   it('says so when the run fails', async () => {
@@ -108,7 +108,7 @@ describe('缺陷 2：送出訓練的訊息跟著狀態更新', () => {
     await user.click(await screen.findByRole('button', { name: '重新整理' }));
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(screen.getByText(`訓練 #${id}（會失敗的設定）失敗，原因在下方。`)).toBeInTheDocument());
-    expect(screen.queryByText(/目前排隊中/)).toBeNull();
+    expect(screen.queryByText(/目前等待中/)).toBeNull();
   });
 });
 
@@ -125,7 +125,7 @@ describe('缺陷 3：資料少時預選 K 折', () => {
     await user.click(await screen.findByRole('button', { name: '新增訓練設定' }));
     const form = await screen.findByRole('form', { name: '新增訓練設定' });
     await user.selectOptions(within(form).getByLabelText('訓練種類'), 'tabular_classification');
-    expect(within(form).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    expect(within(form).getByRole('radio', { name: '固定比例分群' })).toBeChecked();
     const option = await within(form).findByRole('option', { name: /^lung-clinical/ });
     const rows = Number(/（(\d+) 列）/.exec(option.textContent ?? '')![1]);
     await user.selectOptions(within(form).getByLabelText('資料集'), option);
@@ -134,11 +134,11 @@ describe('缺陷 3：資料少時預選 K 折', () => {
     expect(within(form).getByTestId('validation-suggestion')).toHaveTextContent(
       `這份資料只有 ${rows} 列（少於 1,000 列），已預選 K 折交叉驗證：每位病人都輪流當過檢查資料，分數比只切一次穩定。`);
     // 使用者自己改回固定比例：之後不再自動改
-    await user.click(within(form).getByRole('radio', { name: '固定比例切分' }));
+    await user.click(within(form).getByRole('radio', { name: '固定比例分群' }));
     expect(within(form).queryByTestId('validation-suggestion')).toBeNull();
     await user.selectOptions(within(form).getByLabelText('資料集'), '');
     await user.selectOptions(within(form).getByLabelText('資料集'), option);
-    expect(within(form).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    expect(within(form).getByRole('radio', { name: '固定比例分群' })).toBeChecked();
   });
 
   it('opening a saved fixed-split setting on small data keeps the fixed split', async () => {
@@ -147,7 +147,7 @@ describe('缺陷 3：資料少時預選 K 折', () => {
     await user.click(await screen.findByRole('button', { name: '修改「舊設定」' }));
     const edit = await screen.findByRole('form', { name: '修改訓練設定「舊設定」' });
     await within(edit).findByRole('option', { name: /^lung-clinical/ });
-    expect(within(edit).getByRole('radio', { name: '固定比例切分' })).toBeChecked();
+    expect(within(edit).getByRole('radio', { name: '固定比例分群' })).toBeChecked();
     expect(within(edit).queryByTestId('validation-suggestion')).toBeNull();
     await user.click(within(edit).getByRole('button', { name: '儲存設定' }));
     await screen.findByText('已儲存訓練設定「舊設定」的修改。');

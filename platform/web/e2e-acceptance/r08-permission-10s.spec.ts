@@ -23,13 +23,13 @@ async function raRow(admin: Page) {
 const training = (admin: Page) => admin.getByRole('group', { name: '權限' }).getByRole('checkbox', { name: /^Training/ });
 
 /**
- * 新版「送出測試工作」表單只有 Admin 看得到，研究者改以「建立模型 › 訓練紀錄」的「重新整理」驗證：
+ * 新版「送出測試工作」表單只有 Admin 看得到，研究者改以「建模管理 › 訓練紀錄」的「重新整理」驗證：
  * 該請求（GET /training/runs）需要 Training 權限，移除後立即被拒、加回後立即可讀。
  */
 const runsSection = (page: Page) => page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name: '訓練紀錄' }) });
 async function openRuns(page: Page) {
-  await clickMenu(page, '建模管理'); // 功能目錄 → 建模管理（新位置：建立模型／訓練紀錄）
-  await expect(page.getByRole('heading', { level: 1, name: '建立模型' })).toBeVisible();
+  await clickMenu(page, '建模管理'); // 功能目錄 → 建模管理（新位置：建模管理／訓練紀錄）
+  await expect(page.getByRole('heading', { level: 1, name: '建模管理' })).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: '訓練紀錄' })).toBeVisible();
 }
 const refreshRuns = (page: Page) => runsSection(page).getByRole('button', { name: '重新整理', exact: true }).click();
@@ -81,7 +81,7 @@ test('M1 補拍 08 權限 10 秒內生效（TC-A03-06）', async ({ browser }) =
   await login(admin, 'admin01');
   const p1 = psql(`select id from projects where name='${P1}'`);
   try {
-    // 1 視窗 B：開啟建立模型 › 訓練紀錄
+    // 1 視窗 B：開啟建模管理 › 訓練紀錄
     await login(ra, 'ra01');
     await useProject(ra);
     await openRuns(ra);
@@ -114,11 +114,11 @@ test('M1 補拍 08 權限 10 秒內生效（TC-A03-06）', async ({ browser }) =
 
     // 6 F5
     await ra.reload();
-    await expect(ra.getByText(`你在專案「${P1}」沒有 Training 權限，無法使用「建立模型」。`)).toBeVisible();
-    await shot(ra, TC, '06-ra01重新整理-建立模型被拒');
+    await expect(ra.getByText(`你在專案「${P1}」沒有 Training 權限，無法使用「建模管理」。`)).toBeVisible();
+    await shot(ra, TC, '06-ra01重新整理-建模管理被拒');
     const m0 = await menuLabels(ra);
     await shot(ra, TC, '06-2-ra01功能目錄無建模管理');
-    note(TC, `重新整理後選單：${m0.join('、')}；頁面「你在專案「${P1}」沒有 Training 權限，無法使用「建立模型」。」`);
+    note(TC, `重新整理後選單：${m0.join('、')}；頁面「你在專案「${P1}」沒有 Training 權限，無法使用「建模管理」。」`);
     let diff = m0.join() === MENU_WITHOUT.join() ? 0 : 1;
 
     // 7 重新登入 3 次（移除狀態）

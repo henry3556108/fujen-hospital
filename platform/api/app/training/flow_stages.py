@@ -77,7 +77,7 @@ def readme(setting: TrainingSetting, stage: str) -> str:
 | `{LOCAL_ONLY[stage]}` | 只供在自己的電腦使用，匯入平台時不會讀取 |
 | `stage.json` | 描述檔，請勿修改 |
 
-修改後整個資料夾重新壓成 zip，到平台「建模管理」→ 訓練設定的「流程程式碼」→「{stages.STAGE_NAMES[stage]}」→「上傳環節檔」。
+修改後整個資料夾重新壓成 zip，到平台「建模管理」→ 訓練設定的「各階段處理程式碼」→「{stages.STAGE_NAMES[stage]}」→「上傳階段檔」。
 """
 
 

@@ -1,4 +1,4 @@
-// 影像運算（純函式，不碰 DOM）：窗位、器官窗、旋轉與座標轉換、RLE。
+// 影像運算（純函式，不碰 DOM）：WC、預設器官數值、旋轉與座標轉換、RLE。
 
 export interface WindowSetting {
   center: number;
@@ -12,7 +12,7 @@ export interface WindowPreset extends WindowSetting {
   hotkey: string;
 }
 
-/** 預設器官窗（CT，單位 HU）。驗收要求不少於 3 組。 */
+/** 預設器官數值（CT，單位 HU）。驗收要求不少於 3 組。 */
 export const WINDOW_PRESETS: readonly WindowPreset[] = [
   { key: 'soft-tissue', label: '軟組織窗', hotkey: '1', center: 40, width: 400 },
   { key: 'lung', label: '肺窗', hotkey: '2', center: -600, width: 1500 },
@@ -46,7 +46,7 @@ export interface PixelModule {
   intercept: number;
 }
 
-/** DICOM PS3.3 C.11.2.1.2 線性窗位：回傳 0–255 的灰階。 */
+/** DICOM PS3.3 C.11.2.1.2 線性 WC：回傳 0–255 的灰階。 */
 export function windowedGray(value: number, w: WindowSetting): number {
   const width = Math.max(1, w.width);
   const low = w.center - 0.5 - (width - 1) / 2;
@@ -56,7 +56,7 @@ export function windowedGray(value: number, w: WindowSetting): number {
   return Math.round(((value - (w.center - 0.5)) / (width - 1) + 0.5) * 255);
 }
 
-/** 原始像素 → RGBA（套用 Rescale、窗位、反相）。 */
+/** 原始像素 → RGBA（套用 Rescale、WC、反相）。 */
 export function renderGray(
   pixels: ArrayLike<number>,
   module: PixelModule,
@@ -76,7 +76,7 @@ export function renderGray(
   return out;
 }
 
-/** 中繼資料沒有窗位時的預設值：CT 用軟組織窗，其餘取像素值的最小到最大。 */
+/** 中繼資料沒有 WC 時的預設值：CT 用軟組織窗，其餘取像素值的最小到最大。 */
 export function defaultWindow(modality: string, pixels: ArrayLike<number>, module: PixelModule): WindowSetting {
   if (modality === 'CT') return { center: 40, width: 400 };
   let min = Infinity;

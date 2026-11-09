@@ -35,7 +35,7 @@ test.describe('Account 與 Dashboard', () => {
     await page.goto('/');
     await page.getByRole('navigation', { name: '功能選單' }).getByRole('link', { name: '帳號管理' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard（系統總覽）' })).toBeVisible();
-    const overview = page.getByRole('list', { name: '平台總覽' });
+    const overview = page.getByRole('list', { name: 'Dashboard' });
     const value = (label: string) =>
       overview.getByRole('listitem').filter({ has: page.locator('.stat-tile__label', { hasText: new RegExp(`^${label}$`) }) }).locator('.stat-tile__value');
     await expect(value('帳號')).toHaveText('8');

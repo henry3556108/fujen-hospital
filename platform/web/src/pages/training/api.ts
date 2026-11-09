@@ -41,7 +41,7 @@ export interface CatalogueKind {
   source_types: ('dicom' | 'files' | 'tabular')[];
   hyperparameters?: ParamSpec[];
   algorithms?: { name: string; hyperparameters: ParamSpec[] }[];
-  /** 結構式才有：固定比例切分、K 折交叉驗證 */
+  /** 結構式才有：固定比例分群、K 折交叉驗證 */
   validation_methods?: ValidationMethod[];
 }
 
@@ -80,7 +80,7 @@ export interface TrainingConfig {
   label_dataset_id?: number | null;
   split: Split;
   seed: number;
-  /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例切分 */
+  /** 結構式的驗證方式；舊設定沒有這個欄位＝固定比例分群 */
   validation?: Validation;
   image?: { resize: [number, number] | number[]; labels: string[] | null };
   /** missing：缺值處理（impute 補值、drop 不使用有缺值的病人）；沒有＝drop */
@@ -99,7 +99,7 @@ export interface TrainingSetting {
   updated_by: string;
   created_at: string;
   updated_at: string;
-  /** 由匯入檔控制的環節（只有訓練設定清單會帶） */
+  /** 由匯入檔控制的階段（只有訓練設定清單會帶） */
   locked_stages?: StageId[];
 }
 
@@ -127,11 +127,11 @@ export interface TrainingRun {
   finished_at: string | null;
   custom_source: boolean;
   model_id: number | null;
-  /** 送出時由匯入檔控制的環節（流程程式碼）；沒有則為空 */
+  /** 送出時由匯入檔控制的階段（各階段處理程式碼）；沒有則為空 */
   imported_stages?: StageId[];
   /** 使用的標註資料集與版本（第二期；舊訓練、結構式為 null） */
   label_dataset?: { id: number; name: string; version: number } | null;
-  /** 測試資料筆數（第二期；不知道時為 null） */
+  /** 測試集筆數（第二期；不知道時為 null） */
   test_count?: number | null;
 }
 
@@ -154,7 +154,7 @@ export interface LabelDataset {
   latest_version: { version: number; created_at: string; created_by: string; annotations: number; by_class: Record<string, number> } | null;
 }
 
-/** 流程程式碼（錄製巨集）的環節：資料匯入、標註、資料清理與前處理、訓練、部署。
+/** 各階段處理程式碼（錄製巨集）的階段：資料匯入、標註、資料清理與前處理、訓練、部署。
  * 標註、前處理、訓練有程式檔（需要 Coding 權限）；資料匯入與部署只有設定檔。 */
 export type StageId = 'import' | 'labels' | 'preprocess' | 'train' | 'deploy';
 
@@ -178,7 +178,7 @@ export interface StageEntry {
   entrypoints: Record<string, string[]>;
   /** 由匯入檔控制時的匯入資訊；介面控制時為 null */
   locked: StageLock | null;
-  /** 與其他環節合併後的問題（需要處理） */
+  /** 與其他階段合併後的問題（需要處理） */
   problem: string | null;
 }
 
@@ -200,13 +200,13 @@ export interface StageView {
   name: string;
   kind: TrainingKind;
   files: Record<string, string>;
-  /** 平台預設程式；只有設定檔的環節為空字串 */
+  /** 平台預設程式；只有設定檔的階段為空字串 */
   default_code: string;
   code?: boolean;
   locked: StageLock | null;
 }
 
-/** 部署由匯入的 deploy.json 控制時（分享對象不能在部署頁修改） */
+/** 部署由匯入的 deploy.json 控制時（授權帳號不能在部署頁修改） */
 export interface DeploymentLock {
   sha256: string;
   files: Record<string, string>;
@@ -243,7 +243,7 @@ export interface PackagePlan {
   mapping?: PackageMapping;
 }
 
-/** 專案包的資料對應選擇：結構式選資料集；影像選全部研究或研究清單 */
+/** 專案包的資料對應選擇：結構式選資料集；影像選全部影像或研究清單 */
 export interface PackageChoice {
   datasetId?: number | null;
   studies?: 'all' | string[] | null;
@@ -276,7 +276,7 @@ export interface Deployment {
   created_at: string;
 }
 
-/** 試呼叫線上推論的回應（照 service.online_predict）：結構式回 predictions，影像回 results。 */
+/** 線上推論測試線上推論的回應（照 service.online_predict）：結構式回 predictions，影像回 results。 */
 export interface OnlinePrediction {
   inference_id: number;
   deployment: string;
@@ -342,7 +342,7 @@ export interface TrainingApi {
   run(id: number): Promise<TrainingRun>;
   cancel(id: number): Promise<TrainingRun>;
   rerun(id: number): Promise<TrainingRun>;
-  /** 暫存排隊中的訓練（移出佇列，稍後恢復排隊） */
+  /** 暫存等待中的訓練（移出佇列，稍後恢復排隊） */
   hold(id: number): Promise<TrainingRun>;
   /** 恢復排隊：排到佇列最後 */
   resume(id: number): Promise<TrainingRun>;
@@ -359,7 +359,7 @@ export interface TrainingApi {
   deploy(body: { model_id: number; name?: string; title?: string; allowed_users: string[] }): Promise<Deployment>;
   setAccess(id: number, users: string[]): Promise<Deployment>;
   undeploy(id: number): Promise<void>;
-  /** 以目前登入的帳號試呼叫部署的線上端點：結構式送 JSON rows，影像上傳檔案 */
+  /** 以目前登入的帳號線上推論測試部署的線上端點：結構式送 JSON rows，影像上傳檔案 */
   callDeployment(endpoint: string, input: { rows: Record<string, unknown>[] } | File[]): Promise<OnlinePrediction>;
   studies(): Promise<Study[]>;
   datasets(): Promise<Dataset[]>;
@@ -370,7 +370,7 @@ export interface TrainingApi {
   distinct(datasetId: number, column: string): Promise<number>;
   /** 套用前處理步驟後的欄位（名稱、型態、缺值數）；不改動資料集 */
   processedColumns(datasetId: number, steps: Step[]): Promise<ColumnInfo[]>;
-  /** 流程程式碼：各環節由介面或匯入檔控制 */
+  /** 各階段處理程式碼：各階段由介面或匯入檔控制 */
   stages(settingId: number): Promise<StageOverview>;
   stageView(settingId: number, stage: StageId): Promise<StageView>;
   /** 網頁編輯後套用（設定檔與程式檔的文字） */
@@ -385,7 +385,7 @@ export interface TrainingApi {
   packageCheck(file: File, choice: PackageChoice): Promise<PackagePlan>;
   /** 匯入專案包：建立新的訓練設定 */
   packageImport(file: File, choice: PackageChoice): Promise<PackageImported>;
-  /** 標註資料集（建立訓練精靈選資料用） */
+  /** 標註資料集（建立訓練任務精靈選資料用） */
   labelDatasets(): Promise<LabelDataset[]>;
 }
 

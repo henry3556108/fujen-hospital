@@ -122,8 +122,8 @@ describe('label datasets', () => {
     const named = labelingMock().datasets.find((d) => d.name === 'diagnosis')!;
     expect(named.classes).toEqual(['nodule', 'normal']);
     expect(within(result).getByRole('link', { name: '查看這份標註資料集' })).toHaveAttribute('href', `/labeling/datasets/${named.id}`);
-    // md01 沒有 Training 權限：不給「用這份資料建立模型」
-    expect(within(result).queryByRole('link', { name: /用這份資料建立模型/ })).toBeNull();
+    // md01 沒有 Training 權限：不給「用這份資料建立訓練任務」
+    expect(within(result).queryByRole('link', { name: /用這份資料建立訓練任務/ })).toBeNull();
     // 第一次有分類標註時，系統也自動建了專案的分類資料集
     await waitFor(() => expect(screen.getByRole('table', { name: '標註資料集' })).toHaveTextContent('分類標註'));
   });
@@ -137,7 +137,7 @@ describe('label datasets', () => {
     await user.click(screen.getByRole('button', { name: '匯入' }));
     const result = await screen.findByTestId('csv-result');
     const named = labelingMock().datasets.find((d) => d.name === 'dx')!;
-    expect(within(result).getByRole('link', { name: '下一步：用這份資料建立模型' })).toHaveAttribute('href', `/training/new?labelDataset=${named.id}`);
+    expect(within(result).getByRole('link', { name: '下一步：用這份資料建立訓練任務' })).toHaveAttribute('href', `/training/new?labelDataset=${named.id}`);
   });
 
   it('CSV without the needed columns shows the server message', async () => {
@@ -179,10 +179,10 @@ describe('label datasets', () => {
     // CSV 匯入的標註是已確認
     expect(within(items).getByRole('row', { name: /ACC0002.*CSV 匯入.*normal.*已確認/ })).toBeInTheDocument();
     // ra01 有 Training 權限
-    expect(screen.getByRole('link', { name: '用這份資料建立模型' })).toHaveAttribute('href', expect.stringMatching(/^\/training\/new\?labelDataset=\d+$/));
+    expect(screen.getByRole('link', { name: '用這份資料建立訓練任務' })).toHaveAttribute('href', expect.stringMatching(/^\/training\/new\?labelDataset=\d+$/));
   });
 
-  it('without Training permission the dataset page has no 建立模型 button', async () => {
+  it('without Training permission the dataset page has no 建模管理 button', async () => {
     studyLabel('abnormal');
     labelingMock().datasets.push({
       id: 77, project_id: 1, name: 'md 資料集', task: 'classification', scope_id: null, classes: [], created_by: 'md01',
@@ -190,8 +190,8 @@ describe('label datasets', () => {
     } as never);
     await renderArea('/labeling/datasets/77', 'md01');
     await screen.findByTestId('dataset-summary');
-    expect(screen.queryByRole('link', { name: '用這份資料建立模型' })).toBeNull();
-    expect(screen.getByText(/建立模型需要 Training 權限/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '用這份資料建立訓練任務' })).toBeNull();
+    expect(screen.getByText(/建模管理需要 Training 權限/)).toBeInTheDocument();
   });
 
   it('F5 the version picker shows an old version summary and says the items are the current content', async () => {
@@ -269,22 +269,22 @@ describe('workbench', () => {
     const { user } = await openWorkbench();
     const toolbar = screen.getByRole('toolbar', { name: '檢視工具列' });
     // 設計稿 A03 的工具列
-    for (const name of ['移動', '放大', '窗位', '圈選', '塗抹', '復原', '更多工具']) {
+    for (const name of ['移動', '放大', 'WW/WC', '圈選', '塗抹', '復原', '更多工具']) {
       expect(within(toolbar).getByRole('button', { name })).toBeInTheDocument();
     }
-    // 器官窗與 WW/WL 收在「窗位」選單
-    await user.click(within(toolbar).getByRole('button', { name: '窗位' }));
-    const presets = within(within(toolbar).getByRole('group', { name: '器官窗' })).getAllByRole('button');
+    // 預設器官數值與 WW/WL 收在「WC」選單
+    await user.click(within(toolbar).getByRole('button', { name: 'WW/WC' }));
+    const presets = within(within(toolbar).getByRole('group', { name: '預設器官數值' })).getAllByRole('button');
     expect(presets.length).toBeGreaterThanOrEqual(3);
 
     await user.click(within(toolbar).getByRole('button', { name: '肺窗' }));
-    await status('肺窗：窗寬 1500、窗位 -600');
+    await status('肺窗：WW 1500、WC -600');
     expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-window-width', '1500');
     expect(within(toolbar).getByRole('button', { name: '肺窗' })).toHaveAttribute('aria-pressed', 'true');
 
     // 排列、旋轉收在「更多工具」
     await user.click(within(toolbar).getByRole('button', { name: '更多工具' }));
-    expect(within(toolbar).queryByRole('group', { name: '器官窗' })).toBeNull();
+    expect(within(toolbar).queryByRole('group', { name: '預設器官數值' })).toBeNull();
     await user.click(within(toolbar).getByRole('button', { name: '向右轉 90°' }));
     expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-rotation', '90');
     await user.click(within(toolbar).getByRole('button', { name: '向左轉 90°' }));
@@ -295,13 +295,13 @@ describe('workbench', () => {
     expect(screen.getByTestId('viewport-grid')).toHaveAttribute('data-layout', '2x2');
     expect(screen.getAllByTestId('viewport')).toHaveLength(3); // 這個序列只有 3 張
 
-    await user.click(within(toolbar).getByRole('button', { name: '窗位' }));
-    await user.clear(within(toolbar).getByLabelText('窗寬 WW'));
-    await user.type(within(toolbar).getByLabelText('窗寬 WW'), '350');
-    await user.clear(within(toolbar).getByLabelText('窗位 WL'));
-    await user.type(within(toolbar).getByLabelText('窗位 WL'), '50');
+    await user.click(within(toolbar).getByRole('button', { name: 'WW/WC' }));
+    await user.clear(within(toolbar).getByLabelText('WW'));
+    await user.type(within(toolbar).getByLabelText('WW'), '350');
+    await user.clear(within(toolbar).getByLabelText('WC'));
+    await user.type(within(toolbar).getByLabelText('WC'), '50');
     await user.click(within(toolbar).getByRole('button', { name: '套用' }));
-    await status('窗寬 350、窗位 50');
+    await status('WW 350、WC 50');
     expect(screen.getAllByTestId('viewport')[0]).toHaveAttribute('data-window-center', '50');
   });
 
@@ -311,7 +311,7 @@ describe('workbench', () => {
     const press = (key: string) => fireEvent.keyDown(document.body, { key });
     const viewport = () => screen.getAllByTestId('viewport')[0];
 
-    press('2'); // 器官窗
+    press('2'); // 預設器官數值
     await status('肺窗');
     expect(viewport()).toHaveAttribute('data-window-center', '-600');
     press('r'); // 旋轉
@@ -498,7 +498,7 @@ describe('workbench', () => {
 
   it('a study outside the project shows a clear message', async () => {
     await renderArea('/labeling/studies/1.2.3.404', 'md01');
-    expect(await screen.findByText('你沒有權限檢視這個研究，或研究不在本專案的 Accession 清單內')).toBeInTheDocument();
+    expect(await screen.findByText('你沒有權限檢視這個研究，或研究不在本專案的 Accession Number 清單內')).toBeInTheDocument();
   });
 });
 
@@ -510,15 +510,15 @@ describe('auto labeling', () => {
     await user.selectOptions(screen.getByLabelText('模型'), 'fake_detection');
     await user.click(screen.getByRole('button', { name: '送出自動標註' }));
     const result = await screen.findByTestId('autolabel-result');
-    expect(result).toHaveTextContent('已存為偵測標註 #1');
+    expect(result).toHaveTextContent('已存為物件偵測標註 #1');
     const runs = await screen.findByRole('table', { name: '自動標註執行紀錄' });
-    expect(within(runs).getByRole('row', { name: /#1.*fake_detection.*偵測.*md01/ })).toBeInTheDocument();
+    expect(within(runs).getByRole('row', { name: /#1.*fake_detection.*物件偵測.*md01/ })).toBeInTheDocument();
     expect(within(result).getByRole('link', { name: '在標註工作台開啟編輯' })).toHaveAttribute(
       'href', `/labeling/studies/${STUDY.study_instance_uid}?annotation=1`);
 
     unmount();
     const opened = await openWorkbench('md01', `${workbench}?annotation=1`);
-    await status('編輯標註 #1（偵測，自動標註，待確認');
+    await status('編輯標註 #1（物件偵測，自動標註，待確認');
     const boxes = within(screen.getByRole('list', { name: '草稿中的框' })).getAllByRole('listitem');
     expect(boxes).toHaveLength(2);
     await opened.user.click(screen.getByRole('button', { name: '刪除第 2 個框' }));

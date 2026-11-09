@@ -1,4 +1,4 @@
-// 模型名稱：顯示名稱（分享時取的名稱）在前，模型名稱（技術名稱）以小字附在後面。
+// 模型名稱：顯示名稱（部署時取的名稱）在前，模型名稱（技術名稱）以小字附在後面。
 import './inference.css';
 import { displayName, technicalName, type Model } from './api';
 

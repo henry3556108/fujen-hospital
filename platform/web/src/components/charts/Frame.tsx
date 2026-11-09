@@ -36,7 +36,7 @@ export function ChartFrame({
   description: string;
   legend?: LegendItem[];
   table: TableView;
-  /** 標題下的一行說明（例如散佈圖的點數） */
+  /** 標題下的一行說明（例如 Scatter Chart 的點數） */
   note?: string;
   /** SVG 的高度（viewBox）；預設 H，旋轉的軸標籤或橫條圖需要更高 */
   height?: number;

@@ -1,4 +1,4 @@
-// 建立模型的各頁：訓練紀錄（首頁）、單次訓練（/training/runs/:runId）、程式與專案包（/training/code，需要 Coding）。
+// 建模管理的各頁：訓練紀錄（首頁）、單次訓練（/training/runs/:runId）、原始程式碼與專案包（/training/code，需要 Coding）。
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -12,7 +12,7 @@ import { StagesPanel } from './StagesPanel';
 import { stageNames } from './stages';
 import { LegacyDatasetRedirect, submittedNotice } from './TrainingPage';
 
-/** 訓練紀錄（建立模型首頁）。測試工作表單已搬到系統管理 › 運算資源。 */
+/** 訓練紀錄（建模管理首頁）。測試工作表單已搬到管理後台 › 運算資源。 */
 export function TrainingHome() {
   const api = useTrainingApi();
   if (!api) return null;
@@ -23,7 +23,7 @@ export function TrainingHome() {
   );
 }
 
-/** 單次訓練：狀態、排隊位置、取消、日誌；完成後結果與「前往使用模型」；依原版本重跑；另存設定。 */
+/** 單次訓練：狀態、排隊位置、取消、日誌；完成後結果與「前往模型部署與推論服務」；依原版本重跑；另存設定。 */
 export function RunPage() {
   const api = useTrainingApi();
   const { runId } = useParams();
@@ -71,7 +71,7 @@ export function RunPage() {
   );
 }
 
-/** 程式與專案包：選一份已存設定看流程程式碼（匯出、修改、匯入），以及匯入專案包。 */
+/** 原始程式碼與專案包：選一份訓練設定看各階段處理程式碼（匯出、修改、匯入），以及匯入專案包。 */
 export function CodePage() {
   const api = useTrainingApi();
   const canCode = useHasPermission('coding');
@@ -99,28 +99,28 @@ export function CodePage() {
                 </button>
               </div>
             ) : (
-              <Alert tone="info">修改程式與匯入專案包需要 Coding 權限；沒有時仍可查看各環節由誰控制，並改回用介面設定。</Alert>
+              <Alert tone="info">修改程式與匯入專案包需要 Coding 權限；沒有時仍可查看各階段由誰控制，並改回用介面設定。</Alert>
             )}
             <p className="trn-source">
-              匯入別的環境匯出的專案包，會建立一份新的訓練設定。要匯出，先在左邊選一份已存設定。
+              匯入別的環境匯出的專案包，會建立一份新的訓練設定。要匯出，先在左邊選一份訓練設定。
             </p>
           </SidePanel>
         }
       >
-        <Card title="流程程式碼">
+        <Card title="各階段處理程式碼">
           <p className="text-muted">
-            每份已存設定都有一組流程程式碼（資料匯入、標註、前處理、訓練、部署）。可以匯出修改後再匯入，或匯出整個專案包到別的環境重現研究。
+            每份訓練設定都有一組各階段處理程式碼（資料匯入、標註、前處理、訓練、部署）。可以匯出修改後再匯入，或匯出整個專案包到別的環境重現研究。
           </p>
           {notice ? <Alert tone="success">{notice}</Alert> : null}
           <ApiErrorAlert error={settings.error} />
           {settings.data && settings.data.length === 0 ? (
             <p className="text-muted">
-              還沒有已存設定。先<Link to="/training/new">建立訓練</Link>，或匯入專案包。
+              還沒有訓練設定。先<Link to="/training/new">建立訓練任務</Link>，或匯入專案包。
             </p>
           ) : null}
           {settings.data && settings.data.length > 0 ? (
             <div className="field">
-              <label htmlFor="code-setting">已存設定</label>
+              <label htmlFor="code-setting">訓練設定</label>
               <select id="code-setting" className="select" value={chosen ?? ''} onChange={(e) => choose(Number(e.target.value) || null)}>
                 <option value="">請選擇</option>
                 {settings.data.map((s) => (
@@ -132,7 +132,7 @@ export function CodePage() {
             </div>
           ) : null}
           {settings.data && settings.data.length > 0 && !setting ? (
-            <EmptyState icon="doc" title="先選一份已存設定" description="選好後下方會列出五個環節，可以檢視、下載或上傳各環節的程式碼與設定檔，也能匯出整個專案包。" />
+            <EmptyState icon="doc" title="先選一份訓練設定" description="選好後下方會列出五個階段，可以檢視、下載或上傳各階段的程式碼與設定檔，也能匯出整個專案包。" />
           ) : null}
         </Card>
       </SplitLayout></div>
@@ -141,7 +141,7 @@ export function CodePage() {
           onImported={(out) => {
             setImporting(false);
             setNotice(`已匯入專案包，建立訓練設定「${out.setting.name}」。${mappingText(out.mapping)}` +
-              (out.locked.length ? `由匯入檔控制的環節：${stageNames(out.locked)}。` : '') +
+              (out.locked.length ? `由匯入檔控制的階段：${stageNames(out.locked)}。` : '') +
               (out.problem ? `需要處理：${out.problem}` : '可以送出訓練。'));
             settings.reload();
             choose(out.setting.id);

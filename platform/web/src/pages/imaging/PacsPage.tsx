@@ -79,7 +79,7 @@ export function PacsPage({ embedded = false }: { embedded?: boolean }) {
   return (
     <>
       {!embedded && <h2>PACS 查詢取像</h2>}
-      <p className="text-muted">專案有影像存取清單時，只會列出清單內的影像。</p>
+      <p className="text-muted">專案有 Accession Number 清單時，只會列出清單內的影像。</p>
       <form aria-label="查詢 PACS" className="card" onSubmit={query} noValidate>
         <ApiErrorAlert error={error} />
         <div className="form-grid">

@@ -142,22 +142,22 @@ export class Scenario {
 
 // ---------------------------------------------------------------- 網頁操作
 
-/** 舊分頁名稱 → 改版後「語言模型」的分頁名稱 */
+/** 舊分頁名稱 → 改版後「大型語言模型」的分頁名稱 */
 const LLM_TAB_NEW: Record<string, string> = {
-  Playground: '對話',
+  Playground: 'LLM Playground',
   模型管理: '模型',
-  'Prompt 範本': '問答範本',
-  知識庫: '參考文件',
+  'Prompt 範本': 'Prompt Template',
+  知識庫: 'RAG 知識庫',
   '發布 API': '內部服務',
-  工作流: '工作流程',
-  Wiki: '團隊文件',
+  工作流: 'LangGraph 工作流',
+  Wiki: 'Wiki 知識庫',
 };
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** 語言模型頁內分頁的 navigation 名稱（新舊都認得） */
-const LLM_NAV = /LLM 功能分頁|語言模型/;
+/** 大型語言模型頁內分頁的 navigation 名稱（新舊都認得） */
+const LLM_NAV = /LLM 功能分頁|大型語言模型/;
 
 /**
- * 語言模型的頁內分頁（沿用舊分頁名稱呼叫；新舊名稱都認得）。
+ * 大型語言模型的頁內分頁（沿用舊分頁名稱呼叫；新舊名稱都認得）。
  * 不在 /llm 時先從「功能目錄」點契約入口「LLM No-code 開發」進入。
  */
 export async function llmTab(page: Page, tab: string) {
@@ -169,7 +169,7 @@ export async function llmTab(page: Page, tab: string) {
   await page.waitForLoadState('networkidle');
 }
 
-/** 管理區「稽核與審核」→「模型下載審核」：語言模型下載申請的待審核表格 */
+/** 管理區「稽核與審核」→「模型下載審核」：LLM 模型下載申請的待審核表格 */
 export async function llmApprovals(page: Page) {
   await adminTab(page, '模型下載審核');
   return page.getByRole('table', { name: '待審核的下載申請' });

@@ -1,4 +1,4 @@
-// 單一影像視窗：把原始像素套上窗位、旋轉後畫到 canvas，再疊上標註。
+// 單一影像視窗：把原始像素套上 WC、旋轉後畫到 canvas，再疊上標註。
 // 滑鼠在畫布上的位置會換算回影像座標，交給上層處理（畫框、塗遮罩）。
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { ANNOTATION_COLOR_COUNT, annotationRgb, css, readToken } from './colors';
@@ -15,7 +15,7 @@ import {
 } from './imaging';
 import type { DetectionBox } from './types';
 
-/** none＝不動作；pan／zoom／window＝拖曳移動、縮放、調窗位；box／brush／erase＝標註 */
+/** none＝不動作；pan／zoom／window＝拖曳移動、縮放、調 WC；box／brush／erase＝標註 */
 export type Tool = 'none' | 'pan' | 'zoom' | 'window' | 'box' | 'brush' | 'erase';
 
 const NAV_TOOLS: readonly Tool[] = ['pan', 'zoom', 'window'];
@@ -62,12 +62,12 @@ export interface ViewportProps {
   /** 筆刷按下、開始新的一筆之前（給「復原」記下目前草稿） */
   onStrokeStart?: () => void;
   onWindow?: (w: WindowSetting) => void;
-  /** 縮放倍率（1＝剛好放進視窗）與位移（視窗寬高的百分比），所有視窗共用 */
+  /** 縮放倍率（1＝剛好放進視窗）與位移（視 WW 高的百分比），所有視窗共用 */
   zoom?: number;
   pan?: [number, number];
   onZoom?: (zoom: number) => void;
   onPan?: (pan: [number, number]) => void;
-  /** 用「窗位」工具拖曳時的新窗位 */
+  /** 用「WC」工具拖曳時的新 WC */
   onWindowDrag?: (w: WindowSetting) => void;
 }
 
@@ -120,7 +120,7 @@ export function Viewport(props: ViewportProps) {
     return pixels ? defaultWindow(instance.modality, pixels, module) : null;
   }, [windowSetting, instance, pixels, module]);
 
-  // 讓上層知道目前實際使用的窗位（沒指定時是預設值），工具列才顯示得出數字
+  // 讓上層知道目前實際使用的 WC（沒指定時是預設值），工具列才顯示得出數字
   const { onWindow } = props;
   useEffect(() => {
     if (active && !windowSetting && effective) onWindow?.(effective);
@@ -254,7 +254,7 @@ export function Viewport(props: ViewportProps) {
     if (tool === 'pan') props.onPan?.([g.pan[0] + (dx / g.width) * 100, g.pan[1] + (dy / g.height) * 100]);
     else if (tool === 'zoom') props.onZoom?.(Math.min(MAX_ZOOM, Math.max(1, g.zoom * Math.exp(-dy / 150))));
     else if (tool === 'window' && g.window) {
-      // 左右拖曳改窗寬、上下拖曳改窗位，幅度依目前窗寬
+      // 左右拖曳改 WW、上下拖曳改 WC，幅度依目前 WW
       props.onWindowDrag?.({
         center: g.window.center + (dy / g.height) * g.window.width,
         width: Math.max(1, g.window.width + (dx / g.width) * g.window.width * 2),
@@ -308,7 +308,7 @@ export function Viewport(props: ViewportProps) {
   }
 
   const description = effective
-    ? `第 ${props.position} 張，窗寬 ${Math.round(effective.width)}、窗位 ${Math.round(effective.center)}，旋轉 ${rotation} 度${invert ? '，反相' : ''}${zoom > 1.001 ? `，放大 ${zoom.toFixed(1)} 倍` : ''}`
+    ? `第 ${props.position} 張，WW ${Math.round(effective.width)}、WC ${Math.round(effective.center)}，旋轉 ${rotation} 度${invert ? '，反相' : ''}${zoom > 1.001 ? `，放大 ${zoom.toFixed(1)} 倍` : ''}`
     : `第 ${props.position} 張`;
 
   return (

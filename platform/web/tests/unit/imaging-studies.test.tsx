@@ -17,7 +17,7 @@ async function loaded(count: number) {
   await screen.findByText(new RegExp(`^共 ${count} 筆影像`));
 }
 
-describe('研究資料入口', () => {
+describe('數據管理入口', () => {
   it('/data opens the image list', async () => {
     await renderApp('/data', 'vw01');
     expect(await screen.findByRole('heading', { level: 2, name: '影像清單' })).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe('研究列表', () => {
     await loaded(6);
     const r = await rows();
     expect(r).toHaveLength(6);
-    // 影像編號（含縮圖）、檢查日期、影像種類、檢查描述、序列描述、病歷號、性別、序列數、影像數
+    // 影像編號（含縮圖）、Study Date、Modality、Study Description、Series Description、病歷號、性別、序列數、影像數
     expect(r[0].slice(0, 9)).toEqual([
       'ACC0011', '2024-01-05', 'CT', 'CT CHEST WO CONTRAST', 'AXIAL 5MM SOFT TISSUE', 'PAT0011', '女', '1', '4',
     ]);
@@ -45,15 +45,15 @@ describe('研究列表', () => {
   });
 
   const cases: [string, (u: ReturnType<typeof import('@testing-library/user-event').default.setup>) => Promise<void>, string, (r: string[]) => boolean, number][] = [
-    ['Modality', async (u) => u.selectOptions(screen.getByLabelText('影像種類（Modality）'), 'MR'), 'modality=MR', (r) => r[2] === 'MR', 2],
-    ['性別', async (u) => u.selectOptions(screen.getByLabelText('性別'), 'F'), 'patient_sex=F', (r) => r[6] === '女', 3],
-    ['Study Description', async (u) => u.type(screen.getByLabelText(/^檢查描述/), 'chest'), 'study_description=chest', (r) => /CHEST/.test(r[3]), 3],
-    ['Series Description', async (u) => u.type(screen.getByLabelText(/^序列描述/), 'lung'), 'series_description=lung', (r) => /LUNG/.test(r[4]), 2],
+    ['Modality', async (u) => u.selectOptions(screen.getByLabelText('Modality'), 'MR'), 'modality=MR', (r) => r[2] === 'MR', 2],
+    ['性別', async (u) => u.selectOptions(screen.getByLabelText("Patient's Sex"), 'F'), 'patient_sex=F', (r) => r[6] === '女', 3],
+    ['Study Description', async (u) => u.type(screen.getByLabelText(/^Study Description/), 'chest'), 'study_description=chest', (r) => /CHEST/.test(r[3]), 3],
+    ['Series Description', async (u) => u.type(screen.getByLabelText(/^Series Description/), 'lung'), 'series_description=lung', (r) => /LUNG/.test(r[4]), 2],
     [
       'Study Date',
       async (u) => {
-        await u.type(screen.getByLabelText('檢查日期起'), '2024-03-01');
-        await u.type(screen.getByLabelText('檢查日期迄'), '2024-05-31');
+        await u.type(screen.getByLabelText('Study Date 起'), '2024-03-01');
+        await u.type(screen.getByLabelText('Study Date 迄'), '2024-05-31');
       },
       'study_date=20240301-20240531',
       (r) => r[1] >= '2024-03-01' && r[1] <= '2024-05-31',
@@ -82,12 +82,12 @@ describe('研究列表', () => {
   it('filters combine, survive a reload through the URL, and can be cleared', async () => {
     const first = await renderApp('/data/imaging?modality=CT&patient_sex=M', 'vw01');
     await loaded(2);
-    expect(screen.getByLabelText('影像種類（Modality）')).toHaveValue('CT');
-    expect(screen.getByLabelText('性別')).toHaveValue('M');
+    expect(screen.getByLabelText('Modality')).toHaveValue('CT');
+    expect(screen.getByLabelText("Patient's Sex")).toHaveValue('M');
     expect((await rows()).map((r) => r[0])).toEqual(['ACC0012', 'ACC0015']);
     await first.user.click(screen.getByRole('button', { name: '清除篩選' }));
     await loaded(6);
-    expect(screen.getByLabelText('影像種類（Modality）')).toHaveValue('');
+    expect(screen.getByLabelText('Modality')).toHaveValue('');
   });
 
   it('a filter with no match says so', async () => {
@@ -171,7 +171,7 @@ describe('研究列表分頁', () => {
     const { user } = await renderApp('/data/imaging?modality=CT&page=3', 'vw01');
     await screen.findByText('共 120 筆影像（已套用 1 個篩選條件），第 101–120 筆');
     expect(seen.at(-1)).toBe('?modality=CT&limit=50&offset=100');
-    await user.selectOptions(screen.getByLabelText('性別'), 'F');
+    await user.selectOptions(screen.getByLabelText("Patient's Sex"), 'F');
     await user.click(screen.getByRole('button', { name: '套用篩選' }));
     await screen.findByText('共 120 筆影像（已套用 2 個篩選條件），第 1–50 筆');
     expect(seen.at(-1)).toBe('?modality=CT&patient_sex=F&limit=50');
@@ -202,11 +202,11 @@ describe('研究明細', () => {
 
   it('404 for a study outside the project', async () => {
     await renderApp('/data/imaging/studies/1.2.3', 'vw01');
-    expect(await screen.findByRole('alert')).toHaveTextContent('找不到研究，或不在本專案的 Accession 清單內');
+    expect(await screen.findByRole('alert')).toHaveTextContent('找不到研究，或不在本專案的 Accession Number 清單內');
   });
 });
 
-describe('影像存取清單', () => {
+describe('Accession Number 清單', () => {
   it('parseAccessions splits on newlines, commas and spaces and removes duplicates', () => {
     expect(parseAccessions(' ACC0011\nACC0012, ACC0011  ACC0013，ACC0014\n\n')).toEqual(['ACC0011', 'ACC0012', 'ACC0013', 'ACC0014']);
     expect(parseAccessions('  \n ')).toEqual([]);
@@ -215,16 +215,16 @@ describe('影像存取清單', () => {
   it('TC-B01-08 admin sets the list (admin editor); studies outside it disappear from the list and by URL', async () => {
     const { user } = await renderApp('/admin/allowlist', 'admin01');
     expect(await screen.findByText(/未設定清單/)).toBeInTheDocument();
-    const form = screen.getByRole('form', { name: '設定影像存取清單' });
+    const form = screen.getByRole('form', { name: '設定 Accession Number 清單' });
     await user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0011\nACC0013');
     await user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
     {
-      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      // Accession Number 清單儲存前要勾「已確認變更範圍」（F7）
       const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
       if (ok && !(ok as HTMLInputElement).checked) await user.click(ok);
     }
     await user.click(within(form).getByRole('button', { name: '儲存清單' }));
-    expect(await screen.findByText('已儲存影像存取清單，共 2 筆')).toBeInTheDocument();
+    expect(await screen.findByText('已儲存 Accession Number 清單，共 2 筆')).toBeInTheDocument();
     expect(within(screen.getByRole('list', { name: '清單內的 Accession Number' })).getAllByRole('listitem').map((l) => l.textContent)).toEqual([
       'ACC0011',
       'ACC0013',
@@ -242,16 +242,16 @@ describe('影像存取清單', () => {
 
   it('TC-B01-08 after the list is set, a study outside it is 404 by direct URL', async () => {
     const admin = await renderApp('/admin/allowlist', 'admin01');
-    const form = await screen.findByRole('form', { name: '設定影像存取清單' });
+    const form = await screen.findByRole('form', { name: '設定 Accession Number 清單' });
     await admin.user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0011');
     await admin.user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
     {
-      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      // Accession Number 清單儲存前要勾「已確認變更範圍」（F7）
       const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
       if (ok && !(ok as HTMLInputElement).checked) await admin.user.click(ok);
     }
     await admin.user.click(within(form).getByRole('button', { name: '儲存清單' }));
-    await screen.findByText('已儲存影像存取清單，共 1 筆');
+    await screen.findByText('已儲存 Accession Number 清單，共 1 筆');
     admin.unmount();
     await renderApp('/data/imaging/studies/1.2.826.0.1.3680043.10.9999.88.1.12', 'pi01');
     expect(await screen.findByRole('alert')).toHaveTextContent('找不到研究');
@@ -259,11 +259,11 @@ describe('影像存取清單', () => {
 
   it('invalid accession is rejected with 422', async () => {
     const { user } = await renderApp('/admin/allowlist', 'admin01');
-    const form = await screen.findByRole('form', { name: '設定影像存取清單' });
+    const form = await screen.findByRole('form', { name: '設定 Accession Number 清單' });
     await user.type(within(form).getByLabelText(/^Accession Number/), 'ACC*');
     await user.click(within(form).getByRole('checkbox', { name: /已確認變更範圍/ }));
     {
-      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      // Accession Number 清單儲存前要勾「已確認變更範圍」（F7）
       const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
       if (ok && !(ok as HTMLInputElement).checked) await user.click(ok);
     }
@@ -277,13 +277,13 @@ describe('影像存取清單', () => {
     cleanup();
     await renderApp('/data/imaging/allowlist', 'pi01');
     expect(await screen.findByText('清單由系統管理者設定，需要調整請聯絡系統管理者。')).toBeInTheDocument();
-    expect(screen.queryByRole('form', { name: '設定影像存取清單' })).toBeNull();
+    expect(screen.queryByRole('form', { name: '設定 Accession Number 清單' })).toBeNull();
     await waitFor(() => expect(screen.getByText(/未設定清單/)).toBeInTheDocument());
   });
 });
 
 describe('影像清單（改版）', () => {
-  it('each row links to preview and to the labeling workbench; 加入資料 goes to import', async () => {
+  it('each row links to preview and to the labeling workbench; 匯入資料 goes to import', async () => {
     await renderApp('/data/imaging', 'ra01');
     await loaded(6);
     expect(screen.getByRole('link', { name: '開始標註 ACC0011' })).toHaveAttribute(
@@ -291,16 +291,16 @@ describe('影像清單（改版）', () => {
       '/labeling/studies/1.2.826.0.1.3680043.10.9999.88.1.11',
     );
     expect(screen.getByRole('link', { name: '預覽 ACC0011' })).toHaveAttribute('href', '/data/imaging/studies/1.2.826.0.1.3680043.10.9999.88.1.11');
-    expect(screen.getByRole('link', { name: '加入資料' })).toHaveAttribute('href', '/data/imaging/import');
+    expect(screen.getByRole('link', { name: '匯入資料' })).toHaveAttribute('href', '/data/imaging/import');
     // 標註狀態欄
     expect(screen.getByRole('columnheader', { name: '標註狀態' })).toBeInTheDocument();
   });
 
-  it('a viewer has no 開始標註 / 加入資料 / 儲存資料範圍', async () => {
+  it('a viewer has no 開始標註 / 匯入資料 / 儲存資料範圍', async () => {
     await renderApp('/data/imaging', 'vw01');
     await loaded(6);
     expect(screen.queryByRole('link', { name: /^開始標註/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: '加入資料' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '匯入資料' })).toBeNull();
     expect(screen.queryByRole('button', { name: '儲存資料範圍' })).toBeNull();
   });
 
@@ -323,7 +323,7 @@ describe('影像清單（改版）', () => {
     await loaded(4);
     expect(screen.getByLabelText('資料範圍')).toHaveValue('1');
     // 範圍內再篩選
-    await user.selectOptions(screen.getByLabelText('性別'), 'M');
+    await user.selectOptions(screen.getByLabelText("Patient's Sex"), 'M');
     await user.click(screen.getByRole('button', { name: '套用篩選' }));
     await loaded(2);
     expect(seen.at(-1)).toBe('?patient_sex=M&scope_id=1&limit=50');

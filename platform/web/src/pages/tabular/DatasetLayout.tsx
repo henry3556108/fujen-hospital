@@ -15,7 +15,7 @@ export interface DatasetContext {
   /** API 路徑前綴：/api/projects/{pid}/tabular/datasets/{id} */
   base: string;
   catalogue: CatalogueItem[];
-  /** 目前編輯中的整理步驟；「整理資料」「統計分析」共用 */
+  /** 目前編輯中的前處理步驟；「資料清洗」「醫學統計分析」共用 */
   steps: Step[];
   setSteps: (steps: Step[]) => void;
   saved: TargetFeature | null;
@@ -26,12 +26,12 @@ export const useDataset = () => useOutletContext<DatasetContext>();
 
 /** 資料集的三個分頁與一行說明。 */
 export const TABS = [
-  { path: 'view', label: '查看資料', hint: '逐列預覽、每一欄的平均與分布、欄位之間的相關。' },
-  { path: 'prepare', label: '整理資料', hint: '選想預測的欄位與用來預測的欄位，處理缺值與格式，在本頁儲存。' },
-  { path: 'stats', label: '統計分析', hint: '找出哪些因素和結果有關（邏輯斯／線性迴歸、存活分析、Cox 模型），附 p 值與信賴區間；和建立模型無關。' },
+  { path: 'view', label: '資料視覺化', hint: '逐列預覽、每一欄的平均與分布、欄位之間的相關。' },
+  { path: 'prepare', label: '資料清洗', hint: '選 Target 欄位與 Feature 欄位，處理缺值與格式，在本頁儲存。' },
+  { path: 'stats', label: '醫學統計分析', hint: '找出哪些因素和結果有關（Logistic／Linear Regression、Survival Analysis、Cox Proportional Hazard Model），附 p 值與信賴區間；和建模管理無關。' },
 ] as const;
 
-/** 單一資料集的外框：頁首固定顯示名稱、筆數、欄數；載入欄位資訊、整理方法清單與已儲存的設定。 */
+/** 單一資料集的外框：頁首固定顯示名稱、筆數、欄數；載入欄位資訊、前處理方式清單與已儲存的設定。 */
 export function DatasetLayout() {
   const { api, project } = useSession();
   const { can } = useProjectAccess();
@@ -65,7 +65,7 @@ export function DatasetLayout() {
     <>
       <p className="rd-crumbs">
         <Link to="/data/tabular">
-          <Icon name="chevron-left" /> 回表格資料清單
+          <Icon name="chevron-left" /> 回結構式資料清單
         </Link>
       </p>
       <ApiErrorAlert error={dataset.error} />
@@ -79,18 +79,18 @@ export function DatasetLayout() {
               <h2>資料集：{d.name}</h2>
               <p className="text-muted" data-testid="dataset-size">
                 {d.valid_rows} 筆・{d.columns.length} 個欄位
-                {d.rejected_rows ? `（上傳時拒絕 ${d.rejected_rows} 列）` : ''}。原始資料不會被修改，整理步驟只套用在副本上。
+                {d.rejected_rows ? `（上傳時拒絕 ${d.rejected_rows} 列）` : ''}。原始資料不會被修改，前處理步驟只套用在副本上。
               </p>
             </div>
             <div className="rd-dataset-head__side">
               {saved.data && (
                 <span className="text-muted" data-testid="dataset-updated">
-                  整理設定最後更新 {formatTime(saved.data.updated_at)}
+                  前處理設定最後更新 {formatTime(saved.data.updated_at)}
                 </span>
               )}
               {can('training') && (
                 <Link className="btn btn--secondary" to={`/training/new?tabular=${d.id}`}>
-                  用這份資料建立模型
+                  用這份資料建立訓練任務
                 </Link>
               )}
             </div>

@@ -1,4 +1,4 @@
-// 訓練設定表單：5 種訓練；影像範圍、Label、Resize、切分、亂數種子、6 項資料增強、超參數；結構式的資料集、Target、Feature、演算法。
+// 訓練設定表單：5 種訓練；影像範圍、Label、Resize、切分、隨機種子、6 項資料增強、超參數；結構式的資料集、Target、Feature、演算法。
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useResource } from '../../api/useResource';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
@@ -27,7 +27,7 @@ import {
 } from './settingForm';
 
 export const ALGORITHM_NAMES: Record<string, string> = {
-  logistic_regression: '邏輯斯迴歸（Logistic Regression）',
+  logistic_regression: '邏輯迴歸（Logistic Regression）',
   linear_regression: '線性迴歸（Linear Regression）',
   random_forest: '隨機森林（Random Forest）',
   gradient_boosting: '梯度提升（Gradient Boosting）',
@@ -45,9 +45,9 @@ interface Props {
   editing: TrainingSetting | null;
   onSaved: (setting: TrainingSetting) => void;
   onCancel: () => void;
-  /** 由匯入檔控制的環節（流程程式碼）：對應的欄位停用 */
+  /** 由匯入檔控制的階段（各階段處理程式碼）：對應的欄位停用 */
   locks?: StageLock[];
-  /** 建立訓練精靈的第三步（設計稿 A06、B03）：不顯示種類（第一步已選），右側「送出前確認」放「開始訓練」與「儲存設定」，
+  /** 建立訓練任務精靈的第三步（設計稿 A06、B03）：不顯示種類（第一步已選），右側「送出前確認」放「開始訓練」與「儲存設定」，
    * 影像範圍、資料增強與超參數收在「進階設定」。 */
   wizard?: WizardOptions;
 }
@@ -58,7 +58,7 @@ export interface WizardOptions {
   title: string;
   extra?: ReactNode;
   check?: (form: FormState) => string | null;
-  /** 表單前面的小節（1. 研究目的、2. 確認資料） */
+  /** 表單前面的小節（1. 訓練種類、2. 確認資料） */
   lead?: ReactNode;
   /** 右側欄：拿到目前的表單內容與按鈕區，自己排版 */
   side?: (form: FormState, actions: ReactNode) => ReactNode;
@@ -105,7 +105,7 @@ function useSettingForm({ api, catalogue, initial, editing, onSaved, locks = [],
     const unknown = image ? [] : unknownFeatures(form.features, processed?.map((c) => c.name) ?? null);
     if (unknown.length) return setError(new Error(`Feature「${unknown.join('、')}」在資料集裡找不到，請取消勾選後再儲存。`));
     if (image && form.sourceType === 'dicom' && form.studiesMode === 'selected' && form.studies.length === 0) {
-      return setError(new Error('請至少勾選一個研究，或改選「全部研究」'));
+      return setError(new Error('請至少勾選一個研究，或改選「全部影像」'));
     }
     const problem = wizard?.check?.(form);
     if (problem) return setError(new Error(problem));
@@ -131,7 +131,7 @@ function useSettingForm({ api, catalogue, initial, editing, onSaved, locks = [],
 
 type FormCtx = ReturnType<typeof useSettingForm>;
 
-/** 驗證方式（結構式）：固定比例切分或 K 折交叉驗證。 */
+/** 驗證方式（結構式）：固定比例分群或 K 折交叉驗證。 */
 function ValidationChoice({ ctx }: { ctx: FormCtx }) {
   const { form, set, kindEntry, trainLocked, setChosen, suggested, rows } = ctx;
   if (!kindEntry?.validation_methods) return null;
@@ -161,7 +161,7 @@ function ValidationChoice({ ctx }: { ctx: FormCtx }) {
   );
 }
 
-/** 切分比例欄位：K 折時只有折數與測試集。seed：一起顯示亂數種子。 */
+/** 切分比例欄位：K 折時只有折數與測試集。seed：一起顯示隨機種子。 */
 function SplitFields({ ctx, seed, hints = true }: { ctx: FormCtx; seed: boolean; hints?: boolean }) {
   const { form, set, kfold } = ctx;
   const h = (text: string) => (hints ? text : undefined);
@@ -181,7 +181,7 @@ function SplitFields({ ctx, seed, hints = true }: { ctx: FormCtx; seed: boolean;
       <NumberField id="ts-test" label="測試集（%）" value={form.test} onChange={(v) => set('test', v)} min={0} max={100}
         hint={h('最後才用、模型完全沒看過的資料，用來評分。')} />
       {seed ? (
-        <NumberField id="ts-seed" label="亂數種子" value={form.seed} onChange={(v) => set('seed', v)} min={0}
+        <NumberField id="ts-seed" label="隨機種子" value={form.seed} onChange={(v) => set('seed', v)} min={0}
           hint="決定資料怎麼隨機分組的號碼。用同一個號碼重跑會得到完全相同的結果；一般不用改。" />
       ) : null}
     </>
@@ -221,12 +221,12 @@ function PlainSettingForm(props: Props) {
       {!image ? <ValidationChoice ctx={ctx} /> : null}
 
       <fieldset disabled={trainLocked}>
-        <legend>資料切分與亂數種子</legend>
+        <legend>資料分群與隨機種子</legend>
         <div className="form-grid">
           <SplitFields ctx={ctx} seed />
         </div>
         <p className="field__hint">
-          {kfold ? '先保留測試集，其餘資料做 K 折交叉驗證。' : '訓練、驗證、測試三者合計必須是 100%。'}同一份資料、設定與亂數種子會得到相同的切分與結果。
+          {kfold ? '先保留測試集，其餘資料做 K 折交叉驗證。' : '訓練、驗證、測試三者合計必須是 100%。'}同一份資料、設定與隨機種子會得到相同的切分與結果。
         </p>
       </fieldset>
 
@@ -244,7 +244,7 @@ function PlainSettingForm(props: Props) {
   );
 }
 
-/** 由匯入檔控制的環節（流程程式碼）：欄位已停用的說明。 */
+/** 由匯入檔控制的階段（各階段處理程式碼）：欄位已停用的說明。 */
 function LocksNote({ locks }: { locks: StageLock[] }) {
   if (!locks.length) return null;
   return (
@@ -255,7 +255,7 @@ function LocksNote({ locks }: { locks: StageLock[] }) {
             <Icon name="lock" className="stage-lock" /> {lockText(l)}
           </span>
         ))}
-        <span>這些環節的欄位已停用。要修改請到訓練設定清單按「流程程式碼」，或在那裡改回用介面設定。</span>
+        <span>這些階段的欄位已停用。要修改請到訓練設定清單按「各階段處理程式碼」，或在那裡改回用介面設定。</span>
       </span>
     </Alert>
   );
@@ -268,7 +268,7 @@ function TrainingParams({ ctx, catalogue, extra }: { ctx: FormCtx; catalogue: Ca
     <>
       {image ? (
         <fieldset disabled={preprocessLocked}>
-          <legend>資料增強（只套用在訓練資料）</legend>
+          <legend>資料增強（只套用在訓練集）</legend>
           <ParamFields prefix="ts-aug" specs={catalogue.augmentation} values={form.augmentation} onChange={(v) => set('augmentation', v)} />
         </fieldset>
       ) : null}
@@ -284,7 +284,7 @@ function TrainingParams({ ctx, catalogue, extra }: { ctx: FormCtx; catalogue: Ca
 
 /**
  * 精靈第三步（設計稿 A06、B03、B04）：左側編號小節，右側「送出前確認」放設定名稱、「開始訓練」（送出）與「儲存設定」。
- * 影像：3. 設定資料分割比例；表格：2. 資料集、3. 目標、4. 特徵、5. 驗證方式、6. 演算法。其餘收在「進階設定」。
+ * 影像：3. 設定資料分群比例；表格：2. 資料集、3. 目標、4. 特徵、5. 驗證方式、6. 演算法。其餘收在「進階設定」。
  */
 function WizardSettingForm(props: Props & { wizard: WizardOptions }) {
   const { api, catalogue, onCancel, wizard } = props;
@@ -315,19 +315,19 @@ function WizardSettingForm(props: Props & { wizard: WizardOptions }) {
   );
   const splitSection = (n: number) => (
     <section className="trn-section" aria-labelledby="ts-split-title">
-      <h3 id="ts-split-title" className="trn-section__title">{n}. {image ? '設定資料分割比例' : '驗證方式'}</h3>
-      <p className="trn-section__hint">{image ? '設定訓練、驗證與測試資料的比例' : '怎麼檢查模型好不好'}</p>
+      <h3 id="ts-split-title" className="trn-section__title">{n}. {image ? '設定資料分群比例' : '驗證方式'}</h3>
+      <p className="trn-section__hint">{image ? '設定訓練、驗證與測試集的比例' : '怎麼檢查模型好不好'}</p>
       {!image ? <ValidationChoice ctx={ctx} /> : null}
       <fieldset className="fieldset-plain" disabled={trainLocked}>
-        <legend className="visually-hidden">資料切分</legend>
+        <legend className="visually-hidden">資料分群</legend>
         <div className="trn-split-inputs">
           <SplitFields ctx={ctx} seed={false} hints={false} />
         </div>
         {!kfold && total > 0 ? (
-          <SegmentBar label="資料分割比例" segments={[
-            { label: '訓練資料', value: Number(form.train) || 0 },
-            { label: '驗證資料', value: Number(form.validation) || 0 },
-            { label: '測試資料', value: Number(form.test) || 0 },
+          <SegmentBar label="資料分群比例" segments={[
+            { label: '訓練集', value: Number(form.train) || 0 },
+            { label: '驗證集', value: Number(form.validation) || 0 },
+            { label: '測試集', value: Number(form.test) || 0 },
           ]} />
         ) : null}
         <p className="field__hint">
@@ -362,7 +362,7 @@ function WizardSettingForm(props: Props & { wizard: WizardOptions }) {
           <Advanced on summary="進階設定：訓練回合、學習率、資料增強與其他超參數">
             <fieldset className="fieldset-plain" disabled={trainLocked}>
               <div className="form-grid">
-                <NumberField id="ts-seed" label="亂數種子" value={form.seed} onChange={(v) => set('seed', v)} min={0}
+                <NumberField id="ts-seed" label="隨機種子" value={form.seed} onChange={(v) => set('seed', v)} min={0}
                   hint="決定資料怎麼隨機分組的號碼。用同一個號碼重跑會得到完全相同的結果；一般不用改。" />
               </div>
             </fieldset>
@@ -486,7 +486,7 @@ type Setter = <K extends keyof FormState>(key: K, value: FormState[K]) => void;
 
 function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLocked, sourceLocked }: {
   api: TrainingApi; form: FormState; set: Setter; sourceTypes: string[]; labelsLocked?: boolean; preprocessLocked?: boolean;
-  /** 資料匯入環節由匯入檔控制（資料來源、影像範圍、病例） */
+  /** 資料匯入階段由匯入檔控制（資料來源、影像範圍、病例） */
   sourceLocked?: boolean;
 }) {
   const studies = useResource(() => (form.sourceType === 'dicom' ? api.studies() : Promise.resolve([])), [api, form.sourceType]);
@@ -510,11 +510,11 @@ function ImageSource({ api, form, set, sourceTypes, labelsLocked, preprocessLock
             <div className="checkbox-row" role="radiogroup" aria-label="影像範圍">
               <label className="checkbox">
                 <input type="radio" name="ts-range" checked={form.studiesMode === 'all'} onChange={() => set('studiesMode', 'all')} />
-                全部研究
+                全部影像
               </label>
               <label className="checkbox">
                 <input type="radio" name="ts-range" checked={form.studiesMode === 'selected'} onChange={() => set('studiesMode', 'selected')} />
-                指定研究
+                部分影像
               </label>
             </div>
             {form.studiesMode === 'selected' ? (
@@ -608,9 +608,9 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
   onRows: (rows: number | null) => void;
   /** 標註或前處理由匯入檔控制 */
   disabled?: boolean;
-  /** 資料匯入環節由匯入檔控制（資料集） */
+  /** 資料匯入階段由匯入檔控制（資料集） */
   sourceLocked?: boolean;
-  /** 訓練環節由匯入檔控制（演算法） */
+  /** 訓練階段由匯入檔控制（演算法） */
   algorithmLocked?: boolean;
   /** wizard：精靈的編號小節（2～4），演算法另外放 */
   layout?: 'form' | 'wizard';
@@ -643,7 +643,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
   const processedNames = processed?.map((c) => c.name) ?? null;
   const choices = detail.data ? featureChoices(detail.data.columns.map((c) => c.name), processedNames, form.steps, form.target) : [];
   const unknown = unknownFeatures(form.features, processedNames);
-  // 舊設定可能同時存原始欄位（sex）與 One-Hot 步驟：換成 One-Hot 產生的欄位，畫面上只有一種選法
+  // 舊設定可能同時存原始欄位（sex）與 One Hot Encoding 步驟：換成 One Hot Encoding 產生的欄位，畫面上只有一種選法
   const normalised = normaliseFeatures(form.features, choices);
   useEffect(() => {
     if (processed && JSON.stringify(normalised) !== JSON.stringify(form.features)) setForm((f) => ({ ...f, features: normalised }));
@@ -654,7 +654,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
     .filter((c) => !form.steps.some((st) => st.id === 'onehot' && (st.columns ?? []).includes(c.name)))
     .map((c) => c.name);
   const encoded = choices.filter((c) => c.encoded && choiceChecked(c, form.features));
-  // 選到的 Feature 有缺值時說出來，並讓使用者選補值或不使用（One-Hot 產生的欄位以原始欄位計）
+  // 選到的 Feature 有缺值時說出來，並讓使用者選補值或不使用（One Hot Encoding 產生的欄位以原始欄位計）
   const gaps = (processed ?? []).filter((c) => c.missing > 0 && form.features.includes(c.name));
   const gapColumns = [...new Map(gaps.map((c) => {
     const owner = choices.find((ch) => ch.columns.includes(c.name))?.name ?? c.name;
@@ -677,7 +677,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
   );
   const targetField = (
     <div className="field">
-      <label htmlFor="ts-target">要預測的結果（Target）</label>
+      <label htmlFor="ts-target">Target 欄位</label>
       <select id="ts-target" className="select" value={form.target} disabled={disabled || !detail.data}
         onChange={(e) => setForm((f) => ({ ...f, target: e.target.value, features: f.features.filter((x) => x !== e.target.value) }))}>
         <option value="">請選擇</option>
@@ -697,16 +697,16 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
       ) : null}
     </>
   );
-  const prefillNote = prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的要預測的結果（Target）、用來預測的資料（Feature）與前處理步驟。</p> : null;
+  const prefillNote = prefilled === form.datasetId ? <p className="field__hint">已帶入資料集設定的 Target 欄位、Feature 欄位與前處理步驟。</p> : null;
   const featurePart = (
     <>
       {textFeatures.length ? (
         <p className="field__hint" data-testid="text-features">
-          「{textFeatures.join('、')}」是文字或類別欄位，訓練時會自動轉成 0／1 欄位（One-Hot），不需要先自己處理。
+          「{textFeatures.join('、')}」是文字或類別欄位，訓練時會自動轉成 0／1 欄位（One Hot Encoding），不需要先自己處理。
         </p>
       ) : null}
       {detail.data ? (
-        <div role="group" aria-label="用來預測的資料（Feature）" className={layout === 'wizard' ? 'trn-chips' : 'checkbox-row'}>
+        <div role="group" aria-label="Feature 欄位" className={layout === 'wizard' ? 'trn-chips' : 'checkbox-row'}>
           {choices.map((c) => (
             <label key={c.name} className="checkbox">
               <input type="checkbox" checked={choiceChecked(c, form.features)} disabled={disabled}
@@ -724,7 +724,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
       ) : null}
       {encoded.length ? (
         <p className="field__hint" data-testid="encoded-features">
-          {encoded.map((c) => `${c.name} 已在資料集設定轉成 ${c.columns.join('、')}`).join('；')}（One-Hot：把每個類別變成一個 0／1 欄位）。勾選「{encoded[0].name}」就會用到這些欄位。
+          {encoded.map((c) => `${c.name} 已在資料集設定轉成 ${c.columns.join('、')}`).join('；')}（One Hot Encoding：把每個類別變成一個 0／1 欄位）。勾選「{encoded[0].name}」就會用到這些欄位。
         </p>
       ) : null}
       <fieldset className="fieldset-plain" disabled={disabled}>
@@ -756,12 +756,12 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
           {prefillNote}
         </section>
         <section className="trn-section" aria-labelledby="ts-target-title">
-          <h3 id="ts-target-title" className="trn-section__title">3. {form.kind === 'tabular_regression' ? '設定' : '選定'}要預測的欄位（目標）</h3>
+          <h3 id="ts-target-title" className="trn-section__title">3. {form.kind === 'tabular_regression' ? '設定' : '選定'}Target 欄位</h3>
           {form.kind === 'tabular_regression' ? <p className="trn-section__hint">非數值欄位不能設為迴歸的結果。</p> : null}
           {targetField}
         </section>
         <section className="trn-section" aria-labelledby="ts-feature-title">
-          <h3 id="ts-feature-title" className="trn-section__title">4. 選擇用來預測的欄位（特徵）</h3>
+          <h3 id="ts-feature-title" className="trn-section__title">4. 選擇 Feature 欄位</h3>
           {featurePart}
         </section>
       </>
@@ -770,7 +770,7 @@ function TabularSource({ api, form, setForm, catalogue, processed, onRows, disab
 
   return (
     <fieldset>
-      <legend>資料集、要預測的結果與用來預測的資料</legend>
+      <legend>資料集、Target 欄位與 Feature 欄位</legend>
       <div className="stack">
         {problems}
         <div className="form-grid">

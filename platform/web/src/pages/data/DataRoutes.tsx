@@ -21,7 +21,7 @@ function DataLanding() {
         <li>
           <Link to="/data/tabular" className="card entry-card">
             <span className="entry-card__title">結構式資料：上傳 CSV</span>
-            <span className="entry-card__desc">表格資料，例如從病歷或 Excel 匯出的檢驗值、生命徵象、診斷。上傳後可看統計、設定預測目標。</span>
+            <span className="entry-card__desc">結構式資料，例如從病歷或 Excel 匯出的檢驗值、生命徵象、診斷。上傳後可看統計、設定預測目標。</span>
           </Link>
         </li>
         <li>

@@ -96,7 +96,7 @@ describe('B20 稽核紀錄詳情（F10）', () => {
   });
 });
 
-describe('B07 影像存取清單（F7）', () => {
+describe('B07 Accession Number 清單（F7）', () => {
   it('解析上傳檔、檢查格式、計算差異', () => {
     expect(parseAccessionFile('list.csv', 'accession_number,note\nACC1,x\n"ACC2",y\nACC1,z\n')).toEqual(['ACC1', 'ACC2']);
     expect(parseAccessionFile('list.txt', 'ACC1\r\nACC2\n')).toEqual(['ACC1', 'ACC2']);
@@ -114,7 +114,7 @@ describe('B07 影像存取清單（F7）', () => {
 
   it('上傳 .txt 後顯示新增／移除與逐筆預覽；勾選「已確認變更範圍」才能儲存', async () => {
     const { user } = await renderApp('/admin/projects/1/allowlist');
-    const form = await screen.findByRole('form', { name: '設定影像存取清單' });
+    const form = await screen.findByRole('form', { name: '設定 Accession Number 清單' });
     const save = within(form).getByRole('button', { name: '儲存清單' });
     expect(save).toBeDisabled();
     const file = new File(['ACC0011\nACC0013\nACC0011\n'], 'list.txt', { type: 'text/plain' });
@@ -138,7 +138,7 @@ describe('B07 影像存取清單（F7）', () => {
 
   it('不是 .csv／.txt 的檔案會提示', async () => {
     const { user } = await renderApp('/admin/projects/1/allowlist');
-    const form = await screen.findByRole('form', { name: '設定影像存取清單' });
+    const form = await screen.findByRole('form', { name: '設定 Accession Number 清單' });
     const input = within(form).getByLabelText('選擇檔案或拖曳上傳') as HTMLInputElement;
     input.removeAttribute('accept');
     await user.upload(input, new File(['x'], 'a.pdf', { type: 'application/pdf' }));

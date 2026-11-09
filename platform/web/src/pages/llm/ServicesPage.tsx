@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useResource } from '../../api/useResource';
 import { useUserLookup } from '../../api/userLookup';
 import { UserPicker } from '../../components/UserPicker';
-import { Alert, ApiErrorAlert, Badge, Card, EmptyState, InfoList, SidePanel, SplitLayout } from '../../components/ui';
+import { platformTokenSteps, serviceCallExample } from '../../components/apiToken';
+import { Alert, ApiErrorAlert, Badge, Card, CodeBlock, EmptyState, InfoList, SidePanel, SplitLayout } from '../../components/ui';
 import { PARAM_FIELDS } from './api';
 import { LlmHeader } from './LlmLayout';
 import { useLlm } from './useLlm';
@@ -36,7 +37,7 @@ export function ServicesPage() {
   const side = (
     <SidePanel title="發布為內部服務">
       <form aria-label="發布為內部服務" className="stack" onSubmit={publish} noValidate>
-        <p className="text-muted">發布時使用你目前的回答設定。只有授權名單內的帳號可以經 Gateway 呼叫。</p>
+        <p className="text-muted">發布時使用你目前的 System Prompt 與文字產生設定參數。只有授權名單內的帳號可以經 Gateway 呼叫。</p>
         {done && <Alert tone="success">{done}</Alert>}
         <ApiErrorAlert error={error} />
         <div className="field">
@@ -48,7 +49,7 @@ export function ServicesPage() {
           <input id="svc-name" className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </div>
         <div className="field">
-          <label htmlFor="svc-kb">參考文件</label>
+          <label htmlFor="svc-kb">RAG 知識庫</label>
           <select id="svc-kb" className="select" value={form.kb} onChange={(e) => setForm({ ...form, kb: e.target.value })}>
             <option value="">不使用</option>
             {(kbs.data ?? []).map((k) => (
@@ -79,7 +80,7 @@ export function ServicesPage() {
 
   return (
     <>
-      <LlmHeader title="文件問答" subtitle="把目前的模型、參考文件與回答設定發布成院內服務，只開放給指定帳號呼叫。" />
+      <LlmHeader title="LLM No-code 開發" subtitle="把目前的模型、RAG 知識庫與 System Prompt 與文字產生設定參數發布成內部服務，只開放給指定帳號呼叫。" />
       <div className="llm-stretch">
         <SplitLayout side={side}>
           <ApiErrorAlert error={services.error} />
@@ -93,7 +94,7 @@ export function ServicesPage() {
                     <tr>
                       <th>名稱</th>
                       <th>端點</th>
-                      <th>參考文件</th>
+                      <th>RAG 知識庫</th>
                       <th>授權帳號</th>
                       <th>狀態</th>
                       <th>操作</th>
@@ -128,22 +129,29 @@ export function ServicesPage() {
               </div>
             )}
           </Card>
+          {(services.data ?? []).length > 0 && (
+            <Card title="RESTful API 呼叫方式">
+              <p className="text-muted">外部工具以授權帳號取得 Token 後呼叫下方端點；不在授權名單的帳號會被拒絕。</p>
+              <CodeBlock code={platformTokenSteps()} title="取得 Token" />
+              <CodeBlock code={serviceCallExample(window.location.origin, services.data![0].endpoint)} title={`呼叫「${services.data![0].name}」`} />
+            </Card>
+          )}
         </SplitLayout>
       </div>
     </>
   );
 }
 
-/** 發布前的摘要：這次會用的模型、參考文件、回答規則、生成參數與授權對象，避免發布到另一組設定。 */
+/** 發布前的摘要：這次會用的模型、RAG 知識庫、回答規則、文字產生設定參數與授權對象，避免發布到另一組設定。 */
 export function PublishSummary({ model, docs, rules, params, grants }: { model: string; docs: string; rules: string; params: string; grants: string[] }) {
   return (
     <div data-testid="publish-summary" aria-label="發布內容摘要" role="group">
       <InfoList
         items={[
           { label: '模型', value: model },
-          { label: '參考文件', value: docs },
-          { label: '回答規則（System Prompt）', value: rules || '（沒有設定）' },
-          { label: '生成參數', value: params },
+          { label: 'RAG 知識庫', value: docs },
+          { label: 'System Prompt', value: rules || '（沒有設定）' },
+          { label: '文字產生設定參數', value: params },
           { label: '授權對象', value: grants.length ? grants.join('、') : '（還沒有指定）' },
         ]}
       />

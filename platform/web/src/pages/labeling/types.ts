@@ -200,9 +200,9 @@ export interface AutolabelRun {
 }
 
 export const KIND_LABELS: Record<AnnotationKind, string> = {
-  classification: '分類',
-  segmentation: '分割',
-  detection: '偵測',
+  classification: '影像分類',
+  segmentation: '影像分割',
+  detection: '物件偵測',
 };
 export const SOURCE_LABELS: Record<AnnotationSource, string> = {
   manual: '手動',

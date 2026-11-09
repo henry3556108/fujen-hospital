@@ -9,7 +9,7 @@ import './global/global.css';
 const TEST_USERS = ['admin01', 'pi01', 'md01', 'ra01', 'ca01', 'vw01', 'user01', 'user02'];
 
 const FLOW = [
-  { label: '院方登入', description: '使用院方帳號完成驗證' },
+  { label: '本系統登入', description: '使用本系統帳號完成驗證' },
   { label: '返回平台', description: '登入完成後自動返回' },
   { label: '選擇專案', description: '進入你有權限的研究專案' },
 ];
@@ -42,10 +42,10 @@ export function LoginPage() {
       <div className="ui-card gp-login__card">
         <p className="gp-login__brand">
           <Icon name="lungs" />
-          醫學研究平台
+          AI 模型開發管理軟體平台
         </p>
-        <h1 className="gp-login__title">使用院方帳號登入</h1>
-        <p className="gp-login__lead">請使用院方帳號登入，以存取你的研究專案與相關功能。</p>
+        <h1 className="gp-login__title">使用本系統帳號登入</h1>
+        <p className="gp-login__lead">請使用本系統帳號登入，以存取你的研究專案與相關功能。</p>
         {error && <Alert tone="error">{error}</Alert>}
         <form onSubmit={onSubmit} className="stack">
           {auth.mode === 'test' && (
@@ -70,14 +70,14 @@ export function LoginPage() {
               '登入中…'
             ) : (
               <>
-                <Icon name="external" /> 前往院方登入
+                <Icon name="external" /> 前往登入
               </>
             )}
           </button>
         </form>
         <p className="gp-login__links">
           <a href={keycloakResetPasswordUrl()}>忘記密碼？</a>
-          <span className="text-muted">密碼重設由院方帳號服務（醫院統一身分）處理。</span>
+          <span className="text-muted">密碼重設由本系統帳號服務處理。</span>
         </p>
         <section className="gp-login__flow" aria-labelledby="login-flow">
           <h2 id="login-flow">登入後的操作流程</h2>

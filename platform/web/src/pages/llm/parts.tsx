@@ -1,4 +1,4 @@
-// 語言模型各分頁共用的小元件：⋮ 選單、檔案格式小圖、文件上傳與文件清單。
+// 大型語言模型各分頁共用的小元件：⋮ 選單、檔案格式小圖、文件上傳與文件清單。
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { parseApiTime } from '../../components/format';
 import { FileInput } from '../../components/FileInput';
@@ -98,7 +98,7 @@ export function MoreMenu({ label, items }: { label: string; items: MoreMenuItem[
   );
 }
 
-/** 加入文件：多檔上傳＋逐檔結果（參考文件分頁與對話左側「加入文件」共用）。 */
+/** 加入文件：多檔上傳＋逐檔結果（RAG 知識庫分頁與對話左側「加入文件」共用）。 */
 export function DocumentUpload({ llm, kbId, idPrefix = 'kb', onUploaded }: { llm: LlmApi; kbId: number; idPrefix?: string; onUploaded: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -175,7 +175,7 @@ export function DocumentList({ llm, kbId, docs, onChanged }: { llm: LlmApi; kbId
     <>
       <ApiErrorAlert error={error} />
       {docs.length === 0 ? (
-        <p className="text-muted">這個文件集還沒有文件，按「加入文件」上傳。</p>
+        <p className="text-muted">這個 RAG 知識庫還沒有文件，按「加入文件」上傳。</p>
       ) : (
         <ul aria-label="文件與處理狀態" className="llm-docs">
           {docs.map((d) => (
@@ -196,7 +196,7 @@ export function DocumentList({ llm, kbId, docs, onChanged }: { llm: LlmApi; kbId
       )}
       {removing && (
         <ConfirmDialog title="刪除文件" confirmLabel="刪除" busy={busy} onConfirm={() => void remove()} onCancel={() => setRemoving(null)}>
-          刪除「{removing.filename}」後，根據文件回答不會再引用這份文件。
+          刪除「{removing.filename}」後，Chat with Knowledge Base 不會再引用這份文件。
         </ConfirmDialog>
       )}
     </>

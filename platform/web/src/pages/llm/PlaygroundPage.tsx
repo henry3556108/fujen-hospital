@@ -20,8 +20,8 @@ interface Turn {
 }
 
 const MODES: { key: Mode; label: string }[] = [
-  { key: 'free', label: '一般問答' },
-  { key: 'kb', label: '文件問答' },
+  { key: 'free', label: 'Free Chat' },
+  { key: 'kb', label: 'Chat with Knowledge Base' },
 ];
 
 /** 同一份文件的同一段只列一次 */
@@ -35,14 +35,14 @@ export function uniqueSources(sources: ChatMessage['sources']): ChatMessage['sou
   });
 }
 
-/** 回答設定的資料：放在頁面層，關掉面板再打開，未儲存的修改還在，離開時也會提醒。 */
+/** System Prompt 與文字產生設定參數的資料：放在頁面層，關掉面板再打開，未儲存的修改還在，離開時也會提醒。 */
 function useParamsDraft(llm: LlmApi | null) {
   const res = useResource(() => llm!.getParams(), [llm]);
   const [dirty, setDirty] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  useUnsavedChanges(dirty, '回答設定還沒儲存。');
+  useUnsavedChanges(dirty, 'System Prompt 與文字產生設定參數還沒儲存。');
   const set = (key: keyof GenerationParams, value: string | number) => {
     if (!res.data) return;
     setSavedAt(null);
@@ -68,14 +68,14 @@ function useParamsDraft(llm: LlmApi | null) {
 
 type ParamsDraft = ReturnType<typeof useParamsDraft>;
 
-/** 右側「回答設定」：六個生成參數＋System Prompt＋儲存設定（設計稿 B14）。 */
+/** 右側「System Prompt 與文字產生設定參數」：六個文字產生設定參數＋System Prompt＋儲存設定（設計稿 B14）。 */
 function ParamsForm({ draft }: { draft: ParamsDraft }) {
   const { data, error, set, save, savedAt, saveError, busy } = draft;
   if (error) return <ApiErrorAlert error={error} />;
-  if (!data) return <p role="status" className="loading">載入回答設定…</p>;
+  if (!data) return <p role="status" className="loading">載入 System Prompt 與文字產生設定參數…</p>;
   return (
     <form
-      aria-label="生成參數"
+      aria-label="文字產生設定參數"
       className="llm-params"
       noValidate
       onSubmit={(e) => {
@@ -86,7 +86,7 @@ function ParamsForm({ draft }: { draft: ParamsDraft }) {
       <ApiErrorAlert error={saveError} />
       {savedAt && (
         <Alert tone="success">
-          已儲存生成參數（{String(savedAt.getHours()).padStart(2, '0')}:{String(savedAt.getMinutes()).padStart(2, '0')}）
+          已儲存文字產生設定參數（{String(savedAt.getHours()).padStart(2, '0')}:{String(savedAt.getMinutes()).padStart(2, '0')}）
         </Alert>
       )}
       {PARAM_FIELDS.map((f) => (
@@ -128,7 +128,7 @@ function ParamsForm({ draft }: { draft: ParamsDraft }) {
   );
 }
 
-/** 左側「問答範本」：個人／共用、搜尋與 tag，點一下套用（設計稿 B14）。 */
+/** 左側「Prompt Template」：個人／共用、搜尋與 tag，點一下套用（設計稿 B14）。 */
 function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[]; value: number | null; onChange: (id: number | null) => void }) {
   const [scope, setScope] = useState<'personal' | 'public'>('personal');
   const [q, setQ] = useState('');
@@ -140,7 +140,7 @@ function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[];
   );
   return (
     <Card
-      title="問答範本"
+      title="Prompt Template"
       className="llm-chat__side"
       extra={
         <Link to="/llm/prompts" className="btn btn--small btn--secondary">
@@ -149,11 +149,11 @@ function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[];
       }
     >
       <SegmentedTabs
-        label="範本範圍"
+        label="Prompt 範圍"
         idPrefix="chat-prompt-scope"
         items={[
-          { key: 'personal', label: '個人範本' },
-          { key: 'public', label: '共用範本' },
+          { key: 'personal', label: '個人 Prompt' },
+          { key: 'public', label: '公開 Prompt' },
         ]}
         value={scope}
         onChange={(k) => {
@@ -163,7 +163,7 @@ function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[];
       />
       <div role="tabpanel" id={tabPanelId('chat-prompt-scope', scope)} aria-labelledby={`chat-prompt-scope-${scope}-tab`} className="llm-picker">
         <label htmlFor="chat-prompt-q" className="visually-hidden">
-          搜尋範本
+          搜尋 Prompt
         </label>
         <input id="chat-prompt-q" className="input" type="search" placeholder="搜尋標題、內容或 tag" value={q} onChange={(e) => setQ(e.target.value)} />
         {tags.length > 0 && (
@@ -176,9 +176,9 @@ function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[];
           </div>
         )}
         {shown.length === 0 ? (
-          <p className="text-muted">{inScope.length === 0 ? (scope === 'personal' ? '還沒有個人範本。' : '還沒有共用範本。') : '沒有符合的範本。'}</p>
+          <p className="text-muted">{inScope.length === 0 ? (scope === 'personal' ? '還沒有個人 Prompt。' : '還沒有公開 Prompt。') : '沒有符合的 Prompt。'}</p>
         ) : (
-          <ul aria-label="範本清單" className="llm-picker__list">
+          <ul aria-label="Prompt 清單" className="llm-picker__list">
             {shown.map((p) => (
               <li key={p.id}>
                 <button type="button" className="llm-picker__item" aria-pressed={value === p.id} title={p.content} onClick={() => onChange(value === p.id ? null : p.id)}>
@@ -194,15 +194,15 @@ function PromptPicker({ prompts, value, onChange }: { prompts: PromptTemplate[];
   );
 }
 
-/** 左側「參考文件」：選文件集、看文件與狀態、加入文件（設計稿 A08）。 */
+/** 左側「RAG 知識庫」：選 RAG 知識庫、看文件與狀態、加入文件（設計稿 A08）。 */
 function DocsPanel({ llm, kbs, kbId, onKb, reloadKbs }: { llm: LlmApi; kbs: KnowledgeBase[]; kbId: number | null; onKb: (id: number | null) => void; reloadKbs: () => void }) {
   const docs = useResource(() => (kbId ? llm.documents(kbId) : Promise.resolve([])), [llm, kbId]);
   const [adding, setAdding] = useState(false);
-  // 外觀同 Card，但不用 aria-labelledby：標題「參考文件」只留給下拉選單當名稱（e2e 以「參考文件」找這個下拉）
+  // 外觀同 Card，但不用 aria-labelledby：標題「RAG 知識庫」只留給下拉選單當名稱（e2e 以「RAG 知識庫」找這個下拉）
   return (
     <div className="ui-card llm-chat__side">
       <div className="ui-card__head">
-        <h2 className="ui-card__title">參考文件</h2>
+        <h2 className="ui-card__title">RAG 知識庫</h2>
         <div className="ui-card__extra">
           <button type="button" className="btn btn--small btn--secondary" disabled={kbId === null} onClick={() => setAdding(true)}>
             <Icon name="upload" /> 加入文件
@@ -212,10 +212,10 @@ function DocsPanel({ llm, kbs, kbId, onKb, reloadKbs }: { llm: LlmApi; kbs: Know
       <div className="ui-card__body">
       <div className="field">
         <label htmlFor="chat-kb" className="visually-hidden">
-          參考文件
+          RAG 知識庫
         </label>
         <select id="chat-kb" className="select" value={kbId ?? ''} onChange={(e) => onKb(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">請選擇文件集</option>
+          <option value="">請選擇 RAG 知識庫</option>
           {kbs.map((k) => (
             <option key={k.id} value={k.id}>
               {k.name}（{k.documents} 份文件）
@@ -225,7 +225,7 @@ function DocsPanel({ llm, kbs, kbId, onKb, reloadKbs }: { llm: LlmApi; kbs: Know
       </div>
       {kbs.length === 0 && (
         <p className="text-muted">
-          還沒有文件集，請到 <Link to="/llm/docs">參考文件</Link> 建立。
+          還沒有 RAG 知識庫，請到 <Link to="/llm/docs">RAG 知識庫</Link> 建立。
         </p>
       )}
       <ApiErrorAlert error={docs.error} />
@@ -346,7 +346,7 @@ export function PlaygroundPage() {
 
   const settings = settingsOpen ? (
     <div data-testid="chat-settings" id="chat-settings">
-      <SidePanel title="回答設定" onClose={() => setSettingsOpen(false)}>
+      <SidePanel title="System Prompt 與文字產生設定參數" onClose={() => setSettingsOpen(false)}>
         <p className="field__hint">模型的載入、量化與資源在「模型」分頁設定。</p>
         <ParamsForm draft={params} />
       </SidePanel>
@@ -356,8 +356,8 @@ export function PlaygroundPage() {
   return (
     <>
       <LlmHeader
-        title="文件問答"
-        subtitle="選好參考文件，再問需要查證的內容；不需要文件時用一般問答。"
+        title="LLM No-code 開發"
+        subtitle="選好 RAG 知識庫，再問需要查證的內容；不需要文件時用 Free Chat。"
         actions={
           <>
             <button type="button" className="btn btn--secondary" aria-expanded={settingsOpen} aria-controls="chat-settings" onClick={() => setSettingsOpen((o) => !o)}>
@@ -370,7 +370,7 @@ export function PlaygroundPage() {
         }
       />
       <SplitLayout side={settings}>
-        <SegmentedTabs label="問答模式" idPrefix="chat-mode" items={MODES} value={mode} onChange={(m) => newConversation(m, kbId)} />
+        <SegmentedTabs label="Playground 模式" idPrefix="chat-mode" items={MODES} value={mode} onChange={(m) => newConversation(m, kbId)} />
         <div role="tabpanel" id={tabPanelId('chat-mode', mode)} aria-labelledby={`chat-mode-${mode}-tab`} className="llm-chat">
           {mode === 'free' ? (
             <PromptPicker prompts={prompts.data ?? []} value={promptId} onChange={setPromptId} />
@@ -380,12 +380,12 @@ export function PlaygroundPage() {
 
           <section className="llm-chat__main" aria-labelledby="chat-title">
             <h2 id="chat-title" className="visually-hidden">
-              對話測試
+              LLM Playground
             </h2>
             <ApiErrorAlert error={kbs.error ?? prompts.error} />
             {turns.length === 0 && pending === null && (
               <p className="chat-log__empty">
-                {mode === 'kb' ? '先在左側選擇文件集，再輸入想查證的內容。回答會附上參考來源。' : '輸入問題，或從左側選一個問答範本套用。'}
+                {mode === 'kb' ? '先在左側選擇 RAG 知識庫，再輸入想查證的內容。回答會附上參考來源。' : '輸入問題，或從左側選一個 Prompt Template 套用。'}
               </p>
             )}
             <ol className="chat-log" aria-label="對話內容" aria-live="polite">
@@ -443,12 +443,12 @@ export function PlaygroundPage() {
             )}
 
             <form aria-label="送出訊息" className="llm-composer" onSubmit={submit}>
-              {needsKb && <Alert tone="info">請先選擇參考文件。</Alert>}
+              {needsKb && <Alert tone="info">請先選擇 RAG 知識庫。</Alert>}
               {prompt && (
                 <p className="llm-composer__prompt">
-                  使用範本：<strong>{prompt.title}</strong>
+                  使用 Prompt：<strong>{prompt.title}</strong>
                   <button type="button" className="btn btn--ghost btn--small" onClick={() => setPromptId(null)}>
-                    不使用範本
+                    不使用 Prompt
                   </button>
                 </p>
               )}
@@ -460,7 +460,7 @@ export function PlaygroundPage() {
                   id="chat-input"
                   className="input"
                   rows={2}
-                  placeholder={mode === 'kb' ? '輸入想查證的內容…' : '輸入問題，或從左側選擇範本…'}
+                  placeholder={mode === 'kb' ? '輸入想查證的內容…' : '輸入問題，或從左側選擇 Prompt…'}
                   aria-describedby="chat-input-hint"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}

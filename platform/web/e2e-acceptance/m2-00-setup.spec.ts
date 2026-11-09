@@ -21,7 +21,7 @@ async function ensureProject(page: Page, c: Checks, name: string) {
   }
   const form = page.getByRole('form', { name: '新增專案' });
   await form.getByLabel('專案名稱（必填）', { exact: true }).fill(name);
-  await form.getByLabel('說明', { exact: true }).fill('M2 流程程式碼驗證');
+  await form.getByLabel('說明', { exact: true }).fill('M2 各階段處理程式碼驗證');
   const group = form.getByLabel('GPU 群組', { exact: true });
   const option = (await group.locator('option').allInnerTexts()).map((s) => s.trim()).find((t) => t.startsWith('gpu-shared'));
   if (!c.check(`GPU 群組選單有 gpu-shared（${name}）`, Boolean(option))) return;

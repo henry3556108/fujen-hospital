@@ -3,7 +3,7 @@ import { DENIED, login, menuLabels, note, shot } from './helpers';
 import { sh } from './ops';
 import { freshPage, gotoAdmin, logout, shotUrl } from './r-common';
 
-// M1 補拍 05：非 Admin 不能管理帳號（TC-A03-03）。改版後帳號管理在「系統管理」區，選單以功能目錄（契約入口原名稱）判斷。
+// M1 補拍 05：非 Admin 不能管理帳號（TC-A03-03）。改版後帳號管理在「管理後台」區，選單以功能目錄（契約入口原名稱）判斷。
 // 網頁 pi01、user01 各 3 頁；API 各 5 次新增帳號。
 const TC = 'TC-A03-03';
 const PAGES = ['/admin/users', '/admin/projects', '/admin/members'];
@@ -24,13 +24,13 @@ test('M1 補拍 05 非 Admin 不能管理帳號（TC-A03-03）', async ({ browse
       await page.goto(p);
       await page.waitForLoadState('networkidle');
       const a = await page.getByText(DENIED).first().isVisible();
-      const b = await page.getByText('「系統管理」需要 Admin 帳號類型，你的帳號類型是 User。').first().isVisible();
+      const b = await page.getByText('「管理後台」需要 Admin 帳號類型，你的帳號類型是 User。').first().isVisible();
       const c = await page.getByRole('link', { name: '回專案首頁' }).first().isVisible();
       const listShown = (await page.getByRole('table', { name: /帳號列表|專案列表|目前的專案成員/ }).count()) > 0;
       if (a && b && c && !listShown) shown++;
       if (listShown) entered++;
       await shotUrl(page, TC, `${String(n++).padStart(2, '0')}-${user}-admin-${p.split('/').pop()}`);
-      note(TC, `${user} 開 ${p}：「${DENIED}」${a ? '有' : '無'}、「「系統管理」需要 Admin 帳號類型，你的帳號類型是 User。」${b ? '有' : '無'}、「回專案首頁」${c ? '有' : '無'}、看到管理表格 ${listShown ? '是' : '否'}`);
+      note(TC, `${user} 開 ${p}：「${DENIED}」${a ? '有' : '無'}、「「管理後台」需要 Admin 帳號類型，你的帳號類型是 User。」${b ? '有' : '無'}、「回專案首頁」${c ? '有' : '無'}、看到管理表格 ${listShown ? '是' : '否'}`);
     }
     await page.goto('/');
     await logout(page);

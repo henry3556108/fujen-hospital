@@ -62,14 +62,14 @@ test('M2 09 稽核紀錄', async ({ browser }) => {
 
   const cases: { n: number; action: string; file: string; expect: string; judge: (rows: Entry[], details: string[]) => [boolean, string] }[] = [
     {
-      n: 1, action: 'flow.stage_export', file: '01-環節匯出', expect: '01 下載三個環節檔、04、05 的下載',
+      n: 1, action: 'flow.stage_export', file: '01-階段匯出', expect: '01 下載三個階段檔、04、05 的下載',
       judge: (rows) => {
         const ok = rows.filter((r) => r.result === '成功').length;
         return [ok >= 5, `成功 ${ok} 筆（01 三筆、03 下載匯入檔、04、05 各一筆，至少 5）`];
       },
     },
     {
-      n: 2, action: 'flow.stage_import', file: '02-環節匯入', expect: '01 訓練、04 資料匯入、05 部署兩次成功；02 的 4 次失敗，失敗筆記錄錯誤內容',
+      n: 2, action: 'flow.stage_import', file: '02-階段匯入', expect: '01 訓練、04 資料匯入、05 部署兩次成功；02 的 4 次失敗，失敗筆記錄錯誤內容',
       judge: (rows, details) => {
         const ok = rows.filter((r) => r.result === '成功').length;
         const fail = rows.filter((r) => r.result === '失敗').length;
@@ -96,7 +96,7 @@ test('M2 09 稽核紀錄', async ({ browser }) => {
       },
     },
     {
-      n: 6, action: 'deployment.access', file: '06-部署分享對象', expect: '05 步驟 5 改分享對象，來源標示 flow.stage_import',
+      n: 6, action: 'deployment.access', file: '06-部署授權帳號', expect: '05 步驟 5 改授權帳號，來源標示 flow.stage_import',
       judge: (_rows, details) => {
         const via = details.filter((d) => d.includes('flow.stage_import')).length;
         return [via >= 1, `打開的明細中 via＝flow.stage_import：${via} 筆`];
@@ -110,7 +110,7 @@ test('M2 09 稽核紀錄', async ({ browser }) => {
     const rows = await search(page, cs.action, since);
     note(TC, `${cs.action}：${rows.length} 筆`);
     for (const r of rows) note(TC, `  #${r.id} ${r.at} ${r.actor} ${r.category} ${r.action} ${r.target} ${r.result} 來源 ${r.source}`);
-    // 抽 3 筆打開明細；匯入另外把失敗筆也打開，部署分享對象把全部打開找 via
+    // 抽 3 筆打開明細；匯入另外把失敗筆也打開，部署授權帳號把全部打開找 via
     const pick = cs.n === 2 ? [...rows.slice(0, 3), ...rows.filter((r) => r.result === '失敗').slice(0, 4)]
       : cs.n === 6 ? rows.slice(0, 10) : rows.slice(0, 3);
     const details: string[] = [];

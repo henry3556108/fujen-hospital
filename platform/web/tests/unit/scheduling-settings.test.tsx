@@ -10,7 +10,7 @@ async function form() {
 describe('共享排程設定', () => {
   it('shows the current settings from the API', async () => {
     await renderApp('/admin/compute/shared');
-    expect(await screen.findByRole('heading', { level: 1, name: '排隊與共享設定' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '佇列排程與共享排程設定' })).toBeInTheDocument();
     const f = await form();
     expect(within(f).getByLabelText(/^時間片份數/)).toHaveValue(4);
     expect(within(f).getByLabelText(/^工作時限/)).toHaveValue(60);
@@ -77,17 +77,17 @@ describe('共享排程設定', () => {
 
   it('tabs lead to the other scheduling pages', async () => {
     const { user } = await renderApp('/admin/compute/shared');
-    await screen.findByRole('navigation', { name: '運算資源分頁' });
+    await screen.findByRole('navigation', { name: 'GPU／CPU 伺服器管理分頁' });
     for (const [name, title] of [
-      ['GPU 群組', '運算資源'],
-      ['節點', '運算資源'],
-      ['GPU 使用對照', '運算資源'],
-      ['排隊順序', '排隊與共享設定'],
-      ['共享設定', '排隊與共享設定'],
+      ['GPU 群組', 'GPU／CPU 伺服器管理'],
+      ['節點', 'GPU／CPU 伺服器管理'],
+      ['GPU Dashboard', 'GPU／CPU 伺服器管理'],
+      ['佇列排程', '佇列排程與共享排程設定'],
+      ['共享排程設定', '佇列排程與共享排程設定'],
     ]) {
-      await user.click(within(screen.getByRole('navigation', { name: '運算資源分頁' })).getByRole('link', { name }));
+      await user.click(within(screen.getByRole('navigation', { name: 'GPU／CPU 伺服器管理分頁' })).getByRole('link', { name }));
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-      expect(within(screen.getByRole('navigation', { name: '運算資源分頁' })).getByRole('link', { name })).toHaveAttribute(
+      expect(within(screen.getByRole('navigation', { name: 'GPU／CPU 伺服器管理分頁' })).getByRole('link', { name })).toHaveAttribute(
         'aria-current',
         'page',
       );

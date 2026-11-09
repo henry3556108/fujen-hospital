@@ -26,7 +26,7 @@ describe('專案工作：暫存與恢復排隊', () => {
     await submitJobs(3);
     const { user } = await renderApp('/admin/compute/jobs', 'admin01');
     const table = await screen.findByRole('table', { name: '工作列表' });
-    await waitFor(() => expect(row(table, '^3 ')).toHaveTextContent('排隊中'));
+    await waitFor(() => expect(row(table, '^3 ')).toHaveTextContent('等待中'));
     expect(within(row(table, '^1 ')).queryByRole('button', { name: /暫存/ })).toBeNull();
 
     await user.click(within(table).getByRole('button', { name: '暫存工作 3' }));
@@ -60,7 +60,7 @@ describe('後台：佇列順序', () => {
   it('moves a waiting job, applies the order and the jobs start in the new order', async () => {
     await submitJobs(5);
     const { user } = await renderApp('/admin/compute/queues', 'admin01');
-    expect(await screen.findByRole('link', { name: '排隊順序' })).toHaveAttribute('aria-current', 'page');
+    expect(await screen.findByRole('link', { name: '佇列排程' })).toHaveAttribute('aria-current', 'page');
     const table = await screen.findByRole('table', { name: '佇列 gpu-exclusive' });
     expect(row(table, '執行中 1 ')).toHaveTextContent('不可移動');
     expect(within(row(table, '執行中 1 ')).queryByRole('button')).toBeNull();
@@ -123,7 +123,7 @@ function tabularConfig(): TrainingConfig {
 }
 
 describe('訓練：暫存、恢復排隊、另存為訓練設定', () => {
-  it('step bar shows 已暫存 in place of 排隊中', () => {
+  it('step bar shows 已暫存 in place of 等待中', () => {
     expect(stepsOf('held').map((s) => `${s.label}:${s.state}`)).toEqual(['已送出:done', '已暫存:current', '訓練中:todo', '完成:todo']);
   });
 
@@ -133,7 +133,7 @@ describe('訓練：暫存、恢復排隊、另存為訓練設定', () => {
       created_by: 'pi01', updated_by: 'pi01', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' });
     const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '送出訓練「cls」' }));
-    await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('排隊中'));
+    await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('等待中'));
 
     await user.click(screen.getByRole('button', { name: '暫存' }));
     await waitFor(() => expect(screen.getByTestId('run-status')).toHaveTextContent('已暫存'));

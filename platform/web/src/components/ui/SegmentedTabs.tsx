@@ -7,7 +7,7 @@ export interface SegmentedTab<K extends string = string> {
 }
 
 /**
- * 頁內分頁（不換網址）：底線式，外觀與 components/Tabs 相同（設計稿 A02 影像／表格、A03 分類／圈位置／塗範圍）。
+ * 頁內分頁（不換網址）：底線式，外觀與 components/Tabs 相同（設計稿 A02 影像／表格、A03 分類／物件偵測／影像分割）。
  * 要每個分頁一個網址時改用 components/Tabs。左右鍵切換。
  * 分頁內容請包在 id={tabPanelId(idPrefix, key)} 的 role="tabpanel" 裡。
  */

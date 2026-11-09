@@ -96,9 +96,9 @@ test.describe('預覽', () => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular');
     await page.getByRole('link', { name: 'lung-clinical' }).click();
-    // 開啟資料集先看描述統計；逐列的原始資料在「預覽」
-    await expect(page.getByRole('table', { name: '描述統計' })).toBeVisible();
-    await expect(page.getByTestId('tab-hint')).toHaveText('描述統計：每一欄的平均、範圍與分布，先看資料長什麼樣子。');
+    // 開啟資料集先看描述性統計；逐列的原始資料在「預覽」
+    await expect(page.getByRole('table', { name: '描述性統計' })).toBeVisible();
+    await expect(page.getByTestId('tab-hint')).toHaveText('描述性統計：每一欄的平均、範圍與分布，先看資料長什麼樣子。');
     await page.getByRole('link', { name: '預覽', exact: true }).click();
     const table = page.getByRole('table', { name: '資料預覽' });
     await expect(table.getByRole('columnheader')).toHaveCount(13);
@@ -114,8 +114,8 @@ test.describe('預覽', () => {
     await expect(page.getByText(/已隱藏 3 個：patient_id、bmi、smoker/)).toBeVisible();
 
     // 離開再回來（不同分頁）也一致
-    await page.getByRole('link', { name: '描述統計' }).click();
-    await expect(page.getByRole('table', { name: '描述統計' })).toBeVisible();
+    await page.getByRole('link', { name: '描述性統計' }).click();
+    await expect(page.getByRole('table', { name: '描述性統計' })).toBeVisible();
     await page.getByRole('link', { name: '預覽', exact: true }).click();
     await expect(page.getByRole('table', { name: '資料預覽' }).getByRole('columnheader')).toHaveText(visible);
   });
@@ -136,7 +136,7 @@ test.describe('Target 與 Feature', () => {
       for (const box of await form.getByRole('checkbox').all()) await box.uncheck();
       for (const f of features) await form.getByRole('checkbox', { name: f, exact: true }).check();
       await form.getByRole('button', { name: '儲存設定' }).click();
-      await expect(page.getByText(`已儲存：要預測的結果 ${target}；用來預測的資料 ${features.length} 個欄位；有缺值的病人：補上缺值後使用；沒有前處理步驟`)).toBeVisible();
+      await expect(page.getByText(`已儲存：Target 欄位 ${target}；Feature 欄位 ${features.length} 個欄位；有缺值的病人：補值後使用；沒有前處理步驟`)).toBeVisible();
 
       await page.reload();
       await expect(page.getByTestId('saved-target')).toHaveText(target);
@@ -147,7 +147,7 @@ test.describe('Target 與 Feature', () => {
     }
   });
 
-  test('欄位總覽：提示識別碼與文字欄位；One-Hot 與「當作類別」自動換成產生的欄位', async ({ page }) => {
+  test('欄位總覽：提示識別碼與文字欄位；One Hot Encoding 與「當作類別」自動換成產生的欄位', async ({ page }) => {
     await loginAs(page, 'ra01');
     await page.goto('/data/tabular/2/target');
     const form = page.getByRole('form', { name: '設定 Target 與 Feature' });
@@ -158,10 +158,10 @@ test.describe('Target 與 Feature', () => {
     await expect(overview.getByRole('row', { name: /^patient_id/ })).toContainText('建議不要當 Feature');
     await form.getByRole('checkbox', { name: 'patient_id', exact: true }).uncheck();
     await expect(form.getByText('有 Feature 還不能用來訓練')).toBeVisible();
-    await form.getByRole('button', { name: '全部轉成 One-Hot' }).click();
+    await form.getByRole('button', { name: '全部轉成 One Hot Encoding' }).click();
     await form.getByRole('switch', { name: 'event 當作類別', exact: true }).check();
     await form.getByRole('button', { name: '儲存設定' }).click();
-    await expect(page.getByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 4 個欄位（sex、smoker、event 自動拆成 7 欄）；/)).toBeVisible();
+    await expect(page.getByText(/^已儲存：Target 欄位 diagnosis；Feature 欄位 4 個欄位（sex、smoker、event 自動拆成 7 欄）；/)).toBeVisible();
     await expect(page.getByTestId('saved-features')).toHaveText('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
     await page.reload();
     await expect(form.getByRole('checkbox', { name: 'sex', exact: true })).toBeChecked();
@@ -170,25 +170,25 @@ test.describe('Target 與 Feature', () => {
 });
 
 test.describe('統計與圖表', () => {
-  test('TC-B04-01／TC-B04-05 描述統計、分布、相關矩陣、散佈圖各產出 1 次', async ({ page }) => {
+  test('TC-B04-01／TC-B04-05 描述性統計、分布、Correlation Matrix、Scatter Chart 各產出 1 次', async ({ page }) => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular/2/describe');
-    await expect(page.getByRole('table', { name: '描述統計' }).getByRole('row', { name: /^age / })).toContainText('59.15');
+    await expect(page.getByRole('table', { name: '描述性統計' }).getByRole('row', { name: /^age / })).toContainText('59.15');
     await expect(page.getByRole('figure', { name: 'age 的分布' }).getByRole('img').first()).toBeVisible();
 
-    await page.getByRole('link', { name: '相關與散佈圖' }).click();
-    await page.getByRole('button', { name: '產生相關矩陣' }).click();
-    const matrix = page.getByRole('table', { name: '相關矩陣（pearson）' });
+    await page.getByRole('link', { name: 'Correlation Matrix 與 Scatter Chart' }).click();
+    await page.getByRole('button', { name: '產生 Correlation Matrix' }).click();
+    const matrix = page.getByRole('table', { name: 'Correlation Matrix（pearson）' });
     await expect(matrix.getByRole('row')).toHaveCount(9);
     await expect(matrix.getByRole('row', { name: /^sbp/ })).toContainText('0.87');
-    await page.getByRole('button', { name: '產生散佈圖' }).click();
+    await page.getByRole('button', { name: '產生 Scatter Chart' }).click();
     await expect(page.getByRole('figure', { name: 'age 與 bmi' }).locator('circle')).toHaveCount(100);
   });
 
   test('TC-B04-07 Logistic、Linear、Kaplan-Meier、Cox 各執行 1 次，都產出圖表與統計量', async ({ page }) => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular/2/stats');
-    const form = page.getByRole('form', { name: '統計分析' });
+    const form = page.getByRole('form', { name: '醫學統計分析' });
     const result = page.getByRole('region', { name: '分析結果' });
     let ok = 0;
 
@@ -228,7 +228,7 @@ test.describe('統計與圖表', () => {
     await expect(page.getByRole('alert')).toContainText('欄位「smoker」不是數值欄位，無法進行數值分析');
   });
 
-  test('TC-B04-04 前處理：補值與 One-Hot 後預覽', async ({ page }) => {
+  test('TC-B04-04 前處理：補值與 One Hot Encoding 後預覽', async ({ page }) => {
     await loginAs(page, 'vw01');
     await page.goto('/data/tabular/2/preprocess');
     await expect(page.getByText(/^共 66 種前處理方法/)).toBeVisible();

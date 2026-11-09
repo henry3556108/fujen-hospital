@@ -5,14 +5,14 @@ import { DENIED, NO_PROJECT_TITLE, P1, clickMenu, expectNoProjectPage, expectNot
 
 // 改版後從「功能目錄」點契約原名稱進入；舊入口轉到新位置（網址與頁面標題為新位置）
 const ENTRIES: { name: string; url: RegExp; h1: string }[] = [
-  { name: '帳號管理', url: /\/admin$/, h1: '總覽' },
-  { name: '數據管理', url: /\/data\/imaging$/, h1: '研究資料' },
+  { name: '帳號管理', url: /\/admin$/, h1: 'Dashboard' },
+  { name: '數據管理', url: /\/data\/imaging$/, h1: '數據管理' },
   { name: '影像標註', url: /\/labeling$/, h1: '影像標註' },
   { name: '自動影像分類標註', url: /\/labeling\/auto$/, h1: '影像標註' },
-  { name: '建模管理', url: /\/training$/, h1: '建立模型' },
-  { name: 'AI 模型部署', url: /\/models\?entry=deployment$/, h1: '使用模型' },
-  { name: '推論服務管理', url: /\/models\?entry=inference$/, h1: '使用模型' },
-  { name: 'LLM No-code 開發', url: /\/llm\/chat$/, h1: '文件問答' }, // 改版後 /llm/chat 的標題為「文件問答」
+  { name: '建模管理', url: /\/training$/, h1: '建模管理' },
+  { name: 'AI 模型部署', url: /\/models\?entry=deployment$/, h1: '模型部署與推論服務' },
+  { name: '推論服務管理', url: /\/models\?entry=inference$/, h1: '模型部署與推論服務' },
+  { name: 'LLM No-code 開發', url: /\/llm\/chat$/, h1: 'LLM No-code 開發' }, // 改版後 /llm/chat；各分頁標題都是模組名稱（契約 A-02-1 入口名）
 ];
 
 test('5-1 admin01 從 8 個入口都能進入（TC-A02-01）', async ({ page }) => {
@@ -62,9 +62,9 @@ const openDataset = async (p: Page) => {
 const tab = (name: string) => async (p: Page) => {
   await p.getByRole('link', { name, exact: true }).or(p.getByRole('tab', { name, exact: true })).first().click();
 };
-/** 查看資料頁的段落按鈕（資料預覽、欄位統計、相關與散佈圖） */
+/** 資料視覺化頁的段落按鈕（資料預覽、欄位描述性統計、Correlation Matrix 與 Scatter Chart） */
 const section = (name: string) => async (p: Page) => {
-  await p.getByRole('group', { name: '查看資料的段落' }).getByRole('button', { name, exact: true }).click();
+  await p.getByRole('group', { name: '資料視覺化的段落' }).getByRole('button', { name, exact: true }).click();
   await expect(p.getByRole('region', { name })).toBeVisible();
 };
 const runs = async (p: Page) => {
@@ -74,9 +74,9 @@ const runs = async (p: Page) => {
 const PLAN: Record<string, Step[]> = {
   pi01: [
     { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
-    { label: '表格資料', run: tab('表格資料') },
-    { label: '開啟資料集-查看資料', run: openDataset },
-    { label: '欄位統計', run: section('欄位統計') },
+    { label: '結構式資料', run: tab('結構式資料') },
+    { label: '開啟資料集-資料視覺化', run: openDataset },
+    { label: '欄位描述性統計', run: section('欄位描述性統計') },
     { label: '訓練紀錄', run: runs },
   ],
   md01: [
@@ -84,12 +84,12 @@ const PLAN: Record<string, Step[]> = {
     { label: '影像標註', run: (p) => clickMenu(p, '影像標註') },
     { label: '自動影像分類標註', run: (p) => clickMenu(p, '自動影像分類標註') },
     { label: 'AI模型部署', run: (p) => clickMenu(p, 'AI 模型部署') },
-    { label: '推論服務管理', run: async (p) => { await clickMenu(p, '推論服務管理'); await expect(p.getByRole('heading', { level: 1, name: '使用模型' })).toBeVisible(); } },
+    { label: '推論服務管理', run: async (p) => { await clickMenu(p, '推論服務管理'); await expect(p.getByRole('heading', { level: 1, name: '模型部署與推論服務' })).toBeVisible(); } },
   ],
   ra01: [
     { label: '數據管理', run: (p) => clickMenu(p, '數據管理') },
-    { label: '開啟資料集', run: async (p) => { await tab('表格資料')(p); await openDataset(p); } },
-    { label: '相關與散佈圖', run: section('相關與散佈圖') },
+    { label: '開啟資料集', run: async (p) => { await tab('結構式資料')(p); await openDataset(p); } },
+    { label: 'Correlation Matrix 與 Scatter Chart', run: section('Correlation Matrix 與 Scatter Chart') },
     { label: '建模管理', run: (p) => clickMenu(p, '建模管理') },
     { label: '訓練紀錄', run: runs },
   ],

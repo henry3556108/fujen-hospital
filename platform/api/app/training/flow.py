@@ -256,7 +256,7 @@ def _readme(setting: TrainingSetting, locked: list[str], has_data: bool, has_man
 
 ## 放回平台
 
-- 單一環節：到「建模管理」→ 訓練設定的「流程程式碼」→ 該環節「上傳環節檔」，上傳 `stages/<環節>/` 壓成的 zip。
+- 單一階段：到「建模管理」→ 訓練設定的「各階段處理程式碼」→ 該階段「上傳階段檔」，上傳 `stages/<階段>/` 壓成的 zip。
 - 整包：到「建模管理」→「匯入專案包」，選擇要放進的專案。平台會建立新的訓練設定，並對應目標專案的資料。
 
 平台只接受訓練映像內有的套件，不會安裝 requirements.txt。

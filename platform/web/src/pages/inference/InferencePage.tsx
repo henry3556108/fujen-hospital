@@ -1,7 +1,7 @@
 // 推論服務管理（B-06）：選模型、預測一位病人（結構式）、多位病人一起預測（資料集中的一群病人＝批次，或上傳 CSV／影像）、
-// 檢視結果（結構式畫面上用中文欄名，有實際值時加「預測對／錯」）、預測紀錄與下載（下載的 CSV 欄名不變）。
+// 檢視結果（結構式畫面上用中文欄名，有實際值時加「預測對／錯」）、推論服務歷史紀錄與下載（下載的 CSV 欄名不變）。
 // 從建模管理「用這個模型預測病人」進來（/inference?model=ID）時模型已選好。
-// 批次預測在背景執行：送出後輪詢狀態，完成後顯示結果；排隊或執行中可以取消。上傳預測當場回結果。
+// 批次推論在背景執行：送出後輪詢狀態，完成後顯示結果；排隊或執行中可以取消。上傳預測當場回結果。
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { TryPredict } from '../deployment/TryPredict';
@@ -27,15 +27,15 @@ import { FileInput } from '../../components/FileInput';
 
 const MODES = { batch: '資料集中的多位（批次）', upload: '上傳檔案', online: '程式呼叫' } as const;
 
-/** 預測紀錄的「方式」：網頁的單人試用（input.source = try）另外標示。 */
+/** 推論服務歷史紀錄的「方式」：網頁的即時推論（input.source = try）另外標示。 */
 export function modeName(record: Pick<InferenceRecord, 'mode' | 'input'>): string {
-  if (record.mode === 'upload' && record.input?.source === 'try') return '單人試用';
+  if (record.mode === 'upload' && record.input?.source === 'try') return '即時推論';
   return MODES[record.mode] ?? record.mode;
 }
 const SUBSETS = [
-  ['test', '測試資料'],
-  ['validation', '驗證資料'],
-  ['train', '訓練資料'],
+  ['test', '測試集'],
+  ['validation', '驗證集'],
+  ['train', '訓練集'],
   ['all', '全部資料'],
 ] as const;
 
@@ -44,7 +44,7 @@ export function InferencePage() {
   return (
     <>
       <h1>推論服務管理</h1>
-      <p className="page-subtitle">用模型預測病人</p>
+      <p className="page-subtitle">執行推論</p>
       {inference ? (
         <Inference key={inference.projectId} inference={inference} />
       ) : (
@@ -58,7 +58,7 @@ function Inference({ inference }: { inference: InferenceApi }) {
   const models = useResource(() => inference.models(), [inference]);
   const [params] = useSearchParams();
   const [chosen, setChosen] = useState<number | null>(Number(params.get('model')) || null);
-  // 預設選同事分享給我的模型（最新的一個），沒有時選第一個
+  // 預設選同事授權給我的模型（最新的一個），沒有時選第一個
   const sharedFirst = [...(models.data ?? [])].reverse().find((m) => m.shared_with_me);
   const model = models.data?.find((m) => m.id === chosen) ?? sharedFirst ?? models.data?.[0] ?? null;
 
@@ -84,7 +84,7 @@ function Inference({ inference }: { inference: InferenceApi }) {
                 <tr key={m.id} aria-current={m.id === model?.id ? 'true' : undefined}>
                   <td>
                     <ModelName model={m} />
-                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
+                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 已授權給你</span> : null}
                   </td>
                   <td>{KIND_NAMES[m.kind]}</td>
                   <td>{m.created_by}</td>
@@ -104,7 +104,7 @@ function Inference({ inference }: { inference: InferenceApi }) {
   );
 }
 
-/** part：使用模型頁的分頁只顯示「預測新資料」或「預測紀錄」；不給時全部顯示。 */
+/** part：模型部署與推論服務頁的分頁只顯示「推論」或「推論服務歷史紀錄」；不給時全部顯示。 */
 export function ModelPanel({ inference, model, part }: { inference: InferenceApi; model: Model; part?: 'predict' | 'history' }) {
   const predict = part !== 'history';
   const past = part !== 'predict';
@@ -213,7 +213,7 @@ export function ModelPanel({ inference, model, part }: { inference: InferenceApi
       <section className="card section stack" aria-labelledby="many-title">
         <h2 id="many-title">{image ? '多張影像一起預測' : '多位病人一起預測'}</h2>
         <p className="field__hint">
-          也叫「批次預測」：從訓練用的資料集選一群{image ? '影像' : '病人'}（例如測試資料，模型訓練時沒看過），或上傳自己的{image ? '影像檔' : ' CSV 檔（一列一位病人）'}。
+          也叫「批次推論」：從訓練用的資料集選一群{image ? '影像' : '病人'}（例如測試集，模型訓練時沒看過），或上傳自己的{image ? '影像檔' : ' CSV 檔（一列一位病人）'}。
           {tabular ? '資料裡有實際結果時，結果表會多一欄「預測對／錯」。' : ''}
         </p>
         <div className="inference-forms">
@@ -228,12 +228,12 @@ export function ModelPanel({ inference, model, part }: { inference: InferenceApi
                 ))}
               </select>
             </div>
-            {/* 每頁只有一個實心主要按鈕（03 規格 4.1）：主要動作是「上傳並預測」 */}
+            {/* 每頁只有一個實心主要按鈕（03 規格 4.1）：主要動作是「上傳並推論」 */}
             <button type="submit" className="btn btn--secondary" disabled={busy}>
               {image ? '多張影像一起預測' : '多位病人一起預測'}
             </button>
           </form>
-          <form aria-label={image ? '上傳影像預測' : '上傳 CSV 預測'} onSubmit={upload} className="inference-form">
+          <form aria-label={image ? '上傳影像推論' : '上傳 CSV 推論'} onSubmit={upload} className="inference-form">
             <div className="field">
               <label htmlFor="upload-files">{image ? '影像檔' : 'CSV 檔'}</label>
               <FileInput
@@ -245,11 +245,11 @@ export function ModelPanel({ inference, model, part }: { inference: InferenceApi
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={busy}>
-              上傳並預測
+              上傳並推論
             </button>
           </form>
         </div>
-        {busy ? <p role="status">預測中…</p> : null}
+        {busy ? <p role="status">推論中…</p> : null}
       </section>
       </>) : null}
       {!predict && error ? <ApiErrorAlert error={error} /> : null}
@@ -258,12 +258,12 @@ export function ModelPanel({ inference, model, part }: { inference: InferenceApi
       ) : null}
       {past ? (
       <section className="card section" aria-labelledby="history-title">
-        <h2 id="history-title">預測紀錄：{displayName(model)}</h2>
+        <h2 id="history-title">推論服務歷史紀錄：{displayName(model)}</h2>
         <ApiErrorAlert error={history.error} />
-        {history.data && history.data.length === 0 ? <p className="text-muted">還沒有預測紀錄。</p> : null}
+        {history.data && history.data.length === 0 ? <p className="text-muted">還沒有推論服務歷史紀錄。</p> : null}
         {history.data && history.data.length > 0 ? (
           <div className="table-wrap">
-            <table className="table" aria-label="預測紀錄">
+            <table className="table" aria-label="推論服務歷史紀錄">
               <thead>
                 <tr>
                   <th scope="col">編號</th>
@@ -340,23 +340,23 @@ function ResultView({
         </h2>
         {pending ? (
           <button type="button" className="btn" onClick={() => onCancel(record.id)}>
-            取消預測
+            取消推論
           </button>
         ) : null}
         {record.has_result ? (
           <button type="button" className="btn" onClick={() => onDownload(record.id)}>
-            下載結果
+            下載推論結果
           </button>
         ) : null}
       </div>
       {pending ? (
         <p role="status" data-testid="batch-status">
-          批次預測{STATUS_NAMES[record.status]}…在背景執行，完成後自動顯示結果；離開此頁也不影響，可稍後在預測紀錄查看。
+          批次推論{STATUS_NAMES[record.status]}…在背景執行，完成後自動顯示結果；離開此頁也不影響，可稍後在推論服務歷史紀錄查看。
         </p>
       ) : null}
-      {record.status === 'cancelled' ? <Alert tone="info">{record.message || '這次預測已取消'}</Alert> : null}
+      {record.status === 'cancelled' ? <Alert tone="info">{record.message || '這次推論已取消'}</Alert> : null}
       {!pending && record.status !== 'cancelled' && !result ? (
-        <Alert tone="error">{record.message || '這次預測沒有結果'}</Alert>
+        <Alert tone="error">{record.message || '這次推論沒有結果'}</Alert>
       ) : null}
       {result && 'columns' in result ? <TableResult result={result} model={model} /> : null}
       {result && 'results' in result && result.blocked?.length ? (
@@ -369,17 +369,17 @@ function ResultView({
   );
 }
 
-/** 結構式推論的一句話摘要：幾位有預測、幾位補過缺值、幾位無法預測與原因。 */
+/** 結構式推論的一句話摘要：幾位有預測、幾位補過缺值、幾位無法推論與原因。 */
 export function tableSummary(result: { columns: string[]; rows: string[][]; prediction_column: string }): string {
   const at = result.columns.indexOf(result.prediction_column);
   const noteAt = result.columns.indexOf(`${result.prediction_column}_note`);
   const missing = result.rows.filter((r) => (r[at] ?? '') === '');
-  const filled = result.rows.filter((r) => (r[at] ?? '') !== '' && noteAt >= 0 && (r[noteAt] ?? '').includes('缺值，已用訓練資料'));
+  const filled = result.rows.filter((r) => (r[at] ?? '') !== '' && noteAt >= 0 && (r[noteAt] ?? '').includes('缺值，已用訓練集'));
   let text = `共 ${result.rows.length} 位，${result.rows.length - missing.length} 位有預測結果。`;
-  if (filled.length) text += `其中 ${filled.length} 位有缺值，已用訓練資料的中位數或最常見的值補上後預測。`;
+  if (filled.length) text += `其中 ${filled.length} 位有缺值，已用訓練集的中位數或最常見的值補上後預測。`;
   if (missing.length) {
-    const reasons = [...new Set(missing.map((r) => (noteAt >= 0 ? r[noteAt] : '') || '無法預測'))];
-    text += `${missing.length} 位無法預測（${reasons.join('、')}）。`;
+    const reasons = [...new Set(missing.map((r) => (noteAt >= 0 ? r[noteAt] : '') || '無法推論'))];
+    text += `${missing.length} 位無法推論（${reasons.join('、')}）。`;
   }
   return text;
 }
@@ -387,7 +387,7 @@ export function tableSummary(result: { columns: string[]; rows: string[][]; pred
 type Table = { columns: string[]; rows: string[][]; prediction_column: string; positive_label?: string | null };
 
 
-/** 結構式分類而且資料裡有實際結果欄（例如測試資料的 diagnosis）時，每一列預測對不對；不能對照時為 null。 */
+/** 結構式資料分類而且資料裡有實際結果欄（例如測試集的 diagnosis）時，每一列預測對不對；不能對照時為 null。 */
 export function correctness(result: Table, model: Pick<Model, 'kind' | 'card'>): { column: string; marks: ('對' | '錯' | '')[]; right: number; total: number } | null {
   const target = model.card.target;
   if (model.kind !== 'tabular_classification' || !target) return null;
@@ -470,7 +470,7 @@ function TableResult({ result, model }: { result: Table; model: Model }) {
       <p className="field__hint">畫面上的欄名是中文；下載的 CSV 保留英文欄名：{names.join('、')}，方便其他程式讀取。</p>
       {overflow && inputs.length ? (
         <p className="field__hint" data-testid="table-more-columns">
-          右側還有 {inputs.length} 欄輸入的資料（{inputs.slice(0, 5).join('、')}{inputs.length > 5 ? ' 等' : ''}），可在表格內左右捲動查看；「下載結果」有完整內容。
+          右側還有 {inputs.length} 欄輸入的資料（{inputs.slice(0, 5).join('、')}{inputs.length > 5 ? ' 等' : ''}），可在表格內左右捲動查看；「下載推論結果」有完整內容。
         </p>
       ) : null}
       <div className="table-wrap inference-table" ref={wrap}>

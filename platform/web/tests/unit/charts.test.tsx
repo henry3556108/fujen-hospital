@@ -191,8 +191,8 @@ describe('chart components', () => {
   });
 
   it('Heatmap: values are written in the cells and the legend explains the colours', () => {
-    render(<Heatmap title="相關矩陣" columns={['age', 'bmi']} matrix={[[1, -0.0123], [-0.0123, 1]]} />);
-    expect(bodyRows(screen.getByRole('table', { name: '相關矩陣' }))).toEqual([
+    render(<Heatmap title="Correlation Matrix" columns={['age', 'bmi']} matrix={[[1, -0.0123], [-0.0123, 1]]} />);
+    expect(bodyRows(screen.getByRole('table', { name: 'Correlation Matrix' }))).toEqual([
       ['age', '1.00', '-0.01'],
       ['bmi', '-0.01', '1.00'],
     ]);

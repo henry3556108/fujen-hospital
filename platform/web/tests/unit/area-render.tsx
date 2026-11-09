@@ -1,4 +1,4 @@
-// 只渲染研究資料（/data/*）與影像標註（/labeling/*）兩區的路由，不經過 App 外框；
+// 只渲染數據管理（/data/*）與影像標註（/labeling/*）兩區的路由，不經過 App 外框；
 // 讓這兩區的測試不受 App.tsx 改版影響。權限守門（EntryGuard）由 App 的測試負責。
 import type { ReactNode } from 'react';
 import { render } from '@testing-library/react';

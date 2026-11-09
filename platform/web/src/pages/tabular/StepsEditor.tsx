@@ -27,10 +27,10 @@ export function paramText(value: unknown): string {
 
 /** 一般不需要調整的參數：收在「進階」，用預設值。 */
 const ADVANCED_PARAMS: Record<string, Record<string, string>> = {
-  onehot: { drop_first: '只有部分統計模型（例如沒有正則化的線性迴歸）需要；一般保留預設「否」。' },
+  onehot: { drop_first: '只有部分統計模型（例如沒有正則化的 Linear Regression）需要；一般保留預設「否」。' },
 };
 
-/** 步驟的一行摘要；與預設值相同的參數不列出（例如 One-Hot 的「移除第一個類別」＝否）。 */
+/** 步驟的一行摘要；與預設值相同的參數不列出（例如 One Hot Encoding 的「移除第一個類別」＝否）。 */
 export function stepSummary(step: Step, catalogue: CatalogueItem[]): string {
   const item = catalogue.find((c) => c.id === step.id);
   const name = item?.name_zh ?? step.id;
@@ -229,12 +229,12 @@ function StepEdit({
   );
 }
 
-/** 大多數使用者不需要自己加步驟：上方欄位表會自動處理類別欄位（One-Hot）與缺值。 */
+/** 大多數使用者不需要自己加步驟：上方欄位表會自動處理類別欄位（One Hot Encoding）與缺值。 */
 export const NOT_NEEDED =
   '大多數人不需要自己加步驟：類別欄位（例如 sex）在上方欄位表打開「當作類別」，缺值在「有缺值的病人怎麼處理」選擇就好。' +
   '只有要做標準化、離散化、K 近鄰補值等特別處理時才需要自己加步驟。';
 
-/** 搜尋整理方法：比對中文名稱、代號與分類名稱（不分大小寫）。 */
+/** 搜尋前處理方式：比對中文名稱、代號與分類名稱（不分大小寫）。 */
 export function matchMethod(item: CatalogueItem, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -242,7 +242,7 @@ export function matchMethod(item: CatalogueItem, query: string): boolean {
 }
 
 /**
- * 前處理步驟（A05 右側「整理步驟」）：依序套用；每一步可上移、下移、修改參數（F4）、移除；
+ * 前處理步驟（A05 右側「前處理步驟」）：依序套用；每一步可上移、下移、修改參數（F4）、移除；
  * 「新增步驟」展開加入表單，方法清單來自 API（TC-B04-06）。
  * request：欄位表按「加步驟」時帶入的欄位（key 變了就展開表單並勾好該欄）。
  */
@@ -337,7 +337,7 @@ export function StepsEditor({
   const candidates = method ? columns.filter((c) => fits(method, c)) : [];
 
   return (
-    <section aria-label="整理步驟">
+    <section aria-label="前處理步驟">
       {!readOnly ? (
         <p className="field__hint" data-testid="steps-not-needed">
           {NOT_NEEDED}
@@ -356,7 +356,7 @@ export function StepsEditor({
                   {i + 1}
                 </span>
                 <span className="rd-step__desc">
-                  {item?.category_zh ?? '整理方法'}・{s.columns.length ? `套用 ${s.columns.length} 個欄位` : '套用所有適用欄位'}
+                  {item?.category_zh ?? '前處理方式'}・{s.columns.length ? `套用 ${s.columns.length} 個欄位` : '套用所有適用欄位'}
                 </span>
                 {!readOnly && (
                   <span className="rd-step__tools">

@@ -340,18 +340,18 @@ export async function openRun(page: Page, runId: number) {
   return detail;
 }
 
-/** 建立模型的頁內分頁（訓練紀錄／已存設定／程式與專案包） */
-export async function trainingTab(page: Page, tab: '訓練紀錄' | '已存設定' | '程式與專案包') {
-  await page.getByRole('navigation', { name: '建立模型分頁' }).getByRole('link', { name: tab, exact: true }).click();
+/** 建模管理的頁內分頁（訓練紀錄／訓練設定／原始程式碼與專案包） */
+export async function trainingTab(page: Page, tab: '訓練紀錄' | '訓練設定' | '原始程式碼與專案包') {
+  await page.getByRole('navigation', { name: '建模管理分頁' }).getByRole('link', { name: tab, exact: true }).click();
   await page.waitForLoadState('networkidle');
 }
 
 /**
- * 建立模型 › 已存設定：該設定按「套用「名稱」」開啟建立訓練精靈（帶入設定，直接到「確認並送出」）
+ * 建模管理 › 訓練設定：該設定按「套用「名稱」」開啟建立訓練任務精靈（帶入設定，直接到「確認並送出」）
  * → 按「確認並送出訓練」→ 進入這次訓練的頁面。回傳新訓練編號。
  */
 export async function submitFromSetting(page: Page, name: string): Promise<number> {
-  await trainingTab(page, '已存設定');
+  await trainingTab(page, '訓練設定');
   const table = page.getByRole('table', { name: '訓練設定清單' });
   await expect(table).toBeVisible({ timeout: 30_000 });
   await table.getByRole('link', { name: `套用「${name}」`, exact: true }).click();

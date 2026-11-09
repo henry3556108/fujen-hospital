@@ -5,7 +5,7 @@ import { expect, expectNoHorizontalOverflow, loginAs, snap, test } from './fixtu
 test('TC-C03-03 在網頁管理介面查看並修改路由 3 次，重新載入一致', async ({ page }, testInfo) => {
   await loginAs(page, 'admin01');
   await page.goto('/fhir/gateway');
-  const table = page.getByRole('table', { name: 'Gateway 路由' });
+  const table = page.getByRole('table', { name: 'API Gateway 路由' });
   await expect(table.getByRole('row', { name: /fhir-rest/ })).toBeVisible();
   await expect(table.getByRole('row', { name: /dicomweb/ })).toBeVisible();
   await snap(page, testInfo.project.name, 'fhir-gateway');
@@ -28,8 +28,8 @@ test('TC-C03-03 在網頁管理介面查看並修改路由 3 次，重新載入�
 
     await tabs.getByRole('link', { name: '資源' }).click();
     await expect(page.getByRole('list', { name: '資源筆數' })).toBeVisible();
-    await tabs.getByRole('link', { name: 'Gateway 路由' }).click();
-    const row = page.getByRole('table', { name: 'Gateway 路由' }).getByRole('row', { name: /fhir-rest/ });
+    await tabs.getByRole('link', { name: 'API Gateway 路由' }).click();
+    const row = page.getByRole('table', { name: 'API Gateway 路由' }).getByRole('row', { name: /fhir-rest/ });
     await expect(row.getByRole('cell').nth(2)).toHaveText(methods.join(' '));
     await expect(row.getByRole('cell').nth(4)).toHaveText(enabled ? '啟用' : '停用');
     await expect(row.getByRole('cell').nth(5)).toHaveText(threshold);
@@ -89,7 +89,7 @@ test('FHIR 各分頁可開啟且不破版', async ({ page }, testInfo) => {
   ];
   for (const [path, table] of pages) {
     await page.goto(path);
-    await expect(page.getByRole('heading', { level: 1, name: '醫療資料交換（FHIR）' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'HL7 FHIR 醫療資料交換' })).toBeVisible();
     await expect(page.getByRole('table', { name: table })).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await snap(page, testInfo.project.name, `fhir-${path.split('/').pop()}`);

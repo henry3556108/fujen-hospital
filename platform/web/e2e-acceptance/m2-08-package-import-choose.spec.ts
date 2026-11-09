@@ -58,7 +58,7 @@ test('M2 08 專案包匯入（不附資料，自己選資料集）', async ({ br
 
   // 5 新設定的資料集、訓練
   step(TC, 5, `「建模管理」：新設定的資料集是 ${DS80}，送出訓練，等到「已完成」`);
-  await gotoSettings(page); // 匯入後的設定列在「已存設定」分頁
+  await gotoSettings(page); // 匯入後的設定列在「訓練設定」分頁
   const row = settingRow(page, n.setting);
   await expect(row).toBeVisible();
   const dataCell = flat(await row.getByRole('cell').nth(1).innerText());

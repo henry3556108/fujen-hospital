@@ -49,7 +49,7 @@ function BasicTab({ project, onSaved }: { project: Project; onSaved: () => void 
 function AllowlistTab({ project }: { project: Project }) {
   return (
     <div className="adm-allowlist-tab">
-      <h2 className="visually-hidden">影像存取清單</h2>
+      <h2 className="visually-hidden">Accession Number 清單</h2>
       <AllowlistEditor projectId={project.id} projectName={project.name} />
     </div>
   );
@@ -75,7 +75,7 @@ function ProjectDetail({ tab }: { tab: 'basic' | 'members' | 'groups' | 'allowli
                 <Icon name="gear" /> GPU 群組
               </Link>
               <Link to={`${base}/allowlist`} className="adm-header-link">
-                <Icon name="database" /> 影像存取清單
+                <Icon name="database" /> Accession Number 清單
               </Link>
             </>
           )
@@ -88,7 +88,7 @@ function ProjectDetail({ tab }: { tab: 'basic' | 'members' | 'groups' | 'allowli
               { to: base, label: '基本資料與 GPU 群組', end: true },
               { to: `${base}/members`, label: '成員與權限' },
               { to: `${base}/groups`, label: '標註群組' },
-              { to: `${base}/allowlist`, label: '影像存取清單' },
+              { to: `${base}/allowlist`, label: 'Accession Number 清單' },
             ]}
           />
         )}

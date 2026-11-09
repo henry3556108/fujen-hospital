@@ -19,7 +19,7 @@ export function PageHeader({
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  /** 上一層位置，例：使用模型 › 模型結果（設計稿 A07） */
+  /** 上一層位置，例：模型部署與推論服務 › 訓練結果（設計稿 A07） */
   breadcrumbs?: Crumb[];
   /** 標題下方的額外內容，例如分頁 */
   children?: ReactNode;

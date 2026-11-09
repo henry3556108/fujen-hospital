@@ -1,4 +1,4 @@
-// 流程程式碼（錄製巨集）第一階段：標註、前處理、訓練三個環節的檢視與編輯、套用、一次列出全部錯誤、
+// 各階段處理程式碼（錄製巨集）第一階段：標註、前處理、訓練三個階段的檢視與編輯、套用、一次列出全部錯誤、
 // 鎖定（表單欄位停用、清單標籤）、改回用介面設定的確認視窗、權限、訓練紀錄標示。
 import '../upload-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -37,9 +37,9 @@ function seed(name = '糖尿病預測', config: TrainingConfig = TABULAR) {
 async function openFlow(name = '糖尿病預測', username = 'pi01') {
   const app = await renderApp('/training/settings', username);
   if (username !== 'pi01') await app.user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
-  await app.user.click(await screen.findByRole('link', { name: `流程程式碼「${name}」` }));
-  const panel = await screen.findByRole('region', { name: `流程程式碼「${name}」` });
-  await within(panel).findByRole('table', { name: '流程環節' });
+  await app.user.click(await screen.findByRole('link', { name: `各階段處理程式碼「${name}」` }));
+  const panel = await screen.findByRole('region', { name: `各階段處理程式碼「${name}」` });
+  await within(panel).findByRole('table', { name: '流程階段' });
   return { ...app, panel };
 }
 
@@ -79,11 +79,11 @@ describe('輔助函式', () => {
   });
 });
 
-describe('流程程式碼面板', () => {
+describe('各階段處理程式碼面板', () => {
   it('lists the stages controlled by the form', async () => {
     seed();
     const { panel } = await openFlow();
-    const rows = within(within(panel).getByRole('table', { name: '流程環節' })).getAllByRole('row').slice(1);
+    const rows = within(within(panel).getByRole('table', { name: '流程階段' })).getAllByRole('row').slice(1);
     expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual(['資料匯入', '標註', '資料清理與前處理', '訓練', '部署']);
     expect(rows.every((r) => r.textContent!.includes('介面設定'))).toBe(true);
     expect(within(panel).getByRole('button', { name: '下載整個流程（專案包）' })).toBeInTheDocument();
@@ -103,12 +103,12 @@ describe('流程程式碼面板', () => {
     await user.click(config);
     await user.paste(JSON.stringify(values));
     await user.click(within(panel).getByRole('button', { name: '套用「訓練」' }));
-    await within(panel).findByText(/已套用「訓練」：這個環節改由匯入的內容控制/);
+    await within(panel).findByText(/已套用「訓練」：這個階段改由匯入的內容控制/);
     expect(trainingMock().settings.find((s) => s.id === row.id)!.config.hyperparameters.n_estimators).toBe(7);
     expect(lockedStages(row.id)).toEqual(['train']);
     expect(within(panel).getByText('匯入檔控制')).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: '改回用介面設定「訓練」' })).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(screen.getByRole('link', { name: '訓練設定' }));
     expect(await screen.findByTestId('locked-stages')).toHaveTextContent('匯入控制：訓練');
   });
 
@@ -177,7 +177,7 @@ describe('流程程式碼面板', () => {
     expect(within(panel).getByText(/你沒有程式開發（Coding）權限/)).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: /檢視程式碼/ })).toBeNull();
     for (const name of ['標註', '資料清理與前處理', '訓練']) {
-      expect(within(panel).queryByRole('button', { name: `上傳環節檔「${name}」` })).toBeNull();
+      expect(within(panel).queryByRole('button', { name: `上傳階段檔「${name}」` })).toBeNull();
     }
     expect(within(panel).queryByRole('button', { name: '下載整個流程（專案包）' })).toBeNull();
     expect(within(panel).getByRole('button', { name: '改回用介面設定「訓練」' })).toBeInTheDocument();
@@ -186,12 +186,12 @@ describe('流程程式碼面板', () => {
   it('uploads a stage file; a file of another stage is rejected with the reason', async () => {
     const row = seed();
     const { user, panel } = await openFlow();
-    const input = within(panel).getByLabelText('選擇環節檔（zip）');
-    await user.click(within(panel).getByRole('button', { name: '上傳環節檔「標註」' }));
+    const input = within(panel).getByLabelText('選擇階段檔（zip）');
+    await user.click(within(panel).getByRole('button', { name: '上傳階段檔「標註」' }));
     await user.upload(input, makeFile('{"stage": "train"}', 'diabetes-train.zip', 'application/zip'));
 
-    expect(await within(panel).findByText('這個檔案是「訓練」環節，請到「訓練」匯入')).toBeInTheDocument();
-    await user.click(within(panel).getByRole('button', { name: '上傳環節檔「標註」' }));
+    expect(await within(panel).findByText('這個檔案是「訓練」階段，請到「訓練」匯入')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: '上傳階段檔「標註」' }));
     await user.upload(input, makeFile('{"stage": "labels"}', 'diabetes-labels.zip', 'application/zip'));
     await within(panel).findByText(/已套用「標註」/);
     expect(lockedStages(row.id)).toEqual(['labels']);
@@ -212,7 +212,7 @@ describe('鎖定後的訓練設定', () => {
     await user.click(await screen.findByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByTestId('stage-locks')).toHaveTextContent('「訓練」由匯入的檔案控制：train.json、train.py');
-    expect(within(form).getByLabelText('亂數種子')).toBeDisabled();
+    expect(within(form).getByLabelText('隨機種子')).toBeDisabled();
     expect(within(form).getByLabelText('測試集（%）')).toBeDisabled();
     expect(within(form).getByLabelText('演算法')).toBeDisabled();
     expect(within(form).getByLabelText('訓練種類')).toBeDisabled();
@@ -234,8 +234,8 @@ describe('鎖定後的訓練設定', () => {
     await user.click(screen.getByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByLabelText('資料集')).toBeDisabled();
-    expect(within(form).getByLabelText('要預測的結果（Target）')).toBeDisabled();
-    expect(within(form).getByLabelText('亂數種子')).toBeEnabled();
+    expect(within(form).getByLabelText('Target 欄位')).toBeDisabled();
+    expect(within(form).getByLabelText('隨機種子')).toBeEnabled();
   });
 
   it('the run list marks runs that used imported programs', async () => {

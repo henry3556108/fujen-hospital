@@ -64,7 +64,7 @@ function Distribution({ column, numeric }: { column: string; numeric: boolean })
   );
 }
 
-/** TC-B04-01 描述統計與分布；數值與 API（pandas）回傳值相同，只做顯示用的四捨五入。 */
+/** TC-B04-01 描述性統計與分布；數值與 API（pandas）回傳值相同，只做顯示用的四捨五入。 */
 export function DescribeTab() {
   const { api } = useSession();
   const { dataset, base } = useDataset();
@@ -86,7 +86,7 @@ export function DescribeTab() {
             共 {stats.data.row_count} 列、{stats.data.columns.length} 欄
           </p>
           <div className="table-wrap">
-            <table aria-label="描述統計">
+            <table aria-label="描述性統計">
               <thead>
                 <tr>
                   <th scope="col">欄位</th>

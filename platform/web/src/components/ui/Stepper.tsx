@@ -16,7 +16,7 @@ export function stepState(index: number, current: number): StepState {
 }
 
 /**
- * 步驟條：圓圈數字＋連線＋文字（設計稿 A01 資料→標註→結果、A06 選研究目的→確認資料→確認並送出）。
+ * 步驟條：圓圈數字＋連線＋文字（設計稿 A01 資料→標註→結果、A06 選訓練種類→確認資料→確認並送出）。
  * current 從 0 起算；等於 steps.length 代表全部完成。編號由元件產生，label 不要再寫「1.」。
  */
 export function Stepper({ steps, current, label = '步驟' }: { steps: Step[]; current: number; label?: string }) {

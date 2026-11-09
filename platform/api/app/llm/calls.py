@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.llm.client import ChatResult, LlmError, LlmTimeout, LlmUnavailable
 from app.llm.errors import NotFound, Unavailable
 from app.llm.models import LlmCallRecord
+from app.llm.client import LlmError, OllamaClient
 from app.llm.services import LlmServices
 from app.llm.util import iso
 
@@ -24,7 +25,14 @@ def allowed_models(session: Session, services: LlmServices) -> list[str]:
     from app.llm.models import InstalledModel
     loaded = session.scalars(select(InstalledModel.name).where(InstalledModel.loaded.is_(True)))
     skip = {services.settings.chat_model, services.settings.embed_model}   # 嵌入模型不能對話
-    return [services.settings.chat_model, *sorted(n for n in loaded if n not in skip)]
+    extra = sorted(n for n in loaded if n not in skip)
+    if isinstance(services.client, OllamaClient) and extra:
+        try:   # 資料表標示已載入、模型服務裡卻沒有的不列出，否則選了只會得到 503
+            runnable = set(services.client.models())
+        except LlmError:
+            return [services.settings.chat_model, *extra]
+        extra = [n for n in extra if n in runnable]
+    return [services.settings.chat_model, *extra]
 
 
 def call_llm(session: Session, services: LlmServices, *, project_id: int, username: str, origin: str,

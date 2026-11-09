@@ -235,7 +235,7 @@ def _readme(setting: TrainingSetting, stage: str) -> str:
 
 1. 修改 `{config_name(stage)}` 或 `{code_name(stage)}`。
 2. 整個資料夾重新壓成 zip。
-3. 到平台「建模管理」→ 這份訓練設定的「流程程式碼」→「{STAGE_NAMES[stage]}」→「上傳環節檔」。
+3. 到平台「建模管理」→ 這份訓練設定的「各階段處理程式碼」→「{STAGE_NAMES[stage]}」→「上傳階段檔」。
    也可以直接在網頁上「檢視程式碼」，貼上修改後的內容按「套用」。
 
 套用後這個環節改由匯入的檔案控制，介面上的對應欄位會鎖定；要恢復請按「改回用介面設定」。

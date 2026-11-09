@@ -1,4 +1,4 @@
-// 流程程式碼（錄製巨集）第二階段：資料匯入與部署兩個環節（只有設定檔，Training 權限即可）、
+// 各階段處理程式碼（錄製巨集）第二階段：資料匯入與部署兩個階段（只有設定檔，Training 權限即可）、
 // 部署頁的鎖定標示、匯入整個流程（專案包）的檢查、資料對應與匯入。
 import '../upload-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,7 +35,7 @@ function seed(name = '糖尿病預測', config: TrainingConfig = TABULAR) {
   return row;
 }
 
-/** 本專案訓練出的模型（部署環節用 sha256 指定） */
+/** 本專案訓練出的模型（部署階段用 sha256 指定） */
 function seedModel() {
   const s = trainingMock();
   s.models.push({ id: 1000 + s.nextModel++, run_id: 9, project_id: 1, name: '糖尿病預測-run9', kind: 'tabular_classification', format: 'pkl', sha256: SHA,
@@ -48,9 +48,9 @@ const client = (user = 'pi01') =>
 async function openFlow(name = '糖尿病預測', username = 'pi01') {
   const app = await renderApp('/training/settings', username);
   if (username !== 'pi01') await app.user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
-  await app.user.click(await screen.findByRole('link', { name: `流程程式碼「${name}」` }));
-  const panel = await screen.findByRole('region', { name: `流程程式碼「${name}」` });
-  await within(panel).findByRole('table', { name: '流程環節' });
+  await app.user.click(await screen.findByRole('link', { name: `各階段處理程式碼「${name}」` }));
+  const panel = await screen.findByRole('region', { name: `各階段處理程式碼「${name}」` });
+  await within(panel).findByRole('table', { name: '流程階段' });
   return { ...app, panel };
 }
 
@@ -63,7 +63,7 @@ async function replaceText(user: Awaited<ReturnType<typeof renderApp>>['user'], 
 const deployJson = (users: string[] = ['pi01']) =>
   JSON.stringify({ model: { sha256: SHA }, deployment: { name: 'diabetes-svc', title: '糖尿病預測服務', allowed_users: users } });
 
-describe('資料匯入與部署環節', () => {
+describe('資料匯入與部署階段', () => {
   it('keeps the data source of a locked import stage when the form is saved', () => {
     const changed: TrainingConfig = { ...TABULAR, source: { type: 'tabular', dataset_id: 9 }, seed: 1 };
     const out = keepLocked(changed, TABULAR, ['import']);
@@ -74,7 +74,7 @@ describe('資料匯入與部署環節', () => {
   it('lists five stages; data import and deploy only have settings files', async () => {
     seed();
     const { panel } = await openFlow();
-    const rows = within(within(panel).getByRole('table', { name: '流程環節' })).getAllByRole('row').slice(1);
+    const rows = within(within(panel).getByRole('table', { name: '流程階段' })).getAllByRole('row').slice(1);
     expect(rows.map((r) => within(r).getByRole('rowheader').textContent)).toEqual(['資料匯入', '標註', '資料清理與前處理', '訓練', '部署']);
     expect(within(panel).getByRole('button', { name: '檢視設定檔「資料匯入」' })).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: '檢視設定檔「部署」' })).toBeInTheDocument();
@@ -91,17 +91,17 @@ describe('資料匯入與部署環節', () => {
     expect(within(panel).getByRole('textbox', { name: 'schema.json' })).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: /還原成平台預設程式/ })).toBeNull();
     await user.click(within(panel).getByRole('button', { name: '套用「資料匯入」' }));
-    await within(panel).findByText(/已套用「資料匯入」：這個環節改由匯入的內容控制，訓練設定表單上資料來源已停用/);
+    await within(panel).findByText(/已套用「資料匯入」：這個階段改由匯入的內容控制，訓練設定表單上資料來源已停用/);
     expect(lockedStages(row.id)).toEqual(['import']);
 
-    await user.click(within(panel).getByRole('button', { name: '關閉流程程式碼' }));
-    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(within(panel).getByRole('button', { name: '關閉各階段處理程式碼' }));
+    await user.click(screen.getByRole('link', { name: '訓練設定' }));
     await user.click(await screen.findByRole('checkbox', { name: '只看我建立的' }));
     await user.click(await screen.findByRole('button', { name: '修改「糖尿病預測」' }));
     const form = await screen.findByRole('form', { name: '修改訓練設定「糖尿病預測」' });
     expect(within(form).getByTestId('stage-locks')).toHaveTextContent('「資料匯入」由匯入的檔案控制：import.json、schema.json');
     expect(within(form).getByLabelText('資料集')).toBeDisabled();
-    expect(within(form).getByLabelText('亂數種子')).toBeEnabled();
+    expect(within(form).getByLabelText('隨機種子')).toBeEnabled();
   });
 
   it('a wrong data import file lists the problem and keeps the setting', async () => {
@@ -123,7 +123,7 @@ describe('資料匯入與部署環節', () => {
     expect(JSON.parse((box as HTMLTextAreaElement).value).deployment.title).toBe('糖尿病預測');
     await replaceText(user, box, deployJson(['pi01', 'md01']));
     await user.click(within(panel).getByRole('button', { name: '套用「部署」' }));
-    await within(panel).findByText('已套用「部署」：服務已依 deploy.json 建立或更新，部署頁上這個服務的分享對象改由匯入檔控制。');
+    await within(panel).findByText('已套用「部署」：服務已依 deploy.json 建立或更新，部署頁上這個服務的授權帳號改由匯入檔控制。');
     const dep = trainingMock().deployments.find((d) => d.name === 'diabetes-svc')!;
     expect(dep).toMatchObject({ title: '糖尿病預測服務', allowed_users: ['pi01', 'md01'] });
     expect(dep.stage_lock?.setting).toEqual({ id: row.id, name: '糖尿病預測' });
@@ -155,11 +155,11 @@ describe('資料匯入與部署環節', () => {
     seedModel();
     await client().put(`/api/projects/1/training/settings/${row.id}/stages/deploy`, { files: { 'deploy.json': deployJson() } });
     await renderApp('/models/9/share', 'pi01');
-    const table = await screen.findByRole('table', { name: '已分享的模型' });
+    const table = await screen.findByRole('table', { name: '已部署的模型' });
     const tr = within(table).getByRole('row', { name: /糖尿病預測服務/ });
     expect(within(tr).getByTestId('deployment-lock')).toHaveTextContent('由 deploy.json 控制（pi01，');
     expect(within(tr).getByTestId('deployment-lock')).toHaveTextContent('訓練設定「糖尿病預測」');
-    expect(within(tr).getByRole('button', { name: '修改分享對象「糖尿病預測服務」' })).toBeDisabled();
+    expect(within(tr).getByRole('button', { name: '修改授權帳號「糖尿病預測服務」' })).toBeDisabled();
     const err = await client().put('/api/projects/1/deployments/' + trainingMock().deployments.at(-1)!.id + '/access', { allowed_users: [] })
       .catch((e: unknown) => e as Error);
     expect((err as Error).message).toMatch(/由匯入的 deploy\.json 控制/);
@@ -186,7 +186,7 @@ describe('匯入整個流程（專案包）', () => {
     expect(dl).toHaveTextContent('資料清理與前處理');
     expect(within(region).getByTestId('package-mapping')).toHaveTextContent('會用專案包內附的資料（80 列）建立一個新的資料集。');
     await user.click(within(region).getByRole('button', { name: '匯入「糖尿病預測」' }));
-    expect(await screen.findByText(/^已匯入專案包，建立訓練設定「糖尿病預測（匯入 1）」。已用專案包內附的資料建立資料集「糖尿病預測（專案包資料）」。由匯入檔控制的環節：資料清理與前處理。可以送出訓練。$/))
+    expect(await screen.findByText(/^已匯入專案包，建立訓練設定「糖尿病預測（匯入 1）」。已用專案包內附的資料建立資料集「糖尿病預測（專案包資料）」。由匯入檔控制的階段：資料清理與前處理。可以送出訓練。$/))
       .toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '匯入整個流程（專案包）' })).toBeNull();
     const created = trainingMock().settings.find((s) => s.name === '糖尿病預測（匯入 1）')!;
@@ -198,7 +198,7 @@ describe('匯入整個流程（專案包）', () => {
     await user.upload(within(region).getByLabelText('專案包（zip）'), pkg({ name: '肺部預測', deploy: true }));
     await user.click(within(region).getByRole('button', { name: '檢查專案包' }));
     const select = await within(region).findByLabelText('要使用的資料集');
-    expect(within(region).getByText(/部署環節沒有匯入/)).toBeInTheDocument();
+    expect(within(region).getByText(/部署階段沒有匯入/)).toBeInTheDocument();
     expect(within(region).getByRole('button', { name: '匯入「肺部預測」' })).toBeDisabled();
     expect(within(region).getByRole('button', { name: '用這個資料重新檢查' })).toBeDisabled();
     await user.selectOptions(select, within(select).getByRole('option', { name: /lung-clinical/ }));
@@ -234,10 +234,10 @@ describe('匯入整個流程（專案包）', () => {
     await user.upload(within(region).getByLabelText('專案包（zip）'), pkg({ name: '胸腔 X 光', kind: 'image_classification' }));
     await user.click(within(region).getByRole('button', { name: '檢查專案包' }));
     const range = await within(region).findByRole('radiogroup', { name: '要使用的影像範圍' });
-    expect(within(range).getByRole('radio', { name: /本專案全部研究（3 個）/ })).toBeChecked();
+    expect(within(range).getByRole('radio', { name: /本專案全部影像（3 個）/ })).toBeChecked();
     expect(within(region).getByRole('button', { name: '匯入「胸腔 X 光」' })).toBeDisabled();
     await user.click(within(region).getByRole('button', { name: '用這個資料重新檢查' }));
-    await waitFor(() => expect(within(region).getByTestId('package-mapping')).toHaveTextContent('影像範圍：本專案全部研究。'));
+    await waitFor(() => expect(within(region).getByTestId('package-mapping')).toHaveTextContent('影像範圍：本專案全部影像。'));
     expect(within(region).getByRole('button', { name: '匯入「胸腔 X 光」' })).toBeEnabled();
     // 重新檢查後選項會收起來，匯入時仍要送出檢查時選的範圍（平台匯入會用同樣的選擇再檢查一次）
     await user.click(within(region).getByRole('button', { name: '匯入「胸腔 X 光」' }));
@@ -251,7 +251,7 @@ describe('匯入整個流程（專案包）', () => {
     await user.upload(within(region).getByLabelText('專案包（zip）'), pkg({ name: '腦部 MRI', kind: 'image_classification' }));
     await user.click(within(region).getByRole('button', { name: '檢查專案包' }));
     const range = await within(region).findByRole('radiogroup', { name: '要使用的影像範圍' });
-    await user.click(within(range).getByRole('radio', { name: '指定研究' }));
+    await user.click(within(range).getByRole('radio', { name: '部分影像' }));
     await user.type(within(region).getByLabelText('研究 UID（每行一個）'), '1.2.3{enter}1.2.4');
     await user.click(within(region).getByRole('button', { name: '用這個資料重新檢查' }));
     await waitFor(() => expect(within(region).getByTestId('package-mapping')).toHaveTextContent('影像範圍：2 個研究。'));

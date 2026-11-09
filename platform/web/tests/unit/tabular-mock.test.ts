@@ -72,7 +72,7 @@ suite('mock tabular API matches the real API', () => {
     expect(by.study_accession).toMatchObject({ count: 12, missing: 88, unique: 8, top: 'ACC0010', freq: 3 });
   });
 
-  it('TC-B04-04 mean imputation and One-Hot give the reference result', () => {
+  it('TC-B04-04 mean imputation and One Hot Encoding give the reference result', () => {
     const before = cohort().frame;
     const out = applyPipeline(before, [
       { id: 'impute_mean', columns: ['glucose'] },

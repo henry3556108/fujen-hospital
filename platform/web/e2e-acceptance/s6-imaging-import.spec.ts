@@ -61,9 +61,9 @@ let admin: Page, ra: Page, pi: Page;
 const ctxs: BrowserContext[] = [];
 
 /**
- * 研究資料 › 影像的頁內分頁（沿用舊分頁名稱呼叫）：
- * 研究列表→影像清單、匯入工作→匯入紀錄、PACS 查詢取像→影像清單的「加入資料」→「從院內影像系統取得」；
- * 「檔案與配對」不再是分頁（加入資料後的「看檔案與配對」連結），用保留的舊網址開。
+ * 數據管理 › 影像的頁內分頁（沿用舊分頁名稱呼叫）：
+ * 研究列表→影像清單、匯入工作→匯入紀錄、PACS 查詢取像→影像清單的「匯入資料」→「從影像儲傳系統取得」；
+ * 「檔案與配對」不再是分頁（匯入資料後的「看檔案與配對」連結），用保留的舊網址開。
  */
 async function imagingTab(p: Page, project: string, tab: string) {
   await useProject(p, project);
@@ -73,13 +73,13 @@ async function imagingTab(p: Page, project: string, tab: string) {
     return;
   }
   if (tab === 'PACS 查詢取像') {
-    // 影像清單上方「加入資料」→ 資料來源選「從院內影像系統取得」
-    await p.locator('main').getByRole('link', { name: '加入資料', exact: true }).click();
-    await p.getByRole('list', { name: '資料來源' }).getByRole('button', { name: /^從院內影像系統取得/ }).click();
+    // 影像清單上方「匯入資料」→ 資料來源選「從影像儲傳系統取得」
+    await p.locator('main').getByRole('link', { name: '匯入資料', exact: true }).click();
+    await p.getByRole('list', { name: '資料來源' }).getByRole('button', { name: /^從影像儲傳系統取得/ }).click();
     await p.waitForLoadState('networkidle').catch(() => undefined);
     return;
   }
-  const NEW: Record<string, string> = { 研究列表: '影像清單', 匯入工作: '匯入紀錄', 'Accession 清單': '影像存取清單' };
+  const NEW: Record<string, string> = { 研究列表: '影像清單', 匯入工作: '匯入紀錄', 'Accession Number 清單': 'Accession Number 清單' };
   await p.getByRole('navigation', { name: '影像分頁' }).getByRole('link', { name: NEW[tab] ?? tab, exact: true }).click();
   await p.waitForLoadState('networkidle').catch(() => undefined);
 }
@@ -248,7 +248,7 @@ test('TC-B01-07 PACS 查詢與取像', async () => {
   await ra.getByRole('button', { name: '查詢 PACS' }).click();
   await expect(ra.getByText('PACS 回覆 2 個研究')).toBeVisible({ timeout: 30_000 });
   note(tc, `查詢 PACS 到畫面顯示回覆：${((Date.now() - t0) / 1000).toFixed(1)} 秒`);
-  await shot(ra, tc, '01-加入資料-院內影像系統-回覆2個研究');
+  await shot(ra, tc, '01-匯入資料-影像儲傳系統-回覆2個研究');
   t0 = Date.now();
   await ra.getByRole('button', { name: '取回 ACC0001' }).click();
   const pacsResult = ra.getByRole('region', { name: 'PACS 取像結果' });
@@ -275,32 +275,32 @@ test('TC-B01-07 PACS 查詢與取像', async () => {
 const OUTSIDE = ['3', '4', '5', '7', '10'];
 const uid = (n: string) => `1.2.826.0.1.3680043.10.9999.42.1.${n}`;
 
-test('TC-B01-08 Accession 清單限制', async () => {
+test('TC-B01-08 Accession Number 清單限制', async () => {
   const tc = 'TC-B01-08';
-  // 新版：清單由 Admin 在管理區專案頁「影像存取清單」分頁設定（研究資料裡只能看）
+  // 新版：清單由 Admin 在管理區專案頁「Accession Number 清單」分頁設定（數據管理裡只能看）
   await projectTab(admin, M1.accession, PROJECT_TABS.allowlist);
   const list = fs.readFileSync(path.join(KIT, 'data/accession_allowlist.txt'), 'utf8');
   await admin.locator('#allowlist-text').fill(list);
   await expect(admin.getByText('目前輸入 10 筆')).toBeVisible();
-  await shot(admin, tc, '01-專案頁影像存取清單-貼上10筆');
+  await shot(admin, tc, '01-專案頁 Accession Number 清單-貼上10筆');
   await admin.getByRole('checkbox', { name: /已確認變更範圍/ }).check();
   await admin.getByRole('button', { name: '儲存清單' }).click();
-  await expect(admin.getByText('已儲存影像存取清單，共 10 筆')).toBeVisible();
-  await shot(admin, tc, '02-專案頁影像存取清單-儲存共10筆');
+  await expect(admin.getByText('已儲存 Accession Number 清單，共 10 筆')).toBeVisible();
+  await shot(admin, tc, '02-專案頁 Accession Number 清單-儲存共10筆');
   const r = upload(tc, '03-匯入20個研究', M1.accession, `--exclude manifest.json "${KIT}/data/dicom"`);
   expect(r.out).toContain('匯入 100、重複 0、失敗 0');
   await imagingTab(ra, M1.accession, '研究列表');
   await expect(ra.getByText(studyCount(10))).toBeVisible();
   await shot(ra, tc, '04-ra01影像清單-只剩10個');
-  // 研究資料 › 影像存取清單：ra01 只能看（沒有編輯表單）
-  await ra.getByRole('navigation', { name: '影像分頁' }).getByRole('link', { name: '影像存取清單', exact: true }).click();
+  // 數據管理 › Accession Number 清單：ra01 只能看（沒有編輯表單）
+  await ra.getByRole('navigation', { name: '影像分頁' }).getByRole('link', { name: 'Accession Number 清單', exact: true }).click();
   await expect(ra.getByText('共 10 筆，只顯示清單內的影像。')).toBeVisible();
-  await expect(ra.getByRole('form', { name: '設定影像存取清單' })).toHaveCount(0);
-  await shot(ra, tc, '04b-ra01影像存取清單-唯讀');
+  await expect(ra.getByRole('form', { name: '設定 Accession Number 清單' })).toHaveCount(0);
+  await shot(ra, tc, '04b-ra01Accession Number 清單-唯讀');
   let ok = 0;
   for (const n of OUTSIDE) {
     await ra.goto(`/data/imaging/studies/${uid(n)}`);
-    await expect(ra.getByText('找不到研究，或不在本專案的 Accession 清單內').first()).toBeVisible();
+    await expect(ra.getByText('找不到研究，或不在本專案的 Accession Number 清單內').first()).toBeVisible();
     await expect(ra.getByRole('region', { name: '研究資訊' })).toHaveCount(0);
     await shot(ra, tc, `05-網頁直接網址-清單外ACC${n.padStart(4, '0')}`);
     ok++;

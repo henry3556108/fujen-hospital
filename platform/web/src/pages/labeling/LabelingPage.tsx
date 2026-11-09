@@ -1,6 +1,6 @@
 // 影像標註首頁＝待處理清單：進度、繼續標註、篩選（文字、狀態、資料範圍）、分頁。
 // 版面照補充設計 B01：標題列＋分頁、進度卡、篩選卡、表格卡（操作是白底藍框按鈕）。
-// CSV 診斷匯入搬到「標註資料集」；訓練改由建立模型精靈處理。
+// CSV 診斷匯入搬到「標註資料集」；訓練改由建模管理精靈處理。
 import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -111,7 +111,7 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
               id="pending-q"
               className="input"
               value={text}
-              placeholder="影像編號、病歷號或檢查說明"
+              placeholder="影像編號、病歷號或 Study Description"
               onChange={(e) => update({ q: e.target.value })}
             />
           </div>
@@ -135,7 +135,7 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
                 ))}
               </select>
               <span className="field__hint">
-                範圍在「研究資料 → 影像清單」篩選後儲存。<Link to="/data/imaging">去設定</Link>
+                範圍在「數據管理 → 影像清單」篩選後儲存。<Link to="/data/imaging">去設定</Link>
               </span>
             </div>
           ) : null}
@@ -151,10 +151,10 @@ function Labeling({ labeling }: { labeling: LabelingApi }) {
           <EmptyState
             icon="image"
             title="還沒有影像"
-            description={<>專案「{project?.name}」還沒有影像，請先到研究資料匯入。</>}
+            description={<>專案「{project?.name}」還沒有影像，請先到數據管理匯入。</>}
             action={
               <Link className="btn btn--primary" to="/data/imaging/import">
-                研究資料 → 加入資料
+                數據管理 → 匯入資料
               </Link>
             }
           />
@@ -184,8 +184,8 @@ function StudyTable({ studies, scopeId }: { studies: StudySummary[]; scopeId: nu
           <tr>
             <th scope="col">影像編號</th>
             <th scope="col">病歷號</th>
-            <th scope="col">檢查日期</th>
-            <th scope="col">檢查說明</th>
+            <th scope="col">Study Date</th>
+            <th scope="col">Study Description</th>
             <th scope="col">類別</th>
             <th scope="col">分割</th>
             <th scope="col">偵測</th>

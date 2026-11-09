@@ -1,4 +1,4 @@
-// 語言模型照設計稿重做（A08、B13～B16）：流程圖、範本挑選、文件 ⋮ 刪除、Markdown 工具列與預覽、版本唯讀。
+// 大型語言模型照設計稿重做（A08、B13～B16）：流程圖、範本挑選、文件 ⋮ 刪除、Markdown 工具列與預覽、版本唯讀。
 import { describe, expect, it } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -21,7 +21,7 @@ const DEF = {
   edges: [['search', 'final'], ['final', 'END']],
 };
 
-describe('工作流程：流程圖', () => {
+describe('LangGraph 工作流：流程圖', () => {
   it('walks from entry along edges; condition goes then before else', () => {
     expect(flowOrder(DEF).map((n) => n.id)).toEqual(['ask', 'search', 'final']);
     expect(flowOrder({ nodes: [{ id: 'a', type: 'llm' }, { id: 'b', type: 'llm' }] }).map((n) => n.id)).toEqual(['a', 'b']);
@@ -35,7 +35,7 @@ describe('工作流程：流程圖', () => {
     expect(items).toHaveLength(4); // 三個節點＋結束
     expect(items[0]).toHaveTextContent('條件判斷');
     expect(items[0]).toHaveTextContent('符合 → search；不符合 → final');
-    expect(items[1]).toHaveTextContent('查參考文件：院內作業規範');
+    expect(items[1]).toHaveTextContent('查 RAG 知識庫：院內作業規範');
     expect(items[1]).toHaveTextContent('失敗');
     expect(items[3]).toHaveTextContent('結束');
   });
@@ -58,7 +58,7 @@ describe('工作流程：流程圖', () => {
   });
 });
 
-describe('對話與參考文件', () => {
+describe('對話與 RAG 知識庫', () => {
   it('sources are listed once per document paragraph', () => {
     const s = { document_id: 1, filename: 'a.pdf', chunk_index: 0, score: 1 };
     expect(uniqueSources([s, { ...s, score: 0.5 }, { ...s, chunk_index: 2 }])).toHaveLength(2);
@@ -66,10 +66,10 @@ describe('對話與參考文件', () => {
 
   it('picks a shared prompt template from the left list', async () => {
     const { user } = await renderApp('/llm/chat', 'ca01');
-    await user.click(await screen.findByRole('tab', { name: '共用範本' }));
+    await user.click(await screen.findByRole('tab', { name: '公開 Prompt' }));
     await user.click(await screen.findByRole('button', { name: '出院摘要' }));
     expect(screen.getByRole('button', { name: '出院摘要' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('form', { name: '送出訊息' })).toHaveTextContent('使用範本：出院摘要');
+    expect(screen.getByRole('form', { name: '送出訊息' })).toHaveTextContent('使用 Prompt：出院摘要');
   });
 
   it('deletes a document from its ⋮ menu after confirming', async () => {
@@ -84,7 +84,7 @@ describe('對話與參考文件', () => {
       }),
     );
     const { user } = await renderApp('/llm/docs', 'ca01');
-    const table = await screen.findByRole('table', { name: '參考文件集' });
+    const table = await screen.findByRole('table', { name: 'RAG 知識庫' });
     await user.click(within(await within(table).findByRole('row', { name: /院內作業規範/ })).getByRole('button', { name: '管理文件' }));
     const list = await screen.findByRole('list', { name: '文件與處理狀態' });
     const item = within(list).getAllByRole('listitem')[0];
@@ -93,7 +93,7 @@ describe('對話與參考文件', () => {
     await user.click(within(item).getByRole('button', { name: /更多操作/ }));
     await user.click(screen.getByRole('menuitem', { name: '刪除文件' }));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '刪除' }));
-    expect(await screen.findByText('這個文件集還沒有文件，按「加入文件」上傳。')).toBeInTheDocument();
+    expect(await screen.findByText('這個 RAG 知識庫還沒有文件，按「加入文件」上傳。')).toBeInTheDocument();
     expect(deleted).toEqual(['7']);
   });
 });
@@ -116,16 +116,16 @@ describe('模型管理', () => {
   });
 });
 
-describe('參考文件：空狀態', () => {
+describe('RAG 知識庫：空狀態', () => {
   it('shows an empty row when there is no document set', async () => {
     server.use(http.get('*/api/projects/:pid/llm/knowledge-bases', () => HttpResponse.json([])));
     await renderApp('/llm/docs', 'ca01');
-    const table = await screen.findByRole('table', { name: '參考文件集' });
-    expect(await within(table).findByText(/尚無文件集/)).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'RAG 知識庫' });
+    expect(await within(table).findByText(/尚無 RAG 知識庫/)).toBeInTheDocument();
   });
 });
 
-describe('團隊文件：Markdown', () => {
+describe('Wiki 知識庫：Markdown', () => {
   it('toolbar wraps the selection or prefixes the line', () => {
     expect(applyEdit('abc', 0, 3, { wrap: ['**', '**'], placeholder: 'x' })).toEqual({ value: '**abc**', start: 2, end: 5 });
     expect(applyEdit('line', 4, 4, { prefix: '- ', placeholder: '項目' }).value).toBe('line- 項目');

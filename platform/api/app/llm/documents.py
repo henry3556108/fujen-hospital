@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import re
+import unicodedata
 import zipfile
 from html.parser import HTMLParser
 from xml.etree import ElementTree
@@ -189,8 +190,15 @@ def _html(data: bytes) -> str:
 _PARSERS = {"pdf": _pdf, "docx": _docx, "txt": _decode, "csv": _csv, "json": _json, "html": _html}
 
 
+# 康熙部首（U+2F00–2FDF）與 CJK 相容表意文字（U+F900–FAFF）：很多 PDF（Chromium、部分 Word 匯出）的文字層把
+# 「生」「用」記成外觀相同的部首字元，不轉回一般字，提問比對不到，模型也會讀錯（「15 ⾄ 20」被讀成「15 至少 20」）。
+# 只轉這兩段，全形英數與標點不動。
+_CJK_COMPAT = {c: unicodedata.normalize("NFKC", chr(c)) for c in (*range(0x2F00, 0x2FE0), *range(0xF900, 0xFB00))
+               if unicodedata.normalize("NFKC", chr(c)) != chr(c)}
+
+
 def normalise(text: str) -> str:
-    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\x00", "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\x00", "").translate(_CJK_COMPAT)
     lines = [re.sub(r"[ \t　]+", " ", line).strip() for line in text.split("\n")]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 

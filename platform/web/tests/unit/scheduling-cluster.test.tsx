@@ -134,8 +134,8 @@ describe('專案工作', () => {
     await user.click(screen.getByRole('button', { name: '重新整理' }));
     await waitFor(() => expect(row(table, '^2 ')).toHaveTextContent('執行中'));
     expect(row(table, '^1 ')).toHaveTextContent('執行中');
-    expect(row(table, '^3 ')).toHaveTextContent('排隊中');
-    expect(row(table, '^4 ')).toHaveTextContent('排隊中');
+    expect(row(table, '^3 ')).toHaveTextContent('等待中');
+    expect(row(table, '^4 ')).toHaveTextContent('等待中');
 
     await user.click(within(table).getByRole('button', { name: '取消工作 3' }));
     // 對話框的按鈕與列上的「取消」不同名：一個是「不要取消」（關閉），一個說清楚要做什麼
@@ -143,7 +143,7 @@ describe('專案工作', () => {
     expect(within(dialog).getAllByRole('button').map((b) => b.textContent)).toEqual(['不要取消', '確定取消工作']);
     await user.click(within(dialog).getByRole('button', { name: '不要取消' }));
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(row(table, '^3 ')).toHaveTextContent('排隊中');
+    expect(row(table, '^3 ')).toHaveTextContent('等待中');
     await user.click(within(table).getByRole('button', { name: '取消工作 3' }));
     dialog = screen.getByRole('dialog', { name: '取消工作' });
     await user.click(within(dialog).getByRole('button', { name: '確定取消工作' }));
@@ -237,7 +237,7 @@ describe('GPU Dashboard', () => {
       ['ai-platform-worker3', '0', '0', 'P1-lung-ct', '1', '1', '1', 'admin01'],
       ['ai-platform-worker3', '1', '0', 'P1-lung-ct', '1', '2', '2', 'admin01'],
     ]);
-    const board = screen.getByRole('list', { name: 'GPU 使用狀況' });
+    const board = screen.getByRole('list', { name: 'GPU Dashboard' });
     expect(board).toHaveTextContent('gpu-exclusive · GPU 0');
     expect(board).toHaveTextContent('工作 1（admin01）');
     expect(board).toHaveTextContent('使用中 0／4 份');

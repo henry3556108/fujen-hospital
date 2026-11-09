@@ -15,15 +15,15 @@ const METHODS: [string, string][] = [
   ['kendall', 'Kendall'],
 ];
 
-/** 「進一步分析」連到統計分析段落並預選模型 */
+/** 「進一步分析」連到醫學統計分析段落並預選模型 */
 const NEXT: [string, string][] = [
-  ['logistic', '邏輯迴歸'],
-  ['linear', '線性迴歸'],
-  ['kaplan-meier', '存活分析'],
-  ['cox', 'Cox 迴歸'],
+  ['logistic', 'Logistic Regression'],
+  ['linear', 'Linear Regression'],
+  ['kaplan-meier', 'Survival Analysis'],
+  ['cox', 'Cox Proportional Hazard Model'],
 ];
 
-/** 相關矩陣裡兩欄的係數；沒算過或不在矩陣裡回 null */
+/** Correlation Matrix 裡兩欄的係數；沒算過或不在矩陣裡回 null */
 export function pairCoefficient(m: Correlation | null, x: string, y: string): number | null {
   if (!m) return null;
   const i = m.columns.indexOf(x);
@@ -31,7 +31,7 @@ export function pairCoefficient(m: Correlation | null, x: string, y: string): nu
   return i < 0 || j < 0 ? null : (m.matrix[i]?.[j] ?? null);
 }
 
-/** TC-B04-05 相關矩陣與散佈圖（B10）：左邊相關矩陣（三種方法），右邊散佈圖，下方接統計分析。 */
+/** TC-B04-05 Correlation Matrix 與 Scatter Chart（B10）：左邊 Correlation Matrix（三種方法），右邊 Scatter Chart，下方接醫學統計分析。 */
 export function CorrelationTab() {
   const { api } = useSession();
   const { dataset, base } = useDataset();
@@ -81,8 +81,8 @@ export function CorrelationTab() {
   return (
     <>
       <div className="rd-two-col">
-        <form aria-label="相關矩陣" className="card" onSubmit={runMatrix} noValidate>
-          <h3>相關矩陣</h3>
+        <form aria-label="Correlation Matrix" className="card" onSubmit={runMatrix} noValidate>
+          <h3>Correlation Matrix</h3>
           <ApiErrorAlert error={matrixError} />
           <fieldset className="rd-radios">
             <legend>相關係數方法</legend>
@@ -110,14 +110,14 @@ export function CorrelationTab() {
           </fieldset>
           <div className="row-actions section">
             <button type="submit" className="btn btn--primary" disabled={busy}>
-              產生相關矩陣
+              產生 Correlation Matrix
             </button>
           </div>
-          {matrix && <Heatmap title={`相關矩陣（${matrix.method}）`} columns={matrix.columns} matrix={matrix.matrix} />}
+          {matrix && <Heatmap title={`Correlation Matrix（${matrix.method}）`} columns={matrix.columns} matrix={matrix.matrix} />}
         </form>
 
-        <form aria-label="散佈圖" className="card" onSubmit={runScatter} noValidate>
-          <h3>散佈圖</h3>
+        <form aria-label="Scatter Chart" className="card" onSubmit={runScatter} noValidate>
+          <h3>Scatter Chart</h3>
           <ApiErrorAlert error={scatterError} />
           <div className="toolbar">
             <div className="field">
@@ -141,7 +141,7 @@ export function CorrelationTab() {
               </select>
             </div>
             <button type="submit" className="btn btn--primary" disabled={busy}>
-              產生散佈圖
+              產生 Scatter Chart
             </button>
           </div>
           {points && (

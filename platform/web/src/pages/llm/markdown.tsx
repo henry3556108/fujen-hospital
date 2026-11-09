@@ -1,4 +1,4 @@
-// 團隊文件的 Markdown 預覽與編輯工具列。只處理常用語法（標題、粗體、斜體、程式碼、清單、連結），
+// Wiki 知識庫的 Markdown 預覽與編輯工具列。只處理常用語法（標題、粗體、斜體、程式碼、清單、連結），
 // 一律產生 React 元素，不用 innerHTML。
 import type { ReactNode, RefObject } from 'react';
 import { Icon } from '../../components/Icon';

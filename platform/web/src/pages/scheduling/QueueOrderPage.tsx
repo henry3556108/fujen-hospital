@@ -36,7 +36,7 @@ function linkText(j: QueueJob): string {
 
 const same = (a: number[], b: number[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** 右欄：共享排程設定（時間片份數、工作時限），與「共享設定」分頁同一份表單 */
+/** 右欄：共享排程設定（時間片份數、工作時限），與「共享排程設定」分頁同一份表單 */
 function SharedPanel() {
   const { api } = useSession();
   const settings = useResource(() => api.get<SharedSchedulingSettings>(SHARED_PATH));
@@ -49,16 +49,16 @@ function SharedPanel() {
       {settings.data && (
         <SharedSettingsForm
           initial={settings.data}
-          submitLabel="儲存共享設定"
+          submitLabel="儲存共享排程設定"
           idPrefix="panel-"
           secondary
           onSaved={(saved) => {
             settings.setData(saved);
-            setNotice(`已儲存共享設定：時間片 ${saved.time_slice_replicas} 份、工作時限 ${saved.job_timeout_minutes} 分鐘`);
+            setNotice(`已儲存共享排程設定：時間片 ${saved.time_slice_replicas} 份、工作時限 ${saved.job_timeout_minutes} 分鐘`);
           }}
         />
       )}
-      <Alert tone="info">「套用順序」只會調整等待中的工作，不會影響正在執行的工作。共享設定只影響共享池。</Alert>
+      <Alert tone="info">「套用順序」只會調整等待中的工作，不會影響正在執行的工作。共享排程設定只影響共享池。</Alert>
     </SidePanel>
   );
 }
@@ -102,8 +102,8 @@ export function QueueOrderPage() {
 
   return (
     <SchedulingPage
-      title="排隊與共享設定"
-      subtitle="管理不同資源類型的排隊順序與共享規則"
+      title="佇列排程與共享排程設定"
+      subtitle="管理不同資源類型的佇列排程與共享規則"
       side={<SharedPanel />}
       actions={
         <button type="button" className="btn btn--secondary" onClick={refresh} disabled={queues.loading || busy}>

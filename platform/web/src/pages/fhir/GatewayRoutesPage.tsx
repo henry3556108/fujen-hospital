@@ -85,7 +85,7 @@ function ManagedRouteForm({ route, onSaved }: { route: GatewayRoute; onSaved: (r
   );
 }
 
-/** Gateway 路由與流量門檻（設計稿 B28）：全平台設定；受管路由可在右欄修改，部署設定檔的路由唯讀。 */
+/** API Gateway 路由與流量門檻（設計稿 B28）：全平台設定；受管路由可在右欄修改，部署設定檔的路由唯讀。 */
 export function GatewayRoutesPage() {
   const { api } = useSession();
   const routes = useResource(() => api.get<GatewayRoute[]>('/api/admin/gateway/routes'));
@@ -133,7 +133,7 @@ export function GatewayRoutesPage() {
       <SplitLayout side={side}>
         <Card flush title="路由清單" extra={<span className="text-muted">不顯示外掛內的認證資訊</span>}>
           <div className="table-wrap">
-            <table aria-label="Gateway 路由">
+            <table aria-label="API Gateway 路由">
               <thead>
                 <tr>
                   <th scope="col">路由</th>

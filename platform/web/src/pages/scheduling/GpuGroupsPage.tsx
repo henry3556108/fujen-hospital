@@ -102,7 +102,7 @@ function GroupForm({
           />
         </div>
       </div>
-      <Alert tone="info">群組建立後，可在「專案」指派給專案使用，並在「排隊順序」調整工作先後。</Alert>
+      <Alert tone="info">群組建立後，可在「專案」指派給專案使用，並在「佇列排程」調整工作先後。</Alert>
       <div className="sch-form__actions">
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
           {submitLabel}
@@ -178,7 +178,7 @@ export function GpuGroupsPage() {
   );
 
   return (
-    <SchedulingPage title="運算資源" subtitle="管理 GPU 資源、群組與叢集節點" side={side}>
+    <SchedulingPage title="GPU／CPU 伺服器管理" subtitle="管理 GPU 資源、群組與叢集節點" side={side}>
       <p className="text-muted">專案綁定一個 GPU 群組後，該專案的訓練工作會進入這個群組所在 GPU 池的佇列。</p>
       {notice && <Alert tone="success">{notice}</Alert>}
       <ApiErrorAlert error={deleteError} />

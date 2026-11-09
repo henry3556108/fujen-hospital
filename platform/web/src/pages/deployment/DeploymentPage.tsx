@@ -1,7 +1,7 @@
-// AI 模型部署（B-06 部署）：模型清單與下載、分享給同事使用（顯示名稱、分享對象；技術名稱由伺服器產生）、
-// 修改分享對象、停止分享；端點、curl、Token 收在「給資訊人員：程式呼叫方式」，下方可用目前的帳號試呼叫端點。
-// 分享對象可輸入帳號開頭再點選（/user-lookup，不需要 Admin）。
-// 入口規則是 Prediction（看模型清單）；分享、下載模型的 API 需要 Training，沒有時只顯示清單與說明。
+// AI 模型部署（B-06 部署）：模型清單與下載、部署並設定權限（顯示名稱、授權帳號；技術名稱由伺服器產生）、
+// 修改授權帳號、停止部署；端點、curl、Token 收在「給資訊人員：程式呼叫方式」，下方可用目前的帳號線上推論測試端點。
+// 授權帳號可輸入帳號開頭再點選（/user-lookup，不需要 Admin）。
+// 入口規則是 Prediction（看模型清單）；部署、下載模型的 API 需要 Training，沒有時只顯示清單與說明。
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -14,6 +14,7 @@ import { parseUsers, useTrainingApi, type Deployment, type TrainingApi } from '.
 import { downloadAndSave, useHasPermission } from '../training/ModelExport';
 import { useUserLookup } from '../../api/userLookup';
 import { UserPicker } from '../../components/UserPicker';
+import { platformTokenSteps } from '../../components/apiToken';
 import { Card, CodeBlock } from '../../components/ui';
 import { TryCall } from './TryCall';
 import { TryPredict } from './TryPredict';
@@ -34,7 +35,7 @@ export function DeploymentPage() {
   );
 }
 
-/** 使用模型 › 分享與服務：只處理一個模型（modelId）的分享、授權、端點與試呼叫。 */
+/** 模型部署與推論服務 › 模型部署：只處理一個模型（modelId）的部署、授權、端點與線上推論測試。 */
 export function SharePanel({ modelId }: { modelId: number }) {
   const api = useTrainingApi();
   return api ? <Deployments key={`${api.projectId}-${modelId}`} api={api} modelId={modelId} /> : null;
@@ -55,7 +56,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
   const [form, setForm] = useState({ model: wanted ? String(wanted) : '', title: '', users: '' });
   const formRef = useRef<HTMLFormElement>(null);
   const [prefilled, setPrefilled] = useState(false);
-  // 從建模管理「分享給同事使用」進來：預選模型、建議顯示名稱、捲到分享表單
+  // 從建模管理「部署並設定權限」進來：預選模型、建議顯示名稱、捲到部署表單
   useEffect(() => {
     if (!wanted || prefilled || !models.data) return;
     const m = models.data.find((x) => x.id === wanted);
@@ -91,7 +92,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
     const users = parseUsers(form.users);
     if (!users.length) {
       setDone('');
-      return setError(new Error('請填要分享的同事帳號，例如 md01'));
+      return setError(new Error('請填要授權的帳號，例如 md01'));
     }
     void act(async () => {
       const d = await api.deploy({ model_id: selected.id, title: form.title.trim() || suggestTitle(selected.name), allowed_users: users });
@@ -109,7 +110,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
       const d = await api.setAccess(editing.id, parseUsers(editing.users));
       deployments.reload();
       setEditing(null);
-      return `已更新「${titleOf(d)}」的分享對象：${d.allowed_users.join('、') || '（無）'}。` + outsideNote(d);
+      return `已更新「${titleOf(d)}」的授權帳號：${d.allowed_users.join('、') || '（無）'}。` + outsideNote(d);
     });
   }
 
@@ -121,14 +122,14 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
       await api.undeploy(target.id);
       deployments.reload();
       models.reload();
-      return `已停止分享「${titleOf(target)}」。專案成員仍可在「使用模型」使用這個模型，但程式呼叫的端點不再接受呼叫。`;
+      return `已停止部署「${titleOf(target)}」。專案成員仍可在「模型部署與推論服務」使用這個模型，但程式呼叫的端點不再接受呼叫。`;
     });
   }
 
   return (
     <div className="stack">
       {!canTrain ? (
-        <Alert tone="info">分享模型、下載模型需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。要用模型預測，請到「預測新資料」。</Alert>
+        <Alert tone="info">部署模型、下載模型需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。要用模型預測，請到「推論」。</Alert>
       ) : null}
       {done ? <Alert tone="success">{done}</Alert> : null}
       <ApiErrorAlert error={error} />
@@ -178,14 +179,14 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
       )}
 
       {canTrain && models.data.length > 0 ? (
-        <form ref={formRef} aria-label="分享給同事使用" className="card section stack" onSubmit={deploy} noValidate>
-          <h2>分享給同事使用</h2>
-          {prefilled && !modelId ? <Alert tone="info">已選好剛訓練完成的模型「{selected ? displayName(selected) : ''}」，請填要分享的同事帳號後按「分享給同事使用」。</Alert> : null}
+        <form ref={formRef} aria-label="部署並設定權限" className="card section stack" onSubmit={deploy} noValidate>
+          <h2>部署並設定權限</h2>
+          {prefilled && !modelId ? <Alert tone="info">已選好剛訓練完成的模型「{selected ? displayName(selected) : ''}」，請填要授權的帳號後按「部署並設定權限」。</Alert> : null}
           <p data-testid="share-explain">
-            分享後，同事（例如 md01）登入平台，點左側「使用模型」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「分享給你」）打開，
+            部署後，同事（例如 md01）登入平台，點左側「模型部署與推論服務」，在模型清單找到「{form.title.trim() || (selected ? suggestTitle(selected.name) : '這個模型')}」（標示「已授權給你」）打開，
             就能預測一位病人或多位病人。
           </p>
-          <p className="field__hint">同一個專案中有 Prediction（使用模型）權限的成員都看得到這個專案的模型；分享會把模型標示為「分享給你」，並允許資訊人員用程式呼叫。</p>
+          <p className="field__hint">同一個專案中有 Prediction（模型部署與推論服務）權限的成員都看得到這個專案的模型；部署會把模型標示為「已授權給你」，並允許資訊人員用程式呼叫。</p>
           <div className="form-grid">
             {modelId ? null : (
             <div className="field">
@@ -209,13 +210,13 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
                 onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
             <div className="field">
-              <label htmlFor="dep-users">分享給（同事的帳號，以逗號分隔）</label>
+              <label htmlFor="dep-users">授權帳號（以逗號分隔）</label>
               <UserPicker id="dep-users" value={form.users} placeholder="例如 md01" lookup={lookup} onChange={(users) => setForm({ ...form, users })} />
             </div>
           </div>
           <div className="row-actions">
             <button type="submit" className="btn btn--primary">
-              分享給同事使用
+              部署並設定權限
             </button>
           </div>
         </form>
@@ -225,17 +226,17 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
 
       {canTrain ? (
         <section className="card section" aria-labelledby="dep-list-title">
-          <h2 id="dep-list-title">已分享的模型</h2>
+          <h2 id="dep-list-title">已部署的模型</h2>
           <ApiErrorAlert error={deployments.error} />
-          {deployments.data && deployments.data.length === 0 ? <p className="text-muted">還沒有分享任何模型。</p> : null}
+          {deployments.data && deployments.data.length === 0 ? <p className="text-muted">還沒有部署任何模型。</p> : null}
           {deployments.data && deployments.data.length > 0 ? (
             <div className="table-wrap">
-              <table className="table" aria-label="已分享的模型">
+              <table className="table" aria-label="已部署的模型">
                 <thead>
                   <tr>
                     <th scope="col">名稱</th>
                     <th scope="col">模型</th>
-                    <th scope="col">分享給</th>
+                    <th scope="col">授權給</th>
                     <th scope="col">建立</th>
                     <th scope="col">操作</th>
                   </tr>
@@ -255,7 +256,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
                             <span className="badge status-badge status-badge--info">匯入檔控制</span>
                             <span className="field__hint">
                               由 deploy.json 控制（{d.stage_lock.imported_by}，{formatTime(d.stage_lock.imported_at)} 匯入
-                              {d.stage_lock.setting ? `，訓練設定「${d.stage_lock.setting.name}」` : ''}）。要修改分享對象，請到建模管理的流程程式碼改 deploy.json，或改回用介面設定。
+                              {d.stage_lock.setting ? `，訓練設定「${d.stage_lock.setting.name}」` : ''}）。要修改授權帳號，請到建模管理的各階段處理程式碼改 deploy.json，或改回用介面設定。
                             </span>
                           </span>
                         ) : null}
@@ -266,10 +267,10 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
                       <td className="row-actions">
                         <button type="button" className="btn btn--small btn--secondary" disabled={Boolean(d.stage_lock)}
                           onClick={() => setEditing({ id: d.id, users: d.allowed_users.join(', ') })}>
-                          修改分享對象「{titleOf(d)}」
+                          修改授權帳號「{titleOf(d)}」
                         </button>
                         <button type="button" className="btn btn--small btn--danger" onClick={() => setRemoving(d)}>
-                          停止分享「{titleOf(d)}」
+                          停止部署「{titleOf(d)}」
                         </button>
                       </td>
                     </tr>
@@ -279,16 +280,16 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
             </div>
           ) : null}
           {editing ? (
-            <form aria-label="修改分享對象" onSubmit={saveAccess} className="stack" noValidate>
+            <form aria-label="修改授權帳號" onSubmit={saveAccess} className="stack" noValidate>
               <div className="field">
                 <label htmlFor="dep-access">
-                  「{titleOf(deployments.data?.find((d) => d.id === editing.id))}」分享給（同事的帳號，以逗號分隔）
+                  「{titleOf(deployments.data?.find((d) => d.id === editing.id))}」授權帳號（以逗號分隔）
                 </label>
                 <UserPicker id="dep-access" value={editing.users} lookup={lookup} onChange={(users) => setEditing({ ...editing, users })} />
               </div>
               <div className="row-actions">
                 <button type="submit" className="btn btn--primary">
-                  儲存分享對象
+                  儲存授權帳號
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)}>
                   取消
@@ -301,7 +302,7 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
               <summary>給資訊人員：程式呼叫方式</summary>
               <div className="stack">
                 <p className="text-muted">
-                  每個分享都有一個程式呼叫端點，經 Gateway 呼叫；呼叫者以「分享給」名單中的帳號登入取得 Token，其他帳號會收到 403（拒絕）並留下稽核紀錄。
+                  每個部署都有一個程式呼叫端點，經 Gateway 呼叫；呼叫者以「授權帳號」名單中的帳號登入取得 Token，其他帳號會收到 403（拒絕）並留下稽核紀錄。
                 </p>
                 <div className="table-wrap">
                   <table className="table" aria-label="程式呼叫端點">
@@ -338,8 +339,8 @@ function Deployments({ api, modelId }: { api: TrainingApi; modelId?: number }) {
       ) : null}
 
       {removing ? (
-        <ConfirmDialog title="停止分享" confirmLabel="停止分享" onConfirm={undeploy} onCancel={() => setRemoving(null)}>
-          確定要停止分享「{titleOf(removing)}」嗎？專案成員仍可在「使用模型」使用這個模型，但程式呼叫的端點會立即停止接受呼叫。
+        <ConfirmDialog title="停止部署" confirmLabel="停止部署" onConfirm={undeploy} onCancel={() => setRemoving(null)}>
+          確定要停止部署「{titleOf(removing)}」嗎？專案成員仍可在「模型部署與推論服務」使用這個模型，但程式呼叫的端點會立即停止接受呼叫。
         </ConfirmDialog>
       ) : null}
     </div>
@@ -350,13 +351,13 @@ const titleOf = (d?: Deployment) => (d ? d.title || d.name : '');
 
 function outsideNote(d: Deployment): string {
   return d.cannot_use_in_platform?.length
-    ? `注意：${d.cannot_use_in_platform.join('、')} 不是本專案有推論權限的成員，登入後在「使用模型」看不到這個模型；需要時請專案負責人把他加入專案。`
+    ? `注意：${d.cannot_use_in_platform.join('、')} 不是本專案有推論權限的成員，登入後在「模型部署與推論服務」看不到這個模型；需要時請專案負責人把他加入專案。`
     : '';
 }
 
 function sharedMessage(d: Deployment): string {
   const people = d.allowed_users.join('、');
-  return `已把「${titleOf(d)}」分享給 ${people}。他們登入後點左側「使用模型」，打開模型「${titleOf(d)}」就能預測。` + outsideNote(d);
+  return `已把「${titleOf(d)}」授權給 ${people}。他們登入後點左側「模型部署與推論服務」，打開模型「${titleOf(d)}」就能預測。` + outsideNote(d);
 }
 
 /** 呼叫方式範例（curl）：結構式送 JSON rows，影像以 multipart 上傳 files。 */
@@ -376,7 +377,7 @@ export function pythonCallExample(deployment: Pick<Deployment, 'endpoint'>, mode
     'import os',
     'import requests',
     '',
-    '# GATEWAY：平台 Gateway 網址；TOKEN：以「分享給」名單中的帳號登入取得',
+    '# GATEWAY：平台 Gateway 網址；TOKEN：以「授權帳號」名單中的帳號登入取得',
     'url = os.environ["GATEWAY"] + "' + deployment.endpoint + '"',
     'headers = {"Authorization": "Bearer " + os.environ["TOKEN"]}',
     '',
@@ -397,7 +398,7 @@ function CallExample({ deployment, model }: { deployment: Deployment; model?: Mo
   );
 }
 
-/** 使用模型 › 分享與服務 › 呼叫說明（設計稿 B11）：已分享的端點、取得 Token、curl 與 Python 範例。 */
+/** 模型部署與推論服務 › 模型部署 › 呼叫說明（設計稿 B11）：已部署的端點、取得 Token、curl 與 Python 範例。 */
 export function CallGuide({ modelId }: { modelId: number }) {
   const api = useTrainingApi();
   const canTrain = useHasPermission('training');
@@ -414,7 +415,7 @@ export function CallGuide({ modelId }: { modelId: number }) {
   if (deployments.data.length === 0) {
     return (
       <Card title="呼叫說明">
-        <p className="text-muted">這個模型還沒有分享。到「分享與服務」分享給同事後，平台會產生程式呼叫端點，這裡會列出呼叫方式。</p>
+        <p className="text-muted">這個模型還沒有部署。到「模型部署」授權給同事後，平台會產生程式呼叫端點，這裡會列出呼叫方式。</p>
       </Card>
     );
   }
@@ -423,9 +424,9 @@ export function CallGuide({ modelId }: { modelId: number }) {
     <div className="stack">
       <Card title="呼叫說明">
         <ol className="stack">
-          <li>以「分享給」名單中的帳號登入平台取得 Token；其他帳號呼叫會收到 403（拒絕）並留下稽核紀錄。</li>
+          <li>以「授權帳號」名單中的帳號登入平台取得 Token；其他帳號呼叫會收到 403（拒絕）並留下稽核紀錄。</li>
           <li>經 Gateway 以 POST 呼叫下表的端點，結構式模型送 JSON（rows），影像模型以 multipart 上傳 files。</li>
-          <li>回應是 JSON，格式與「試呼叫」看到的相同；可先在「分享與服務」頁下方試呼叫確認。</li>
+          <li>回應是 JSON，格式與「線上推論測試」看到的相同；可先在「模型部署」頁下方線上推論測試確認。</li>
         </ol>
       </Card>
       <Card title="呼叫端點" flush>
@@ -436,7 +437,7 @@ export function CallGuide({ modelId }: { modelId: number }) {
                 <th scope="col">名稱</th>
                 <th scope="col">技術名稱</th>
                 <th scope="col">呼叫端點</th>
-                <th scope="col">分享給</th>
+                <th scope="col">授權給</th>
               </tr>
             </thead>
             <tbody>
@@ -458,6 +459,7 @@ export function CallGuide({ modelId }: { modelId: number }) {
       </Card>
       <div className="trn-chart-grid">
         <Card title={`curl 範例（${titleOf(first)}）`}>
+          <CodeBlock code={platformTokenSteps()} title="取得 Token" />
           <CodeBlock code={curlExample(first, model)} title="curl" language="bash" lineNumbers={false} />
         </Card>
         <Card title={`Python 範例（${titleOf(first)}）`}>

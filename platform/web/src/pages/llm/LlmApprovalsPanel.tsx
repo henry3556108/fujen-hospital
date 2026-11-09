@@ -5,7 +5,7 @@ import { ApiErrorAlert, Badge, Card, EmptyState } from '../../components/ui';
 import type { Download } from './api';
 import { fmtDateTime } from './parts';
 
-/** Admin 審核語言模型下載申請（放在管理區）；這組 API 不分專案。 */
+/** Admin 審核 LLM 模型下載申請（放在管理區）；這組 API 不分專案。 */
 export function LlmApprovalsPanel() {
   const { api } = useSession();
   const list = useResource(() => api.get<Download[]>('/api/admin/llm/downloads'), [api]);
@@ -21,9 +21,9 @@ export function LlmApprovalsPanel() {
   }
   const pending = (list.data ?? []).filter((d) => d.status === 'pending');
   return (
-    <Card title="語言模型下載申請" extra={list.data && <Badge tone={pending.length ? 'warning' : 'neutral'}>待審核 {pending.length}</Badge>} flush>
+    <Card title="LLM 模型下載申請" extra={list.data && <Badge tone={pending.length ? 'warning' : 'neutral'}>待審核 {pending.length}</Badge>} flush>
       <ApiErrorAlert error={list.error ?? error} />
-      {list.data && pending.length === 0 && <EmptyState icon="check" title="目前沒有待審核的申請。" description="使用者在語言模型「模型」分頁申請下載後，會出現在這裡。" />}
+      {list.data && pending.length === 0 && <EmptyState icon="check" title="目前沒有待審核的申請。" description="使用者在大型語言模型「模型」分頁申請下載後，會出現在這裡。" />}
       {pending.length > 0 && (
         <div className="table-wrap">
           <table aria-label="待審核的下載申請">

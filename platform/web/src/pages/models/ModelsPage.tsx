@@ -1,6 +1,6 @@
-// 使用模型（B-06）：合併原「AI 模型部署」與「推論服務管理」。模型清單（已完成的訓練＝模型）→ 單一模型四個分頁：
-// 模型結果、預測新資料、預測紀錄、分享與服務（再分分享與服務／模型下載／呼叫說明）。網址用訓練編號（/models/:runId/...）。
-// 模型清單與預測只需要 Prediction；結果的完整內容、分享、下載模型檔另需 Training（API 的規則）。
+// 模型部署與推論服務（B-06）：合併原「AI 模型部署」與「推論服務管理」。模型清單（已完成的訓練＝模型）→ 單一模型四個分頁：
+// 訓練結果、推論、推論服務歷史紀錄、模型部署（再分模型部署／模型下載／呼叫說明）。網址用訓練編號（/models/:runId/...）。
+// 模型清單與預測只需要 Prediction；結果的完整內容、部署、下載模型檔另需 Training（API 的規則）。
 import { useState } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useResource } from '../../api/useResource';
@@ -23,22 +23,22 @@ import '../inference/inference.css';
 
 export type ModelTab = 'result' | 'predict' | 'history' | 'share' | 'download' | 'call';
 
-/** 頁面上方四個分頁（設計稿 A07）；模型下載、呼叫說明是「分享與服務」底下的分頁（設計稿 B11）。 */
+/** 頁面上方四個分頁（設計稿 A07）；模型下載、呼叫說明是「模型部署」底下的分頁（設計稿 B11）。 */
 const TABS: { tab: ModelTab; label: string }[] = [
-  { tab: 'result', label: '模型結果' },
-  { tab: 'predict', label: '預測新資料' },
-  { tab: 'history', label: '預測紀錄' },
-  { tab: 'share', label: '分享與服務' },
+  { tab: 'result', label: '訓練結果' },
+  { tab: 'predict', label: '推論' },
+  { tab: 'history', label: '推論服務歷史紀錄' },
+  { tab: 'share', label: '模型部署' },
 ];
 const SHARE_GROUP: ModelTab[] = ['share', 'download', 'call'];
 const TAB_TITLES: Record<ModelTab, string> = {
-  result: '模型結果', predict: '預測新資料', history: '預測紀錄', share: '分享與服務', download: '模型下載', call: '呼叫說明',
+  result: '訓練結果', predict: '推論', history: '推論服務歷史紀錄', share: '模型部署', download: '模型下載', call: '呼叫說明',
 };
 
 /** 從契約入口（/deployment、/inference）轉來時的一行說明。 */
 export const ENTRY_NOTES: Record<string, string> = {
-  deployment: '「AI 模型部署」已併入這裡：打開模型後在「分享與服務」分享給同事、設定授權、查看 API 端點與試呼叫；「模型下載」可取得模型檔。',
-  inference: '「推論服務管理」已併入這裡：打開模型後在「預測新資料」用測試資料或上傳新檔預測，「預測紀錄」可查看與下載過去的結果。',
+  deployment: '「AI 模型部署」已併入這裡：打開模型後在「模型部署」設定授權帳號、查看 API 端點與線上推論測試；「模型下載」可取得模型檔。',
+  inference: '「推論服務管理」已併入這裡：打開模型後在「推論」用測試集或上傳新檔預測，「推論服務歷史紀錄」可查看與下載過去的結果。',
 };
 
 const modelHref = (m: Model, tab: ModelTab = 'result') => (m.run_id ? `/models/${m.run_id}/${tab}` : null);
@@ -50,7 +50,7 @@ export function ModelListPage() {
   const entry = params.get('entry');
   return (
     <>
-      <PageHeader title="使用模型" subtitle="每一次完成的訓練就是一個模型。打開模型可以查看結果、預測新資料、分享給同事或下載模型檔。" />
+      <PageHeader title="模型部署與推論服務" subtitle="每一次完成的訓練就是一個模型。打開模型可以查看結果、推論、授權給同事或下載模型檔。" />
       {entry && ENTRY_NOTES[entry] ? (
         <p className="text-muted" data-testid="entry-note">
           {ENTRY_NOTES[entry]}
@@ -74,7 +74,7 @@ function ModelList({ inference }: { inference: InferenceApi }) {
   if (models.data.length === 0) {
     return (
       <Alert tone="info">
-        這個專案還沒有訓練完成的模型。{canTrain ? <Link to="/training/new">建立訓練</Link> : '請有訓練權限的成員建立訓練'}，完成後會出現在這裡。
+        這個專案還沒有訓練完成的模型。{canTrain ? <Link to="/training/new">建立訓練任務</Link> : '請有訓練權限的成員建立訓練任務'}，完成後會出現在這裡。
       </Alert>
     );
   }
@@ -107,7 +107,7 @@ function ModelList({ inference }: { inference: InferenceApi }) {
                     ) : (
                       <ModelName model={m} />
                     )}
-                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 分享給你</span> : null}
+                    {m.shared_with_me ? <span className="badge status-badge status-badge--success inference-shared">{m.shared_by} 已授權給你</span> : null}
                   </th>
                   <td>{KIND_NAMES[m.kind]}</td>
                   <td>{m.run_id ? `訓練 #${m.run_id}` : '—'}</td>
@@ -136,7 +136,7 @@ export function ModelPage({ tab }: { tab: ModelTab }) {
   if (!model) {
     return (
       <>
-        <PageHeader title="使用模型" />
+        <PageHeader title="模型部署與推論服務" />
         <Alert tone="info">
           找不到訓練 #{runId} 的模型（可能還沒完成或已刪除）。<Link to="/models">回模型清單</Link>
         </Alert>
@@ -147,7 +147,7 @@ export function ModelPage({ tab }: { tab: ModelTab }) {
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: '使用模型', to: '/models' }, { label: TAB_TITLES[tab] }]}
+        breadcrumbs={[{ label: '模型部署與推論服務', to: '/models' }, { label: TAB_TITLES[tab] }]}
         title={<ModelName model={model} />}
         subtitle={`${KIND_NAMES[model.kind]}・訓練 #${id}・${model.created_by}，${formatTime(model.created_at)}`}
         actions={<HeaderActions runId={id} tab={tab} />}
@@ -163,8 +163,8 @@ export function ModelPage({ tab }: { tab: ModelTab }) {
         })}
       </nav>
       {inShare ? (
-        <Tabs label="分享與服務分頁" items={[
-          { to: `/models/${id}/share`, label: '分享與服務' },
+        <Tabs label="模型部署分頁" items={[
+          { to: `/models/${id}/share`, label: '模型部署' },
           { to: `/models/${id}/download`, label: '模型下載' },
           { to: `/models/${id}/call`, label: '呼叫說明' },
         ]} />
@@ -179,7 +179,7 @@ export function ModelPage({ tab }: { tab: ModelTab }) {
   );
 }
 
-/** 標題右側：用新資料測試（主要動作）、下載報告（需要 Training，沿用現有的 HTML 報表）。 */
+/** 標題右側：執行推論（主要動作）、下載報告（需要 Training，沿用現有的 HTML 報表）。 */
 function HeaderActions({ runId, tab }: { runId: number; tab: ModelTab }) {
   const api = useTrainingApi();
   const canTrain = useHasPermission('training');
@@ -198,7 +198,7 @@ function HeaderActions({ runId, tab }: { runId: number; tab: ModelTab }) {
       <div className="row-actions">
         {tab !== 'predict' ? (
           <Link className="btn btn--primary" to={`/models/${runId}/predict`}>
-            用新資料測試
+            執行推論
             <Icon name="arrow" />
           </Link>
         ) : null}
@@ -271,7 +271,7 @@ function RocCard({ points, runId }: { points: [number, number][] | null; runId: 
   if (!points) return null;
   return (
     <Card title={`ROC 曲線（訓練 #${runId}）`}>
-      <LineChart title="ROC 曲線（測試資料）" series={[{ name: '模型', points }]} xLabel="偽陽性率（1 − 特異度）" yLabel="真陽性率（敏感度）" yRange={[0, 1]} diagonal />
+      <LineChart title="ROC 曲線（測試集）" series={[{ name: '模型', points }]} xLabel="偽陽性率（1 − 特異度）" yLabel="真陽性率（敏感度）" yRange={[0, 1]} diagonal />
     </Card>
   );
 }
@@ -288,8 +288,8 @@ function CardResult({ model, runId, note }: { model: Model; runId: number; note:
   const count = testCount(null, model.card.metrics);
   return (
     <section className="stack" aria-labelledby="model-result-title">
-      <h2 id="model-result-title" className="visually-hidden">模型結果</h2>
-      {count !== null ? <p className="text-muted">測試資料 {count} 筆</p> : null}
+      <h2 id="model-result-title" className="visually-hidden">訓練結果</h2>
+      {count !== null ? <p className="text-muted">測試集 {count} 筆</p> : null}
       {count !== null && count < FEW_TESTS ? <Alert tone="warning">測試筆數少，結果僅供參考。</Alert> : null}
       <KeyMetricCards model={model} metrics={model.card.metrics} />
       <RocCard points={rocPoints(null, model.card.metrics)} runId={runId} />
@@ -319,7 +319,7 @@ function RunResultView({ api, model, run, others }: { api: TrainingApi; model: M
   return (
     <div className="stack">
       <section className="stack" aria-labelledby="model-result-title">
-        <h2 id="model-result-title" className="visually-hidden">模型結果</h2>
+        <h2 id="model-result-title" className="visually-hidden">訓練結果</h2>
         <p className="text-muted" data-testid="result-data">
           資料版本：{dataVersionText(run)}・測試筆數：{count ?? '—'}{count !== null ? ' 筆' : ''}
         </p>
@@ -337,7 +337,7 @@ function RunResultView({ api, model, run, others }: { api: TrainingApi; model: M
         </summary>
         <ResultView api={api} run={run} hideReport />
         <p>
-          <Link to={`/training/runs/${run.id}`}>到建立模型查看這次訓練（日誌、依原版本重跑、另存設定）</Link>
+          <Link to={`/training/runs/${run.id}`}>到建模管理查看這次訓練（日誌、依原版本重跑、另存設定）</Link>
         </p>
       </details>
     </div>
@@ -351,12 +351,12 @@ function Compare({ model, run, others }: { model: Model; run: TrainingRun; other
   const classes = model.card.classes ?? model.card.label_names;
   const heads = keyMetrics(run.kind, run.metrics, classes);
   const count = testCount(run);
-  const title = differs || count === null ? '歷次訓練結果比較' : `歷次訓練結果比較（相同測試資料：${count} 筆）`;
+  const title = differs || count === null ? '歷次訓練結果比較' : `歷次訓練結果比較（相同測試集：${count} 筆）`;
   return (
     <Card title={title} flush={!differs}>
       {differs ? (
-        <Alert tone="warning" title="測試資料不同，不宜直接排名">
-          下列訓練的資料版本、切分或亂數種子不同，用來評分的測試資料不一樣。
+        <Alert tone="warning" title="測試集不同，不宜直接排名">
+          下列訓練的資料版本、切分或隨機種子不同，用來評分的測試集不一樣。
         </Alert>
       ) : null}
       <div className="table-wrap">
@@ -382,7 +382,7 @@ function Compare({ model, run, others }: { model: Model; run: TrainingRun; other
                   <th scope="row">
                     #{x.id}
                     {x.id === run.id ? '（這個模型）' : ''}
-                    {x.id !== run.id && !sameTestData(run, x) ? <span className="field__hint">測試資料不同</span> : null}
+                    {x.id !== run.id && !sameTestData(run, x) ? <span className="field__hint">測試集不同</span> : null}
                   </th>
                   <td>{x.finished_at ? formatTime(x.finished_at) : '—'}</td>
                   <td>{dataVersionText(x)}</td>
@@ -488,7 +488,7 @@ function DownloadTab({ model, runId }: { model: Model; runId: number }) {
     }
   }
   const formats = [
-    { format: 'pkl' as const, title: '表格模型（.pkl）', hint: '適用於結構式資料的模型（scikit-learn）', icon: 'doc' as const },
+    { format: 'pkl' as const, title: '結構式資料模型（.pkl）', hint: '適用於結構式資料的模型（scikit-learn）', icon: 'doc' as const },
     { format: 'h5' as const, title: '影像模型（Keras .h5）', hint: '適用於影像的模型（Keras）', icon: 'lungs' as const },
   ];
   return (
@@ -518,7 +518,7 @@ function DownloadTab({ model, runId }: { model: Model; runId: number }) {
               </div>
               {model.card.target ? (
                 <div>
-                  <dt>要預測的結果</dt>
+                  <dt>Target 欄位</dt>
                   <dd>{model.card.target}</dd>
                 </div>
               ) : null}
@@ -532,7 +532,7 @@ function DownloadTab({ model, runId }: { model: Model; runId: number }) {
             <h2 id="model-download-title" className="ui-card__title">下載模型檔</h2>
           </div>
           <div className="ui-card__body stack">
-            <p className="text-muted">依模型類型下載，並參考右側範例程式使用。結果報表請在「模型結果」分頁上方下載。</p>
+            <p className="text-muted">依模型類型下載，並參考右側範例程式使用。結果報表請在「訓練結果」分頁上方下載。</p>
             {done ? <Alert tone="success">{done}</Alert> : null}
             <ApiErrorAlert error={error} />
             {!canTrain || !api ? <Alert tone="info">下載模型檔需要 Training 權限；如需使用，請聯絡專案負責人或系統管理者。</Alert> : null}
@@ -578,7 +578,7 @@ function DownloadTab({ model, runId }: { model: Model; runId: number }) {
               </button>
               {canTrain && canCode && api ? (
                 <button type="button" className="btn btn--secondary" onClick={() => void act(() => api.exportSource(runId))}>
-                  匯出訓練原始碼
+                  匯出訓練原始程式碼
                 </button>
               ) : null}
             </div>

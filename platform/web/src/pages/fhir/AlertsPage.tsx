@@ -29,7 +29,7 @@ function localDay(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** FHIR 流量告警（設計稿 B27）：篩選、告警清單、點一筆看詳情；門檻在 Gateway 路由調整。 */
+/** FHIR 流量監測與告警（設計稿 B27）：篩選、告警清單、點一筆看詳情；門檻在 API Gateway 路由調整。 */
 export function AlertsPage() {
   const { api, project } = useSession();
   const alerts = useResource(() => api.get<TrafficAlert[]>(`/api/projects/${project!.id}/fhir/alerts`), [project!.id]);

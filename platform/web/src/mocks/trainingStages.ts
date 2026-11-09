@@ -1,4 +1,4 @@
-// MSW：流程程式碼（錄製巨集）/api/projects/:pid/training/settings/:sid/stages*、/package、/training/package-import*。
+// MSW：各階段處理程式碼（錄製巨集）/api/projects/:pid/training/settings/:sid/stages*、/package、/training/package-import*。
 // 路徑、權限、狀態碼、回應形狀照 platform/api/app/training（stages.py、flow_stages.py、flow_import.py、flow.py、router.py）。
 // 檢查只模擬幾種常見錯誤（JSON 格式、函式名稱、平台沒有的套件、部署的模型）；真正的框架檢查在 API。
 import { http, HttpResponse } from 'msw';
@@ -10,7 +10,7 @@ import { trainingMock } from './training';
 
 const P = `${API}/projects/:pid/training/settings/:sid`;
 const STAGES: StageId[] = ['import', 'labels', 'preprocess', 'train', 'deploy'];
-/** 有程式檔的環節（需要 Coding）；資料匯入與部署只有設定檔 */
+/** 有程式檔的階段（需要 Coding）；資料匯入與部署只有設定檔 */
 const CODE: StageId[] = ['labels', 'preprocess', 'train'];
 const NAMES: Record<StageId, string> = { import: '資料匯入', labels: '標註', preprocess: '資料清理與前處理', train: '訓練', deploy: '部署' };
 const DEPLOY_NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -31,7 +31,7 @@ const state = () => moduleState<State>('trainingStages', () => ({ locks: {} }));
 const isImage = (c: TrainingConfig) => c.kind.startsWith('image_');
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 
-/** 測試用：由匯入檔控制的環節。 */
+/** 測試用：由匯入檔控制的階段。 */
 export function lockedStages(settingId: number): StageId[] {
   const locks = state().locks[settingId] ?? {};
   return STAGES.filter((s) => locks[s]);
@@ -121,7 +121,7 @@ function fileNames(setting: TrainingSetting, stage: StageId): string[] {
 
 const pretty = (v: unknown) => JSON.stringify(v, null, 2) + '\n';
 
-/** 部署環節目前的 deploy.json：這份設定最近一次訓練出的模型與它的部署（沒有時留空讓使用者填）。 */
+/** 部署階段目前的 deploy.json：這份設定最近一次訓練出的模型與它的部署（沒有時留空讓使用者填）。 */
 function deployValues(setting: TrainingSetting): Obj {
   const t = trainingMock();
   const modelIds = t.runs.filter((r) => r.setting_id === setting.id && r.model_id != null).map((r) => r.model_id);
@@ -156,12 +156,12 @@ function overview(setting: TrainingSetting, canCode: boolean): StageOverview {
   return { setting_id: setting.id, kind: setting.kind, stages, problem: null, locked: lockedStages(setting.id), can_code: canCode };
 }
 
-/** 只有設定檔的環節（資料匯入、部署）的檢查 */
+/** 只有設定檔的階段（資料匯入、部署）的檢查 */
 function checkConfig(setting: TrainingSetting, stage: StageId, text: Record<string, string>): string[] {
   const errors: string[] = [];
   const names = fileNames(setting, stage);
   for (const name of Object.keys(text)) {
-    if (!names.includes(name)) errors.push(`不認得的檔案「${name}」：這個環節只有 ${names.join('、')}`);
+    if (!names.includes(name)) errors.push(`不認得的檔案「${name}」：這個階段只有 ${names.join('、')}`);
   }
   const main = `${stage}.json`;
   if (!(main in text)) return [...errors, `缺少 ${main}`];
@@ -197,7 +197,7 @@ function check(setting: TrainingSetting, stage: StageId, text: Record<string, st
   const cfgName = `${stage}.json`;
   const codeName = `${stage}.py`;
   for (const name of Object.keys(text)) {
-    if (name !== cfgName && name !== codeName) errors.push(`不認得的檔案「${name}」：這個環節只有 ${cfgName}、${codeName}`);
+    if (name !== cfgName && name !== codeName) errors.push(`不認得的檔案「${name}」：這個階段只有 ${cfgName}、${codeName}`);
   }
   if (!(cfgName in text)) errors.push(`缺少 ${cfgName}`);
   else {
@@ -230,7 +230,7 @@ function invalid(errors: string[]) {
 }
 
 function find(request: Request, params: Record<string, unknown>, wanted: 'training' | 'coding') {
-  // 只有設定檔的環節（資料匯入、部署）只需要 Training
+  // 只有設定檔的階段（資料匯入、部署）只需要 Training
   const permission = wanted === 'coding' && params.stage !== undefined && !hasCode(params.stage as StageId) ? 'training' : wanted;
   const ctx = requireProject(request, params.pid, permission);
   if (ctx instanceof Response) return ctx;
@@ -241,7 +241,7 @@ function find(request: Request, params: Record<string, unknown>, wanted: 'traini
   const setting = trainingMock().settings.find((x) => x.id === Number(params.sid) && x.project_id === ctx.project.id);
   if (!setting) return detail(404, `找不到訓練設定 ${String(params.sid)}`);
   const stage = params.stage as StageId | undefined;
-  if (stage !== undefined && !STAGES.includes(stage)) return detail(404, `沒有「${stage}」這個環節`);
+  if (stage !== undefined && !STAGES.includes(stage)) return detail(404, `沒有「${stage}」這個階段`);
   const canCode = !(requireProject(request, params.pid, 'coding') instanceof Response);
   return { ctx, setting, stage: stage as StageId, canCode };
 }
@@ -270,7 +270,7 @@ function applyText(found: { ctx: { user: { username: string } }; setting: Traini
   return json({ ...overview(setting, found.canCode), setting });
 }
 
-/** 部署環節：建立或更新部署，並標示由 deploy.json 控制（照 flow_stages.apply_deploy）。 */
+/** 部署階段：建立或更新部署，並標示由 deploy.json 控制（照 flow_stages.apply_deploy）。 */
 function applyDeploy(setting: TrainingSetting, values: Obj, user: string, sha: string): { before: Obj } {
   const t = trainingMock();
   const model = t.models.find((m) => m.project_id === setting.project_id && m.sha256 === (values.model as Obj).sha256)!;
@@ -292,7 +292,7 @@ function applyDeploy(setting: TrainingSetting, values: Obj, user: string, sha: s
   return { before };
 }
 
-/** 部署環節改回介面設定：既有部署還原顯示名稱與分享對象；由匯入建立的部署保留（照 flow_stages.unlock_deploy）。 */
+/** 部署階段改回介面設定：既有部署還原顯示名稱與授權帳號；由匯入建立的部署保留（照 flow_stages.unlock_deploy）。 */
 function unlockDeploy(before: Obj) {
   const row = trainingMock().deployments.find((d) => d.id === before.deployment_id);
   if (!row) return;
@@ -309,7 +309,7 @@ function zip(name: string) {
   });
 }
 
-/** 表單存檔時：匯入檔控制的環節不能改（照 service.update_setting）。回傳 409 或 null。 */
+/** 表單存檔時：匯入檔控制的階段不能改（照 service.update_setting）。回傳 409 或 null。 */
 export function lockedChange(setting: TrainingSetting, config: TrainingConfig): Response | null {
   const changed = lockedStages(setting.id).filter((stage) => stage !== 'deploy').filter(
     (stage) => JSON.stringify(stageConfig(setting.config, stage)) !== JSON.stringify(stageConfig(config, stage)));
@@ -317,7 +317,7 @@ export function lockedChange(setting: TrainingSetting, config: TrainingConfig): 
   return detail(409, `「${changed.map((s) => NAMES[s]).join('、')}」由匯入的檔案控制，不能在表單修改；請改回用介面設定後再修改`);
 }
 
-/** 停止分享（刪除部署）時一併刪除控制它的 deploy.json（照 flow_stages.drop_deployment_locks） */
+/** 停止部署（刪除部署）時一併刪除控制它的 deploy.json（照 flow_stages.drop_deployment_locks） */
 export function dropDeploymentLocks(deploymentId: number) {
   for (const locks of Object.values(state().locks)) {
     if (locks.deploy && locks.deploy.before.deployment_id === deploymentId) delete locks.deploy;
@@ -359,11 +359,11 @@ export const trainingStageHandlers = [
     if (found instanceof Response) return found;
     const form = await request.formData();
     const upload = form.get('file');
-    // 測試用的環節檔：內容含 stage.json 的 "stage": "<環節>"（模擬不解壓縮）
+    // 測試用的階段檔：內容含 stage.json 的 "stage": "<階段>"（模擬不解壓縮）
     const content = upload && typeof upload === 'object' && 'text' in upload ? await (upload as Blob).text() : '';
     const declared = /"stage":\s*"(\w+)"/.exec(content)?.[1];
     const other = STAGES.find((x) => x !== found.stage && x === declared);
-    if (other) return invalid([`這個檔案是「${NAMES[other]}」環節，請到「${NAMES[other]}」匯入`]);
+    if (other) return invalid([`這個檔案是「${NAMES[other]}」階段，請到「${NAMES[other]}」匯入`]);
     return applyText(found, files(found.setting, found.stage));
   }),
   http.delete(`${P}/stages/:stage`, ({ request, params }) => {
@@ -453,7 +453,7 @@ async function packagePlan(request: Request, params: Record<string, unknown>) {
   const kind = pkg.kind ?? 'tabular_classification';
   const image = kind.startsWith('image_');
   const warnings = [...(pkg.warnings ?? [])];
-  if (pkg.deploy) warnings.push('部署環節沒有匯入：模型不隨專案包匯入，請在平台訓練完成後再匯入 deploy.json');
+  if (pkg.deploy) warnings.push('部署階段沒有匯入：模型不隨專案包匯入，請在平台訓練完成後再匯入 deploy.json');
   const errors = [...(pkg.errors ?? [])];
   const datasetRaw = form.get('dataset_id');
   const studiesRaw = form.get('studies');

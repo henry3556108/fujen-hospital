@@ -9,7 +9,7 @@ import type { ClusterNode, GpuAllocation } from '../scheduling/types';
 import './admin.css';
 
 const JOB_STATUS_LABELS: Record<string, string> = {
-  queued: '排隊中',
+  queued: '等待中',
   running: '執行中',
   succeeded: '已完成',
   failed: '失敗',
@@ -44,7 +44,7 @@ interface PendingItem {
   tone: 'error' | 'warning' | 'info';
 }
 
-/** 待處理事項：待審下載、失敗／執行中／排隊中工作。讀不到的項目就不顯示。 */
+/** 待處理事項：待審下載、失敗／執行中／等待中工作。讀不到的項目就不顯示。 */
 function PendingCard({ items }: { items: PendingItem[] }) {
   const first = items.find((i) => i.value > 0);
   return (
@@ -81,7 +81,7 @@ function PendingCard({ items }: { items: PendingItem[] }) {
   );
 }
 
-/** 系統狀態：只顯示 API 讀得到的項目（運算節點、GPU 份數、資料交換閘道）；其他服務請到系統監控 */
+/** 系統狀態：只顯示 API 讀得到的項目（運算節點、GPU 份數、API Gateway）；其他服務請到系統監控 */
 function SystemCard() {
   const { api } = useSession();
   const nodes = useResource(() => api.get<ClusterNode[]>('/api/admin/cluster/nodes'));
@@ -99,7 +99,7 @@ function SystemCard() {
       footer={
         <div className="adm-status__links">
           <Link to="/admin/monitoring">系統監控與告警規則</Link>
-          <Link to="/admin/fhir/alerts">資料交換流量告警</Link>
+          <Link to="/admin/fhir/alerts">FHIR 流量監測與告警</Link>
         </div>
       }
     >
@@ -136,7 +136,7 @@ function SystemCard() {
         </li>
         <li>
           <Icon name="swap" />
-          <span className="adm-status__name">資料交換閘道</span>
+          <span className="adm-status__name">API Gateway</span>
           {routes.error ? (
             <StatusDot tone="neutral">無法讀取</StatusDot>
           ) : !routes.data ? (
@@ -166,14 +166,14 @@ export function DashboardPage() {
       : []),
     { label: '失敗工作', sub: `運算 ${byStatus.failed ?? 0} 件`, value: byStatus.failed ?? 0, to: '/admin/compute/jobs', icon: 'warning', tone: 'error' },
     { label: '執行中的工作', sub: '看 GPU 正在跑哪個專案', value: byStatus.running ?? 0, to: '/admin/compute/gpu', icon: 'gear', tone: 'info' },
-    { label: '排隊中的工作', sub: '調整排隊順序', value: byStatus.queued ?? 0, to: '/admin/compute/queues', icon: 'clock', tone: 'warning' },
+    { label: '等待中的工作', sub: '調整佇列排程', value: byStatus.queued ?? 0, to: '/admin/compute/queues', icon: 'clock', tone: 'warning' },
   ];
   const pendingTotal = (pendingDownloads ?? 0) + (byStatus.failed ?? 0);
 
   return (
     <div className="adm-page">
       <PageHeader
-        title="總覽"
+        title="Dashboard"
         subtitle="管理全平台的專案、帳號與運算資源"
         actions={
           <>
@@ -257,7 +257,7 @@ export function DashboardPage() {
           </Card>
 
           <Card title="全平台筆數">
-            <ul className="adm-counts adm-counts--4" aria-label="平台總覽">
+            <ul className="adm-counts adm-counts--4" aria-label="Dashboard">
               <Tile label="帳號" value={d.accounts.total} note={`Admin ${d.accounts.admin}、User ${d.accounts.user}`} to="/admin/users" link="管理帳號" />
               <Tile label="專案" value={d.projects} to="/admin/projects" link="管理專案" />
               <Tile label="專案成員" value={d.memberships} note="帳號加入專案的次數" />

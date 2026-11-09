@@ -61,7 +61,7 @@ export async function fetchThumbnail(opts: {
 type Status = 'idle' | 'loading' | 'ok' | 'error';
 
 /**
- * 影像縮圖（設計稿 A01 最近處理、A02 研究資料清單、A06 確認資料、A07 預測結果示例）。
+ * 影像縮圖（設計稿 A01 最近處理、A02 數據管理清單、A06 確認資料、A07 預測結果示例）。
  * 進入畫面才載入（IntersectionObserver），失敗顯示灰色佔位圖示；卸載時釋放 object URL。
  * 一般頁面用 DicomThumb（自動取目前登入的 token）；測試或特殊情況可用 DicomThumbView 自己給 getToken。
  */

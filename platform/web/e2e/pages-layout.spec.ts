@@ -13,7 +13,7 @@ const PAGES: { name: string; path: string; ready: { role: 'table' | 'form' | 'li
   { name: 'scheduling-settings', path: '/admin/scheduling', ready: { role: 'form', name: '修改共享排程設定' } },
   { name: 'scheduling-groups', path: '/admin/scheduling/groups', ready: { role: 'table', name: 'GPU 群組列表' } },
   { name: 'scheduling-nodes', path: '/admin/scheduling/nodes', ready: { role: 'table', name: '叢集節點列表' } },
-  { name: 'scheduling-gpu-dashboard', path: '/admin/scheduling/gpu-dashboard', ready: { role: 'list', name: 'GPU 使用狀況' } },
+  { name: 'scheduling-gpu-dashboard', path: '/admin/scheduling/gpu-dashboard', ready: { role: 'list', name: 'GPU Dashboard' } },
   { name: 'scheduling-monitoring', path: '/admin/scheduling/monitoring', ready: { role: 'list', name: '監控工具' } },
   { name: 'training-jobs', path: '/training/jobs', ready: { role: 'table', name: '工作列表' } },
   { name: 'imaging-studies', path: '/data/imaging', ready: { role: 'table', name: '研究列表' } },
@@ -21,15 +21,15 @@ const PAGES: { name: string; path: string; ready: { role: 'table' | 'form' | 'li
   { name: 'imaging-import', path: '/data/imaging/import', ready: { role: 'form', name: 'DICOM' } },
   { name: 'imaging-jobs', path: '/data/imaging/jobs', ready: { role: 'table', name: '匯入工作列表' } },
   { name: 'imaging-files', path: '/data/imaging/files', ready: { role: 'table', name: '檔案列表' } },
-  { name: 'imaging-allowlist', path: '/data/imaging/allowlist', ready: { role: 'form', name: '設定 Accession 清單' } },
+  { name: 'imaging-allowlist', path: '/data/imaging/allowlist', ready: { role: 'form', name: '設定 Accession Number 清單' } },
   { name: 'imaging-pacs', path: '/data/imaging/pacs', ready: { role: 'form', name: '查詢 PACS' } },
   { name: 'tabular-datasets', path: '/data/tabular', ready: { role: 'form', name: '上傳 CSV' } },
   { name: 'tabular-preview', path: '/data/tabular/2/preview', ready: { role: 'table', name: '資料預覽' } },
-  { name: 'tabular-describe', path: '/data/tabular/2/describe', ready: { role: 'table', name: '描述統計' } },
+  { name: 'tabular-describe', path: '/data/tabular/2/describe', ready: { role: 'table', name: '描述性統計' } },
   { name: 'tabular-target', path: '/data/tabular/2/target', ready: { role: 'form', name: '設定 Target 與 Feature' } },
   { name: 'tabular-preprocess', path: '/data/tabular/2/preprocess', ready: { role: 'form', name: '加入前處理步驟' } },
-  { name: 'tabular-correlation', path: '/data/tabular/2/correlation', ready: { role: 'form', name: '相關矩陣' } },
-  { name: 'tabular-stats', path: '/data/tabular/2/stats', ready: { role: 'form', name: '統計分析' } },
+  { name: 'tabular-correlation', path: '/data/tabular/2/correlation', ready: { role: 'form', name: 'Correlation Matrix' } },
+  { name: 'tabular-stats', path: '/data/tabular/2/stats', ready: { role: 'form', name: '醫學統計分析' } },
 ];
 
 for (const vp of VIEWPORTS) {
@@ -60,9 +60,9 @@ for (const vp of VIEWPORTS) {
       test.setTimeout(60_000);
       await loginAs(page, 'admin01');
       await page.goto('/data/tabular/2/correlation');
-      await page.getByRole('button', { name: '產生相關矩陣' }).click();
-      await expect(page.getByRole('table', { name: '相關矩陣（pearson）' })).toBeVisible();
-      await page.getByRole('button', { name: '產生散佈圖' }).click();
+      await page.getByRole('button', { name: '產生 Correlation Matrix' }).click();
+      await expect(page.getByRole('table', { name: 'Correlation Matrix（pearson）' })).toBeVisible();
+      await page.getByRole('button', { name: '產生 Scatter Chart' }).click();
       await expect(page.getByRole('figure', { name: 'age 與 bmi' })).toBeVisible();
       await expectNoHorizontalOverflow(page);
       await snap(page, testInfo.project.name, `${vp.name}/tabular-correlation-result`);
@@ -98,8 +98,8 @@ test.describe('深色模式（新頁面）', () => {
     await snap(page, testInfo.project.name, 'dark/tabular-describe');
 
     await page.goto('/data/tabular/2/correlation');
-    await page.getByRole('button', { name: '產生相關矩陣' }).click();
-    await expect(page.getByRole('table', { name: '相關矩陣（pearson）' })).toBeVisible();
+    await page.getByRole('button', { name: '產生 Correlation Matrix' }).click();
+    await expect(page.getByRole('table', { name: 'Correlation Matrix（pearson）' })).toBeVisible();
     await snap(page, testInfo.project.name, 'dark/tabular-correlation');
 
     await page.goto('/admin/scheduling/nodes');

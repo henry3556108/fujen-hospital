@@ -1,5 +1,5 @@
 // 模擬 platform/api 的結構式資料 API（app/tabular_api）。
-// 上傳驗證、描述統計、分布、預覽、相關係數、散佈圖都在瀏覽器內實算；
+// 上傳驗證、描述性統計、分布、預覽、相關係數、Scatter Chart 都在瀏覽器內實算；
 // 4 種統計模型回傳從真實 API 擷取的固定結果（只把欄位名稱換成請求的欄位），前處理只實作常用幾種，其餘原樣通過。
 import { http } from 'msw';
 import type {
@@ -325,7 +325,7 @@ function correlation(frame: Frame, columns: string[] | null, method: string) {
     throw new MockError('invalid_argument', `不支援的相關係數方法「${method}」，可用：pearson、spearman、kendall`);
   }
   const cols = columns ?? frame.columns.filter((c) => frame.kinds[c] === 'numeric' && column(frame, c).some((v) => v !== null));
-  if (cols.length < 2) throw new MockError('invalid_argument', '相關矩陣至少需要 2 個數值欄位');
+  if (cols.length < 2) throw new MockError('invalid_argument', 'Correlation Matrix 至少需要 2 個數值欄位');
   requireColumns(frame, cols);
   const data = cols.map((c) => numeric(frame, c));
   return { method, columns: cols, matrix: data.map((a, i) => data.map((b, j) => (i === j ? 1 : pearson(a, b)))) };
@@ -799,15 +799,15 @@ export const tabularHandlers = [
     const b = await jsonBody(request);
     return guarded(() => {
       if (typeof b.target !== 'string' || !('features' in b)) throw new MockError('invalid_config', '設定格式錯誤：必須包含 target 與 features');
-      if (!b.target) throw new MockError('invalid_config', '請指定目標欄位（Target）');
+      if (!b.target) throw new MockError('invalid_config', '請指定 Target 欄位（Target）');
       const features = b.features as string[];
-      if (!Array.isArray(features) || features.length === 0) throw new MockError('invalid_config', '請至少選擇一個特徵欄位（Feature）');
-      if (features.includes(b.target)) throw new MockError('invalid_config', `目標欄位「${b.target}」不可同時作為特徵欄位`);
+      if (!Array.isArray(features) || features.length === 0) throw new MockError('invalid_config', '請至少選擇一個 Feature 欄位（Feature）');
+      if (features.includes(b.target)) throw new MockError('invalid_config', `Target 欄位「${b.target}」不可同時作為 Feature 欄位`);
       const steps = validateSteps(b.steps ?? []);
       requireColumns(applyPipeline(r.d.frame, steps), [b.target, ...features]);
       const missing = b.missing as unknown;
       if (missing !== undefined && missing !== null && missing !== 'impute' && missing !== 'drop') {
-        throw new MockError('invalid_config', '缺值處理必須是 impute（補上缺值）或 drop（不使用有缺值的病人）');
+        throw new MockError('invalid_config', '缺值處理必須是 impute（補值）或 drop（不使用有缺值的病人）');
       }
       r.d.targetFeature = {
         dataset_id: r.d.id,
@@ -828,7 +828,7 @@ export const tabularHandlers = [
         const frame = applyPipeline(r.d.frame, b.steps ?? []);
         const target = String(b.target ?? '');
         const features = (b.features ?? []) as string[];
-        if (features.length === 0) throw new MockError('invalid_argument', '請至少選擇一個特徵欄位');
+        if (features.length === 0) throw new MockError('invalid_argument', '請至少選擇一個 Feature 欄位');
         if (features.includes(target)) throw new MockError('invalid_argument', `欄位「${target}」不可同時作為結果與特徵`);
         const y = numeric(frame, target);
         features.forEach((f) => numeric(frame, f));
@@ -880,7 +880,7 @@ export function mockDatasetCounts(): Map<number, number> {
   return out;
 }
 
-/** 流程程式碼的專案包匯入：本專案的結構式資料集（可對應的候選）。 */
+/** 各階段處理程式碼的專案包匯入：本專案的結構式資料集（可對應的候選）。 */
 export function mockDatasetList(projectId: number): { id: number; name: string; valid_rows: number | null }[] {
   return state().datasets.filter((d) => d.project_id === projectId).map((d) => ({ id: d.id, name: d.name, valid_rows: d.valid_rows ?? null }));
 }

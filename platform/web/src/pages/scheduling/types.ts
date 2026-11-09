@@ -60,7 +60,7 @@ export interface SharedSchedulingSettings {
 }
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
-  queued: '排隊中',
+  queued: '等待中',
   running: '執行中',
   succeeded: '已完成',
   failed: '失敗',

@@ -7,7 +7,7 @@ import { GATEWAY, P1_NAME, REPO, Scenario, api, apiOk, expect, openAs, projectId
 
 // 新功能情境 E1～E5：功能缺口補齊（docs/05-新增功能使用情境.md）。
 // 研究員用 pi01（P1 的 Training／Prediction／Coding，不是 Admin）；Admin 用 admin01。
-// E1 只刪除自己建立的拋棄式專案 KIT-E1-結案（不碰種子專案）；E3／E4 結束時停止自己建立的分享。
+// E1 只刪除自己建立的拋棄式專案 KIT-E1-結案（不碰種子專案）；E3／E4 結束時停止自己建立的部署。
 // 執行：npx playwright test -c playwright.acceptance.config.ts n-sched-e.spec.ts -g E1 --headed
 
 const RESEARCHER = 'pi01';
@@ -19,7 +19,7 @@ interface Model {
   name: string;
   title: string | null;
   kind: string;
-  /** 模型來自哪一次訓練；使用模型的網址用訓練編號（/models/:runId/...） */
+  /** 模型來自哪一次訓練；模型部署與推論服務的網址用訓練編號（/models/:runId/...） */
   run_id: number | null;
 }
 interface Deployment {
@@ -40,12 +40,12 @@ async function p1(): Promise<number> {
 const display = (m: Model) => m.title || m.name;
 
 /**
- * 功能目錄點契約入口（「AI 模型部署」或「推論服務管理」，都轉到「使用模型」）→ 模型清單打開該模型 → 頁內分頁。
+ * 功能目錄點契約入口（「AI 模型部署」或「推論服務管理」，都轉到「模型部署與推論服務」）→ 模型清單打開該模型 → 頁內分頁。
  */
-async function openModel(page: Page, entry: 'AI 模型部署' | '推論服務管理', model: Model, tab: '結果' | '預測新資料' | '預測紀錄' | '分享與服務' | '下載') {
+async function openModel(page: Page, entry: 'AI 模型部署' | '推論服務管理', model: Model, tab: '結果' | '推論' | '推論服務歷史紀錄' | '模型部署' | '下載') {
   await clickMenu(page, entry);
   await expect(page).toHaveURL(/\/models(\?|$)/);
-  if (!model.run_id) throw new Error(`模型 #${model.id} 沒有對應的訓練編號，無法在「使用模型」打開`);
+  if (!model.run_id) throw new Error(`模型 #${model.id} 沒有對應的訓練編號，無法在「模型部署與推論服務」打開`);
   await page.locator(`table[aria-label="模型清單"] a[href$="/models/${model.run_id}/result"]`).click();
   await expect(page).toHaveURL(new RegExp(`/models/${model.run_id}/result$`));
   await modelTab(page, tab);
@@ -61,28 +61,28 @@ async function closeAll(ctxs: BrowserContext[]) {
   for (const c of ctxs) await c.close().catch(() => undefined);
 }
 
-/** 停止 P1 中顯示名稱以 prefix 開頭的分享（上次中斷留下的） */
+/** 停止 P1 中顯示名稱以 prefix 開頭的部署（上次中斷留下的） */
 async function stopShares(s: Scenario, pid: number, prefix: string) {
   const deps = (await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/deployments`)) as Deployment[];
   for (const d of deps.filter((x) => (x.title ?? '').startsWith(prefix))) {
     const r = await api(RESEARCHER, 'DELETE', `/api/projects/${pid}/deployments/${d.id}`);
-    s.log(`停止分享「${d.title}」（${d.name}）→ HTTP ${r.status}`);
+    s.log(`停止部署「${d.title}」（${d.name}）→ HTTP ${r.status}`);
   }
 }
 
-/** 選一個還沒有分享的結構式模型（分享的技術名稱 model-{編號} 不能重複） */
+/** 選一個還沒有部署的結構式模型（部署的技術名稱 model-{編號} 不能重複） */
 async function freeTabularModel(pid: number, prefer: string[], exclude: number[] = []): Promise<Model> {
   const models = (await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/models`)) as Model[];
   const deps = (await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/deployments`)) as Deployment[];
   const used = new Set([...deps.map((d) => d.model_id), ...exclude]);
   for (const kind of prefer) {
-    const m = models.find((x) => x.kind === kind && !used.has(x.id) && !x.name.includes('修改後的原始碼'));
+    const m = models.find((x) => x.kind === kind && !used.has(x.id) && !x.name.includes('修改後的原始程式碼'));
     if (m) return m;
   }
-  throw new Error('P1 沒有尚未分享的結構式模型');
+  throw new Error('P1 沒有尚未部署的結構式模型');
 }
 
-/** 把試呼叫 JSON 中的 null 換成示範病人的數值 */
+/** 把線上推論測試 JSON 中的 null 換成示範病人的數值 */
 function fillRows(text: string): string {
   const body = JSON.parse(text) as { rows: Record<string, unknown>[] };
   body.rows = body.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === null ? (SAMPLE[k] ?? 1) : v])));
@@ -219,27 +219,27 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       const models = (await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/models`)) as Model[];
       const model =
         models.find((m) => String(m.id) === process.env.E2_MODEL_ID) ??
-        models.find((m) => m.kind === 'tabular_classification' && !m.name.includes('修改後的原始碼')) ??
+        models.find((m) => m.kind === 'tabular_classification' && !m.name.includes('修改後的原始程式碼')) ??
         models.find((m) => m.kind.startsWith('tabular_'));
       if (!model) throw new Error('P1 沒有結構式模型（可用 E2_MODEL_ID 指定）');
       const image = model.kind.startsWith('image_');
       const batchName = image ? '多張影像一起預測' : '多位病人一起預測';
-      s.log(`使用模型 #${model.id}「${display(model)}」（${model.kind}）`);
+      s.log(`模型部署與推論服務 #${model.id}「${display(model)}」（${model.kind}）`);
 
-      // 1. 功能目錄「推論服務管理」→ 使用模型 › 模型清單打開模型 →「預測新資料」
+      // 1. 功能目錄「推論服務管理」→ 模型部署與推論服務 › 模型清單打開模型 →「推論」
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await openModel(pi.page, '推論服務管理', model, '預測新資料');
+      await openModel(pi.page, '推論服務管理', model, '推論');
       await expect(pi.page.getByRole('heading', { name: `預測：${display(model)}` })).toBeVisible({ timeout: 30_000 });
-      await s.step(pi.page, '使用模型-預測新資料', display(model), { focus: pi.page.getByRole('heading', { name: `預測：${display(model)}` }) });
-      // 2. 資料範圍選測試資料，送出
+      await s.step(pi.page, '模型部署與推論服務-推論', display(model), { focus: pi.page.getByRole('heading', { name: `預測：${display(model)}` }) });
+      // 2. 資料範圍選測試集，送出
       const form = pi.page.getByRole('form', { name: batchName });
-      await form.getByLabel('資料範圍').selectOption({ label: '測試資料' });
+      await form.getByLabel('資料範圍').selectOption({ label: '測試集' });
       await form.getByRole('button', { name: batchName }).click();
-      // 3. 排隊中訊息
+      // 3. 等待中訊息
       const st = pi.page.getByTestId('batch-status');
-      const download = pi.page.getByRole('button', { name: '下載結果' });
+      const download = pi.page.getByRole('button', { name: '下載推論結果' });
       await expect(st.or(download)).toBeVisible({ timeout: 30_000 });
       const head = pi.page.locator('#result-title');
       const rid = Number(/#(\d+)/.exec(await head.innerText())![1]);
@@ -247,9 +247,9 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       if (await st.count()) {
         const t = (await st.innerText()).trim();
         await expect.soft(st).toContainText('…在背景執行，完成後自動顯示結果；離開此頁也不影響');
-        await s.step(pi.page, '送出批次預測-排隊中訊息', t, { focus: head });
+        await s.step(pi.page, '送出批次推論-等待中訊息', t, { focus: head });
       } else {
-        s.log('批次預測太快完成，沒拍到排隊中訊息');
+        s.log('批次推論太快完成，沒拍到等待中訊息');
       }
       // 4. 完成後自動出現結果
       await expect(download).toBeVisible({ timeout: 12 * 60_000 });
@@ -257,10 +257,10 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       const headText = (await head.innerText()).trim();
       await expect.soft(head).toHaveText(new RegExp(`預測結果 #${rid}（\\d+ 筆）`));
       await s.step(pi.page, '完成後自動顯示預測結果', headText, { focus: head });
-      await modelTab(pi.page, '預測紀錄');
-      const hist = pi.page.getByRole('table', { name: '預測紀錄' }).locator('tbody tr').filter({ hasText: `#${rid}` }).first();
+      await modelTab(pi.page, '推論服務歷史紀錄');
+      const hist = pi.page.getByRole('table', { name: '推論服務歷史紀錄' }).locator('tbody tr').filter({ hasText: `#${rid}` }).first();
       await expect.soft(hist).toContainText('成功', { timeout: 30_000 });
-      await s.step(pi.page, '使用模型-預測紀錄-結果欄', (await hist.innerText()).replace(/\s+/g, ' ').trim(), { focus: hist });
+      await s.step(pi.page, '模型部署與推論服務-推論服務歷史紀錄-結果欄', (await hist.innerText()).replace(/\s+/g, ' ').trim(), { focus: hist });
       const rec = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/inference/${rid}`);
       pendingRecord = null;
       s.log(`API：推論 #${rid} 狀態 ${rec.status}、${rec.count} 筆、排程工作 ${rec.job_id}`);
@@ -281,7 +281,7 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
       expect.soft(cells.kind).toMatch(/^批次推論（(GPU|CPU)）$/);
       expect.soft(cells.status).toBe('已完成');
       await s.step(ad.page, '運算資源-測試工作-批次推論已完成', `${cells.kind}／${cells.status}`, { focus: jobRow(ad.page, rec.job_id) });
-      return `批次預測 #${rid} 自動顯示結果（${rec.count} 筆），工作 ${rec.job_id} 為「${cells.kind}」「${cells.status}」，資料庫同為 succeeded`;
+      return `批次推論 #${rid} 自動顯示結果（${rec.count} 筆），工作 ${rec.job_id} 為「${cells.kind}」「${cells.status}」，資料庫同為 succeeded`;
     },
     async () => {
       if (pendingRecord) {
@@ -295,26 +295,26 @@ test('E2 批次推論跑完，工作狀態即時更新', async ({ browser }) => 
 
 // ---------------------------------------------------------------- E3
 
-test('E3 分享模型給同事時直接挑帳號', async ({ browser }) => {
+test('E3 部署模型給同事時直接挑帳號', async ({ browser }) => {
   test.setTimeout(8 * 60_000);
-  const s = new Scenario('E3', '分享模型給同事時直接挑帳號（非 Admin）');
+  const s = new Scenario('E3', '部署模型給同事時直接挑帳號（非 Admin）');
   const pid = await p1();
-  const TITLE = 'KIT-E3 分享測試';
+  const TITLE = 'KIT-E3 部署測試';
   const ctxs: BrowserContext[] = [];
   await s.run(
     async () => {
       await stopShares(s, pid, 'KIT-E3');
       const model = await freeTabularModel(pid, ['tabular_classification', 'tabular_regression']);
-      s.log(`要分享的模型 #${model.id}「${display(model)}」；分享者 ${RESEARCHER}（帳號類型 User）`);
+      s.log(`要部署的模型 #${model.id}「${display(model)}」；部署者 ${RESEARCHER}（帳號類型 User）`);
       const lookup = await apiOk(RESEARCHER, 'GET', `/api/projects/${pid}/user-lookup?q=md`);
       s.log(`API：${RESEARCHER} 查詢帳號開頭「md」→ ${JSON.stringify(lookup)}（只回帳號與是否為本專案成員）`);
 
-      // 1. 功能目錄「AI 模型部署」→ 使用模型 › 打開模型 →「分享與服務」→ 分享給同事使用
+      // 1. 功能目錄「AI 模型部署」→ 模型部署與推論服務 › 打開模型 →「模型部署」→ 部署並設定權限
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await openModel(pi.page, 'AI 模型部署', model, '分享與服務');
-      const form = pi.page.getByRole('form', { name: '分享給同事使用' });
+      await openModel(pi.page, 'AI 模型部署', model, '模型部署');
+      const form = pi.page.getByRole('form', { name: '部署並設定權限' });
       await expect(form).toBeVisible({ timeout: 30_000 });
       // 2. 模型（已由打開的模型決定）、顯示名稱
       await form.getByLabel('顯示名稱（同事看到的名稱，可用中文）').fill(TITLE);
@@ -336,36 +336,36 @@ test('E3 分享模型給同事時直接挑帳號', async ({ browser }) => {
       await outsider.click();
       await expect(users).toHaveValue(`md01, ${outsiderName}, `);
       await s.step(pi.page, '點選後加入欄位', await users.inputValue(), { focus: form });
-      // 5. 分享
-      await form.getByRole('button', { name: '分享給同事使用', exact: true }).click();
-      const shared = notice(pi.page, `已把「${TITLE}」分享給 md01、${outsiderName}。他們登入後點左側「使用模型」，打開模型「${TITLE}」就能預測。`);
+      // 5. 部署
+      await form.getByRole('button', { name: '部署並設定權限', exact: true }).click();
+      const shared = notice(pi.page, `已把「${TITLE}」授權給 md01、${outsiderName}。他們登入後點左側「模型部署與推論服務」，打開模型「${TITLE}」就能預測。`);
       await expect(shared).toBeVisible({ timeout: 30_000 });
       await expect.soft(shared).toContainText(`注意：${outsiderName} 不是本專案有推論權限的成員`);
-      await s.step(pi.page, '分享給同事使用-已分享', (await shared.innerText()).trim(), { focus: shared });
-      // 6. 修改分享對象：拿掉非成員、加入 ra01（同樣輸入開頭點選）
-      const list = pi.page.getByRole('table', { name: '已分享的模型' });
+      await s.step(pi.page, '部署並設定權限-已部署', (await shared.innerText()).trim(), { focus: shared });
+      // 6. 修改授權帳號：拿掉非成員、加入 ra01（同樣輸入開頭點選）
+      const list = pi.page.getByRole('table', { name: '已部署的模型' });
       const row = list.locator('tbody tr').filter({ has: pi.page.getByRole('rowheader', { name: TITLE, exact: true }) });
       await expect.soft(row).toContainText(model.name);
-      await row.getByRole('button', { name: `修改分享對象「${TITLE}」` }).click();
+      await row.getByRole('button', { name: `修改授權帳號「${TITLE}」` }).click();
       const access = pi.page.locator('#dep-access');
       await expect(access).toHaveValue(`md01, ${outsiderName}`);
       await access.fill('md01, ra');
-      const editSuggest = pi.page.getByRole('form', { name: '修改分享對象' }).getByRole('list', { name: '符合的帳號' });
+      const editSuggest = pi.page.getByRole('form', { name: '修改授權帳號' }).getByRole('list', { name: '符合的帳號' });
       await expect(editSuggest.getByRole('button', { name: 'ra01', exact: true })).toBeVisible({ timeout: 15_000 });
-      await s.step(pi.page, '修改分享對象-輸入ra列出帳號', (await editSuggest.innerText()).replace(/\s+/g, ' ').trim(), { focus: access });
+      await s.step(pi.page, '修改授權帳號-輸入ra列出帳號', (await editSuggest.innerText()).replace(/\s+/g, ' ').trim(), { focus: access });
       await editSuggest.getByRole('button', { name: 'ra01', exact: true }).click();
-      await pi.page.getByRole('button', { name: '儲存分享對象' }).click();
-      const updated = notice(pi.page, `已更新「${TITLE}」的分享對象：md01、ra01。`);
+      await pi.page.getByRole('button', { name: '儲存授權帳號' }).click();
+      const updated = notice(pi.page, `已更新「${TITLE}」的授權帳號：md01、ra01。`);
       await expect(updated).toBeVisible({ timeout: 30_000 });
       await expect.soft(row).toContainText('md01、ra01');
-      await s.step(pi.page, '儲存分享對象-已更新', (await updated.innerText()).trim(), { focus: row });
-      // 結束：停止分享
-      await row.getByRole('button', { name: `停止分享「${TITLE}」` }).click();
-      await pi.page.getByRole('dialog').getByRole('button', { name: '停止分享' }).click();
-      const stopped = notice(pi.page, `已停止分享「${TITLE}」`);
+      await s.step(pi.page, '儲存授權帳號-已更新', (await updated.innerText()).trim(), { focus: row });
+      // 結束：停止部署
+      await row.getByRole('button', { name: `停止部署「${TITLE}」` }).click();
+      await pi.page.getByRole('dialog').getByRole('button', { name: '停止部署' }).click();
+      const stopped = notice(pi.page, `已停止部署「${TITLE}」`);
       await expect(stopped).toBeVisible({ timeout: 30_000 });
-      await s.step(pi.page, '停止分享', (await stopped.innerText()).trim(), { focus: stopped });
-      return `非 Admin 的 ${RESEARCHER} 輸入「md」「u」「ra」點選帳號完成分享與修改；非成員標示「（不是本專案成員）」並提醒`;
+      await s.step(pi.page, '停止部署', (await stopped.innerText()).trim(), { focus: stopped });
+      return `非 Admin 的 ${RESEARCHER} 輸入「md」「u」「ra」點選帳號完成部署與修改；非成員標示「（不是本專案成員）」並提醒`;
     },
     async () => {
       await stopShares(s, pid, 'KIT-E3');
@@ -376,79 +376,79 @@ test('E3 分享模型給同事時直接挑帳號', async ({ browser }) => {
 
 // ---------------------------------------------------------------- E4
 
-test('E4 分享後先在網頁上試呼叫', async ({ browser }) => {
+test('E4 部署後先在網頁上線上推論測試', async ({ browser }) => {
   test.setTimeout(8 * 60_000);
-  const s = new Scenario('E4', '分享後先在網頁上試呼叫');
+  const s = new Scenario('E4', '部署後先在網頁上線上推論測試');
   const pid = await p1();
-  const TITLE = 'KIT-E4 試呼叫';
+  const TITLE = 'KIT-E4 線上推論測試';
   const ctxs: BrowserContext[] = [];
   await s.run(
     async () => {
       await stopShares(s, pid, 'KIT-E4');
-      // 準備（API）：分享一個結構式模型給 md01（不含自己）
+      // 準備（API）：部署一個結構式模型給 md01（不含自己）
       const model = await freeTabularModel(pid, ['tabular_regression', 'tabular_classification']);
       const dep = (await apiOk(RESEARCHER, 'POST', `/api/projects/${pid}/deployments`, { model_id: model.id, title: TITLE, allowed_users: ['md01'] })) as Deployment;
-      s.log(`準備：以 API 分享模型 #${model.id}「${display(model)}」為「${TITLE}」（${dep.name}），分享給 md01；端點 POST ${dep.endpoint}`);
+      s.log(`準備：以 API 部署模型 #${model.id}「${display(model)}」為「${TITLE}」（${dep.name}），授權給 md01；端點 POST ${dep.endpoint}`);
 
-      // 1. 功能目錄「AI 模型部署」→ 使用模型 › 打開模型 →「分享與服務」→ 已分享的模型
+      // 1. 功能目錄「AI 模型部署」→ 模型部署與推論服務 › 打開模型 →「模型部署」→ 已部署的模型
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      await openModel(pi.page, 'AI 模型部署', model, '分享與服務');
-      const list = pi.page.getByRole('table', { name: '已分享的模型' });
+      await openModel(pi.page, 'AI 模型部署', model, '模型部署');
+      const list = pi.page.getByRole('table', { name: '已部署的模型' });
       const row = list.locator('tbody tr').filter({ has: pi.page.getByRole('rowheader', { name: TITLE, exact: true }) });
       await expect(row).toBeVisible({ timeout: 30_000 });
       await expect.soft(row).toContainText(model.name);
-      await s.step(pi.page, '已分享的模型-模型欄', (await row.innerText()).replace(/\s+/g, ' ').trim(), { focus: list });
-      // 2～3. 自己不在分享對象：先試一次（預期提醒＋403）
-      const tryForm = pi.page.getByRole('form', { name: '試呼叫' });
-      await tryForm.getByLabel('要呼叫的分享').selectOption(String(dep.id));
-      const warn = tryForm.getByRole('status').filter({ hasText: `你（${RESEARCHER}）不在「${TITLE}」的分享對象中，呼叫會被拒絕（403）` });
+      await s.step(pi.page, '已部署的模型-模型欄', (await row.innerText()).replace(/\s+/g, ' ').trim(), { focus: list });
+      // 2～3. 自己不在授權帳號：先試一次（預期提醒＋403）
+      const tryForm = pi.page.getByRole('form', { name: '線上推論測試' });
+      await tryForm.getByLabel('要呼叫的部署').selectOption(String(dep.id));
+      const warn = tryForm.getByRole('status').filter({ hasText: `你（${RESEARCHER}）不在「${TITLE}」的授權帳號中，呼叫會被拒絕（403）` });
       await expect(warn).toBeVisible();
       // 4. 結構式模型：把 null 換成病人的數值
       const body = tryForm.getByLabel('送出的 JSON');
       const prefilled = await body.inputValue();
       s.log(`預填的 JSON：${prefilled.replace(/\s+/g, ' ')}`);
       await body.fill(fillRows(prefilled));
-      await s.step(pi.page, '試呼叫-不在分享對象中的提醒', (await warn.innerText()).trim(), { focus: tryForm });
-      const submit = tryForm.getByRole('button', { name: `送出試呼叫（POST ${dep.endpoint}）` });
+      await s.step(pi.page, '線上推論測試-不在授權帳號中的提醒', (await warn.innerText()).trim(), { focus: tryForm });
+      const submit = tryForm.getByRole('button', { name: `送出線上推論測試（POST ${dep.endpoint}）` });
       await submit.click();
       const denied = tryForm.getByRole('alert');
       await expect(denied).toBeVisible({ timeout: 30_000 });
       await expect.soft(denied).toContainText('沒有權限');
-      await s.step(pi.page, '試呼叫-不在分享對象-403', (await denied.innerText()).replace(/\s+/g, ' ').trim(), { focus: tryForm });
-      // 把自己加入分享對象（輸入開頭點選）
-      await row.getByRole('button', { name: `修改分享對象「${TITLE}」` }).click();
+      await s.step(pi.page, '線上推論測試-不在授權帳號-403', (await denied.innerText()).replace(/\s+/g, ' ').trim(), { focus: tryForm });
+      // 把自己加入授權帳號（輸入開頭點選）
+      await row.getByRole('button', { name: `修改授權帳號「${TITLE}」` }).click();
       const access = pi.page.locator('#dep-access');
       await access.fill(`${await access.inputValue()}, pi`);
-      const suggest = pi.page.getByRole('form', { name: '修改分享對象' }).getByRole('list', { name: '符合的帳號' });
+      const suggest = pi.page.getByRole('form', { name: '修改授權帳號' }).getByRole('list', { name: '符合的帳號' });
       await suggest.getByRole('button', { name: RESEARCHER, exact: true }).click();
-      await pi.page.getByRole('button', { name: '儲存分享對象' }).click();
-      const updated = notice(pi.page, `已更新「${TITLE}」的分享對象：md01、${RESEARCHER}。`);
+      await pi.page.getByRole('button', { name: '儲存授權帳號' }).click();
+      const updated = notice(pi.page, `已更新「${TITLE}」的授權帳號：md01、${RESEARCHER}。`);
       await expect(updated).toBeVisible({ timeout: 30_000 });
-      await s.step(pi.page, '修改分享對象-把自己加入', (await updated.innerText()).trim(), { focus: row });
-      // 5～6. 再試呼叫：成功
-      await tryForm.getByLabel('要呼叫的分享').selectOption(String(dep.id));
+      await s.step(pi.page, '修改授權帳號-把自己加入', (await updated.innerText()).trim(), { focus: row });
+      // 5～6. 再線上推論測試：成功
+      await tryForm.getByLabel('要呼叫的部署').selectOption(String(dep.id));
       await expect(warn).toHaveCount(0);
       if ((await body.inputValue()).includes('null')) await body.fill(fillRows(await body.inputValue()));
       await submit.click();
       const ok = tryForm.getByRole('status').filter({ hasText: /呼叫成功（推論紀錄 #\d+）。/ });
       await expect(ok).toBeVisible({ timeout: 60_000 });
-      const reply = tryForm.getByLabel('試呼叫的回應');
+      const reply = tryForm.getByLabel('線上推論測試的回應');
       await expect(reply).toBeVisible();
       const replyText = (await reply.innerText()).trim();
-      s.log(`試呼叫回應：${replyText.replace(/\s+/g, ' ').slice(0, 600)}`);
-      await s.step(pi.page, '試呼叫成功-推論紀錄與回應', (await ok.innerText()).trim(), { focus: tryForm });
+      s.log(`線上推論測試回應：${replyText.replace(/\s+/g, ' ').slice(0, 600)}`);
+      await s.step(pi.page, '線上推論測試成功-推論紀錄與回應', (await ok.innerText()).trim(), { focus: tryForm });
       // 要注意：給資訊人員的串接方式
       const it = pi.page.getByTestId('it-details');
       await it.locator('summary').click();
       await expect(it.getByRole('table', { name: '程式呼叫端點' })).toContainText(dep.endpoint);
       await s.step(pi.page, '給資訊人員-程式呼叫方式', `POST ${dep.endpoint}`, { focus: it });
       s.psql(
-        '稽核：試呼叫與一般程式呼叫相同（inference.online：先 denied 後 success）',
+        '稽核：線上推論測試與一般程式呼叫相同（inference.online：先 denied 後 success）',
         `select id, actor, action, result, target from audit_log where action = 'inference.online' and actor = '${RESEARCHER}' order by id desc limit 2`,
       );
-      return `不在分享對象時提醒並得到 403；加入自己後試呼叫成功（${(await ok.innerText()).trim()}）`;
+      return `不在授權帳號時提醒並得到 403；加入自己後線上推論測試成功（${(await ok.innerText()).trim()}）`;
     },
     async () => {
       await stopShares(s, pid, 'KIT-E4');
@@ -473,7 +473,7 @@ test('E5 訓練紀錄翻頁查詢', async ({ browser }) => {
       const pi = await openAs(browser, RESEARCHER);
       ctxs.push(pi.ctx);
       await useProject(pi.page, P1_NAME);
-      // 功能目錄「建模管理」→ 建立模型 › 訓練紀錄（全專案的訓練一張清單，可依建立者等篩選）
+      // 功能目錄「建模管理」→ 建模管理 › 訓練紀錄（全專案的訓練一張清單，可依建立者等篩選）
       await clickMenu(pi.page, '建模管理');
       const creator = pi.page.locator('#runs-creator');
       const range = pi.page.getByTestId('runs-range');

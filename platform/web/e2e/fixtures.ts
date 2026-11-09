@@ -31,7 +31,7 @@ export async function loginAs(page: Page, username: string) {
   );
 }
 
-/** 同一個分頁改以另一個帳號登入（例如分享模型後換同事 md01 看），模擬的資料保留；之後 goto 生效。 */
+/** 同一個分頁改以另一個帳號登入（例如部署模型後換同事 md01 看），模擬的資料保留；之後 goto 生效。 */
 export async function switchUser(page: Page, username: string) {
   await page.evaluate(([key, user]) => {
     window.sessionStorage.setItem('e2e-switch-user', user);

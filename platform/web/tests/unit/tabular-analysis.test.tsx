@@ -26,19 +26,19 @@ describe('前處理', () => {
   it('TC-B04-06 lists every method of the catalogue: at least 50, same as the API', async () => {
     await renderApp('/data/tabular/2/prepare', 'ra01');
     expect(await screen.findByTestId('method-count')).toHaveTextContent('共 66 種');
-    const rows = bodyRows(screen.getByRole('table', { name: '整理方法清單', hidden: true }));
+    const rows = bodyRows(screen.getByRole('table', { name: '前處理方式清單', hidden: true }));
     expect(rows.length).toBeGreaterThanOrEqual(50);
     expect(rows.map((r) => r[1])).toEqual(catalogue.map((c) => c.id));
     expect(rows.map((r) => r[0])).toEqual(catalogue.map((c) => c.name_zh));
   });
 
-  it('TC-B04-04 mean imputation then One-Hot: preview shows the new columns and no missing glucose', async () => {
+  it('TC-B04-04 mean imputation then One Hot Encoding: preview shows the new columns and no missing glucose', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'ra01');
     await addStep(user, '缺值處理', '平均數補值', ['glucose']);
-    await addStep(user, '類別編碼', 'One-Hot 編碼', ['sex'], { '移除第一個類別（避免共線）': 'false' });
+    await addStep(user, '類別編碼', 'One Hot Encoding', ['sex'], { '移除第一個類別（避免共線）': 'false' });
     expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem').map((l) => l.firstChild?.textContent)).toEqual([
       '平均數補值：glucose',
-      'One-Hot 編碼：sex',
+      'One Hot Encoding：sex',
     ]);
     await user.click(screen.getByRole('button', { name: '預覽處理結果' }));
     const result = await screen.findByRole('region', { name: '處理前後預覽' });
@@ -122,13 +122,13 @@ describe('前處理', () => {
 
 describe('Target 與 Feature', () => {
   async function save(user: User, target: string, features: string[]) {
-    const form = await screen.findByRole('form', { name: '整理資料' });
-    await user.click(await within(form).findByRole('radio', { name: `想預測 ${target}` }));
-    for (const box of within(within(form).getByRole('table', { name: '欄位整理' })).getAllByRole('checkbox')) {
+    const form = await screen.findByRole('form', { name: '資料清洗' });
+    await user.click(await within(form).findByRole('radio', { name: `Target ${target}` }));
+    for (const box of within(within(form).getByRole('table', { name: '欄位設定' })).getAllByRole('checkbox')) {
       const wanted = features.includes(box.getAttribute('aria-label')!);
       if ((box as HTMLInputElement).checked !== wanted) await user.click(box);
     }
-    await user.click(screen.getByRole('button', { name: '儲存整理步驟' }));
+    await user.click(screen.getByRole('button', { name: '儲存前處理步驟' }));
   }
 
   it('TC-B04-03 saves 3 different settings; each reload shows exactly what was saved', async () => {
@@ -140,14 +140,14 @@ describe('Target 與 Feature', () => {
     for (const [target, features] of settings) {
       const first = await renderApp('/data/tabular/2/prepare', 'ra01');
       await save(first.user, target, features);
-      expect(await screen.findByText(`已儲存：要預測的結果 ${target}；用來預測的資料 ${features.length} 個欄位；有缺值的病人：補上缺值後使用；沒有前處理步驟`)).toBeInTheDocument();
+      expect(await screen.findByText(`已儲存：Target 欄位 ${target}；Feature 欄位 ${features.length} 個欄位；有缺值的病人：補值後使用；沒有前處理步驟`)).toBeInTheDocument();
       first.unmount();
 
       const again = await renderApp('/data/tabular/2/prepare', 'ra01');
       expect(await screen.findByTestId('saved-target')).toHaveTextContent(target);
       expect(screen.getByTestId('saved-features')).toHaveTextContent(features.join('、'));
-      const form = screen.getByRole('form', { name: '整理資料' });
-      expect(within(form).getByRole('radio', { name: `想預測 ${target}` })).toBeChecked();
+      const form = screen.getByRole('form', { name: '資料清洗' });
+      expect(within(form).getByRole('radio', { name: `Target ${target}` })).toBeChecked();
       const checked = within(form).getAllByRole('checkbox').filter((b) => (b as HTMLInputElement).checked);
       expect(checked.map((b) => b.getAttribute('aria-label'))).toEqual(features);
       again.unmount();
@@ -158,7 +158,7 @@ describe('Target 與 Feature', () => {
     const first = await renderApp('/data/tabular/2/prepare', 'ra01');
     await addStep(first.user, '缺值處理', '中位數補值', ['glucose']);
     await save(first.user, 'diagnosis', ['age', 'glucose']);
-    expect(await screen.findByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 2 個欄位；有缺值的病人：補上缺值後使用；前處理 1 個步驟（中位數補值：glucose）$/)).toBeInTheDocument();
+    expect(await screen.findByText(/^已儲存：Target 欄位 diagnosis；Feature 欄位 2 個欄位；有缺值的病人：補值後使用；前處理 1 個步驟（中位數補值：glucose）$/)).toBeInTheDocument();
     first.unmount();
 
     await renderApp('/data/tabular/2/prepare', 'ra01');
@@ -170,21 +170,21 @@ describe('Target 與 Feature', () => {
 
   it('the target cannot be a feature; 422 from the API is shown', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'ra01');
-    const form = await screen.findByRole('form', { name: '整理資料' });
-    await user.click(within(form).getByRole('radio', { name: '想預測 diagnosis' }));
+    const form = await screen.findByRole('form', { name: '資料清洗' });
+    await user.click(within(form).getByRole('radio', { name: 'Target diagnosis' }));
     expect(within(form).queryByRole('checkbox', { name: 'diagnosis' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: '儲存整理步驟' }));
-    expect(await within(form).findByRole('alert')).toHaveTextContent('請至少選擇一個特徵欄位（Feature）');
-    await user.click(within(form).getByText('進階：其他用來預測的欄位'));
-    await user.type(within(form).getByLabelText(/^其他欄位（整理/), 'sex_M');
-    await user.click(screen.getByRole('button', { name: '儲存整理步驟' }));
+    await user.click(screen.getByRole('button', { name: '儲存前處理步驟' }));
+    expect(await within(form).findByRole('alert')).toHaveTextContent('請至少選擇一個 Feature 欄位（Feature）');
+    await user.click(within(form).getByText('進階：其他 Feature 欄位'));
+    await user.type(within(form).getByLabelText(/^其他欄位（前處理/), 'sex_M');
+    await user.click(screen.getByRole('button', { name: '儲存前處理步驟' }));
     await waitFor(() => expect(within(form).getByRole('alert')).toHaveTextContent('資料中找不到欄位：sex_M'));
-    expect(screen.getByText('這個資料集還沒有儲存整理設定。')).toBeInTheDocument();
+    expect(screen.getByText('這個資料集還沒有儲存前處理設定。')).toBeInTheDocument();
   });
 
   it('column overview: types, missing and distinct counts, warnings for identifiers and text features', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'ra01');
-    const table = await screen.findByRole('table', { name: '欄位整理' });
+    const table = await screen.findByRole('table', { name: '欄位設定' });
     const row = (name: string) => within(table).getByRole('row', { name: new RegExp(`^${name} `) });
     await waitFor(() => expect(cellsOf(row('diagnosis')).slice(0, 4)).toEqual(['diagnosis', '整數（0／1，是／否）', '0', '2']));
     expect(cellsOf(row('patient_id')).slice(0, 4)).toEqual(['patient_id', '識別碼', '0', '100']);
@@ -192,32 +192,32 @@ describe('Target 與 Feature', () => {
     await user.click(within(row('patient_id')).getByRole('checkbox'));
     expect(row('patient_id')).toHaveTextContent('像是病歷號等識別碼，建議不要當 Feature');
     await user.click(within(row('sex')).getByRole('checkbox'));
-    expect(row('sex')).toHaveTextContent('要先轉成 One-Hot');
-    expect(screen.getByText('有欄位還不能用來建立模型', { exact: false })).toBeInTheDocument();
-    await user.click(within(table).getByRole('radio', { name: '想預測 smoker' }));
+    expect(row('sex')).toHaveTextContent('要先轉成 One Hot Encoding');
+    expect(screen.getByText('有欄位還不能用來訓練', { exact: false })).toBeInTheDocument();
+    await user.click(within(table).getByRole('radio', { name: 'Target smoker' }));
     expect(row('smoker')).not.toHaveTextContent('缺值');
   });
 
-  it('One-Hot replaces the original column in the saved features; 當作類別 casts number codes first', async () => {
+  it('One Hot Encoding replaces the original column in the saved features; 當作類別 casts number codes first', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'ra01');
-    const form = await screen.findByRole('form', { name: '整理資料' });
-    await user.click(within(form).getByRole('radio', { name: '想預測 diagnosis' }));
+    const form = await screen.findByRole('form', { name: '資料清洗' });
+    await user.click(within(form).getByRole('radio', { name: 'Target diagnosis' }));
     for (const f of ['age', 'sex', 'smoker', 'event']) await user.click(within(form).getByRole('checkbox', { name: f }));
-    await user.click(within(form).getByRole('button', { name: '全部拆成 0／1 欄位' }));
+    await user.click(within(form).getByRole('button', { name: '全部 One Hot Encoding' }));
     await user.click(within(form).getByRole('switch', { name: 'event 當作類別' }));
     expect(within(form).getByRole('switch', { name: 'sex 當作類別' })).toBeChecked();
     expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      expect.stringContaining('One-Hot 編碼：sex、smoker'),
+      expect.stringContaining('One Hot Encoding：sex、smoker'),
       expect.stringContaining('轉換資料型別：event'),
-      expect.stringContaining('One-Hot 編碼：event'),
+      expect.stringContaining('One Hot Encoding：event'),
     ]);
-    await user.click(screen.getByRole('button', { name: '儲存整理步驟' }));
-    expect(await screen.findByText(/^已儲存：要預測的結果 diagnosis；用來預測的資料 4 個欄位（sex、smoker、event 自動拆成 7 欄）；有缺值的病人：補上缺值後使用；前處理 3 個步驟（One-Hot 編碼：sex、smoker → 轉換資料型別：event/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '儲存前處理步驟' }));
+    expect(await screen.findByText(/^已儲存：Target 欄位 diagnosis；Feature 欄位 4 個欄位（sex、smoker、event 自動拆成 7 欄）；有缺值的病人：補值後使用；前處理 3 個步驟（One Hot Encoding：sex、smoker → 轉換資料型別：event/)).toBeInTheDocument();
     expect(screen.getByTestId('saved-feature-count')).toHaveTextContent('4 個欄位（sex、smoker、event 自動拆成 7 欄）');
     expect(screen.getByTestId('saved-features')).toHaveTextContent('age、sex_F、sex_M、smoker_current、smoker_former、smoker_never、event_0、event_1');
     // 表上仍顯示原始欄位被勾選
     expect(within(form).getByRole('checkbox', { name: 'sex' })).toBeChecked();
-    expect(within(form).queryByText('有欄位還不能用來建立模型', { exact: false })).toBeNull();
+    expect(within(form).queryByText('有欄位還不能用來訓練', { exact: false })).toBeNull();
     await user.click(within(form).getByRole('switch', { name: 'event 當作類別' }));
     expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getAllByRole('listitem')).toHaveLength(1);
   });
@@ -225,22 +225,22 @@ describe('Target 與 Feature', () => {
   it('TC-A03-05 without Training permission the settings are read-only', async () => {
     const owner = await renderApp('/data/tabular/2/prepare', 'ra01');
     await save(owner.user, 'diagnosis', ['age']);
-    await screen.findByText(/^已儲存：要預測的結果 diagnosis/);
+    await screen.findByText(/^已儲存：Target 欄位 diagnosis/);
     owner.unmount();
     await renderApp('/data/tabular/2/prepare', 'vw01');
     expect(await screen.findByTestId('saved-target')).toHaveTextContent('diagnosis');
-    expect(screen.getByText('你在專案「P1-lung-ct」沒有 Training 權限，無法儲存整理步驟。')).toBeInTheDocument();
+    expect(screen.getByText('你在專案「P1-lung-ct」沒有 Training 權限，無法儲存前處理步驟。')).toBeInTheDocument();
     expect(screen.queryByRole('form')).toBeNull();
   });
 });
 
-describe('相關矩陣與散佈圖', () => {
+describe('Correlation Matrix 與 Scatter Chart', () => {
   it('TC-B04-05 produces the correlation matrix for the chosen columns', async () => {
     const { user } = await renderApp('/data/tabular/2/view?show=correlation', 'vw01');
-    const form = await screen.findByRole('form', { name: '相關矩陣' });
+    const form = await screen.findByRole('form', { name: 'Correlation Matrix' });
     for (const c of ['dbp', 'glucose', 'diagnosis', 'time_to_event', 'event']) await user.click(within(form).getByRole('checkbox', { name: c }));
-    await user.click(within(form).getByRole('button', { name: '產生相關矩陣' }));
-    const table = await within(form).findByRole('table', { name: '相關矩陣（pearson）' });
+    await user.click(within(form).getByRole('button', { name: '產生 Correlation Matrix' }));
+    const table = await within(form).findByRole('table', { name: 'Correlation Matrix（pearson）' });
     // 與真實 API 相同：age–bmi −0.0123、age–sbp 0.5645、bmi–sbp −0.0281
     expect(bodyRows(table)).toEqual([
       ['age', '1.00', '-0.01', '0.56'],
@@ -251,32 +251,32 @@ describe('相關矩陣與散佈圖', () => {
 
   it('fewer than 2 columns is rejected with a clear message', async () => {
     const { user } = await renderApp('/data/tabular/2/view?show=correlation', 'vw01');
-    const form = await screen.findByRole('form', { name: '相關矩陣' });
+    const form = await screen.findByRole('form', { name: 'Correlation Matrix' });
     for (const box of within(form).getAllByRole('checkbox').slice(1)) await user.click(box);
-    await user.click(within(form).getByRole('button', { name: '產生相關矩陣' }));
-    expect(await within(form).findByRole('alert')).toHaveTextContent('相關矩陣至少需要 2 個數值欄位');
+    await user.click(within(form).getByRole('button', { name: '產生 Correlation Matrix' }));
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Correlation Matrix 至少需要 2 個數值欄位');
   });
 
   it('TC-B04-05 produces a scatter plot; TC-B04-08 a text column gives a clear error', async () => {
     const { user } = await renderApp('/data/tabular/2/view?show=correlation', 'vw01');
-    const form = await screen.findByRole('form', { name: '散佈圖' });
+    const form = await screen.findByRole('form', { name: 'Scatter Chart' });
     await user.selectOptions(within(form).getByLabelText('橫軸'), 'age');
     await user.selectOptions(within(form).getByLabelText('縱軸'), 'glucose');
-    await user.click(within(form).getByRole('button', { name: '產生散佈圖' }));
+    await user.click(within(form).getByRole('button', { name: '產生 Scatter Chart' }));
     const fig = await within(form).findByRole('figure', { name: 'age 與 glucose' });
     expect(fig.querySelectorAll('circle')).toHaveLength(95);
     expect(within(form).getByRole('status')).toHaveTextContent('95 筆兩欄都有值的資料');
 
     await user.selectOptions(within(form).getByLabelText('縱軸'), 'smoker');
-    await user.click(within(form).getByRole('button', { name: '產生散佈圖' }));
+    await user.click(within(form).getByRole('button', { name: '產生 Scatter Chart' }));
     expect(await within(form).findByRole('alert')).toHaveTextContent('欄位「smoker」不是數值欄位，無法進行數值分析');
     expect(within(form).queryByRole('figure')).toBeNull();
   });
 });
 
-describe('統計分析', () => {
+describe('醫學統計分析', () => {
   async function run(user: User, model: string, fill: (form: HTMLElement) => Promise<void>) {
-    const form = await screen.findByRole('form', { name: '統計分析' });
+    const form = await screen.findByRole('form', { name: '醫學統計分析' });
     await user.selectOptions(within(form).getByLabelText('模型'), model);
     await fill(form);
     await user.click(within(form).getByRole('button', { name: '執行分析' }));
@@ -285,13 +285,13 @@ describe('統計分析', () => {
 
   it('TC-B04-07 Logistic: coefficients with odds ratios, statistics and a ROC curve', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
-    await run(user, 'Logistic 迴歸', async (form) => {
+    await run(user, 'Logistic Regression', async (form) => {
       await user.selectOptions(within(form).getByLabelText('結果欄位'), 'diagnosis');
       await user.click(within(form).getByRole('checkbox', { name: 'age' }));
       await user.click(within(form).getByRole('checkbox', { name: 'bmi' }));
     });
     const result = await screen.findByRole('region', { name: '分析結果' });
-    expect(within(result).getByRole('status')).toHaveTextContent('Logistic 迴歸：結果 diagnosis，樣本 100 筆，事件 41 筆');
+    expect(within(result).getByRole('status')).toHaveTextContent('Logistic Regression：結果 diagnosis，樣本 100 筆，事件 41 筆');
     const rows = bodyRows(within(result).getByRole('table', { name: '係數' }));
     expect(rows.map((r) => r[0])).toEqual(['截距（const）', 'age', 'bmi']);
     expect(rows[1]).toEqual(['age', '0.07692', '0.01567', '4.91', '9.12e-7', '0.04622 – 0.1076', '1.08', '1.047 – 1.114']);
@@ -301,7 +301,7 @@ describe('統計分析', () => {
 
   it('TC-B04-07 Linear: R², coefficients and a residual plot', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
-    await run(user, 'Linear 迴歸', async (form) => {
+    await run(user, 'Linear Regression', async (form) => {
       await user.selectOptions(within(form).getByLabelText('結果欄位'), 'sbp');
       await user.click(within(form).getByRole('checkbox', { name: 'age' }));
       await user.click(within(form).getByRole('checkbox', { name: 'bmi' }));
@@ -315,7 +315,7 @@ describe('統計分析', () => {
 
   it('TC-B04-07 Kaplan-Meier: one curve per group with a legend, summary table and log-rank test', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
-    await run(user, 'Kaplan-Meier 存活分析', async (form) => {
+    await run(user, 'Survival Analysis（Kaplan-Meier）', async (form) => {
       expect(within(form).getByLabelText('存活時間欄位')).toHaveValue('time_to_event');
       expect(within(form).getByLabelText('事件欄位（0／1）')).toHaveValue('event');
       await user.selectOptions(within(form).getByLabelText('分組欄位'), 'sex');
@@ -332,7 +332,7 @@ describe('統計分析', () => {
 
   it('TC-B04-07 Cox: hazard ratios and a forest plot', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
-    await run(user, 'Cox 比例風險模型', async (form) => {
+    await run(user, 'Cox Proportional Hazard Model', async (form) => {
       await user.click(within(form).getByRole('checkbox', { name: 'age' }));
       await user.click(within(form).getByRole('checkbox', { name: 'bmi' }));
     });
@@ -349,13 +349,13 @@ describe('統計分析', () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
     const coefficients = async () =>
       bodyRows(within(await screen.findByRole('region', { name: '分析結果' })).getByRole('table', { name: '係數' })).map((r) => r[0]);
-    const form = await run(user, 'Linear 迴歸', async (f) => {
+    const form = await run(user, 'Linear Regression', async (f) => {
       await user.selectOptions(within(f).getByLabelText('結果欄位'), 'sbp');
       await user.click(within(f).getByRole('checkbox', { name: 'age' }));
     });
     expect(await coefficients()).toEqual(['截距（const）', 'age']);
     // Cox 不用「結果欄位」：sbp 要回到共變項清單，存活時間與事件欄位才不列
-    await user.selectOptions(within(form).getByLabelText('模型'), 'Cox 比例風險模型');
+    await user.selectOptions(within(form).getByLabelText('模型'), 'Cox Proportional Hazard Model');
     const cox = within(within(form).getByRole('group', { name: '共變項' }));
     expect(cox.queryByRole('checkbox', { name: 'time_to_event' })).toBeNull();
     expect(cox.queryByRole('checkbox', { name: 'event' })).toBeNull();
@@ -363,15 +363,15 @@ describe('統計分析', () => {
     await user.click(within(form).getByRole('button', { name: '執行分析' }));
     expect(await coefficients()).toEqual(['age', 'sbp']);
     // 回到 Linear：sbp 又是結果欄位，不列在特徵，也不會被送成特徵
-    await user.selectOptions(within(form).getByLabelText('模型'), 'Linear 迴歸');
-    expect(within(within(form).getByRole('group', { name: '特徵欄位' })).queryByRole('checkbox', { name: 'sbp' })).toBeNull();
+    await user.selectOptions(within(form).getByLabelText('模型'), 'Linear Regression');
+    expect(within(within(form).getByRole('group', { name: 'Feature 欄位' })).queryByRole('checkbox', { name: 'sbp' })).toBeNull();
     await user.click(within(form).getByRole('button', { name: '執行分析' }));
     expect(await coefficients()).toEqual(['截距（const）', 'age']);
   });
 
   it('TC-B04-08 text and empty columns give a clear message instead of a server error', async () => {
     const { user } = await renderApp('/data/tabular/2/stats', 'vw01');
-    const form = await run(user, 'Linear 迴歸', async (f) => {
+    const form = await run(user, 'Linear Regression', async (f) => {
       await user.selectOptions(within(f).getByLabelText('結果欄位'), 'sbp');
       await user.click(within(f).getByRole('checkbox', { name: 'smoker' }));
     });
@@ -382,7 +382,7 @@ describe('統計分析', () => {
 
     await user.click(within(form).getByRole('checkbox', { name: 'smoker' }));
     await user.click(within(form).getByRole('checkbox', { name: 'age' }));
-    await user.selectOptions(within(form).getByLabelText('模型'), 'Logistic 迴歸');
+    await user.selectOptions(within(form).getByLabelText('模型'), 'Logistic Regression');
     await user.click(within(form).getByRole('button', { name: '執行分析' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('結果欄位「sbp」必須只包含 0 與 1');
   });

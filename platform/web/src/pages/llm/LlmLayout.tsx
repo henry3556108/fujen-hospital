@@ -4,20 +4,20 @@ import { Alert } from '../../components/Alert';
 import { PageHeader } from '../../components/ui';
 import { useSession } from '../../auth/SessionContext';
 
-/** 語言模型的七個分頁（依使用順序；用語照提案第 5 節，原名放在說明）。 */
+/** 大型語言模型的七個分頁（依使用順序；名稱依契約 B-07、B-08，說明放在提示文字）。 */
 export const LLM_TABS = [
-  { to: '/llm/chat', label: '對話', hint: '原 Playground' },
-  { to: '/llm/docs', label: '參考文件', hint: '原知識庫' },
-  { to: '/llm/prompts', label: '問答範本', hint: '原 Prompt 範本' },
-  { to: '/llm/services', label: '內部服務', hint: '原發布 API' },
-  { to: '/llm/models', label: '模型', hint: '下載、載入、量化與資源' },
-  { to: '/llm/workflows', label: '工作流程', hint: '原工作流' },
-  { to: '/llm/wiki', label: '團隊文件', hint: '原 Wiki' },
+  { to: '/llm/chat', label: 'LLM Playground', hint: 'Free Chat 與 Chat with Knowledge Base' },
+  { to: '/llm/docs', label: 'RAG 知識庫', hint: '把文件製作成向量資料庫（Vector DB）' },
+  { to: '/llm/prompts', label: 'Prompt Template', hint: '個人 Prompt 與公開 Prompt' },
+  { to: '/llm/services', label: '內部服務', hint: '開啟為內部服務並提供 RESTful API' },
+  { to: '/llm/models', label: 'LLM 模型管理', hint: '下載、載入、量化與資源' },
+  { to: '/llm/workflows', label: 'LangGraph 工作流', hint: '多步驟節點與狀態管理' },
+  { to: '/llm/wiki', label: 'Wiki 知識庫', hint: '文件編輯、版本管理與全文檢索' },
 ];
 
 function LlmTabs() {
   return (
-    <nav aria-label="語言模型分頁" className="tabs">
+    <nav aria-label="大型語言模型分頁" className="tabs">
       {LLM_TABS.map((t) => (
         <NavLink key={t.to} to={t.to} className="tabs__item" title={t.hint}>
           {t.label}
@@ -41,7 +41,7 @@ export function LlmLayout() {
   if (!project) {
     return (
       <>
-        <LlmHeader title="語言模型" />
+        <LlmHeader title="大型語言模型" />
         <Alert tone="info">請先在上方選擇專案。</Alert>
       </>
     );

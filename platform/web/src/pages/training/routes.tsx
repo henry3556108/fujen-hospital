@@ -3,7 +3,7 @@ import { NewTrainingPage } from './NewTrainingPage';
 import { SettingsPage, TrainingLayout } from './TrainingPage';
 import { CodePage, RunPage, TrainingHome } from './TrainingPages';
 
-/** /training/* 底下的子路由（相對路徑）；入口權限由 App.tsx 的守門檢查。建立訓練精靈不在分頁列。 */
+/** /training/* 底下的子路由（相對路徑）；入口權限由 App.tsx 的守門檢查。建立訓練任務精靈不在分頁列。 */
 export function trainingRoutes() {
   return (
     <>

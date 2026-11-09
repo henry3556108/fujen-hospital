@@ -340,8 +340,8 @@ export function ModelsPage() {
   return (
     <>
       <LlmHeader
-        title="語言模型管理"
-        subtitle="管理可用的語言模型，申請下載並設定載入參數。下載前需管理者核准。"
+        title="LLM 模型管理"
+        subtitle="管理可用的大型語言模型，申請下載並設定載入參數。下載前需管理者核准。"
         actions={me.account_type === 'admin' && (
           <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
             新增模型
@@ -367,7 +367,7 @@ export function ModelsPage() {
           }
         >
           <SegmentedTabs
-            label="語言模型管理分頁"
+            label="LLM 模型管理分頁"
             idPrefix="llm-models"
             value={tab}
             onChange={setTab}
@@ -382,7 +382,7 @@ export function ModelsPage() {
           <div role="tabpanel" id={tabPanelId('llm-models', tab)} aria-labelledby={`llm-models-${tab}-tab`} className="stack llm-fill">
             {tab === 'catalog' && (
               <>
-                <p className="text-muted">只有白名單內的模型可以下載，要用清單外的模型請由管理者按「新增模型」；下載前需管理者在「系統管理 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
+                <p className="text-muted">只有白名單內的模型可以下載，要用清單外的模型請由管理者按「新增模型」；下載前需管理者在「管理後台 › 稽核與審核」核准，夾帶程式碼的模型需另外核准才能載入。</p>
                 <div className="llm-model-filters">
                   <div className="field">
                     <label htmlFor="model-q">搜尋模型</label>
@@ -485,7 +485,7 @@ export function ModelsPage() {
                     </button>
                   </p>
                 )}
-                <p className="text-muted">申請由管理者在「系統管理 › 稽核與審核」核准或駁回；核准後回到「可用模型」按「下載」。</p>
+                <p className="text-muted">申請由管理者在「管理後台 › 稽核與審核」核准或駁回；核准後回到「可用模型」按「下載」。</p>
                 <Card flush>
                   <div className="table-wrap">
                     <table aria-label="下載紀錄">

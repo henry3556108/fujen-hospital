@@ -11,12 +11,12 @@ import { SharedSchedulingPage } from './SharedSchedulingPage';
 import '../../styles/pages.css';
 import './scheduling.css';
 
-// 管理區「運算資源」（03 規格第二節）：GPU 使用對照為第一頁。
+// 管理區「運算資源」（03 規格第二節）：GPU Dashboard 為第一頁。
 // 分頁名稱沿用（驗收腳本以名稱點分頁）；版型照設計稿 B21／B22。
 const TABS = [
-  { to: '/admin/compute/gpu', label: 'GPU 使用對照' },
-  { to: '/admin/compute/queues', label: '排隊順序' },
-  { to: '/admin/compute/shared', label: '共享設定' },
+  { to: '/admin/compute/gpu', label: 'GPU Dashboard' },
+  { to: '/admin/compute/queues', label: '佇列排程' },
+  { to: '/admin/compute/shared', label: '共享排程設定' },
   { to: '/admin/compute/groups', label: 'GPU 群組' },
   { to: '/admin/compute/nodes', label: '節點' },
   { to: '/admin/compute/jobs', label: '測試工作' },
@@ -44,7 +44,7 @@ export function SchedulingPage({
   return (
     <>
       <PageHeader title={title} subtitle={subtitle} actions={actions}>
-        {tabs && <Tabs label="運算資源分頁" items={TABS} />}
+        {tabs && <Tabs label="GPU／CPU 伺服器管理分頁" items={TABS} />}
       </PageHeader>
       <SplitLayout side={side}>{children}</SplitLayout>
     </>

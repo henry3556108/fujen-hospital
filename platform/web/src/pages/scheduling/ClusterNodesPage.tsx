@@ -37,7 +37,7 @@ export function ClusterNodesPage() {
 
   return (
     <SchedulingPage
-      title="運算資源"
+      title="GPU／CPU 伺服器管理"
       subtitle="管理 GPU 資源、群組與叢集節點"
       actions={
         <button type="button" className="btn btn--secondary" onClick={nodes.reload} disabled={nodes.loading}>

@@ -290,7 +290,7 @@ test('TC-C01-04 GPU Dashboard（3 個帳號各送 1 件）', async ({ browser })
   }).toPass({ timeout: 90_000 });
   await admin.page.waitForTimeout(5500); // 等一次自動更新
   const rows = await tableRows(admin.page, '執行中的 GPU 工作');
-  const cards = (await admin.page.getByRole('list', { name: 'GPU 使用狀況' }).locator(':scope > li').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+  const cards = (await admin.page.getByRole('list', { name: 'GPU Dashboard' }).locator(':scope > li').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
   await shot(admin.page, tc, '01-GPU-Dashboard-3件');
   const k = sh(
     tc,
@@ -325,7 +325,7 @@ test('TC-C01-05 佇列排程（同時送 3 件）', async ({ browser }) => {
     ids.push((await submitJob(page, { seconds: 30 })).id);
     await page.waitForTimeout(500);
   }
-  // 步驟 4：前 2 件執行中、第 3 件排隊中
+  // 步驟 4：前 2 件執行中、第 3 件等待中
   let snap = '';
   for (let i = 0; i < 20; i++) {
     const s = await Promise.all(ids.map((id) => jobStatus(page, id)));
@@ -333,7 +333,7 @@ test('TC-C01-05 佇列排程（同時送 3 件）', async ({ browser }) => {
     if (snap === 'running,running,queued') break;
     await page.waitForTimeout(500);
   }
-  await shot(page, tc, '01-第3件排隊中');
+  await shot(page, tc, '01-第3件等待中');
   note(tc, `送出工作 ${ids.join('、')}；立即畫面狀態 ${snap}`);
   await expect(async () => {
     expect(await Promise.all(ids.map((id) => jobStatus(page, id)))).toEqual(['succeeded', 'succeeded', 'succeeded']);
@@ -420,7 +420,7 @@ test('TC-C01-08 工作取消與失敗（佇列不卡住）', async ({ browser })
   await expect.poll(async () => [await jobStatus(page, C), await jobStatus(page, D)].join(','), { timeout: 15_000 }).toBe('queued,queued');
   await page.getByRole('button', { name: `取消工作 ${C}`, exact: true }).click();
   const dlg = page.getByRole('dialog', { name: '取消工作' });
-  await expect(dlg).toContainText(`確定要取消工作 ${C}（排隊中）嗎？取消後無法恢復。`);
+  await expect(dlg).toContainText(`確定要取消工作 ${C}（等待中）嗎？取消後無法恢復。`);
   await expect(dlg.getByRole('button', { name: '不要取消' })).toBeVisible();
   await shot(page, tc, '01a-取消確認對話框');
   await dlg.getByRole('button', { name: '確定取消工作' }).click();
@@ -489,7 +489,7 @@ test('TC-A02-05 GPU 獨占模式（pi01、P1-lung-ct）', async ({ browser }) =>
     }
     if (c.status === '執行中' && !dash) {
       await admin.page.getByRole('button', { name: '重新整理' }).click();
-      const card = admin.page.getByRole('list', { name: 'GPU 使用狀況' }).locator(':scope > li').filter({ hasText: `工作 ${j.id}（pi01）` });
+      const card = admin.page.getByRole('list', { name: 'GPU Dashboard' }).locator(':scope > li').filter({ hasText: `工作 ${j.id}（pi01）` });
       await expect(card).toHaveCount(1, { timeout: 15_000 });
       dash = (await card.innerText()).replace(/\s+/g, ' ').trim();
       const rows = await tableRows(admin.page, '執行中的 GPU 工作');
@@ -508,14 +508,14 @@ test('TC-A02-05 GPU 獨占模式（pi01、P1-lung-ct）', async ({ browser }) =>
   sh(tc, 'TC-A02-05-pods', `kubectl -n platform-jobs get pods -o wide -l platform/job-id=${j.id}; kubectl get node ${node} -L platform/pool`);
   note(tc, `${c.jid}｜${c.kind}｜${c.status}｜${c.user}｜${c.group}｜${c.queue}｜建立 ${c.created}｜開始 ${c.started}｜結束 ${c.finished}｜訊息 ${c.message}；Pod 節點 ${node}`);
   // 開始時間取自叢集（精確到秒），建立時間精確到毫秒；同一秒內以秒比較
-  const queuedEvidence = seen[0] === '排隊中' || Math.floor(t.created / 1000) <= t.started / 1000;
-  note(tc, `狀態流轉 ${seen.join('→')}；畫面看到排隊中或建立不晚於開始（同一秒）：${queuedEvidence}`);
+  const queuedEvidence = seen[0] === '等待中' || Math.floor(t.created / 1000) <= t.started / 1000;
+  note(tc, `狀態流轉 ${seen.join('→')}；畫面看到等待中或建立不晚於開始（同一秒）：${queuedEvidence}`);
   expect(j.queue).toBe('gpu-exclusive');
   expect(c.status).toBe('已完成');
   expect(c.group).toBe('gpu-exclusive');
   expect(c.queue).toBe('gpu-exclusive');
   expect(dash).not.toBe('');
-  expect(seen.filter((x) => x !== '排隊中')).toEqual(['執行中', '已完成']);
+  expect(seen.filter((x) => x !== '等待中')).toEqual(['執行中', '已完成']);
   expect(queuedEvidence).toBeTruthy();
   await jobsView.ctx.close();
   await admin.ctx.close();
@@ -540,7 +540,7 @@ test('TC-A02-06 GPU 共享模式（admin01、P2-tabular 3 件）', async ({ brow
   }
   await shot(page, tc, '01-送出3件');
   await schedulingTab(page, 'GPU Dashboard');
-  const card = page.getByRole('list', { name: 'GPU 使用狀況' }).locator(':scope > li').filter({ hasText: 'gpu-shared · GPU 0' });
+  const card = page.getByRole('list', { name: 'GPU Dashboard' }).locator(':scope > li').filter({ hasText: 'gpu-shared · GPU 0' });
   await expect(async () => {
     await page.getByRole('button', { name: '重新整理' }).click();
     await expect(card).toContainText('使用中 3／4 份', { timeout: 4000 });

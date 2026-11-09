@@ -62,13 +62,13 @@ test('D1 GPU 共享池扣除常駐服務的份數（共享排程設定與 Kueue 
       s.log(`共享池實體 GPU ${physical} 張；常駐服務扣除 ${reserved} 份；目前配額 nvidia.com/gpu = ${q0}（預期 ${physical}×${original.time_slice_replicas}−${reserved}＝${physical * original.time_slice_replicas - reserved}）`);
       expect.soft(q0).toBe(Math.max(0, physical * original.time_slice_replicas - reserved));
 
-      // 2. 管理區 › 運算資源 › 共享設定（原「帳號管理 → 共享排程設定」）：目前設定
+      // 2. 管理區 › 運算資源 › 共享排程設定（原「帳號管理 → 共享排程設定」）：目前設定
       const ad = await openAs(browser, 'admin01');
       ctxs.push(ad.ctx);
       await schedulingTab(ad.page, '共享排程設定');
       await expect(ad.page.getByTestId('current-replicas')).toHaveText(String(original.time_slice_replicas));
       await expect(ad.page.getByTestId('current-timeout')).toHaveText(String(original.job_timeout_minutes));
-      await s.step(ad.page, '運算資源-共享設定-目前設定', `時間片份數 ${original.time_slice_replicas}、工作時限 ${original.job_timeout_minutes} 分鐘`, { full: true });
+      await s.step(ad.page, '運算資源-共享排程設定-目前設定', `時間片份數 ${original.time_slice_replicas}、工作時限 ${original.job_timeout_minutes} 分鐘`, { full: true });
 
       // 3～4. 修改設定並儲存
       const next: Settings = {

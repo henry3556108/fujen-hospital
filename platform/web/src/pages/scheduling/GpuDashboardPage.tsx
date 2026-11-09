@@ -22,7 +22,7 @@ export function SlotBar({ used, total, label }: { used: number; total: number; l
   );
 }
 
-/** TC-C01-04 GPU 使用對照（設計稿 B21）：每張 GPU 一張卡片，下方表格列出時間片上執行中的工作（Project ID、Training ID、使用者）。 */
+/** TC-C01-04 GPU Dashboard（設計稿 B21）：每張 GPU 一張卡片，下方表格列出時間片上執行中的工作（Project ID、Training ID、使用者）。 */
 export function GpuDashboardPage() {
   const { api } = useSession();
   const me = useMe();
@@ -48,7 +48,7 @@ export function GpuDashboardPage() {
 
   return (
     <SchedulingPage
-      title="運算資源"
+      title="GPU／CPU 伺服器管理"
       subtitle="管理 GPU 資源、群組與叢集節點"
       actions={
         <button type="button" className="btn btn--secondary" onClick={reload} disabled={board.loading}>
@@ -63,7 +63,7 @@ export function GpuDashboardPage() {
       {board.loading && !board.data && <p role="status">載入中…</p>}
       {board.data && (
         <>
-          <ul className="sch-gpu-grid" aria-label="GPU 使用狀況">
+          <ul className="sch-gpu-grid" aria-label="GPU Dashboard">
             {gpuNodes.flatMap((n) => {
               const replicas = Math.max(1, Math.floor(n.gpu_capacity / n.gpu_physical));
               return Array.from({ length: n.gpu_physical }, (_, gpu) => {

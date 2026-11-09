@@ -94,10 +94,10 @@ describe('1 一個結論', () => {
     const cards = screen.getByRole('list', { name: '訓練 #1 的重點指標' });
     expect(cards).toHaveTextContent(`AUC（ROC 曲線下面積）${headlineNumber('auc', (r.metrics.cv as { auc: { mean: number } }).auc.mean)}`);
     // 「用這個模型預測病人」緊接在結論與重點指標下方，不必捲到圖表後面
-    const predict = screen.getByRole('link', { name: '用新資料測試' });
+    const predict = screen.getByRole('link', { name: '執行推論' });
     expect(predict.compareDocumentPosition(screen.getByTestId('result-details')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('以下數字是 5 折平均（80 人輪流當檢查資料）。')).toBeInTheDocument();
-    expect(screen.getByTestId('baseline')).toHaveTextContent(/^比較基準：每個人都猜「0」（訓練資料最常見的）可猜對 \d+%；模型要明顯高於它才有用。$/);
+    expect(screen.getByTestId('baseline')).toHaveTextContent(/^比較基準：每個人都猜「0」（訓練集最常見的）可猜對 \d+%；模型要明顯高於它才有用。$/);
     // 測試集數字與提醒都在收合的「詳細」裡
     const details = screen.getByTestId('result-details');
     expect(details).not.toHaveAttribute('open');
@@ -111,21 +111,21 @@ describe('1 一個結論', () => {
   it('warnings are short and the training gap is compared with the K-fold mean, not the small test set', () => {
     const notes = warnings(run(round2));
     expect(notes.every((n) => n.length <= 90)).toBe(true);
-    // 訓練 81.3% 對 K 折 80%：沒有過度配適，不該出現「只記住訓練資料」
+    // 訓練 81.3% 對 K 折 80%：沒有過度配適，不該出現「只記住訓練集」
     expect(notes.join('\n')).not.toMatch(/只記住/);
     expect(notes.join('\n')).toContain('以 K 折平均為準');
   });
 });
 
 describe('2 建議依演算法', () => {
-  // 訓練集 95%、測試集 70%：只記住訓練資料
+  // 訓練集 95%、測試集 70%：只記住訓練集
   const overfit = { rows: { train: 300, validation: 0, test: 100 }, train: { accuracy: 0.95, r2: 0.95 }, test: { accuracy: 0.7, r2: 0.6 } };
   const advice = (algorithm: string, kind: TrainingKind = 'tabular_classification') =>
     warnings(run(overfit, kind, algorithm)).find((n) => n.includes('只記住'))!;
 
   it('logistic regression: stronger regularisation or fewer features, never tree depth', () => {
     expect(advice('logistic_regression')).toContain('把「正則化強度的倒數（C）」調小');
-    expect(advice('logistic_regression')).toContain('減少用來預測的欄位');
+    expect(advice('logistic_regression')).toContain('減少 Feature 欄位');
     expect(advice('logistic_regression')).not.toMatch(/樹|深度/);
   });
 
@@ -141,7 +141,7 @@ describe('2 建議依演算法', () => {
   });
 
   it('linear regression: fewer features, no hyperparameter that does not exist', () => {
-    expect(advice('linear_regression', 'tabular_regression')).toContain('減少用來預測的欄位');
+    expect(advice('linear_regression', 'tabular_regression')).toContain('減少 Feature 欄位');
     expect(advice('linear_regression', 'tabular_regression')).not.toMatch(/樹|深度|正則化|學習率/);
   });
 });
@@ -149,41 +149,41 @@ describe('2 建議依演算法', () => {
 describe('3 顯示名稱用在所有地方', () => {
   it('after sharing with a Chinese name, the message, both model lists, the prediction heading and result use it', async () => {
     const first = await renderApp('/models/101/share', 'pi01');
-    const form = await screen.findByRole('form', { name: '分享給同事使用' });
+    const form = await screen.findByRole('form', { name: '部署並設定權限' });
     const title = within(form).getByLabelText('顯示名稱（同事看到的名稱，可用中文）');
     await waitFor(() => expect(title).toHaveValue('diagnosis-rf'));   // 等建議名稱帶入後再改
     await first.user.clear(title);
     await first.user.type(title, '心臟科確診預測（測試）');
-    await first.user.type(within(form).getByLabelText('分享給（同事的帳號，以逗號分隔）'), 'md01');
-    await first.user.click(within(form).getByRole('button', { name: '分享給同事使用' }));
-    const done = await screen.findByText(/^已把「心臟科確診預測（測試）」分享給 md01/);
+    await first.user.type(within(form).getByLabelText('授權帳號（以逗號分隔）'), 'md01');
+    await first.user.click(within(form).getByRole('button', { name: '部署並設定權限' }));
+    const done = await screen.findByText(/^已把「心臟科確診預測（測試）」授權給 md01/);
     expect(done).toHaveTextContent('打開模型「心臟科確診預測（測試）」就能預測');
     expect(done).not.toHaveTextContent('run1');
-    const shared = screen.getByRole('table', { name: '已分享的模型' });
+    const shared = screen.getByRole('table', { name: '已部署的模型' });
     expect(await within(shared).findByRole('row', { name: /心臟科確診預測（測試）/ })).toBeInTheDocument();
     first.unmount();
 
     const second = await renderApp('/models', 'md01');
     const list = await screen.findByRole('table', { name: '模型清單' });
     const row = within(list).getByRole('row', { name: /心臟科確診預測（測試）（模型名稱：diagnosis-rf-run1）/ });
-    expect(row).toHaveTextContent('pi01 分享給你');
+    expect(row).toHaveTextContent('pi01 已授權給你');
     await second.user.click(within(row).getByRole('link'));
-    await second.user.click(await screen.findByRole('link', { name: '預測新資料' }));
+    await second.user.click(await screen.findByRole('link', { name: '推論' }));
     expect((await screen.findAllByRole('heading', { name: /心臟科確診預測（測試）/ })).length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { name: /^diagnosis-rf-run1/ })).toBeNull();
   });
 });
 
 describe('4 數目與使用者的操作一致', () => {
-  it('counts the columns the user ticked, explains the One-Hot split and lists the missing-value choice', async () => {
+  it('counts the columns the user ticked, explains the One Hot Encoding split and lists the missing-value choice', async () => {
     const original = ['patient_id', 'age', 'sex', 'bmi', 'sbp', 'dbp', 'glucose', 'smoker', 'diagnosis'];
     const steps = [{ id: 'onehot', columns: ['sex', 'smoker'], params: {} }];
     const saved = ['age', 'sex_F', 'sex_M', 'bmi', 'sbp', 'dbp', 'glucose', 'smoker_current', 'smoker_former', 'smoker_never'];
     expect(featureCountText(saved, original, steps)).toBe('7 個欄位（sex、smoker 自動拆成 5 欄）');
     expect(featureCountText(['age', 'bmi'], original, [])).toBe('2 個欄位');
     expect(savedSummary({ config: { target: 'diagnosis', features: saved, steps, missing: 'impute' } } as unknown as TargetFeature, original,
-      [{ id: 'onehot', name_zh: 'One-Hot 編碼', params: { properties: {} } } as unknown as CatalogueItem]))
-      .toBe('已儲存：要預測的結果 diagnosis；用來預測的資料 7 個欄位（sex、smoker 自動拆成 5 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex、smoker）');
+      [{ id: 'onehot', name_zh: 'One Hot Encoding', params: { properties: {} } } as unknown as CatalogueItem]))
+      .toBe('已儲存：Target 欄位 diagnosis；Feature 欄位 7 個欄位（sex、smoker 自動拆成 5 欄）；有缺值的病人：補值後使用；前處理 1 個步驟（One Hot Encoding：sex、smoker）');
   });
 
   it('the training form opened from the dataset says the same and names the steps in Chinese', async () => {
@@ -193,11 +193,11 @@ describe('4 數目與使用者的操作一致', () => {
       steps: [{ id: 'onehot', columns: ['sex'], params: { drop_first: false } }],
     });
     const { user } = await renderApp('/training?dataset=2', 'pi01');
-    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：要預測的結果 diagnosis；用來預測的資料 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補上缺值後使用；前處理 1 個步驟（One-Hot 編碼：sex）。/))
+    expect(await screen.findByText(/已帶入資料集「lung-clinical」的設定：Target 欄位 diagnosis；Feature 欄位 3 個欄位（sex 自動拆成 2 欄）；有缺值的病人：補值後使用；前處理 1 個步驟（One Hot Encoding：sex）。/))
       .toBeInTheDocument();
-    // 舊網址轉到建立訓練精靈的「確認資料」；下一步才是完整表單
+    // 舊網址轉到建立訓練任務精靈的「確認資料」；下一步才是完整表單
     await user.click(screen.getByRole('button', { name: '下一步：確認並送出' }));
-    expect(await screen.findByText(/前處理步驟 1 個（在「數據管理」的資料集設定）：One-Hot 編碼：sex/)).toBeInTheDocument();
+    expect(await screen.findByText(/前處理步驟 1 個（在「數據管理」的資料集設定）：One Hot Encoding：sex/)).toBeInTheDocument();
     expect(screen.queryByText(/：onehot/)).toBeNull();
   });
 });
@@ -213,13 +213,13 @@ describe('5 在結果旁預測病人', () => {
     seed('cls', tabularConfig('tabular_classification'));
     const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, 'cls');
-    const link = screen.getByRole('link', { name: '用新資料測試' });
+    const link = screen.getByRole('link', { name: '執行推論' });
     const id = trainingMock().runs[0].id;
     expect(link).toHaveAttribute('href', `/models/${id}/predict`);
   });
 
   it('the prediction page opens on that model with one patient and many patients; the batch result shows right or wrong', async () => {
-    // 舊連結 /inference?model=ID 直接打開那個模型的「預測新資料」
+    // 舊連結 /inference?model=ID 直接打開那個模型的「推論」
     const first = await renderApp('/inference?model=102', 'pi01');
     expect(await screen.findByRole('heading', { name: '預測：modality-cnn-run2' })).toBeInTheDocument();
     first.unmount();
@@ -231,11 +231,11 @@ describe('5 在結果旁預測病人', () => {
     for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
     await user.click(within(one).getByRole('button', { name: '預測' }));
     expect(await within(one).findByTestId('try-result')).toHaveTextContent(/^diagnosis＝1 的機率 \d+%（模型預測為「[01]」）/);
-    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
-    expect(await within(await screen.findByRole('table', { name: '預測紀錄' })).findByRole('row', { name: /#1/ })).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '預測新資料' }));
+    await user.click(screen.getByRole('link', { name: '推論服務歷史紀錄' }));
+    expect(await within(await screen.findByRole('table', { name: '推論服務歷史紀錄' })).findByRole('row', { name: /#1/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '推論' }));
 
-    // 多位病人：測試資料含實際的 diagnosis → 預測對／錯與一行統計
+    // 多位病人：測試集含實際的 diagnosis → 預測對／錯與一行統計
     await user.click(screen.getByRole('button', { name: '多位病人一起預測' }));
     const table = await screen.findByRole('table', { name: '預測結果' });
     expect(await screen.findByTestId('table-correct')).toHaveTextContent(/^有實際的 diagnosis 可以對照：\d+ 位中預測對 \d+ 位（\d+%）。$/);
@@ -247,7 +247,7 @@ describe('5 在結果旁預測病人', () => {
   it('correctness compares numbers and text, and skips rows without a prediction', () => {
     const model = { kind: 'tabular_classification', card: { target: 'diagnosis' } } as Model;
     const result = { columns: ['id', 'diagnosis', 'prediction', 'prediction_note'], prediction_column: 'prediction',
-      rows: [['a', '1', '1.0', ''], ['b', '0', '1', ''], ['c', '1', '', '特徵含缺值，無法預測'], ['d', 'yes', 'yes', '']] };
+      rows: [['a', '1', '1.0', ''], ['b', '0', '1', ''], ['c', '1', '', '特徵含缺值，無法推論'], ['d', 'yes', 'yes', '']] };
     expect(correctness(result, model)).toEqual({ column: 'diagnosis', marks: ['對', '錯', '', '對'], right: 2, total: 3 });
     expect(correctness({ ...result, columns: ['id', 'x', 'prediction', 'prediction_note'] }, model)).toBeNull();
     expect(correctness(result, { ...model, kind: 'tabular_regression' } as Model)).toBeNull();
@@ -257,43 +257,43 @@ describe('5 在結果旁預測病人', () => {
 describe('6 次要問題', () => {
   afterEach(() => resetInferenceMock());
 
-  it('a single try-out is recorded as 單人試用, not 上傳檔案', async () => {
+  it('a single try-out is recorded as 即時推論, not 上傳檔案', async () => {
     const { user } = await renderApp('/inference?model=101', 'pi01');
     const one = await screen.findByRole('form', { name: '一位病人' });
     for (const [f, v] of [['age', '60'], ['bmi', '25'], ['glucose', '100'], ['sbp', '130']]) await user.type(within(one).getByLabelText(f), v);
     await user.click(within(one).getByRole('button', { name: '預測' }));
     await within(one).findByTestId('try-result');
-    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
-    const history = await screen.findByRole('table', { name: '預測紀錄' });
-    expect(await within(history).findByRole('row', { name: /#1\s*單人試用/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '推論服務歷史紀錄' }));
+    const history = await screen.findByRole('table', { name: '推論服務歷史紀錄' });
+    expect(await within(history).findByRole('row', { name: /#1\s*即時推論/ })).toBeInTheDocument();
     expect(modeName({ mode: 'upload', input: {} })).toBe('上傳檔案');
-    expect(modeName({ mode: 'upload', input: { source: 'try' } })).toBe('單人試用');
+    expect(modeName({ mode: 'upload', input: { source: 'try' } })).toBe('即時推論');
   });
 
   it('statistics are rounded for display only; the full value is on hover', async () => {
     expect([19.7987, 0.048532, 169.4567, 59.15, 41.75, 3].map(formatStat)).toEqual(['19.8', '0.0485', '169.5', '59.15', '41.75', '3']);
     await renderApp('/data/tabular/2/view?show=describe', 'vw01');
-    const table = await screen.findByRole('table', { name: '描述統計' });
+    const table = await screen.findByRole('table', { name: '描述性統計' });
     const std = within(within(table).getByRole('row', { name: /^age / })).getByText('19.8');
     expect(std).toHaveAttribute('title', expect.stringMatching(/^19\.79/));
   });
 
-  it('a dataset opens on 查看資料; each tab says in one line what it is for', async () => {
+  it('a dataset opens on 資料視覺化; each tab says in one line what it is for', async () => {
     const { user } = await renderApp('/data/tabular/2', 'vw01');
     expect(await screen.findByRole('table', { name: '資料預覽' })).toBeInTheDocument();
     const tabs = screen.getByRole('navigation', { name: '資料集分頁' });
-    expect(within(tabs).getAllByRole('link').map((l) => l.textContent)).toEqual(['查看資料', '整理資料', '統計分析']);
-    expect(screen.getByTestId('tab-hint')).toHaveTextContent('查看資料：逐列預覽、每一欄的平均與分布');
-    await user.click(screen.getByRole('button', { name: '欄位統計' }));
-    expect(await screen.findByRole('table', { name: '描述統計' })).toBeInTheDocument();
-    await user.click(within(tabs).getByRole('link', { name: '統計分析' }));
-    expect(await screen.findByTestId('tab-hint')).toHaveTextContent('統計分析：找出哪些因素和結果有關');
+    expect(within(tabs).getAllByRole('link').map((l) => l.textContent)).toEqual(['資料視覺化', '資料清洗', '醫學統計分析']);
+    expect(screen.getByTestId('tab-hint')).toHaveTextContent('資料視覺化：逐列預覽、每一欄的平均與分布');
+    await user.click(screen.getByRole('button', { name: '欄位描述性統計' }));
+    expect(await screen.findByRole('table', { name: '描述性統計' })).toBeInTheDocument();
+    await user.click(within(tabs).getByRole('link', { name: '醫學統計分析' }));
+    expect(await screen.findByTestId('tab-hint')).toHaveTextContent('醫學統計分析：找出哪些因素和結果有關');
   });
 
-  it('整理資料 says most users do not need to add steps themselves', async () => {
+  it('資料清洗 says most users do not need to add steps themselves', async () => {
     await renderApp('/data/tabular/2/prepare', 'pi01');
     expect(await screen.findByTestId('steps-not-needed', {}, { timeout: 10_000 })).toHaveTextContent('大多數人不需要自己加步驟');
-    expect(screen.getByLabelText('想預測哪個欄位？')).toBeInTheDocument();
-    expect(screen.getByText('用哪些欄位預測？')).toBeInTheDocument();
+    expect(screen.getByLabelText('Target 欄位')).toBeInTheDocument();
+    expect(screen.getByText('Feature 欄位')).toBeInTheDocument();
   });
 });

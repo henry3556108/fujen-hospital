@@ -148,8 +148,8 @@ describe('匯入影像', () => {
 
   it('TC-A03-05 users without Labeling permission see no upload form', async () => {
     await renderApp('/data/imaging/import', 'vw01');
-    expect(await screen.findByText('你在專案「P1-lung-ct」沒有 Labeling 權限，無法加入影像。')).toBeInTheDocument();
-    expect(within(screen.getByRole('dialog', { name: '加入資料' })).queryByRole('form')).toBeNull();
+    expect(await screen.findByText('你在專案「P1-lung-ct」沒有 Labeling 權限，無法匯入影像。')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog', { name: '匯入資料' })).queryByRole('form')).toBeNull();
   });
 });
 
@@ -213,15 +213,15 @@ describe('PACS 查詢取像', () => {
 
   it('TC-B01-08 with an allowlist, PACS only lists studies on it', async () => {
     const admin = await renderApp('/admin/allowlist', 'admin01');
-    const form = await screen.findByRole('form', { name: '設定影像存取清單' });
+    const form = await screen.findByRole('form', { name: '設定 Accession Number 清單' });
     await admin.user.type(within(form).getByLabelText(/^Accession Number/), 'ACC0003');
     {
-      // 影像存取清單儲存前要勾「已確認變更範圍」（F7）
+      // Accession Number 清單儲存前要勾「已確認變更範圍」（F7）
       const ok = within(form).queryByRole('checkbox', { name: /已確認變更範圍/ });
       if (ok && !(ok as HTMLInputElement).checked) await admin.user.click(ok);
     }
     await admin.user.click(within(form).getByRole('button', { name: '儲存清單' }));
-    await screen.findByText('已儲存影像存取清單，共 1 筆');
+    await screen.findByText('已儲存 Accession Number 清單，共 1 筆');
     admin.unmount();
 
     const { user } = await renderApp('/data/imaging/pacs', 'ra01');
@@ -237,17 +237,17 @@ describe('PACS 查詢取像', () => {
   });
 });
 
-describe('加入資料（改版）', () => {
+describe('匯入資料（改版）', () => {
   it('shows the target project and the three sources', async () => {
     const { user } = await renderApp('/data/imaging/import', 'ra01');
     expect(await screen.findByText(/加入的影像只會進到專案/)).toHaveTextContent('P1-lung-ct');
     const sources = screen.getByRole('list', { name: '資料來源' });
     expect(within(sources).getAllByRole('button').map((b) => b.querySelector('.entry-card__title')?.textContent)).toEqual([
       '從電腦上傳',
-      '從院內影像系統取得',
+      '從影像儲傳系統取得',
       '匯入影像與標註檔',
     ]);
-    await user.click(within(sources).getByRole('button', { name: /^從院內影像系統取得/ }));
+    await user.click(within(sources).getByRole('button', { name: /^從影像儲傳系統取得/ }));
     expect(await screen.findByRole('form', { name: '查詢 PACS' })).toBeInTheDocument();
   });
 

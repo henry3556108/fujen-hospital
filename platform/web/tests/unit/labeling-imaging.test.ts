@@ -1,4 +1,4 @@
-// 影像標註工作台的純函式：窗位、旋轉座標、RLE、DICOMweb 解析（TC-B02-01 的運算基礎）。
+// 影像標註工作台的純函式：WC、旋轉座標、RLE、DICOMweb 解析（TC-B02-01 的運算基礎）。
 import { describe, expect, it } from 'vitest';
 import { decodePixels, firstPart, parseInstances, parseSeries, type InstanceInfo } from '../../src/pages/labeling/dicomweb';
 import {

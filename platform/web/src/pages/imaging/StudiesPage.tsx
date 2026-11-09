@@ -114,7 +114,7 @@ function SaveScope({ filters, onSaved, onCancel }: { filters: ScopeFilters; onSa
     <form aria-label="儲存資料範圍" className="card section" onSubmit={submit} noValidate>
       <ApiErrorAlert error={error} />
       <p className="text-muted">
-        資料範圍存的是目前的篩選條件，之後新加入、符合條件的影像也會算在裡面。儲存資料範圍只是研究選取，不會改變專案的影像存取清單。
+        資料範圍存的是目前的篩選條件，之後新加入、符合條件的影像也會算在裡面。儲存資料範圍只是研究選取，不會改變專案的 Accession Number 清單。
       </p>
       <div className="field">
         <label htmlFor="scope-name">資料範圍名稱</label>
@@ -134,8 +134,8 @@ function SaveScope({ filters, onSaved, onCancel }: { filters: ScopeFilters; onSa
 
 /**
  * TC-B01-09 影像清單（A02、B06）：5 個 DICOM 欄位篩選、縮圖、標註狀態，可選或儲存資料範圍，直接檢視或開始標註；
- * 篩選條件、頁碼、每頁筆數放在網址，重新載入或分享連結都一致。
- * adding：/data/imaging/import 時開著右側「加入資料」滑出面板。
+ * 篩選條件、頁碼、每頁筆數放在網址，重新載入或部署連結都一致。
+ * adding：/data/imaging/import 時開著右側「匯入資料」滑出面板。
  */
 export function StudiesPage({ adding = false }: { adding?: boolean }) {
   const { api, project } = useSession();
@@ -177,7 +177,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [savingScope, setSavingScope] = useState(false);
 
-  /** 網址上除了加入資料來源以外的查詢字串（篩選、範圍、頁碼） */
+  /** 網址上除了匯入資料來源以外的查詢字串（篩選、範圍、頁碼） */
   function listQuery(): string {
     const q = new URLSearchParams(params);
     q.delete('source');
@@ -185,7 +185,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
     return s ? `?${s}` : '';
   }
 
-  // 關閉加入資料面板後重新載入清單與標註狀態（剛匯入的影像要出現）
+  // 關閉匯入資料面板後重新載入清單與標註狀態（剛匯入的影像要出現）
   const wasAdding = useRef(adding);
   useEffect(() => {
     if (wasAdding.current && !adding) {
@@ -251,7 +251,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
         <h2>影像清單</h2>
         {can('labeling') && (
           <Link to={`/data/imaging/import${listQuery()}`} className="btn btn--primary">
-            <Icon name="upload" /> 加入資料
+            <Icon name="upload" /> 匯入資料
           </Link>
         )}
       </div>
@@ -274,7 +274,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
             {scopes.data && scopes.data.length > 0 && <ScopeSelect id="f-scope" scopes={scopes.data} value={scopeId} onChange={chooseScope} />}
             <div className="field">
               <label htmlFor="f-modality" title="DICOM 欄位 Modality">
-                影像種類<span className="visually-hidden">（Modality）</span>
+                Modality
               </label>
               <select id="f-modality" className="select" title="DICOM 欄位 Modality" value={draft.modality} onChange={set('modality')}>
                 <option value="">全部</option>
@@ -286,7 +286,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="f-sex">性別</label>
+              <label htmlFor="f-sex">Patient's Sex</label>
               <select id="f-sex" className="select" value={draft.patient_sex} onChange={set('patient_sex')}>
                 <option value="">全部</option>
                 {Object.entries(SEX_LABELS).map(([v, label]) => (
@@ -298,23 +298,23 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
             </div>
             <div className="field">
               <label htmlFor="f-study-desc" title="DICOM 欄位 Study Description，輸入部分文字即可">
-                檢查描述<span className="visually-hidden">（Study Description，包含）</span>
+                Study Description<span className="visually-hidden">（包含）</span>
               </label>
               <input id="f-study-desc" className="input" placeholder="Study Description" value={draft.study_description} onChange={set('study_description')} />
             </div>
             <div className="field rd-filter__wide" role="group" aria-labelledby="f-date-label">
               <span id="f-date-label" className="field__label" title="DICOM 欄位 Study Date">
-                檢查日期<span className="visually-hidden">（Study Date）</span>
+                Study Date<span className="visually-hidden">（Study Date）</span>
               </span>
               <span className="rd-date-range">
-                <input id="f-from" className="input" type="date" aria-label="檢查日期起" value={draft.from} onChange={set('from')} />
+                <input id="f-from" className="input" type="date" aria-label="Study Date 起" value={draft.from} onChange={set('from')} />
                 <span aria-hidden="true">–</span>
-                <input id="f-to" className="input" type="date" aria-label="檢查日期迄" value={draft.to} onChange={set('to')} />
+                <input id="f-to" className="input" type="date" aria-label="Study Date 迄" value={draft.to} onChange={set('to')} />
               </span>
             </div>
             <div className="field">
               <label htmlFor="f-series-desc" title="DICOM 欄位 Series Description，輸入部分文字即可">
-                序列描述<span className="visually-hidden">（Series Description，包含）</span>
+                Series Description<span className="visually-hidden">（包含）</span>
               </label>
               <input id="f-series-desc" className="input" placeholder="Series Description" value={draft.series_description} onChange={set('series_description')} />
             </div>
@@ -363,12 +363,12 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
             <thead>
               <tr>
                 <th scope="col" className="rd-nowrap">影像編號</th>
-                <th scope="col" className="rd-nowrap">檢查日期</th>
-                <th scope="col" className="rd-nowrap">影像種類</th>
-                <th scope="col" className="rd-desc">檢查描述</th>
-                <th scope="col" className="rd-desc">序列描述</th>
+                <th scope="col" className="rd-nowrap">Study Date</th>
+                <th scope="col" className="rd-nowrap">Modality</th>
+                <th scope="col" className="rd-desc">Study Description</th>
+                <th scope="col" className="rd-desc">Series Description</th>
                 <th scope="col" className="rd-nowrap">病歷號</th>
-                <th scope="col" className="rd-nowrap">性別</th>
+                <th scope="col" className="rd-nowrap">Patient's Sex</th>
                 <th scope="col" className="num rd-nowrap">
                   序列數
                 </th>
@@ -441,7 +441,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
               {studies.data && total === 0 && (
                 <tr>
                   <td colSpan={cols}>
-                    {active.length || scope ? '沒有符合篩選條件的影像' : '這個專案還沒有影像，請按「加入資料」上傳或從院內影像系統取得'}
+                    {active.length || scope ? '沒有符合篩選條件的影像' : '這個專案還沒有影像，請按「匯入資料」上傳或從影像儲傳系統取得'}
                   </td>
                 </tr>
               )}
@@ -461,7 +461,7 @@ export function StudiesPage({ adding = false }: { adding?: boolean }) {
         )}
       </div>
 
-      <SlideOver open={adding} title="加入資料" width="44rem" closeOnBackdrop={false} onClose={() => navigate(`/data/imaging${listQuery()}`)}>
+      <SlideOver open={adding} title="匯入資料" width="44rem" closeOnBackdrop={false} onClose={() => navigate(`/data/imaging${listQuery()}`)}>
         <AddDataPanel
           source={sourceOf(params.get('source'))}
           onSource={(next) => {

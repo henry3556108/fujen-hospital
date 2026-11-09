@@ -28,7 +28,7 @@ const viewport = (page: Page, n = 0) => page.getByTestId('viewport').nth(n);
 const status = (page: Page) => page.getByTestId('workbench-status');
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: '檢視工具列' });
 
-/** 畫布內容的指紋：每個像素乘上位置權重，旋轉或窗位改變都會反映出來。 */
+/** 畫布內容的指紋：每個像素乘上位置權重，旋轉或 WC 改變都會反映出來。 */
 async function fingerprint(page: Page, n = 0): Promise<number> {
   return viewport(page, n)
     .locator('canvas')
@@ -68,10 +68,10 @@ const pickKind = (page: Page, name: '分類' | '分割' | '偵測') =>
   page.getByRole('group', { name: '標註種類' }).getByRole('button', { name, exact: true }).click();
 
 test.describe('TC-B02-01 檢視工具列', () => {
-  test('預設器官窗不少於 3 組，每一組都改變影像', async ({ page }) => {
+  test('預設器官數值不少於 3 組，每一組都改變影像', async ({ page }) => {
     await loginAs(page, 'md01');
     await openWorkbench(page, 1);
-    const presets = toolbar(page).getByRole('group', { name: '器官窗' }).getByRole('button');
+    const presets = toolbar(page).getByRole('group', { name: '預設器官數值' }).getByRole('button');
     const count = await presets.count();
     expect(count).toBeGreaterThanOrEqual(3);
     const seen = new Set<number>();
@@ -114,8 +114,8 @@ test.describe('TC-B02-01 檢視工具列', () => {
 
         // WW/WC
         const beforeWindow = await fingerprint(page);
-        await toolbar(page).getByLabel('窗寬 WW').fill(String(windows[round].ww));
-        await toolbar(page).getByLabel('窗位 WL').fill(String(windows[round].wl));
+        await toolbar(page).getByLabel('WW').fill(String(windows[round].ww));
+        await toolbar(page).getByLabel('WC').fill(String(windows[round].wl));
         await toolbar(page).getByRole('button', { name: '套用' }).click();
         await expect(viewport(page)).toHaveAttribute('data-window-width', String(windows[round].ww));
         await expect(viewport(page)).toHaveAttribute('data-window-center', String(windows[round].wl));
@@ -136,10 +136,10 @@ test('TC-B02-02 5 組快捷鍵各觸發 1 次，動作正確', async ({ page }) 
   expect(await page.locator('.hotkeys tbody tr').count()).toBeGreaterThanOrEqual(5);
   await page.locator('h1').click(); // 焦點離開輸入欄
 
-  // 第 1 組：器官窗
+  // 第 1 組：預設器官數值
   let before = await fingerprint(page);
   await page.keyboard.press('2');
-  await expect(status(page)).toContainText('肺窗：窗寬 1500、窗位 -600');
+  await expect(status(page)).toContainText('肺窗：WW 1500、WC -600');
   await expect(viewport(page)).toHaveAttribute('data-window-width', '1500');
   await expect.poll(() => fingerprint(page)).not.toBe(before);
 
@@ -299,7 +299,7 @@ test('TC-B02-06 從標註頁建立訓練任務 3 次，建立成功 100%', async
     await expect(page.getByRole('table', { name: '已建立的訓練任務' }).locator('tbody tr')).toHaveCount(i + 1);
   }
   const jobs = page.getByRole('table', { name: '已建立的訓練任務' });
-  for (const id of [1, 2, 3]) await expect(jobs.getByRole('row', { name: new RegExp(`#${id}.*排隊中`) })).toBeVisible();
+  for (const id of [1, 2, 3]) await expect(jobs.getByRole('row', { name: new RegExp(`#${id}.*等待中`) })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await snap(page, testInfo.project.name, 'labeling/training-from-labels');
 });

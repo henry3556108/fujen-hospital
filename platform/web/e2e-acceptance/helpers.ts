@@ -41,23 +41,23 @@ const isContract = (name: string): name is ContractEntry => (CONTRACT_ENTRIES as
 /** 研究區側欄名稱 */
 export const SIDE = {
   home: '專案首頁',
-  data: '研究資料',
+  data: '數據管理',
   labeling: '影像標註',
-  training: '建立模型',
-  models: '使用模型',
-  llm: '語言模型',
+  training: '建模管理',
+  models: '模型部署與推論服務',
+  llm: '大型語言模型',
   catalog: '功能目錄',
-  admin: '系統管理',
+  admin: '管理後台',
 } as const;
 
 /** 管理區側欄名稱 */
 export const ADMIN_SIDE = {
-  overview: '總覽',
-  users: '帳號',
-  projects: '專案',
-  compute: '運算資源',
+  overview: 'Dashboard',
+  users: '帳號管理',
+  projects: '專案管理',
+  compute: 'GPU／CPU 伺服器管理',
   monitoring: '系統監控',
-  fhir: '資料交換',
+  fhir: 'HL7 FHIR 醫療資料交換',
   audit: '稽核與審核',
   back: '回研究區',
 } as const;
@@ -66,9 +66,9 @@ export const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** 名稱開頭相符（卡片連結的名稱常含說明文字） */
 export const startsWith = (s: string) => new RegExp(`^\\s*${esc(s)}`);
 
-/** 側欄（研究區「功能選單」、管理區「系統管理選單」） */
+/** 側欄（研究區「功能選單」、管理區「管理後台選單」） */
 export function sideNav(page: Page): Locator {
-  return page.getByRole('navigation', { name: /^(功能選單|系統管理選單)$/ });
+  return page.getByRole('navigation', { name: /^(功能選單|管理後台選單)$/ });
 }
 
 /** 契約入口在功能目錄上可能用的名稱（LLM 入口改用全名，原名列為別名） */

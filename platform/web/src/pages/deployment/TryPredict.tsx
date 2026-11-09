@@ -1,4 +1,4 @@
-// 試用預測：在部署頁填一位病人的資料，立即看模型的預測與陽性類別的機率（結構式模型）。
+// 即時推論：在部署頁填一位病人的資料，立即看模型的預測與陽性類別的機率（結構式模型）。
 // 經「上傳推論」API 執行（需要 Prediction），結果與稽核都記在推論歷史。
 import { useState, type FormEvent } from 'react';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
@@ -13,11 +13,11 @@ function inputsOf(model: Model): ModelInput[] {
 type TryResult = { prediction: string; probability: string; note: string; positive?: string };
 
 /**
- * 試用預測的結果句。二元分類一律說陽性類別的機率（「diagnosis＝1 的機率 6%（模型預測為「0」）」），
+ * 即時推論的結果句。二元分類一律說陽性類別的機率（「diagnosis＝1 的機率 6%（模型預測為「0」）」），
  * 多類別說預測類別的機率；補過缺值時說補了什麼。
  */
 export function resultText(model: Model, result: TryResult): string {
-  if (result.prediction === '') return result.note || '無法預測';
+  if (result.prediction === '') return result.note || '無法推論';
   const target = model.card.target ?? '結果';
   const filled = noteRest(result.note);
   const positive = positiveLabel(model);
@@ -38,7 +38,7 @@ const csvCell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` 
 
 /**
  * fixed：模型已選好（推論服務管理的「一位病人」），不顯示模型選單，標題改為「一位病人」。
- * onDone：預測完成後通知（例如重新載入預測紀錄）。
+ * onDone：預測完成後通知（例如重新載入推論服務歷史紀錄）。
  */
 export function TryPredict({ models, initial, fixed = false, onDone }: { models: Model[]; initial?: number; fixed?: boolean; onDone?: () => void }) {
   const api = useInferenceApi();
@@ -51,7 +51,7 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
   if (!api || tabular.length === 0) return null;
   const model = tabular.find((m) => String(m.id) === modelId) ?? tabular[0];
   const inputs = inputsOf(model);
-  // 補值的模型：沒有的資料可以留白，會用訓練資料的中位數或最常見的值補上
+  // 補值的模型：沒有的資料可以留白，會用訓練集的中位數或最常見的值補上
   const fills = model.card.missing === 'impute';
 
   async function submit(e: FormEvent) {
@@ -81,11 +81,11 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
   }
 
   return (
-    <form aria-label={fixed ? '一位病人' : '試用預測'} className="card section stack" onSubmit={submit} noValidate>
-      <h2>{fixed ? '一位病人' : '試用預測'}</h2>
+    <form aria-label={fixed ? '一位病人' : '即時推論'} className="card section stack" onSubmit={submit} noValidate>
+      <h2>{fixed ? '一位病人' : '即時推論'}</h2>
       <p className="text-muted">
-        {fixed ? '填這位病人的資料後按「預測」。' : '填一位病人的資料，看模型會怎麼預測。結果會記在「推論服務管理」的預測紀錄。'}
-        {fills ? '沒有的資料可以留白，會用訓練資料的中位數（類別用最常見的值）補上。' : ''}
+        {fixed ? '填這位病人的資料後按「預測」。' : '填一位病人的資料，看模型會怎麼預測。結果會記在「推論服務管理」的推論服務歷史紀錄。'}
+        {fills ? '沒有的資料可以留白，會用訓練集的中位數（類別用最常見的值）補上。' : ''}
       </p>
       {fixed ? null : (
         <div className="field">
@@ -119,7 +119,7 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
             )}
             {i.type === 'number' && i.min !== null ? (
               <span id={`try-${i.name}-hint`} className="field__hint">
-                訓練資料的範圍：{i.min}～{i.max}
+                訓練集的範圍：{i.min}～{i.max}
               </span>
             ) : null}
           </div>
@@ -128,7 +128,7 @@ export function TryPredict({ models, initial, fixed = false, onDone }: { models:
       <ApiErrorAlert error={error} />
       <div className="row-actions">
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '預測中…' : '預測'}
+          {busy ? '推論中…' : '預測'}
         </button>
       </div>
       {result ? (

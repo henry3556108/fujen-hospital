@@ -43,19 +43,19 @@ describe('FHIR 改版', () => {
 
   it('Gateway 點靜態路由只顯示唯讀資訊', async () => {
     const { user } = await renderApp('/admin/fhir/gateway');
-    const table = await screen.findByRole('table', { name: 'Gateway 路由' });
+    const table = await screen.findByRole('table', { name: 'API Gateway 路由' });
     await user.click((await within(table).findAllByRole('button', { name: '靜態路由' }))[0]);
     expect(screen.queryByRole('form', { name: /修改路由/ })).toBeNull();
     expect(screen.getByText(/由部署設定檔控制/)).toBeInTheDocument();
   });
 });
 
-describe('排隊與共享設定', () => {
-  it('排隊順序頁右欄有共享排程設定', async () => {
+describe('佇列排程與共享排程設定', () => {
+  it('佇列排程頁右欄有共享排程設定', async () => {
     await renderApp('/admin/compute/queues', 'admin01');
     const panel = await screen.findByRole('complementary', { name: '共享排程設定' });
     expect(await within(panel).findByLabelText(/^時間片份數/)).toHaveValue(4);
-    expect(within(panel).getByRole('button', { name: '儲存共享設定' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: '儲存共享排程設定' })).toBeInTheDocument();
   });
 
   it('系統監控頁顯示叢集就緒節點', async () => {

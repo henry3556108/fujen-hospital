@@ -16,7 +16,7 @@ async function openModel(name: RegExp | string, username = 'vw01') {
   const utils = await renderApp('/inference', username);
   const table = await screen.findByRole('table', { name: '模型清單' });
   await utils.user.click(within(table).getByRole('link', { name: typeof name === 'string' ? new RegExp(name) : name }));
-  await utils.user.click(await screen.findByRole('link', { name: '預測新資料' }));
+  await utils.user.click(await screen.findByRole('link', { name: '推論' }));
   await screen.findByRole('heading', { name: `預測：${name}` });
   return utils;
 }
@@ -25,7 +25,7 @@ describe('inference page', () => {
   it('lists trained models with their kind; the file format (PKL/H5) is only shown when exporting', async () => {
     await renderApp('/inference', 'vw01');
     const table = await screen.findByRole('table', { name: '模型清單' });
-    expect(within(table).getByRole('row', { name: /diagnosis-rf-run1.*結構式分類/ })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /diagnosis-rf-run1.*結構式資料分類/ })).toBeInTheDocument();
     expect(within(table).getByRole('row', { name: /modality-cnn-run2.*影像分類/ })).toBeInTheDocument();
     expect(table).not.toHaveTextContent(/PKL|H5/);
   });
@@ -42,7 +42,7 @@ describe('inference page', () => {
     expect(rows).toHaveLength(20);
     for (const row of rows) {
       const cells = within(row).getAllByRole('cell').map((c) => c.textContent);
-      expect(cells[2] !== '' || cells[5] === '特徵含缺值，無法預測').toBe(true);
+      expect(cells[2] !== '' || cells[5] === '特徵含缺值，無法推論').toBe(true);
     }
     expect(screen.getByRole('heading', { name: /^預測結果 #1（20 筆）/ })).toBeInTheDocument();
   });
@@ -51,7 +51,7 @@ describe('inference page', () => {
     const { user } = await openModel('modality-cnn-run2');
     const files = Array.from({ length: 9 }, (_, i) => new File([`dicom-${i}`], `IM${i + 1}.dcm`));
     await user.upload(screen.getByLabelText('影像檔'), files);
-    await user.click(screen.getByRole('button', { name: '上傳並預測' }));
+    await user.click(screen.getByRole('button', { name: '上傳並推論' }));
     const grid = await screen.findByRole('list', { name: '影像推論結果' });
     const cards = within(grid).getAllByTestId('image-result');
     expect(cards).toHaveLength(9);
@@ -64,7 +64,7 @@ describe('inference page', () => {
   it('detection results draw boxes scaled to the model input size', async () => {
     const { user } = await openModel('nodule-det-run3');
     await user.upload(screen.getByLabelText('影像檔'), [new File(['x'], 'a.dcm')]);
-    await user.click(screen.getByRole('button', { name: '上傳並預測' }));
+    await user.click(screen.getByRole('button', { name: '上傳並推論' }));
     const box = await screen.findByTestId('result-box');
     expect(box.style.top).toBe(`${(6 / 32) * 100}%`);
     expect(box.style.height).toBe(`${(12 / 32) * 100}%`);
@@ -77,8 +77,8 @@ describe('inference page', () => {
       await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
       await screen.findByRole('heading', { name: new RegExp(`^預測結果 #${i + 1}（20 筆）`) });
     }
-    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
-    const history = await screen.findByRole('table', { name: '預測紀錄' });
+    await user.click(screen.getByRole('link', { name: '推論服務歷史紀錄' }));
+    const history = await screen.findByRole('table', { name: '推論服務歷史紀錄' });
     await waitFor(() => expect(within(history).getAllByRole('row')).toHaveLength(4));
     await user.click(within(history).getByRole('button', { name: '檢視 #1' }));
     expect(await screen.findByRole('heading', { name: /^預測結果 #1（20 筆）/ })).toBeInTheDocument();
@@ -88,7 +88,7 @@ describe('inference page', () => {
   it('files blocked by the virus scanner are listed and not inferred', async () => {
     const { user } = await openModel('modality-cnn-run2');
     await user.upload(screen.getByLabelText('影像檔'), [new File(['a'], 'ok.dcm'), new File(['b'], 'eicar.dcm')]);
-    await user.click(screen.getByRole('button', { name: '上傳並預測' }));
+    await user.click(screen.getByRole('button', { name: '上傳並推論' }));
     expect(await screen.findAllByTestId('image-result')).toHaveLength(1);
     expect(screen.getByText(/1 個檔案未預測：eicar\.dcm（掃毒攔截：Eicar-Signature）/)).toBeInTheDocument();
   });
@@ -96,23 +96,23 @@ describe('inference page', () => {
   it('server errors are shown in Chinese', async () => {
     const { user } = await openModel('diagnosis-rf-run1');
     await user.upload(screen.getByLabelText('CSV 檔'), new File(['foo,bar\n1,2\n'], 'x.csv', { type: 'text/csv' }));
-    await user.click(screen.getByRole('button', { name: '上傳並預測' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('資料缺少特徵欄位：age、bmi、glucose、sbp');
+    await user.click(screen.getByRole('button', { name: '上傳並推論' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('資料缺少 Feature 欄位：age、bmi、glucose、sbp');
   });
 
   it('a submitted batch shows its status while it runs in the background', async () => {
     Object.assign(inferencePolling, { firstMs: 60_000, maxMs: 60_000 });
     const { user } = await openModel('diagnosis-rf-run1');
     await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
-    expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次預測排隊中…在背景執行');
+    expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次推論等待中…在背景執行');
     expect(screen.getByRole('heading', { name: /^預測結果 #1（20 筆）/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '下載結果' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
-    const history = await screen.findByRole('table', { name: '預測紀錄' });
-    await waitFor(() => expect(within(history).getByRole('row', { name: /#1.*批次.*排隊中/ })).toBeInTheDocument());
-    // 從歷史重新檢視會繼續輪詢：模擬 API 每查一次往前一步（排隊中 → 執行中）
+    expect(screen.queryByRole('button', { name: '下載推論結果' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: '推論服務歷史紀錄' }));
+    const history = await screen.findByRole('table', { name: '推論服務歷史紀錄' });
+    await waitFor(() => expect(within(history).getByRole('row', { name: /#1.*批次.*等待中/ })).toBeInTheDocument());
+    // 從歷史重新檢視會繼續輪詢：模擬 API 每查一次往前一步（等待中 → 執行中）
     await user.click(within(history).getByRole('button', { name: '檢視 #1' }));
-    expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次預測執行中…');
+    expect(await screen.findByTestId('batch-status')).toHaveTextContent('批次推論執行中…');
   });
 
   it('a queued batch can be cancelled from the result panel and the history', async () => {
@@ -120,14 +120,14 @@ describe('inference page', () => {
     const { user } = await openModel('modality-cnn-run2');
     await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
     await screen.findByTestId('batch-status');
-    await user.click(screen.getByRole('button', { name: '取消預測' }));
+    await user.click(screen.getByRole('button', { name: '取消推論' }));
     expect(await screen.findByText('由 vw01 取消')).toBeInTheDocument();
     expect(screen.queryByTestId('batch-status')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /^(多位病人|多張影像)一起預測$/ }));
     await screen.findByRole('heading', { name: /^預測結果 #2（20 筆）/ });
-    await user.click(screen.getByRole('link', { name: '預測紀錄' }));
-    const history = await screen.findByRole('table', { name: '預測紀錄' });
+    await user.click(screen.getByRole('link', { name: '推論服務歷史紀錄' }));
+    const history = await screen.findByRole('table', { name: '推論服務歷史紀錄' });
     await user.click(await within(history).findByRole('button', { name: '取消 #2' }));
     await waitFor(() => expect(within(history).getByRole('row', { name: /#2.*已取消/ })).toBeInTheDocument());
     expect(within(history).getByRole('row', { name: /#1.*已取消/ })).toBeInTheDocument();

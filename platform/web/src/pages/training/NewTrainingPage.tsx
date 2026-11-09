@@ -1,6 +1,6 @@
-// 建立訓練精靈（/training/new，設計稿 A06、B03、B04）：選研究目的 → 確認資料 → 確認並送出。合併原本三套表單（建模管理的訓練設定、
-// 標註頁「標註後直接訓練」、資料集頁「用這份資料建立訓練」）。右側「送出前確認」隨時列出目前的選擇；
-// 「開始訓練」一併儲存設定並送出，送出後直接進入該次訓練頁；「儲存設定」只存設定，回到已存設定。
+// 建立訓練任務精靈（/training/new，設計稿 A06、B03、B04）：選訓練種類 → 確認資料 → 確認並送出。合併原本三套表單（建模管理的訓練設定、
+// 標註頁「標註後直接訓練」、資料集頁「用這份資料建立訓練任務」）。右側「送出前確認」隨時列出目前的選擇；
+// 「開始訓練」一併儲存設定並送出，送出後直接進入該次訓練頁；「儲存設定」只存設定，回到訓練設定。
 // query：?labelDataset=<id>、?tabular=<datasetId>、?from=<runId>、?setting=<id> 帶入預設值。
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -17,13 +17,13 @@ import { emptyForm, formFromSetting, suggestKind, type FormState } from './setti
 import '../../styles/pages.css';
 import './training.css';
 
-/** 研究目的（第一步）：白話名稱與對應的訓練種類（影像三種＝A06，表格兩種＝B03／B04） */
+/** 訓練種類（第一步）：白話名稱與對應的訓練種類（影像三種＝A06，表格兩種＝B03／B04） */
 export const PURPOSES: { kind: TrainingKind; title: string; hint: string }[] = [
-  { kind: 'image_classification', title: '判斷影像類別', hint: '輸入影像後，判斷其所屬類別（如正常／異常）' },
-  { kind: 'image_detection', title: '圈出位置', hint: '於影像中圈出特定病灶的位置' },
-  { kind: 'image_segmentation', title: '標出範圍', hint: '在影像中標記病灶的範圍區域' },
-  { kind: 'tabular_classification', title: '判斷類別', hint: '用表格欄位預測事件是否發生（例如：是否再住院）' },
-  { kind: 'tabular_regression', title: '預測數值', hint: '用表格欄位預測連續數值（例如：住院天數）' },
+  { kind: 'image_classification', title: '影像分類', hint: '輸入影像後，判斷其所屬類別（如正常／異常）' },
+  { kind: 'image_detection', title: '物件偵測', hint: '於影像中圈出特定病灶的位置' },
+  { kind: 'image_segmentation', title: '影像分割', hint: '在影像中標記病灶的範圍區域' },
+  { kind: 'tabular_classification', title: '結構式資料分類', hint: '用結構式資料欄位預測事件是否發生（例如：是否再住院）' },
+  { kind: 'tabular_regression', title: '結構式資料迴歸', hint: '用結構式資料欄位預測連續數值（例如：住院天數）' },
 ];
 
 const TASK_OF: Partial<Record<TrainingKind, LabelDataset['task']>> = {
@@ -73,7 +73,7 @@ export function NewTrainingPage() {
   const api = useTrainingApi();
   return (
     <>
-      <PageHeader title="建立訓練" subtitle="確認目的、資料與設定後，就能送出訓練。" />
+      <PageHeader title="建立訓練任務" subtitle="確認目的、資料與設定後，就能送出訓練。" />
       {api ? <Wizard key={api.projectId} api={api} /> : <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>}
     </>
   );
@@ -96,7 +96,7 @@ async function startFrom(api: TrainingApi, cat: Catalogue, params: URLSearchPara
   const tabular = Number(params.get('tabular') ?? params.get('dataset')) || null;
   if (settingId) {
     const s = await api.setting(settingId);
-    return { step: 3, form: formFromSetting(cat, s), editing: s, notice: `已套用已存設定「${s.name}」。送出時會一併儲存修改。` };
+    return { step: 3, form: formFromSetting(cat, s), editing: s, notice: `已套用訓練設定「${s.name}」。送出時會一併儲存修改。` };
   }
   if (fromRun) {
     const run = await api.run(fromRun);
@@ -118,7 +118,7 @@ async function startFrom(api: TrainingApi, cat: Catalogue, params: URLSearchPara
   return { step: 1, form: emptyForm(cat), editing: null, notice: '' };
 }
 
-/** 從資料集帶入：資料集、想預測的欄位、用來預測的欄位、前處理，並依欄位預選分類或預測數值。 */
+/** 從資料集帶入：資料集、Target 欄位、Feature 欄位、前處理，並依欄位預選分類或結構式資料迴歸。 */
 export async function formFromDataset(api: TrainingApi, cat: Catalogue, datasetId: number): Promise<{ form: FormState; notice: string }> {
   const [dataset, tf] = await Promise.all([api.dataset(datasetId), api.targetFeature(datasetId)]);
   const target = tf?.config.target ?? '';
@@ -129,21 +129,21 @@ export async function formFromDataset(api: TrainingApi, cat: Catalogue, datasetI
   Object.assign(form, { name: `${dataset.name} 訓練`, datasetId: String(datasetId) });
   if (tf) Object.assign(form, { target, features: [...tf.config.features], steps: tf.config.steps, missing: tf.config.missing ?? form.missing });
   const notice = tf
-    ? `已帶入資料集「${dataset.name}」的設定：要預測的結果 ${target}；用來預測的資料 ${featureCountText(tf.config.features, dataset.columns.map((c) => c.name), tf.config.steps)}` +
+    ? `已帶入資料集「${dataset.name}」的設定：Target 欄位 ${target}；Feature 欄位 ${featureCountText(tf.config.features, dataset.columns.map((c) => c.name), tf.config.steps)}` +
       `${missingText(tf.config.missing) ? `；${missingText(tf.config.missing)}` : ''}` +
       `${tf.config.steps.length ? `；前處理 ${tf.config.steps.length} 個步驟（${tf.config.steps.map(stepLabel).join(' → ')}）` : ''}。`
-    : `已選好資料集「${dataset.name}」。這個資料集還沒設定想預測的欄位，可以先到「整理資料」設定，或在下一步選擇。`;
+    : `已選好資料集「${dataset.name}」。這個資料集還沒設定 Target 欄位，可以先到「資料清洗」設定，或在下一步選擇。`;
   return { form, notice };
 }
 
-const STEPS = [{ label: '選研究目的' }, { label: '確認資料' }, { label: '確認並送出' }];
+const STEPS = [{ label: '選訓練種類' }, { label: '確認資料' }, { label: '確認並送出' }];
 
 function Wizard({ api }: { api: TrainingApi }) {
   const { me, project } = useSession();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const catalogue = useResource(() => api.catalogue(), [api]);
-  // 標註資料集與表格資料集：第二步選擇與右側摘要共用
+  // 標註資料集與結構式資料集：第二步選擇與右側摘要共用
   const labelDatasets = useResource(() => api.labelDatasets(), [api]);
   const datasets = useResource(() => api.datasets(), [api]);
   const [start, setStart] = useState<Start | null>(null);
@@ -158,8 +158,8 @@ function Wizard({ api }: { api: TrainingApi }) {
   const [dataIssue, setDataIssue] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const query = params.toString();
-  // 已選好研究目的或資料、還沒送出：離開前提醒（送出後導到訓練頁，元件卸載即取消登記）
-  useUnsavedChanges(step > 1, '建立訓練還沒送出。');
+  // 已選好訓練種類或資料、還沒送出：離開前提醒（送出後導到訓練頁，元件卸載即取消登記）
+  useUnsavedChanges(step > 1, '建立訓練任務還沒送出。');
 
   useEffect(() => {
     if (!catalogue.data) return;
@@ -244,7 +244,7 @@ function Wizard({ api }: { api: TrainingApi }) {
   return (
     <div className="stack">
       <div className="trn-stage-steps">
-        <Stepper steps={STEPS} current={step - 1} label="建立訓練的步驟" />
+        <Stepper steps={STEPS} current={step - 1} label="建立訓練任務的步驟" />
       </div>
       {start.notice ? <Alert tone="info">{start.notice}</Alert> : null}
       <ApiErrorAlert error={error} />
@@ -274,7 +274,7 @@ function Wizard({ api }: { api: TrainingApi }) {
             catalogue={cat}
             initial={form}
             editing={start.editing}
-            onCancel={() => confirmLeave('取消建立訓練') && navigate('/training')}
+            onCancel={() => confirmLeave('取消建立訓練任務') && navigate('/training')}
             onSaved={(s) => void submitRun(s)}
             wizard={{
               title: '確認並送出',
@@ -334,7 +334,7 @@ function WizardSide({ children }: { children: ReactNode }) {
   );
 }
 
-/** 1. 選擇研究目的：影像三種、表格兩種卡片。第二步以後鎖住，按「修改」回第一步。 */
+/** 1. 選擇訓練種類：影像三種、表格兩種卡片。第二步以後鎖住，按「修改」回第一步。 */
 function PurposeSection({ purposes, kind, locked, onChoose, onBack }: {
   purposes: typeof PURPOSES; kind: TrainingKind; locked: boolean; onChoose: (k: TrainingKind) => void; onBack: () => void;
 }) {
@@ -347,16 +347,16 @@ function PurposeSection({ purposes, kind, locked, onChoose, onBack }: {
   return (
     <section className="trn-section trn-purpose" aria-labelledby="wizard-purpose">
       <div className="trn-section__head">
-        <h2 id="wizard-purpose" className="trn-section__title">1. 選擇研究目的</h2>
+        <h2 id="wizard-purpose" className="trn-section__title">1. 選擇訓練種類</h2>
         {locked ? (
           <button type="button" className="btn btn--secondary btn--small" onClick={onBack}>
-            修改研究目的
+            修改訓練種類
           </button>
         ) : null}
       </div>
       <p className="trn-section__hint">選擇要建立的模型任務類型</p>
       {image.length ? <OptionCardGroup legend="影像">{image.map(card)}</OptionCardGroup> : null}
-      {tabular.length ? <OptionCardGroup legend="表格資料">{tabular.map(card)}</OptionCardGroup> : null}
+      {tabular.length ? <OptionCardGroup legend="結構式資料">{tabular.map(card)}</OptionCardGroup> : null}
     </section>
   );
 }
@@ -388,14 +388,14 @@ function LabelDatasetCard({ ds }: { ds: LabelDataset }) {
 
 const pctText = (n: number, total: number) => `${Math.round((n / total) * 1000) / 10}%`;
 
-/** 右側摘要：專案、研究目的、資料集、筆數、分割比例（表格另有目標、特徵、驗證方式、演算法、遺漏值處理）。 */
+/** 右側摘要：專案、訓練種類、資料集、筆數、分割比例（表格另有目標、特徵、驗證方式、演算法、遺漏值處理）。 */
 function SummaryItems({ form, projectName, labelDataset, dataset, step }: {
   form: FormState; projectName: string; labelDataset: LabelDataset | null; dataset: Dataset | null; step: Step;
 }) {
   const image = isImageKind(form.kind);
   const items: { label: string; value: ReactNode }[] = [];
   if (projectName) items.push({ label: '專案名稱', value: projectName });
-  items.push({ label: '研究目的', value: step === 1 && !form.kind ? '—' : purposeTitle(form.kind) });
+  items.push({ label: '訓練種類', value: step === 1 && !form.kind ? '—' : purposeTitle(form.kind) });
   if (image) {
     if (step > 1) items.push({ label: '資料集', value: labelDataset ? `${labelDataset.name}・第 ${versionNumber(labelDataset)} 版` : '全部已確認的標註' });
     if (labelDataset) {
@@ -413,23 +413,23 @@ function SummaryItems({ form, projectName, labelDataset, dataset, step }: {
     }
   } else {
     if (step > 1) items.push({ label: '資料集', value: dataset ? `${dataset.name}（${dataset.valid_rows} 筆）` : '—' });
-    if (form.target) items.push({ label: '目標欄位', value: form.target });
-    if (form.features.length) items.push({ label: '特徵欄位', value: form.features.join('、') });
+    if (form.target) items.push({ label: 'Target 欄位', value: form.target });
+    if (form.features.length) items.push({ label: 'Feature 欄位', value: form.features.join('、') });
   }
   if (step > 1) {
     const kfold = !image && form.validationMethod === 'kfold';
     items.push({
-      label: image ? '資料分割比例' : '驗證方式',
-      value: kfold ? `${form.folds} 折交叉驗證（測試資料 ${form.test}%）` : (
+      label: image ? '資料分群比例' : '驗證方式',
+      value: kfold ? `${form.folds} 折交叉驗證（測試集 ${form.test}%）` : (
         <span className="trn-class-lines">
-          <span>訓練資料 {form.train}%</span>
-          <span>驗證資料 {form.validation}%</span>
-          <span>測試資料 {form.test}%</span>
+          <span>訓練集 {form.train}%</span>
+          <span>驗證集 {form.validation}%</span>
+          <span>測試集 {form.test}%</span>
         </span>
       ),
     });
     if (!image && form.algorithm) items.push({ label: '演算法', value: ALGORITHM_NAMES[form.algorithm] ?? form.algorithm });
-    if (!image && form.datasetId) items.push({ label: '遺漏值處理', value: form.missing === 'impute' ? '補上缺值（訓練資料的中位數或最常見的值）' : '不使用有缺值的病人' });
+    if (!image && form.datasetId) items.push({ label: '遺漏值處理', value: form.missing === 'impute' ? '補值（訓練集的中位數或最常見的值）' : '不使用有缺值的病人' });
   }
   return <InfoList items={items} />;
 }
@@ -451,7 +451,7 @@ function ReadyNote({ ds }: { ds: LabelDataset | null }) {
   );
 }
 
-/** 切分比例：固定比例切分時三者合計要 100%，測試集要大於 0。 */
+/** 切分比例：固定比例分群時三者合計要 100%，測試集要大於 0。 */
 export function splitProblem(f: Pick<FormState, 'kind' | 'validationMethod' | 'train' | 'validation' | 'test'>): string | null {
   const test = Number(f.test);
   if (!(test > 0)) return '測試集要大於 0%，才能評估模型好不好。';
@@ -472,7 +472,7 @@ function DataStep({ api, cat, form, setForm, labelDatasets, datasets, problem }:
   return (
     <section className="trn-section" aria-label={`確認資料：${purposeTitle(form.kind)}`}>
       <h2 className="trn-section__title">2. 確認資料</h2>
-      <p className="trn-section__hint">{image ? '選擇用於訓練的已標註資料集' : '選擇用於訓練的表格資料集'}</p>
+      <p className="trn-section__hint">{image ? '選擇用於訓練的已標註資料集' : '選擇用於訓練的結構式資料集'}</p>
       {image ? <ImageData datasets={labelDatasets} form={form} setForm={setForm} /> : <TabularData api={api} cat={cat} form={form} setForm={setForm} datasets={datasets} />}
       {problem ? <Alert tone="error">{problem}</Alert> : null}
     </section>
@@ -489,7 +489,7 @@ async function dataProblem(api: TrainingApi, form: FormState): Promise<string | 
   if (!form.datasetId) return '請選擇資料集。';
   if (form.kind === 'tabular_classification' && form.target) {
     const n = await api.distinct(Number(form.datasetId), form.target);
-    if (n < 2) return `想預測的欄位「${form.target}」只有 ${n} 種值，分類至少要有 2 類。請到「整理資料」換一個欄位。`;
+    if (n < 2) return `Target 欄位「${form.target}」只有 ${n} 種值，分類至少要有 2 類。請到「資料清洗」換一個欄位。`;
   }
   return null;
 }
@@ -544,7 +544,7 @@ function TabularData({ api, cat, form, setForm, datasets }: { api: TrainingApi; 
       <ApiErrorAlert error={datasets.error ?? error} />
       {datasets.data && datasets.data.length === 0 ? (
         <Alert tone="info">
-          這個專案還沒有表格資料集，請先到<Link to="/data/tabular">研究資料的表格</Link>加入 CSV。
+          這個專案還沒有結構式資料集，請先到<Link to="/data/tabular">結構式資料</Link>加入 CSV。
         </Alert>
       ) : null}
       <div className="field">
@@ -571,16 +571,16 @@ function TabularData({ api, cat, form, setForm, datasets }: { api: TrainingApi; 
       {form.datasetId && !tf.loading ? (
         tf.data ? (
           <dl className="training-facts" data-testid="tabular-summary">
-            <dt>想預測的欄位</dt>
+            <dt>Target 欄位</dt>
             <dd>{form.target || '—'}</dd>
-            <dt>用來預測的欄位</dt>
+            <dt>Feature 欄位</dt>
             <dd>{form.features.length} 欄</dd>
             <dt>前處理</dt>
             <dd>{form.steps.length ? form.steps.map(stepLabel).join(' → ') : '沒有'}</dd>
           </dl>
         ) : (
           <Alert tone="warning">
-            這個資料集還沒設定想預測的欄位。請先到<Link to={`/data/tabular/${form.datasetId}/prepare`}>整理資料</Link>設定，或在下一步選擇。
+            這個資料集還沒設定 Target 欄位。請先到<Link to={`/data/tabular/${form.datasetId}/prepare`}>資料清洗</Link>設定，或在下一步選擇。
           </Alert>
         )
       ) : null}

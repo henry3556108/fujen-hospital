@@ -10,7 +10,7 @@ import { ImagingNav } from './ImagingNav';
 import { countsText, IMPORT_TONE, ImportResult, RETRY_SOURCE } from './ImportResult';
 import { IMPORT_KIND_LABELS, IMPORT_STATUS_LABELS, type ImportJob } from './types';
 
-/** 匯入結果（B05）：一次匯入的摘要與逐檔原因；檔案已不在瀏覽器裡，「重新上傳」開加入資料重新選檔。 */
+/** 匯入結果（B05）：一次匯入的摘要與逐檔原因；檔案已不在瀏覽器裡，「重新上傳」開匯入資料重新選檔。 */
 function JobDetail({ jobId }: { jobId: string }) {
   const { api, project } = useSession();
   const { can } = useProjectAccess();
@@ -47,7 +47,7 @@ function JobDetail({ jobId }: { jobId: string }) {
   );
 }
 
-/** 匯入紀錄：每次匯入的結果（含院內影像系統取像）；點「逐檔結果」看單次匯入結果頁。 */
+/** 匯入紀錄：每次匯入的結果（含影像儲傳系統取像）；點「逐檔結果」看單次匯入結果頁。 */
 export function ImportJobsPage() {
   const { api, project } = useSession();
   const { jobId } = useParams();

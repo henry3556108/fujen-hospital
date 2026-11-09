@@ -1,5 +1,5 @@
-// 流程程式碼（錄製巨集）：環節名稱、鎖定提示文字、儲存表單時保留匯入檔控制的設定值。
-// 環節與設定欄位的對應照 platform/api/app/training/stages.py 的 merge_config。
+// 各階段處理程式碼（錄製巨集）：階段名稱、鎖定提示文字、儲存表單時保留匯入檔控制的設定值。
+// 階段與設定欄位的對應照 platform/api/app/training/stages.py 的 merge_config。
 import { formatTime } from '../../components/format';
 import { isImageKind, type StageId, type StageLock, type TrainingConfig } from './api';
 
@@ -7,14 +7,14 @@ export const STAGE_NAMES: Record<StageId, string> = {
   import: '資料匯入', labels: '標註', preprocess: '資料清理與前處理', train: '訓練', deploy: '部署',
 };
 export const STAGE_ORDER: StageId[] = ['import', 'labels', 'preprocess', 'train', 'deploy'];
-/** 有程式檔的環節；資料匯入與部署只有設定檔 */
+/** 有程式檔的階段；資料匯入與部署只有設定檔 */
 export const CODE_STAGES: StageId[] = ['labels', 'preprocess', 'train'];
 
 export function stageNames(stages: string[]): string {
   return stages.map((s) => STAGE_NAMES[s as StageId] ?? s).join('、');
 }
 
-/** 「這個環節由匯入的檔案控制：preprocess.json、preprocess.py（wang，2026-10-20 14:05 匯入，sha256 41ab…）」 */
+/** 「這個階段由匯入的檔案控制：preprocess.json、preprocess.py（wang，2026-10-20 14:05 匯入，sha256 41ab…）」 */
 export function lockText(lock: StageLock): string {
   return `「${lock.name}」由匯入的檔案控制：${Object.keys(lock.files).join('、')}（${lock.imported_by}，${formatTime(lock.imported_at)} 匯入，sha256 ${lock.sha256.slice(0, 4)}…）`;
 }
@@ -26,14 +26,14 @@ function copyKey<T extends object>(target: T, source: T, key: keyof T) {
   else target[key] = clone(source[key]);
 }
 
-/** 表單存檔前：匯入檔控制的環節一律用伺服器上的值（表單上這些欄位已停用，這裡避免表單自動整理改到它們）。 */
+/** 表單存檔前：匯入檔控制的階段一律用伺服器上的值（表單上這些欄位已停用，這裡避免表單自動整理改到它們）。 */
 export function keepLocked(config: TrainingConfig, original: TrainingConfig, locked: StageId[]): TrainingConfig {
   if (!locked.length) return config;
   const out = clone(config);
   const image = isImageKind(original.kind);
   out.kind = original.kind;
   if (locked.includes('import')) {
-    // 資料來源由匯入檔控制；標註來源（label_source）屬於標註環節
+    // 資料來源由匯入檔控制；標註來源（label_source）屬於標註階段
     const labelSource = out.source.type === 'dicom' ? out.source.label_source : undefined;
     out.source = clone(original.source);
     if (out.source.type === 'dicom' && labelSource !== undefined && !locked.includes('labels')) out.source.label_source = labelSource;

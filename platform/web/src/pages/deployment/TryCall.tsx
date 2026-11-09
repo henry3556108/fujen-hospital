@@ -1,5 +1,5 @@
-// 試呼叫：以目前登入的帳號經 Gateway 呼叫已分享模型的程式呼叫端點（POST /api/inference/{name}/predict），
-// 看回應長什麼樣子。授權與稽核和程式呼叫完全相同：不在分享對象中的帳號會收到 403，並留下拒絕的稽核紀錄。
+// 線上推論測試：以目前登入的帳號經 Gateway 呼叫已部署模型的程式呼叫端點（POST /api/inference/{name}/predict），
+// 看回應長什麼樣子。授權與稽核和程式呼叫完全相同：不在授權帳號中的帳號會收到 403，並留下拒絕的稽核紀錄。
 import { useState, type FormEvent } from 'react';
 import { useSession } from '../../auth/SessionContext';
 import { Alert, ApiErrorAlert } from '../../components/Alert';
@@ -70,14 +70,14 @@ export function TryCall({ api, deployments, modelOf }: { api: TrainingApi; deplo
   }
 
   return (
-    <form aria-label="試呼叫" className="stack" onSubmit={submit} noValidate>
-      <h3>試呼叫</h3>
+    <form aria-label="線上推論測試" className="stack" onSubmit={submit} noValidate>
+      <h3>線上推論測試</h3>
       <p className="text-muted">
-        以你目前登入的帳號呼叫上面的端點，和資訊人員用程式呼叫完全相同（也會留下稽核紀錄、記在預測紀錄）。只有「分享給」名單中的帳號會成功。
+        以你目前登入的帳號呼叫上面的端點，和資訊人員用程式呼叫完全相同（也會留下稽核紀錄、記在推論服務歷史紀錄）。只有「授權帳號」名單中的帳號會成功。
       </p>
       <div className="form-grid">
         <div className="field">
-          <label htmlFor="call-deployment">要呼叫的分享</label>
+          <label htmlFor="call-deployment">要呼叫的部署</label>
           <select id="call-deployment" className="select" value={String(deployment.id)} onChange={(e) => choose(Number(e.target.value))}>
             {deployments.map((d) => (
               <option key={d.id} value={d.id}>
@@ -89,7 +89,7 @@ export function TryCall({ api, deployments, modelOf }: { api: TrainingApi; deplo
       </div>
       {allowed ? null : (
         <Alert tone="warning">
-          你（{me?.username}）不在「{titleOf(deployment)}」的分享對象中，呼叫會被拒絕（403）。要試呼叫，請先在「修改分享對象」把自己加入。
+          你（{me?.username}）不在「{titleOf(deployment)}」的授權帳號中，呼叫會被拒絕（403）。要線上推論測試，請先在「修改授權帳號」把自己加入。
         </Alert>
       )}
       {image ? (
@@ -108,13 +108,13 @@ export function TryCall({ api, deployments, modelOf }: { api: TrainingApi; deplo
       <ApiErrorAlert error={error} />
       <div className="row-actions">
         <button type="submit" className="btn btn--primary" disabled={busy}>
-          {busy ? '呼叫中…' : `送出試呼叫（POST ${deployment.endpoint}）`}
+          {busy ? '呼叫中…' : `送出線上推論測試（POST ${deployment.endpoint}）`}
         </button>
       </div>
       {reply ? (
         <div className="stack">
           <Alert tone="success">呼叫成功（推論紀錄 #{reply.inference_id}）。</Alert>
-          <pre className="training-log" aria-label="試呼叫的回應">{JSON.stringify(reply, null, 2)}</pre>
+          <pre className="training-log" aria-label="線上推論測試的回應">{JSON.stringify(reply, null, 2)}</pre>
         </div>
       ) : null}
     </form>

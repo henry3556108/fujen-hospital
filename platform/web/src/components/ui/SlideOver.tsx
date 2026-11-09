@@ -4,7 +4,7 @@ import './ui.css';
 
 /**
  * 從右滑出的面板：半透明遮罩、Esc 或點遮罩關閉、開啟時焦點移入、關閉後焦點回原處
- * （設計稿 A02「加入資料」、研究資料逐筆詳情）。open 為 false 時不渲染。
+ * （設計稿 A02「匯入資料」、數據管理逐筆詳情）。open 為 false 時不渲染。
  */
 export function SlideOver({
   open,

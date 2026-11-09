@@ -11,7 +11,7 @@ describe('projectCover', () => {
     expect(projectCoverKind({ name: '腦部腫瘤' })).toBe('brain-mri');
     expect(projectCoverKind({ name: 'MRI 分割' })).toBe('brain-mri');
     expect(projectCoverKind({ name: '再入院', description: '住院病人風險預測' })).toBe('ward');
-    expect(projectCoverKind({ name: '臨床表格資料' })).toBe('ward');
+    expect(projectCoverKind({ name: '臨床結構式資料' })).toBe('ward');
     expect(projectCoverKind({ name: 'P2-tabular', description: '結構式' })).toBe('ward');
     expect(projectCoverKind({ name: 'demo' })).toBe('default');
     expect(projectCoverKind({ name: 'scratch', description: null })).toBe('default');

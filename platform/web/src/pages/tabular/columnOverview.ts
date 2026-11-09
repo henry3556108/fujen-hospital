@@ -1,4 +1,4 @@
-// 欄位總覽（Target 與 Feature 分頁、描述統計）共用的判斷：白話型態、提示、One-Hot 步驟與 Feature 展開。
+// 欄位總覽（Target 與 Feature 分頁、描述性統計）共用的判斷：白話型態、提示、One Hot Encoding 步驟與 Feature 展開。
 import type { ColumnInfo, DescribeColumn, MissingChoice, SchemaColumn, Step } from './types';
 
 export const HIGH_MISSING = 0.3;
@@ -63,22 +63,22 @@ export interface Hint {
 export function hints(f: ColumnFacts, role: 'target' | 'feature' | 'none', encoded: boolean): Hint[] {
   const out: Hint[] = [];
   if (role === 'target') {
-    if (f.missing > 0) out.push({ text: `Target 有 ${f.missing} 列缺值，這些列無法用來訓練；可在下方整理步驟刪除缺值的列`, warn: true });
+    if (f.missing > 0) out.push({ text: `Target 有 ${f.missing} 列缺值，這些列無法用來訓練；可在下方前處理步驟刪除缺值的列`, warn: true });
     if (f.unique <= 1) out.push({ text: 'Target 只有一種值，無法訓練模型', warn: true });
   }
   if (role === 'feature') {
     if (isIdentifier(f)) out.push({ text: '每列都不同，像是病歷號等識別碼，建議不要當 Feature', warn: true });
     if (f.rows && f.missing / f.rows >= HIGH_MISSING) out.push({ text: `缺值 ${Math.round((f.missing / f.rows) * 100)}%，建議補值或不要使用`, warn: true });
-    if (isTextual(f) && !encoded) out.push({ text: '文字或類別欄位要先轉成 One-Hot 才能訓練：請打開「當作類別」', warn: true });
+    if (isTextual(f) && !encoded) out.push({ text: '文字或類別欄位要先轉成 One Hot Encoding 才能訓練：請打開「當作類別」', warn: true });
   }
   if (role !== 'target' && looksLikeCodes(f) && !encoded) out.push({ text: `只有 ${f.unique} 種數字；若是代碼（例如 0、1、2 代表不同分類），請打開「當作類別」`, warn: false });
   if (role === 'none' && isIdentifier(f)) out.push({ text: '識別碼（每列都不同）', warn: false });
   return out;
 }
 
-// ---------- One-Hot 步驟 ----------
+// ---------- One Hot Encoding 步驟 ----------
 
-/** 前處理步驟中做 One-Hot 的欄位 */
+/** 前處理步驟中做 One Hot Encoding 的欄位 */
 export const encodedColumns = (steps: Step[]) => new Set(steps.filter((s) => s.id === 'onehot').flatMap((s) => s.columns));
 
 function withColumn(steps: Step[], id: string, params: Record<string, unknown>, column: string, matches: (s: Step) => boolean): Step[] {
@@ -90,8 +90,8 @@ function withColumn(steps: Step[], id: string, params: Record<string, unknown>, 
 const isCategoryCast = (s: Step) => s.id === 'cast_type' && s.params.dtype === 'category';
 
 /**
- * 「當作類別」打開：數字欄先「轉換資料型別→類別」，再 One-Hot；文字欄直接 One-Hot。
- * 轉型步驟一定放在 One-Hot 之前。
+ * 「當作類別」打開：數字欄先「轉換資料型別→類別」，再 One Hot Encoding；文字欄直接 One Hot Encoding。
+ * 轉型步驟一定放在 One Hot Encoding 之前。
  */
 export function encode(steps: Step[], column: string, numeric: boolean): Step[] {
   let next = steps;
@@ -100,14 +100,14 @@ export function encode(steps: Step[], column: string, numeric: boolean): Step[] 
     const cast = next.findIndex((s) => isCategoryCast(s) && s.columns.includes(column));
     const hot = next.findIndex((s) => s.id === 'onehot' && s.columns.length > 0);
     if (hot >= 0 && hot < cast) {
-      // 既有的 One-Hot 在轉型之前：另外加一個在後面的 One-Hot
+      // 既有的 One Hot Encoding 在轉型之前：另外加一個在後面的 One Hot Encoding
       return [...next, { id: 'onehot', columns: [column], params: { drop_first: false } }];
     }
   }
   return withColumn(next, 'onehot', { drop_first: false }, column, () => true);
 }
 
-/** 「當作類別」關閉：從轉型與 One-Hot 步驟移除這一欄，步驟空了就刪掉（空欄位清單代表「全部欄位」）。 */
+/** 「當作類別」關閉：從轉型與 One Hot Encoding 步驟移除這一欄，步驟空了就刪掉（空欄位清單代表「全部欄位」）。 */
 export function unencode(steps: Step[], column: string): Step[] {
   return steps
     .map((s) => (s.id === 'onehot' || isCategoryCast(s) ? { ...s, columns: s.columns.filter((c) => c !== column) } : s))
@@ -147,9 +147,9 @@ export function collapseFeatures(saved: string[], original: string[], encoded: S
   return { columns: [...new Set(columns)], other };
 }
 
-// ---------- 給人看的數目（使用者勾了幾欄，而不是 One-Hot 之後的欄數） ----------
+// ---------- 給人看的數目（使用者勾了幾欄，而不是 One Hot Encoding 之後的欄數） ----------
 
-/** 例如「7 個欄位（sex、smoker 自動拆成 5 欄）」：以使用者勾的原始欄位計數，One-Hot 拆出的欄位另外說明。 */
+/** 例如「7 個欄位（sex、smoker 自動拆成 5 欄）」：以使用者勾的原始欄位計數，One Hot Encoding 拆出的欄位另外說明。 */
 export function featureCountText(features: string[], original: string[], steps: Step[]): string {
   const encoded = encodedColumns(steps);
   const back = collapseFeatures(features, original, encoded);
@@ -161,12 +161,12 @@ export function featureCountText(features: string[], original: string[], steps: 
 
 /** 缺值處理的一句話；沒有設定（舊設定）時為空字串。 */
 export function missingText(missing: MissingChoice | undefined): string {
-  if (missing === 'impute') return '有缺值的病人：補上缺值後使用';
+  if (missing === 'impute') return '有缺值的病人：補值後使用';
   if (missing === 'drop') return '有缺值的病人：不使用';
   return '';
 }
 
-const STEP_NAMES: Record<string, string> = { onehot: 'One-Hot 編碼', cast_type: '轉換資料型別' };
+const STEP_NAMES: Record<string, string> = { onehot: 'One Hot Encoding', cast_type: '轉換資料型別' };
 
 /** 沒有前處理方法清單時（例如建模管理）用的步驟名稱：常用的寫中文，其他保留代號。 */
 export function stepLabel(step: Step): string {

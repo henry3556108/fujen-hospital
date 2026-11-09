@@ -27,10 +27,10 @@ test('M1 補拍 02 未登入開管理頁 10 次（TC-SS-02 網頁）', async ({ 
     await page.waitForLoadState('networkidle');
     const toLogin = /\/login$/.test(page.url());
     const ui =
-      // 改版後登入頁：標題「使用院方帳號登入」、說明文字、按鈕「前往院方登入」（院方 SSO）
-      (await page.getByRole('heading', { name: '使用院方帳號登入', level: 1 }).isVisible()) &&
-      (await page.getByText('請使用院方帳號登入，以存取你的研究專案與相關功能。').isVisible()) &&
-      (await page.getByRole('button', { name: '前往院方登入' }).isVisible());
+      // 改版後登入頁：標題「使用本系統帳號登入」、說明文字、按鈕「前往登入」（院方 SSO）
+      (await page.getByRole('heading', { name: '使用本系統帳號登入', level: 1 }).isVisible()) &&
+      (await page.getByText('請使用本系統帳號登入，以存取你的研究專案與相關功能。').isVisible()) &&
+      (await page.getByRole('button', { name: '前往登入' }).isVisible());
     const inside = (await sideNav(page).count()) > 0;
     if (toLogin && ui) redirected++;
     if (inside) entered++;

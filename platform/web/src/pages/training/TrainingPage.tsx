@@ -1,5 +1,5 @@
-// 建立模型（B-05）：外框與分頁（訓練紀錄／已存設定／程式與專案包），以及「已存設定」頁：
-// 搜尋、套用（開建立訓練精靈帶入）、複製、修改、刪除；設定與資料集目前的設定不一致時列出差異並可套用。
+// 建模管理（B-05）：外框與分頁（訓練紀錄／訓練設定／原始程式碼與專案包），以及「訓練設定」頁：
+// 搜尋、套用（開建立訓練任務精靈帶入）、複製、修改、刪除；設定與資料集目前的設定不一致時列出差異並可套用。
 import { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../auth/SessionContext';
@@ -19,35 +19,35 @@ import type { TargetFeature } from '../tabular/types';
 import '../../styles/pages.css';
 import './training.css';
 
-/** 建立模型的外框：標題與分頁；「程式與專案包」另需 Coding。 */
+/** 建模管理的外框：標題與分頁；「原始程式碼與專案包」另需 Coding。 */
 export function TrainingLayout() {
   const api = useTrainingApi();
   const canCode = useHasPermission('coding');
   const tabs = [
     { to: '/training', label: '訓練紀錄', end: true },
-    { to: '/training/settings', label: '已存設定', end: false },
-    ...(canCode ? [{ to: '/training/code', label: '程式與專案包', end: false }] : []),
+    { to: '/training/settings', label: '訓練設定', end: false },
+    ...(canCode ? [{ to: '/training/code', label: '原始程式碼與專案包', end: false }] : []),
   ];
   return (
     <>
       <PageHeader
-        title="建立模型"
-        subtitle="選好研究目的與資料送出訓練，在這裡查看每次訓練的結果與已存設定。"
+        title="建模管理"
+        subtitle="選好訓練種類與資料送出訓練，在這裡查看每次訓練的結果與訓練設定。"
         actions={
           <Link className="btn btn--primary" to="/training/new">
             <Icon name="play" />
-            建立訓練
+            建立訓練任務
           </Link>
         }
       >
-        <Tabs label="建立模型分頁" items={tabs} />
+        <Tabs label="建模管理分頁" items={tabs} />
       </PageHeader>
       {api ? <Outlet /> : <Alert tone="info">你尚未加入任何專案，請聯絡管理者將你加入專案。</Alert>}
     </>
   );
 }
 
-/** 舊網址 /training?dataset=ID（資料集頁「用這份資料建立訓練」）轉到精靈。 */
+/** 舊網址 /training?dataset=ID（資料集頁「用這份資料建立訓練任務」）轉到精靈。 */
 export function LegacyDatasetRedirect({ children }: { children: React.ReactNode }) {
   const [params] = useSearchParams();
   const dataset = params.get('dataset');
@@ -55,13 +55,13 @@ export function LegacyDatasetRedirect({ children }: { children: React.ReactNode 
   return <>{children}</>;
 }
 
-/** 已存設定頁。 */
+/** 訓練設定頁。 */
 export function SettingsPage() {
   const api = useTrainingApi();
   return api ? <Settings key={api.projectId} api={api} /> : null;
 }
 
-/** 舊名稱：已存設定頁。 */
+/** 舊名稱：訓練設定頁。 */
 export const TrainingPage = SettingsPage;
 
 /** 結構式設定與資料集目前的設定真的不同時，回傳資料集的設定（可套用）與一句話說明差在哪裡。 */
@@ -73,7 +73,7 @@ function outdated(s: TrainingSetting, saved: Record<number, TargetFeature | null
   return text ? { tf, text } : null;
 }
 
-/** 剛送出的訓練：訊息跟著狀態更新，不會在完成後還寫「目前排隊中」。 */
+/** 剛送出的訓練：訊息跟著狀態更新，不會在完成後還寫「目前等待中」。 */
 export function submittedNotice(id: number, name: string, status: RunStatus): { text: string; tone: 'success' | 'info' | 'error' } {
   switch (status) {
     case 'running':
@@ -85,7 +85,7 @@ export function submittedNotice(id: number, name: string, status: RunStatus): { 
     case 'cancelled':
       return { text: `訓練 #${id}（${name}）已取消。`, tone: 'info' };
     default:
-      return { text: `已送出訓練 #${id}（${name}），目前排隊中。`, tone: 'success' };
+      return { text: `已送出訓練 #${id}（${name}），目前等待中。`, tone: 'success' };
   }
 }
 
@@ -142,7 +142,7 @@ function Settings({ api }: { api: TrainingApi }) {
     setNotice('');
     try {
       const fresh = await api.setting(s.id); // 以伺服器存的版本為準
-      // 由匯入檔控制的環節：表單上對應的欄位停用
+      // 由匯入檔控制的階段：表單上對應的欄位停用
       const locks = s.locked_stages?.length ? (await api.stages(s.id)).stages.flatMap((x) => (x.locked ? [x.locked] : [])) : [];
       setEditor({ form: formFromSetting(cat, fresh), editing: fresh, key: Date.now(), locks });
     } catch (err) {
@@ -224,21 +224,21 @@ function Settings({ api }: { api: TrainingApi }) {
           // 清單是空的（或篩選後沒有）時也維持兩欄，右欄放引導
           <SidePanel title="設定詳情" sticky={false}>
             <EmptyState icon="doc" title="選一份設定查看詳情"
-              description={all.length ? '目前的篩選沒有符合的設定。取消「只看我建立的」或換個搜尋字。' : '送出第一次訓練後，設定會存在左邊清單；點一列就會在這裡顯示資料切分、任務類型與套用按鈕。'} />
+              description={all.length ? '目前的篩選沒有符合的設定。取消「只看我建立的」或換個搜尋字。' : '送出第一次訓練後，設定會存在左邊清單；點一列就會在這裡顯示資料分群、任務類型與套用按鈕。'} />
           </SidePanel>
         )}
       >
         <Card
-          title="已存設定"
+          title="訓練設定"
           className="trn-settings-card"
           extra={
-            // 頁首已有實心「建立訓練」，這裡用次要樣式
+            // 頁首已有實心「建立訓練任務」，這裡用次要樣式
             <button type="button" className="btn btn--secondary" onClick={() => { setNotice(''); setEditor({ form: emptyForm(cat), editing: null, key: Date.now() }); }}>
               新增訓練設定
             </button>
           }
         >
-          <p className="text-muted">管理常用的訓練設定。按「套用」會開啟建立訓練並帶入這份設定，確認後送出；每次送出訓練時也會一併存下設定。</p>
+          <p className="text-muted">管理常用的訓練設定。按「套用」會開啟建立訓練任務並帶入這份設定，確認後送出；每次送出訓練時也會一併存下設定。</p>
           {notice ? <Alert tone="success">{notice}</Alert> : null}
           <ApiErrorAlert error={error ?? settings.error} />
           <div className="trn-filter">
@@ -251,7 +251,7 @@ function Settings({ api }: { api: TrainingApi }) {
             {mineOnly && others > 0 ? <span className="text-muted">（另有 {others} 份其他人的設定）</span> : null}
           </div>
           {settings.data && all.length === 0 ? (
-            <p className="text-muted">還沒有已存設定。按「建立訓練」送出第一次訓練，設定會自動存在這裡。</p>
+            <p className="text-muted">還沒有訓練設定。按「建立訓練任務」送出第一次訓練，設定會自動存在這裡。</p>
           ) : null}
           {settings.data && all.length > 0 && visible.length === 0 ? <p className="text-muted">沒有符合條件的設定。</p> : null}
           {visible.length > 0 ? (
@@ -304,8 +304,8 @@ function Settings({ api }: { api: TrainingApi }) {
                               <button type="button" className="trn-link-btn" aria-label={`修改「${s.name}」`} onClick={() => void edit(s)}>
                                 修改
                               </button>
-                              <Link className="trn-link-btn" aria-label={`流程程式碼「${s.name}」`} to={`/training/code?setting=${s.id}`}>
-                                流程程式碼
+                              <Link className="trn-link-btn" aria-label={`各階段處理程式碼「${s.name}」`} to={`/training/code?setting=${s.id}`}>
+                                各階段處理程式碼
                               </Link>
                               <button type="button" className="ui-icon-btn" aria-label={`查看「${s.name}」的詳細設定`} aria-pressed={current?.id === s.id} onClick={() => setSelected(s.id)}>
                                 <Icon name="chevron-right" />
@@ -348,7 +348,7 @@ function Settings({ api }: { api: TrainingApi }) {
   );
 }
 
-/** 已存設定的右側詳情（設計稿 B02）：資料、資料切分、任務類型、進階參數，以及套用並建立訓練。 */
+/** 訓練設定的右側詳情（設計稿 B02）：資料、資料分群、任務類型、進階參數，以及套用並建立訓練任務。 */
 function SettingDetail({ setting, dataText, diff, onCopy, onDelete, onSubmit, onApplyDataset }: {
   setting: TrainingSetting;
   dataText: string;
@@ -364,22 +364,22 @@ function SettingDetail({ setting, dataText, diff, onCopy, onDelete, onSubmit, on
   const items = [
     { label: '資料版本', value: dataText },
     {
-      label: '資料切分',
+      label: '資料分群',
       value: kfold ? (
-        `測試資料 ${c.split.test}%，其餘做 ${kfold} 折交叉驗證`
+        `測試集 ${c.split.test}%，其餘做 ${kfold} 折交叉驗證`
       ) : (
-        <SegmentBar label="資料切分" segments={[
-          { label: '訓練資料', value: c.split.train },
-          { label: '驗證資料', value: c.split.validation },
-          { label: '測試資料', value: c.split.test },
+        <SegmentBar label="資料分群" segments={[
+          { label: '訓練集', value: c.split.train },
+          { label: '驗證集', value: c.split.validation },
+          { label: '測試集', value: c.split.test },
         ]} />
       ),
     },
     { label: '任務類型', value: KIND_NAMES[setting.kind] },
     ...(c.tabular
       ? [
-          { label: '要預測的結果', value: c.tabular.target || '—' },
-          { label: '用來預測的資料', value: c.tabular.features.length ? `${c.tabular.features.length} 個欄位` : '—' },
+          { label: 'Target 欄位', value: c.tabular.target || '—' },
+          { label: 'Feature 欄位', value: c.tabular.features.length ? `${c.tabular.features.length} 個欄位` : '—' },
           { label: '演算法', value: c.tabular.algorithm },
         ]
       : []),
@@ -402,7 +402,7 @@ function SettingDetail({ setting, dataText, diff, onCopy, onDelete, onSubmit, on
       footer={
         <div className="trn-side-actions">
           <Link className="btn btn--primary" to={`/training/new?setting=${setting.id}`}>
-            套用並建立訓練
+            套用並建立訓練任務
           </Link>
           <button type="button" className="btn btn--secondary" onClick={onSubmit}>
             不修改，直接送出訓練

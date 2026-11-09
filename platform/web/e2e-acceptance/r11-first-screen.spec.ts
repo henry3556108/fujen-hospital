@@ -76,8 +76,8 @@ test('M1 補拍 11 首屏載入時間（TC-A02-09）', async () => {
   await useProject(page, P1); // Admin 登入後在管理區，從「選擇專案」進 P1
 
   await measure(2, '專案清單', '/admin/projects', () => firstRow(page, '專案列表'), '列表第一列出現', '專案清單');
-  await measure(3, '資料清單（影像）', '/data/imaging', () => firstRow(page, '影像清單'), '列表第一列出現', '研究資料-影像清單');
-  await measure(3, '資料清單（表格）', '/data/tabular', () => firstRow(page, '資料集列表'), '列表第一列出現', '研究資料-表格資料');
+  await measure(3, '資料清單（影像）', '/data/imaging', () => firstRow(page, '影像清單'), '列表第一列出現', '數據管理-影像清單');
+  await measure(3, '資料清單（表格）', '/data/tabular', () => firstRow(page, '資料集列表'), '列表第一列出現', '數據管理-結構式資料');
   // 4 影像檢視器：從「影像標註」待處理清單點第一個研究
   await page.goto(`${BASE}/labeling`);
   await page.getByRole('link', { name: /的標註工作台$/ }).first().click();
@@ -86,13 +86,13 @@ test('M1 補拍 11 首屏載入時間（TC-A02-09）', async () => {
   const pos = (await page.getByTestId('image-position').innerText()).trim();
   note(TC, `影像檢視器位置文字「${pos}」`);
   expect(pos).toMatch(/^第 1 \/ \d+ 張$/);
-  await measure(5, '訓練任務清單', '/training', () => firstRow(page, '訓練清單'), '訓練紀錄第一列出現', '建立模型-訓練紀錄');
-  await measure(6, '監控看板', '/admin/compute/gpu', () => page.locator('ul[aria-label="GPU 使用狀況"] > li').first(), 'GPU 卡片出現', '運算資源-GPU使用對照');
-  await measure(7, '管理後台：帳號', '/admin/users', () => firstRow(page, '帳號列表'), '列表第一列出現', '系統管理-帳號');
+  await measure(5, '訓練任務清單', '/training', () => firstRow(page, '訓練清單'), '訓練紀錄第一列出現', '建模管理-訓練紀錄');
+  await measure(6, '監控看板', '/admin/compute/gpu', () => page.locator('ul[aria-label="GPU Dashboard"] > li').first(), 'GPU 卡片出現', '運算資源-GPU使用對照');
+  await measure(7, '管理後台：帳號', '/admin/users', () => firstRow(page, '帳號列表'), '列表第一列出現', '管理後台-帳號');
   await measure(8, '管理後台：GPU 群組', '/admin/compute/groups', () => firstRow(page, 'GPU 群組列表'), '列表第一列出現', '運算資源-GPU群組');
   await measure(9, '管理後台：叢集節點', '/admin/compute/nodes', () => firstRow(page, '叢集節點列表'), '列表第一列出現', '運算資源-節點');
 
-  // 10 介面資料回應：「建立模型 › 訓練紀錄」按「重新整理」，到對應 /api/ 請求結束
+  // 10 介面資料回應：「建模管理 › 訓練紀錄」按「重新整理」，到對應 /api/ 請求結束
   await page.goto(`${BASE}/training`);
   await firstRow(page, '訓練清單').waitFor();
   await page.waitForLoadState('networkidle');

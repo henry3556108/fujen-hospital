@@ -6,11 +6,11 @@ import { useMe, useSession } from '../auth/SessionContext';
 import { Icon, type IconName } from './Icon';
 import { confirmLeave } from './unsaved';
 
-/** 我在這個專案的身分：中文角色名稱，英文原名放在提示文字 */
+/** 我在這個專案的角色：契約的英文名稱，中文放在提示文字 */
 export function projectRoleText(me: Me, project: MeProject | null): [string, string] {
-  if (project?.role) return [ROLE_NAMES_ZH[project.role], ROLE_LABELS[project.role]];
-  if (me.account_type === 'admin') return [ACCOUNT_TYPE_NAMES_ZH.admin, ACCOUNT_TYPE_LABELS.admin];
-  return [ACCOUNT_TYPE_NAMES_ZH.user, ACCOUNT_TYPE_LABELS.user];
+  if (project?.role) return [ROLE_LABELS[project.role], ROLE_NAMES_ZH[project.role]];
+  if (me.account_type === 'admin') return [ACCOUNT_TYPE_LABELS.admin, ACCOUNT_TYPE_NAMES_ZH.admin];
+  return [ACCOUNT_TYPE_LABELS.user, ACCOUNT_TYPE_NAMES_ZH.user];
 }
 
 /** 側欄連結點下去前，有沒存的內容先問 */
@@ -50,7 +50,7 @@ function ProjectSwitcher() {
   );
 }
 
-/** 右上角「帳號・身分」下拉：個人設定。身分文字保留「我的身分（…）」給輔助技術與驗收腳本讀取。 */
+/** 右上角「帳號・身分」下拉：個人設定。身分文字保留「我的角色（…）」給輔助技術與驗收腳本讀取。 */
 function UserMenu({ showRole }: { showRole: boolean }) {
   const me = useMe();
   const { project } = useSession();
@@ -95,7 +95,7 @@ function UserMenu({ showRole }: { showRole: boolean }) {
               ・
             </span>
             <span className="topbar__role" title={roleEnglish} data-testid="header-role">
-              <span className="visually-hidden">我的身分（</span>
+              <span className="visually-hidden">我的角色（</span>
               {roleText}
               <span className="visually-hidden">）</span>
             </span>
@@ -108,7 +108,7 @@ function UserMenu({ showRole }: { showRole: boolean }) {
           <dl className="usermenu__info">
             <dt>帳號</dt>
             <dd>{me.username}</dd>
-            <dt>身分</dt>
+            <dt>角色</dt>
             <dd>
               {roleText}（{roleEnglish}）
             </dd>
@@ -218,13 +218,13 @@ export function AppLayout() {
         跳到主要內容
       </a>
       <div className={`sidebar ${menuOpen ? 'sidebar--open' : ''}`}>
-        <Link to={adminArea ? '/admin' : '/'} className="sidebar__brand" onClick={guardClick} title="醫學研究平台">
+        <Link to={adminArea ? '/admin' : '/'} className="sidebar__brand" onClick={guardClick} title="AI 模型開發管理軟體平台">
           <Icon name="lungs" className="sidebar__logo" />
-          <span className="sidebar__brand-text">醫學研究平台</span>
+          <span className="sidebar__brand-text">AI 模型開發管理軟體平台</span>
         </Link>
         <nav
           id="main-nav"
-          aria-label={adminArea ? '系統管理選單' : '功能選單'}
+          aria-label={adminArea ? '管理後台選單' : '功能選單'}
           className={`sidenav ${menuOpen ? 'sidenav--open' : ''}`}
         >
           {adminArea ? <AdminNav items={ADMIN_NAV} pathname={pathname} /> : <ResearchNav items={items} pathname={pathname} isAdmin={isAdmin} />}
@@ -245,7 +245,7 @@ export function AppLayout() {
           {adminArea ? (
             <div className="topbar__context">
               <span className="topbar__scope-label">目前範圍</span>
-              <span className="topbar__area">系統管理區</span>
+              <span className="topbar__area">管理後台</span>
             </div>
           ) : (
             <div className="topbar__context">

@@ -7,7 +7,7 @@ import { Icon } from '../../components/Icon';
 import { DicomThumb } from '../../components/ui';
 import type { Study } from './types';
 
-/** 研究明細（影像清單的「檢視」）：研究資訊與各序列縮圖；不在專案內或不在 Accession 清單內時 API 回 404。 */
+/** 研究明細（影像清單的「檢視」）：研究資訊與各序列縮圖；不在專案內或不在 Accession Number 清單內時 API 回 404。 */
 export function StudyDetailPage() {
   const { api, project } = useSession();
   const pid = project!.id;

@@ -1,4 +1,4 @@
-// 流程程式碼（錄製巨集）第二階段：匯入整個流程（專案包），建立新的訓練設定。
+// 各階段處理程式碼（錄製巨集）第二階段：匯入整個流程（專案包），建立新的訓練設定。
 // 步驟：選檔 → 檢查（列出全部問題）→ 對應資料（結構式選資料集；影像選研究範圍）→ 匯入。
 import { useState } from 'react';
 import { Alert } from '../../components/Alert';
@@ -28,7 +28,7 @@ export function mappingText(m: PackageMapping | undefined): string {
     case 'studies': {
       const src = m.source ?? {};
       if (src.type === 'files') return src.cases === 'all' ? '影像範圍：全部病例。' : `影像範圍：${(src.cases as string[]).length} 個病例。`;
-      return src.studies === 'all' ? '影像範圍：本專案全部研究。' : `影像範圍：${(src.studies as string[] | undefined)?.length ?? 0} 個研究。`;
+      return src.studies === 'all' ? '影像範圍：本專案全部影像。' : `影像範圍：${(src.studies as string[] | undefined)?.length ?? 0} 個研究。`;
     }
     default:
       return '';
@@ -96,7 +96,7 @@ export function PackageImport({ api, onImported, onClose }: Props) {
       </div>
       <p className="field__hint">
         選擇從平台下載（或在自己電腦修改後）的專案包 zip。平台會先檢查，不符合時一次列出全部問題，不會建立任何東西；通過後選擇要對應的資料，再按「匯入」。
-        匯入後會建立一份新的訓練設定，專案包內由匯入檔控制的環節在新設定同樣由匯入檔控制。模型與部署不隨專案包匯入。
+        匯入後會建立一份新的訓練設定，專案包內由匯入檔控制的階段在新設定同樣由匯入檔控制。模型與部署不隨專案包匯入。
       </p>
       <div className="field">
         <label htmlFor="package-file">專案包（zip）</label>
@@ -135,7 +135,7 @@ export function PackageImport({ api, onImported, onClose }: Props) {
             <dd>{plan.name}</dd>
             <dt>訓練種類</dt>
             <dd>{plan.kind_name}</dd>
-            <dt>由匯入檔控制的環節</dt>
+            <dt>由匯入檔控制的階段</dt>
             <dd>{plan.locked.length ? stageNames(plan.locked) : '無（全部用介面設定）'}</dd>
           </dl>
 
@@ -159,11 +159,11 @@ export function PackageImport({ api, onImported, onClose }: Props) {
               <div className="checkbox-row" role="radiogroup" aria-label="要使用的影像範圍">
                 <label className="checkbox">
                   <input type="radio" name="package-range" checked={studiesMode === 'all'} onChange={() => setStudiesMode('all')} />
-                  本專案全部研究{plan.mapping?.studies_available != null ? `（${plan.mapping.studies_available} 個）` : ''}
+                  本專案全部影像{plan.mapping?.studies_available != null ? `（${plan.mapping.studies_available} 個）` : ''}
                 </label>
                 <label className="checkbox">
                   <input type="radio" name="package-range" checked={studiesMode === 'selected'} onChange={() => setStudiesMode('selected')} />
-                  指定研究
+                  部分影像
                 </label>
               </div>
               {studiesMode === 'selected' ? (

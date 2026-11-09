@@ -124,7 +124,7 @@ export function WikiPage() {
 
   return (
     <>
-      <LlmHeader title="團隊文件（Wiki）" subtitle="維護研究流程、標註規則等團隊文件，可供工作流程與問答引用。" />
+      <LlmHeader title="Wiki 知識庫" subtitle="維護研究流程、標註規則等 Wiki 知識庫，可供 LangGraph 工作流與問答引用。" />
       <ApiErrorAlert error={pages.error ?? error} />
       <div className={`llm-wiki ${open ? 'llm-wiki--with-side' : ''}`}>
         <Card className="llm-wiki__list">

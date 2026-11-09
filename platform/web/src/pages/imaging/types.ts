@@ -97,7 +97,7 @@ export const EMPTY_FILTERS: StudyFilters = {
 
 export const FILE_STATUS_LABELS: Record<FileStatus, string> = { imported: '新增', duplicate: '重複', failed: '失敗' };
 export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = { succeeded: '全部成功', partial: '部分失敗', failed: '全部失敗' };
-export const IMPORT_KIND_LABELS: Record<ImportKind, string> = { dicom: '從電腦上傳（DICOM）', files: '影像與標註檔（NIfTI／ITK／makesense）', pacs: '院內影像系統（PACS）' };
+export const IMPORT_KIND_LABELS: Record<ImportKind, string> = { dicom: '從電腦上傳（DICOM）', files: '影像與標註檔（NIfTI／ITK／makesense）', pacs: '影像儲傳系統（PACS）' };
 export const FORMAT_LABELS: Record<ImagingFile['format'], string> = { nifti: 'NIfTI', itk: 'ITK（.mha）', makesense: 'makesense' };
 export const PAIRING_LABELS: Record<ImagingFile['pairing'], string> = { 'n/a': '影像（不需配對）', paired: '已配對', unpaired: '未配對' };
 export const SEX_LABELS: Record<string, string> = { F: '女（F）', M: '男（M）', O: '其他（O）' };

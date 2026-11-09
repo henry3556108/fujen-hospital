@@ -460,7 +460,7 @@ function ensureDefaultDatasets(projectId: number, username: string): void {
   }
 }
 
-/** 建立訓練時對資料集建版：內容與最新版相同就沿用（created: false）。 */
+/** 建立訓練任務時對資料集建版：內容與最新版相同就沿用（created: false）。 */
 export function snapshotDataset(id: number, username = 'system'): { version: LabelDatasetVersion; created: boolean } | null {
   const d = load().datasets.find((x) => x.id === id);
   if (!d) return null;
@@ -548,7 +548,7 @@ const labelingHandlers = [
     const sop = typeof b.sop_instance_uid === 'string' ? b.sop_instance_uid : null;
     if (kind !== 'classification' && !sop) return detail(422, '分割與偵測標註必須指定影像（sop_instance_uid）');
     const study = findStudy(ctx.projectId, String(b.study_instance_uid));
-    if (!study) return detail(404, '找不到研究，或不在本專案的 Accession 清單內');
+    if (!study) return detail(404, '找不到研究，或不在本專案的 Accession Number 清單內');
     if (sop && !study.sop_instance_uids.includes(sop)) return detail(404, '找不到影像，或影像不屬於這個研究與序列');
     const s = load();
     const a: Annotation = {
@@ -659,7 +659,7 @@ const labelingHandlers = [
       if ((perKey.get(r.key)?.size ?? 0) > 1) {
         return { ...item, status: 'conflict', reason: `同一個鍵有不同的診斷結果：${[...perKey.get(r.key)!].sort().join('、')}` };
       }
-      if (matches.length === 0) return { ...item, status: 'unmatched', reason: '專案內找不到對應的研究（或不在 Accession 清單內）' };
+      if (matches.length === 0) return { ...item, status: 'unmatched', reason: '專案內找不到對應的研究（或不在 Accession Number 清單內）' };
       if (!written.has(r.key)) {
         written.set(
           r.key,
@@ -771,7 +771,7 @@ const labelingHandlers = [
     if (ctx instanceof Response) return ctx;
     const b = await bodyOf(request);
     const study = findStudy(ctx.projectId, String(b.study_instance_uid));
-    if (!study) return detail(404, '找不到研究，或不在本專案的 Accession 清單內');
+    if (!study) return detail(404, '找不到研究，或不在本專案的 Accession Number 清單內');
     const sop = String(b.sop_instance_uid ?? '');
     if (!study.sop_instance_uids.includes(sop)) return detail(404, '找不到影像，或影像不屬於這個研究與序列');
     const s = load();
@@ -936,7 +936,7 @@ const labelingHandlers = [
     const ctx = authorize(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
     const s = findStudy(ctx.projectId, String(params.study));
-    if (!s) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    if (!s) return detail(403, '研究不在本專案，或不在 Accession Number 清單內');
     return json([
       {
         '0020000D': value('UI', s.study_instance_uid),
@@ -950,14 +950,14 @@ const labelingHandlers = [
     const ctx = authorize(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
     const s = findStudy(ctx.projectId, String(params.study));
-    if (!s || s.series_instance_uid !== params.series) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    if (!s || s.series_instance_uid !== params.series) return detail(403, '研究不在本專案，或不在 Accession Number 清單內');
     return json(s.sop_instance_uids.map((_, i) => instanceJson(s, i)));
   }),
   http.get(`${WADO}/series/:series/instances/:sop/frames/1`, ({ request, params }) => {
     const ctx = authorize(request, params.pid, 'project');
     if (ctx instanceof Response) return ctx;
     const s = findStudy(ctx.projectId, String(params.study));
-    if (!s || !s.sop_instance_uids.includes(String(params.sop))) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    if (!s || !s.sop_instance_uids.includes(String(params.sop))) return detail(403, '研究不在本專案，或不在 Accession Number 清單內');
     return framesResponse(String(params.sop));
   }),
   // 工作台切片條的單張縮圖：合成一張灰階示意圖
@@ -966,7 +966,7 @@ const labelingHandlers = [
     if (ctx instanceof Response) return ctx;
     const s = findStudy(ctx.projectId, String(params.study));
     const at = s ? s.sop_instance_uids.indexOf(String(params.sop)) : -1;
-    if (!s || at < 0) return detail(403, '研究不在本專案，或不在 Accession 清單內');
+    if (!s || at < 0) return detail(403, '研究不在本專案，或不在 Accession Number 清單內');
     const r = 18 + ((at * 7) % 12);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="black"/><circle cx="32" cy="32" r="${r}" fill="gray"/><circle cx="26" cy="30" r="6" fill="dimgray"/><circle cx="38" cy="30" r="6" fill="dimgray"/></svg>`;
     return new HttpResponse(svg, { headers: { 'Content-Type': 'image/svg+xml' } });

@@ -6,32 +6,32 @@ import {
   stageStates, statesText, statusMsg, step, textArea, zipList,
 } from './m2-common';
 
-// M2驗證\05-部署環節.md（F-04、F-05 部署環節；部署頁的鎖定與改回）。帳號 pi01，專案 M2-FLOW-A。
+// M2驗證\05-部署階段.md（F-04、F-05 部署階段；部署頁的鎖定與改回）。帳號 pi01，專案 M2-FLOW-A。
 const TC = '05';
 const NAME = 'flow-test';
 
 /**
- * 功能目錄「AI 模型部署」→ 使用模型的模型清單（帶「已併入」說明）→ 點訓練 #runId 的模型 → 分頁「分享與服務」，
- * 回傳「已分享的模型」區塊（只列這個模型的分享）。
+ * 功能目錄「AI 模型部署」→ 模型部署與推論服務的模型清單（帶「已併入」說明）→ 點訓練 #runId 的模型 → 分頁「模型部署」，
+ * 回傳「已部署的模型」區塊（只列這個模型的部署）。
  */
 async function gotoDeployments(page: Page, runId: number) {
   await clickMenu(page, 'AI 模型部署');
-  await expect(page.getByRole('heading', { level: 1, name: '使用模型' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '模型部署與推論服務' })).toBeVisible();
   await expect(page.getByTestId('entry-note')).toContainText('AI 模型部署');
   const row = page.getByRole('table', { name: '模型清單' }).getByRole('row').filter({ has: page.getByRole('cell', { name: `訓練 #${runId}`, exact: true }) });
   await row.getByRole('link').first().click();
-  await clickTab(page, '分享與服務', page.getByRole('navigation', { name: '模型分頁' }));
+  await clickTab(page, '模型部署', page.getByRole('navigation', { name: '模型分頁' }));
   await expect(page).toHaveURL(new RegExp(`/models/${runId}/share$`));
   await page.waitForLoadState('networkidle');
-  const section = page.getByRole('region', { name: '已分享的模型' });
+  const section = page.getByRole('region', { name: '已部署的模型' });
   await expect(section).toBeVisible();
   return section;
 }
 
-/** 已分享的模型中名為 SERVICE 的列：數量、分享給、鎖定說明、「修改分享對象」是否可按 */
+/** 已部署的模型中名為 SERVICE 的列：數量、授權給、鎖定說明、「修改授權帳號」是否可按 */
 async function serviceInfo(section: Locator) {
   const page = section.page();
-  const rows = section.getByRole('table', { name: '已分享的模型' }).getByRole('row')
+  const rows = section.getByRole('table', { name: '已部署的模型' }).getByRole('row')
     .filter({ has: page.getByRole('rowheader', { name: SERVICE, exact: true }) });
   const count = await rows.count();
   if (!count) return { count, users: '', lock: '', editEnabled: false };
@@ -41,7 +41,7 @@ async function serviceInfo(section: Locator) {
   const lockEl = row.getByTestId('deployment-lock');
   const lock = (await lockEl.count()) ? flat(await lockEl.innerText()) : '';
   const users = lock ? flat(usersCell.replace(lock, '')) : usersCell;
-  const editEnabled = await row.getByRole('button', { name: `修改分享對象「${SERVICE}」`, exact: true }).isEnabled();
+  const editEnabled = await row.getByRole('button', { name: `修改授權帳號「${SERVICE}」`, exact: true }).isEnabled();
   return { count, users, lock, editEnabled };
 }
 
@@ -62,19 +62,19 @@ async function applyDeploy(page: Page, label: string, users: string[]) {
 
 test.use({ actionTimeout: 30_000 });
 
-test('M2 05 部署環節', async ({ browser }) => {
+test('M2 05 部署階段', async ({ browser }) => {
   test.setTimeout(20 * 60_000);
-  begin(TC, 'M2 05 部署環節');
+  begin(TC, 'M2 05 部署階段');
   const c = new Checks(TC);
   const { ctx, page } = await openAs(browser, 'pi01', PA);
   await gotoTraining(page);
 
-  // 1 下載部署環節檔
-  step(TC, 1, `流程程式碼表格「下載環節檔「${ROW.deploy}」」，存到 05\\`);
+  // 1 下載部署階段檔
+  step(TC, 1, `各階段處理程式碼表格「下載階段檔「${ROW.deploy}」」，存到 05\\`);
   let panel = await openFlow(page, SETTING);
-  const d = await download(page, () => panel.getByRole('button', { name: `下載環節檔「${ROW.deploy}」`, exact: true }).click(), dirOf(TC));
+  const d = await download(page, () => panel.getByRole('button', { name: `下載階段檔「${ROW.deploy}」`, exact: true }).click(), dirOf(TC));
   note(TC, `下載 ${path.basename(d.file)}：${zipList(d.file).join('、')}`);
-  c.diff(`部署那一列是「${ROW.deploy}」，按鈕是「下載環節檔「${ROW.deploy}」」「檢視設定檔「${ROW.deploy}」」「改回用介面設定「${ROW.deploy}」」；編輯區的套用按鈕才是「套用「${WEB.deploy}」」`);
+  c.diff(`部署那一列是「${ROW.deploy}」，按鈕是「下載階段檔「${ROW.deploy}」」「檢視設定檔「${ROW.deploy}」」「改回用介面設定「${ROW.deploy}」」；編輯區的套用按鈕才是「套用「${WEB.deploy}」」`);
 
   // 2 deploy.json 帶入模型
   step(TC, 2, `「檢視設定檔「${ROW.deploy}」」：deploy.json 的 model.sha256 已帶入最近一次訓練的模型`);
@@ -85,11 +85,11 @@ test('M2 05 部署環節', async ({ browser }) => {
   await shot(page, TC, '01-部署設定檔');
   c.check('步驟 2 model.sha256 已帶入', Boolean(cfg.model?.sha256), `run_id ${cfg.model?.run_id ?? '—'}，sha256 ${cfg.model?.sha256?.slice(0, 12) ?? '—'}`);
   await ed.getByRole('button', { name: '不套用，關閉', exact: true }).click();
-  // 改版後分享列在各模型的「分享與服務」分頁：以 deploy.json 帶入的模型（訓練 #run_id）為準
+  // 改版後部署列在各模型的「模型部署」分頁：以 deploy.json 帶入的模型（訓練 #run_id）為準
   const runId = Number(cfg.model?.run_id);
-  c.check('步驟 2 deploy.json 有 model.run_id（用來找到使用模型的那一個模型）', Number.isInteger(runId) && runId > 0, String(cfg.model?.run_id));
+  c.check('步驟 2 deploy.json 有 model.run_id（用來找到模型部署與推論服務的那一個模型）', Number.isInteger(runId) && runId > 0, String(cfg.model?.run_id));
   const pre = await serviceInfo(await gotoDeployments(page, runId));
-  if (pre.count) c.diff(`開始前已有「${SERVICE}」（前一輪留下）：分享給 ${pre.users}${pre.lock ? `；${pre.lock}` : ''}。套用時會更新同名服務；若模型已不同會被擋下，請先在「分享與服務」按「停止分享」`);
+  if (pre.count) c.diff(`開始前已有「${SERVICE}」（前一輪留下）：授權給 ${pre.users}${pre.lock ? `；${pre.lock}` : ''}。套用時會更新同名服務；若模型已不同會被擋下，請先在「模型部署」按「停止部署」`);
   await gotoTraining(page);
 
   // 3 套用部署
@@ -98,18 +98,18 @@ test('M2 05 部署環節', async ({ browser }) => {
   panel = a3.panel;
   await shot(page, TC, '02-套用部署');
   c.check(`步驟 3 建立服務 ${NAME}`, a3.ok);
-  note(TC, `五環節：${statesText(await stageStates(panel))}`);
+  note(TC, `五階段：${statesText(await stageStates(panel))}`);
 
   // 4 部署頁鎖定
-  step(TC, 4, '功能目錄「AI 模型部署」→ 使用模型 → 該模型「分享與服務」→「已分享的模型」');
+  step(TC, 4, '功能目錄「AI 模型部署」→ 模型部署與推論服務 → 該模型「模型部署」→「已部署的模型」');
   const i4 = await serviceInfo(await gotoDeployments(page, runId));
-  note(TC, `「${SERVICE}」${i4.count} 列；分享給 ${i4.users}；${i4.lock || '（沒有匯入檔控制標示）'}；修改分享對象 ${i4.editEnabled ? '可按' : '停用'}`);
-  await shot(page, TC, '03-分享與服務-鎖定');
+  note(TC, `「${SERVICE}」${i4.count} 列；授權給 ${i4.users}；${i4.lock || '（沒有匯入檔控制標示）'}；修改授權帳號 ${i4.editEnabled ? '可按' : '停用'}`);
+  await shot(page, TC, '03-模型部署-鎖定');
   c.check(`步驟 4 有「${SERVICE}」`, i4.count === 1, `${i4.count} 列`);
   c.check('步驟 4 標示「匯入檔控制」與「由 deploy.json 控制（pi01，…，訓練設定「FLOW-結構式」）」',
     i4.lock.includes('匯入檔控制') && /由 deploy\.json 控制（pi01，.+，訓練設定「FLOW-結構式」）/.test(i4.lock), i4.lock);
-  c.check('步驟 4 「修改分享對象」停用', !i4.editEnabled);
-  c.check('步驟 4 分享對象 pi01、md01', i4.users === 'md01、pi01' || i4.users === 'pi01、md01', i4.users);
+  c.check('步驟 4 「修改授權帳號」停用', !i4.editEnabled);
+  c.check('步驟 4 授權帳號 pi01、md01', i4.users === 'md01、pi01' || i4.users === 'pi01、md01', i4.users);
 
   // 5 再套用只更新
   step(TC, 5, '回「建模管理」，allowed_users 改成 ["pi01"] 再套用一次');
@@ -117,10 +117,10 @@ test('M2 05 部署環節', async ({ browser }) => {
   const a5 = await applyDeploy(page, '步驟 5 ', ['pi01']);
   c.check('步驟 5 再套用通過', a5.ok);
   const i5 = await serviceInfo(await gotoDeployments(page, runId));
-  note(TC, `「${SERVICE}」${i5.count} 列；分享給 ${i5.users}`);
-  await shot(page, TC, '04-分享與服務-再套用只更新不新增');
+  note(TC, `「${SERVICE}」${i5.count} 列；授權給 ${i5.users}`);
+  await shot(page, TC, '04-模型部署-再套用只更新不新增');
   c.check('步驟 5 仍只有一個「M2 驗證服務」', i5.count === 1, `${i5.count} 列`);
-  c.check('步驟 5 分享對象只剩 pi01', i5.users === 'pi01', i5.users);
+  c.check('步驟 5 授權帳號只剩 pi01', i5.users === 'pi01', i5.users);
 
   // 6 改回
   step(TC, 6, `回「建模管理」，「改回用介面設定「${ROW.deploy}」」→ 確認`);
@@ -131,18 +131,18 @@ test('M2 05 部署環節', async ({ browser }) => {
   await dlg.getByRole('button', { name: '刪除匯入檔並改回介面設定', exact: true }).click();
   await expect(statusMsg(panel, `已改回用介面設定「${ROW.deploy}」`)).toBeVisible({ timeout: 30_000 });
   const s6 = await stageStates(panel);
-  note(TC, `五環節：${statesText(s6)}`);
+  note(TC, `五階段：${statesText(s6)}`);
   await shot(page, TC, '05-改回部署');
   c.check(`步驟 6 ${ROW.deploy}改回「介面設定」`, s6[ROW.deploy] === '介面設定');
 
   // 7 服務仍在、標示消失
-  step(TC, 7, '功能目錄「AI 模型部署」→ 該模型「分享與服務」');
+  step(TC, 7, '功能目錄「AI 模型部署」→ 該模型「模型部署」');
   const i7 = await serviceInfo(await gotoDeployments(page, runId));
-  note(TC, `「${SERVICE}」${i7.count} 列；分享給 ${i7.users}；${i7.lock || '（沒有匯入檔控制標示）'}；修改分享對象 ${i7.editEnabled ? '可按' : '停用'}`);
-  await shot(page, TC, '06-分享與服務-服務仍在標示消失');
+  note(TC, `「${SERVICE}」${i7.count} 列；授權給 ${i7.users}；${i7.lock || '（沒有匯入檔控制標示）'}；修改授權帳號 ${i7.editEnabled ? '可按' : '停用'}`);
+  await shot(page, TC, '06-模型部署-服務仍在標示消失');
   c.check('步驟 7 「M2 驗證服務」仍在', i7.count === 1);
   c.check('步驟 7 「匯入檔控制」標示消失', i7.lock === '');
-  c.check('步驟 7 「修改分享對象」可以按', i7.editEnabled);
+  c.check('步驟 7 「修改授權帳號」可以按', i7.editEnabled);
   await ctx.close();
   c.finish();
 });

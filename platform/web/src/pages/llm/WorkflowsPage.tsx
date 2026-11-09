@@ -23,8 +23,8 @@ const EXAMPLE = JSON.stringify(
 /** 節點種類的白話名稱與圖示 */
 export const NODE_KIND: Record<string, { label: string; icon: IconName }> = {
   template: { label: '套用文字範本', icon: 'doc' },
-  retrieve: { label: '查參考文件', icon: 'search' },
-  wiki: { label: '讀團隊文件', icon: 'doc' },
+  retrieve: { label: '查 RAG 知識庫', icon: 'search' },
+  wiki: { label: '讀 Wiki 知識庫', icon: 'doc' },
   llm: { label: '產生回答', icon: 'chat' },
   condition: { label: '條件判斷', icon: 'swap' },
 };
@@ -261,13 +261,13 @@ export function WorkflowsPage() {
   const statuses = useMemo(() => new Map((run?.nodes ?? []).map((n) => [n.node, n.status])), [run]);
 
   const describe = (n: WorkflowNode) => {
-    if (n.type === 'retrieve' && typeof n.kb_id === 'number') return kbs.data?.find((k) => k.id === n.kb_id)?.name ?? `文件集 #${n.kb_id}`;
+    if (n.type === 'retrieve' && typeof n.kb_id === 'number') return kbs.data?.find((k) => k.id === n.kb_id)?.name ?? `RAG 知識庫 #${n.kb_id}`;
     if (n.type === 'wiki' && typeof n.page_id === 'number') return pages.data?.find((p) => p.id === n.page_id)?.title ?? `頁面 #${n.page_id}`;
     return '';
   };
   const sources = (previewDef?.nodes ?? [])
     .filter((n) => n.type === 'retrieve' || n.type === 'wiki')
-    .map((n) => (n.type === 'retrieve' ? `參考文件「${describe(n)}」` : `團隊文件「${describe(n)}」`));
+    .map((n) => (n.type === 'retrieve' ? `RAG 知識庫「${describe(n)}」` : `Wiki 知識庫「${describe(n)}」`));
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -330,7 +330,7 @@ export function WorkflowsPage() {
 
   return (
     <>
-      <LlmHeader title="工作流程（LangGraph）" subtitle="使用團隊文件與參考文件，建立多步驟的問答流程；設定與結果和一般問答分開。" />
+      <LlmHeader title="LangGraph 工作流" subtitle="使用 Wiki 知識庫與 RAG 知識庫，建立多步驟的問答流程；設定與結果和 Free Chat 分開。" />
       <ApiErrorAlert error={flows.error} />
       <div className="llm-wf">
         <Card className="llm-wf__list">
@@ -379,7 +379,7 @@ export function WorkflowsPage() {
 
         <Card className="llm-wf__detail">
           <SegmentedTabs
-            label="工作流程分頁"
+            label="LangGraph 工作流分頁"
             idPrefix="wf-tab"
             value={tab}
             onChange={setTab}

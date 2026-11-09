@@ -139,7 +139,7 @@ def update_setting(ctx: ProjectContext, setting_id: int, *, name: Any, config: A
     locked = stages.locked_changes(ctx.session, row, normal)
     if locked:
         raise Conflict(f"「{'、'.join(locked)}」環節由匯入的檔案控制，不能在介面修改；"
-                       "要修改請到「流程程式碼」編輯，或按「改回用介面設定」")
+                       "要修改請到「各階段處理程式碼」編輯，或按「改回用介面設定」")
     row.name, row.kind, row.config, row.updated_by = name, normal["kind"], normal, ctx.user.username
     record(ctx.session, actor=ctx.user.username, category=AuditCategory.TRAINING, action="training_setting.update",
            target=f"training_setting:{row.id}", source_ip=source_ip,
@@ -1216,7 +1216,7 @@ def set_access(ctx: ProjectContext, deployment: Deployment, *, allowed_users: An
 
     if flow_stages.deployment_lock(ctx.session, deployment.id) is not None:
         raise Conflict("這個部署由匯入的 deploy.json 控制，可呼叫的帳號不能在這裡修改；"
-                       "請到建模管理該訓練設定的「流程程式碼」修改部署環節，或改回用介面設定")
+                       "請到建模管理該訓練設定的「各階段處理程式碼」修改部署階段，或改回用介面設定")
     users = _users(ctx.session, allowed_users)
     before = list(deployment.allowed_users)
     deployment.allowed_users = users

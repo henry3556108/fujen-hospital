@@ -12,7 +12,7 @@ export function intervalText(minutes: number): string {
   return `每 ${minutes} 分鐘`;
 }
 
-/** FHIR 轉換排程（設計稿 B26）：排程清單＋右側新增排程；刪除先確認。 */
+/** FHIR 排程任務（設計稿 B26）：排程清單＋右側新增排程；刪除先確認。 */
 export function SchedulesPage() {
   const { api, project } = useSession();
   const base = `/api/projects/${project!.id}/fhir`;
@@ -111,7 +111,7 @@ export function SchedulesPage() {
             {Number(interval) >= 1 ? intervalText(Number(interval)) : '請輸入 1 到 10080'}
           </span>
         </div>
-        {missing && <Alert tone="warning">還沒有來源或對應規則，請先到「來源與對應」建立。</Alert>}
+        {missing && <Alert tone="warning">還沒有來源或對應規則，請先到「資料接入與對應」建立。</Alert>}
         <Alert tone="info">排程由獨立的 worker 每 5 秒檢查一次，到時間自動執行轉換並產生執行紀錄。</Alert>
         <Link to="/admin/fhir/sources" className="fhir-more">
           管理來源與規則 ›

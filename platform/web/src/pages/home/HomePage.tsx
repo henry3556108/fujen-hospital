@@ -15,16 +15,16 @@ import './home.css';
 
 /** 各區在「可以做的事」的一句說明 */
 const AREA_HINTS: Record<string, string> = {
-  data: '加入或查看影像與表格資料',
+  data: '加入或查看影像與結構式資料',
   labeling: '標註影像、確認 AI 標註的草稿',
   training: '用整理好的資料訓練模型',
-  models: '看模型結果、拿新資料預測',
-  llm: '文件問答與語言模型設定',
+  models: '看訓練結果、執行推論',
+  llm: 'Chat with Knowledge Base 與大型語言模型設定',
 };
 
 const RUN_STATUS: Record<string, [string, BadgeTone]> = {
-  queued: ['排隊中', 'info'],
-  pending: ['排隊中', 'info'],
+  queued: ['等待中', 'info'],
+  pending: ['等待中', 'info'],
   running: ['處理中', 'info'],
   succeeded: ['已完成', 'success'],
   completed: ['已完成', 'success'],
@@ -122,7 +122,7 @@ export function progressSteps(ov: ProjectOverview): { steps: Step[]; current: nu
   const results = ov.models?.length ?? 0;
   const done = [studies > 0 || tables > 0, !!lab && lab.pending === 0 && lab.confirmed > 0, results > 0];
   const steps: Step[] = [
-    { label: '資料', description: tables > 0 ? `${studies} 筆影像、${tables} 份表格` : `${studies} 筆影像` },
+    { label: '資料', description: tables > 0 ? `${studies} 筆影像、${tables} 份結構式資料` : `${studies} 筆影像` },
     { label: '標註', description: lab ? (lab.pending > 0 ? `進行中・還有 ${lab.pending} 筆` : `已確認 ${lab.confirmed} 筆`) : '—' },
     { label: '結果', description: ov.models ? (results > 0 ? `${results} 個模型可用` : '待產生') : '—' },
   ];
@@ -185,7 +185,7 @@ export function HomePage() {
     sub = '看測試結果，再決定要不要使用這個模型';
   } else if (action.kind === 'import') {
     headline = '這個專案還沒有資料';
-    sub = '先加入影像或表格資料，才能開始標註與訓練';
+    sub = '先匯入影像或結構式資料，才能開始標註與訓練';
   }
 
   const showRecent = can('labeling') && !!ov?.labeling;
@@ -225,7 +225,7 @@ export function HomePage() {
             )}
             {action.kind === 'import' && (
               <Link to={action.to} className="btn btn--primary btn--large">
-                加入資料 <Icon name="arrow" />
+                匯入資料 <Icon name="arrow" />
               </Link>
             )}
           </div>
@@ -327,7 +327,7 @@ export function HomePage() {
               {showPredictions && (
                 <Card title="最近預測" flush extra={<Link to="/models">{more('查看更多')}</Link>}>
                   {ov.predictions!.length === 0 ? (
-                    <p className="home-pad text-muted">還沒有預測紀錄。</p>
+                    <p className="home-pad text-muted">還沒有推論服務歷史紀錄。</p>
                   ) : (
                     <div className="table-wrap">
                       <table aria-label="最近預測" className="home-table">

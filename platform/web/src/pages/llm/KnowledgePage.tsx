@@ -8,7 +8,7 @@ import { useLlm } from './useLlm';
 
 export { docStatus } from './parts';
 
-/** 參考文件（原知識庫）：左邊文件集，右邊這個文件集的文件與加入文件（照 A08 的文件清單樣式）。 */
+/** RAG 知識庫（原知識庫）：左邊 RAG 知識庫，右邊這個 RAG 知識庫的文件與加入文件（照 A08 的文件清單樣式）。 */
 export function KnowledgePage() {
   const { llm } = useLlm();
   const kbs = useResource(() => llm!.knowledgeBases(), [llm]);
@@ -50,12 +50,12 @@ export function KnowledgePage() {
 
   return (
     <>
-      <LlmHeader title="文件問答" subtitle="「根據文件回答」會從這裡的文件找答案。加入文件後狀態變成「可使用」；「未完成」的文件請重新加入。" />
+      <LlmHeader title="LLM No-code 開發" subtitle="「Chat with Knowledge Base」會從這裡的文件找答案。加入文件後狀態變成「可使用」；「未完成」的文件請重新加入。" />
       <ApiErrorAlert error={kbs.error ?? error} />
       <div className="llm-two-col">
-        <Card title="文件集" flush className="llm-kb-card">
+        <Card title="RAG 知識庫" flush className="llm-kb-card">
           <div className="table-wrap">
-            <table aria-label="參考文件集">
+            <table aria-label="RAG 知識庫">
               <thead>
                 <tr>
                   <th>名稱</th>
@@ -92,20 +92,20 @@ export function KnowledgePage() {
                 {kbs.data && kbs.data.length === 0 && (
                   <tr>
                     <td colSpan={4} className="llm-empty-row">
-                      尚無文件集，在下面輸入名稱後按「新增文件集」。
+                      尚無 RAG 知識庫，在下面輸入名稱後按「新增 RAG 知識庫」。
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          <form aria-label="新增參考文件集" className="llm-inline-form" onSubmit={create}>
+          <form aria-label="新增 RAG 知識庫" className="llm-inline-form" onSubmit={create}>
             <div className="field">
-              <label htmlFor="kb-name">文件集名稱</label>
+              <label htmlFor="kb-name">RAG 知識庫名稱</label>
               <input id="kb-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <button type="submit" className="btn btn--secondary">
-              新增文件集
+              新增 RAG 知識庫
             </button>
           </form>
         </Card>
@@ -136,12 +136,12 @@ export function KnowledgePage() {
           </Card>
         ) : (
           <Card className="llm-center-card">
-            <EmptyState icon="doc" title="選一個文件集" description="在左邊按「管理文件」，就能加入文件並查看每份文件的處理狀態。" />
+            <EmptyState icon="doc" title="選一個 RAG 知識庫" description="在左邊按「管理文件」，就能加入文件並查看每份文件的處理狀態。" />
           </Card>
         )}
       </div>
       {removing && (
-        <ConfirmDialog title="刪除文件集" confirmLabel="刪除文件集" onConfirm={() => void remove()} onCancel={() => setRemoving(null)}>
+        <ConfirmDialog title="刪除 RAG 知識庫" confirmLabel="刪除 RAG 知識庫" onConfirm={() => void remove()} onCancel={() => setRemoving(null)}>
           「{removing.name}」裡的 {removing.documents} 份文件會一起刪除，無法復原。
         </ConfirmDialog>
       )}

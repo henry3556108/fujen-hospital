@@ -14,7 +14,7 @@ export function countsText(job: ImportJob): string {
   return `新增 ${job.counts.imported}、重複 ${job.counts.duplicate}、失敗 ${job.counts.failed}`;
 }
 
-/** 重新上傳時開哪一種加入資料來源 */
+/** 重新上傳時開哪一種匯入資料來源 */
 export const RETRY_SOURCE: Record<ImportKind, string> = { dicom: 'upload', files: 'bundle', pacs: 'pacs' };
 
 const csvCell = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
@@ -40,7 +40,7 @@ type Show = 'all' | FileStatus;
 /**
  * 一次匯入的結果（B05）：匯入專案／來源／時間、總數與新增／重複／失敗、全部／失敗／重複分頁、逐檔原因（TC-B01-05），
  * 下方「下載失敗清單」「重新上傳」與呼叫端給的其他動作。
- * onRetryFailed：剛上傳完、檔案還在瀏覽器裡時，只重傳失敗的檔案；retryHref：檔案不在瀏覽器時，連到加入資料重新選檔。
+ * onRetryFailed：剛上傳完、檔案還在瀏覽器裡時，只重傳失敗的檔案；retryHref：檔案不在瀏覽器時，連到匯入資料重新選檔。
  */
 export function ImportResult({
   job,

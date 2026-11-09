@@ -3,7 +3,7 @@ import { formatTick, niceScale } from './scale';
 
 const TABLE_LIMIT = 200;
 
-/** 散佈圖：單一系列。點帶 2px 表面色外環，重疊時仍看得出來。 */
+/** Scatter Chart：單一系列。點帶 2px 表面色外環，重疊時仍看得出來。 */
 export function ScatterChart({
   title,
   points,

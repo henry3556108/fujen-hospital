@@ -295,10 +295,10 @@ function Dataset({ labeling, id }: { labeling: LabelingApi; id: number }) {
       footer={
         can('training') ? (
           <Link className="btn btn--secondary" to={`/training/new?labelDataset=${d.id}`}>
-            用這份資料建立模型
+            用這份資料建立訓練任務
           </Link>
         ) : (
-          <span className="text-muted">建立模型需要 Training 權限；如需使用，請聯絡專案「{project?.name}」的負責人。</span>
+          <span className="text-muted">建模管理需要 Training 權限；如需使用，請聯絡專案「{project?.name}」的負責人。</span>
         )
       }
     >

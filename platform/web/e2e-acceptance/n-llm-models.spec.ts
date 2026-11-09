@@ -20,7 +20,7 @@ const catalogRow = (page: Page, name: string) => rowOf(page.getByRole('table', {
 
 /** 模型頁內分頁（可用模型／下載申請／載入設定） */
 async function modelsTab(page: Page, name: '可用模型' | '下載申請' | '載入設定') {
-  const t = page.getByRole('tablist', { name: '語言模型管理分頁' }).getByRole('tab', { name, exact: true });
+  const t = page.getByRole('tablist', { name: 'LLM 模型管理分頁' }).getByRole('tab', { name, exact: true });
   await t.click();
   await expect(t).toHaveAttribute('aria-selected', 'true');
 }

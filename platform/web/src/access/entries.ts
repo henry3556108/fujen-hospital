@@ -3,14 +3,14 @@
 // 側欄（研究區、管理區）、功能目錄、直接輸入網址的阻擋都只呼叫本模組的
 // checkAccess / visibleEntries / visibleNav，不在其他地方另寫判斷。
 //
-//   研究區側欄（白話名稱）          需要的權限
+//   研究區側欄（契約／招標規範名稱）  需要的權限
 //   專案首頁                        專案成員
-//   研究資料                        project
+//   數據管理                        project
 //   影像標註                        labeling
-//   建立模型                        training
-//   使用模型                        prediction
-//   語言模型                        coding
-//   系統管理（管理區）              account_type = admin
+//   建模管理                        training
+//   模型部署與推論服務                        prediction
+//   大型語言模型                        coding
+//   管理後台（管理區）              account_type = admin
 //
 // 8 個契約入口（功能目錄列出原名稱）各自掛在一個區底下，權限跟著區走。
 // 規則以「目前選取專案」的權限判斷；admin 全部可見。
@@ -36,15 +36,15 @@ export interface NavArea {
 
 export const AREAS: Record<NavArea['key'], NavArea> = {
   home: { key: 'home', label: '專案首頁', path: '/', icon: 'home', rule: { kind: 'member' } },
-  data: { key: 'data', label: '研究資料', path: '/data', icon: 'folder', rule: perm('project') },
+  data: { key: 'data', label: '數據管理', path: '/data', icon: 'folder', rule: perm('project') },
   labeling: { key: 'labeling', label: '影像標註', path: '/labeling', icon: 'pen', rule: perm('labeling'), match: ['/auto-labeling'] },
-  training: { key: 'training', label: '建立模型', path: '/training', icon: 'cube', rule: perm('training') },
-  models: { key: 'models', label: '使用模型', path: '/models', icon: 'play', rule: perm('prediction'), match: ['/deployment', '/inference'] },
-  llm: { key: 'llm', label: '語言模型', path: '/llm', icon: 'chat', rule: perm('coding'), divider: true },
-  admin: { key: 'admin', label: '系統管理', path: '/admin', icon: 'gear', rule: { kind: 'admin' } },
+  training: { key: 'training', label: '建模管理', path: '/training', icon: 'cube', rule: perm('training') },
+  models: { key: 'models', label: '模型部署與推論服務', path: '/models', icon: 'play', rule: perm('prediction'), match: ['/deployment', '/inference'] },
+  llm: { key: 'llm', label: '大型語言模型', path: '/llm', icon: 'chat', rule: perm('coding'), divider: true },
+  admin: { key: 'admin', label: '管理後台', path: '/admin', icon: 'gear', rule: { kind: 'admin' } },
 };
 
-/** 研究區側欄的順序（系統管理放在側欄底部，另外處理） */
+/** 研究區側欄的順序（管理後台放在側欄底部，另外處理） */
 export const RESEARCH_NAV: readonly NavArea[] = [AREAS.home, AREAS.data, AREAS.labeling, AREAS.training, AREAS.models, AREAS.llm];
 
 export interface Entry {
@@ -73,20 +73,20 @@ function entry(e: Omit<Entry, 'rule' | 'placeholder' | 'location'> & { sub?: str
 }
 
 export const ENTRIES: readonly Entry[] = [
-  entry({ key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '管理研究成員帳號、專案、角色與權限。', area: 'admin', sub: '帳號、專案' }),
+  entry({ key: 'admin', label: '帳號管理', path: '/admin', moduleCode: 'A-03', description: '管理研究成員帳號、專案、角色與權限。', area: 'admin', sub: '帳號管理、專案管理' }),
   entry({ key: 'data', label: '數據管理', path: '/data', moduleCode: 'B-01', description: '管理影像與結構化資料，查看匯入與處理狀態。', area: 'data' }),
   entry({ key: 'labeling', label: '影像標註', path: '/labeling', moduleCode: 'B-02', description: '進行影像標註、查看進度與品質。', area: 'labeling', sub: '待處理' }),
   entry({ key: 'auto-labeling', label: '自動影像分類標註', path: '/auto-labeling', moduleCode: 'B-03', description: '使用已建立的模型進行影像自動分類與標註。', area: 'labeling', sub: '自動標註' }),
   entry({ key: 'training', label: '建模管理', path: '/training', moduleCode: 'B-05', description: '管理模型訓練、版本與評估結果，匯出模型。', area: 'training', sub: '訓練紀錄' }),
-  entry({ key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '部署模型為推論服務，設定資源與版本。', area: 'models', sub: '分享與服務' }),
-  entry({ key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '管理推論服務的運行狀態、預測新資料與紀錄。', area: 'models', sub: '預測新資料與紀錄' }),
+  entry({ key: 'deployment', label: 'AI 模型部署', path: '/deployment', moduleCode: 'B-06', description: '部署模型為推論服務，設定資源與版本。', area: 'models', sub: '模型部署' }),
+  entry({ key: 'inference', label: '推論服務管理', path: '/inference', moduleCode: 'B-06', description: '管理推論服務的運行狀態、推論與歷史紀錄。', area: 'models', sub: '推論與歷史紀錄' }),
   entry({
     key: 'llm',
     label: '大型語言模型 No-code 開發',
     aliases: ['LLM No-code 開發'],
     path: '/llm',
     moduleCode: 'B-07／B-08',
-    description: '設定知識來源與問答應用（LLM、RAG、工作流程），進行測試與發布。',
+    description: '設定知識來源與問答應用（LLM、RAG、LangGraph 工作流），進行測試與發布。',
     area: 'llm',
   }),
 ];
@@ -137,12 +137,12 @@ export interface AdminNavItem {
 }
 
 export const ADMIN_NAV: readonly AdminNavItem[] = [
-  { key: 'overview', label: '總覽', path: '/admin', icon: 'chart' },
-  { key: 'users', label: '帳號', path: '/admin/users', icon: 'users' },
-  { key: 'projects', label: '專案', path: '/admin/projects', icon: 'folder' },
-  { key: 'compute', label: '運算資源', path: '/admin/compute', icon: 'server' },
+  { key: 'overview', label: 'Dashboard', path: '/admin', icon: 'chart' },
+  { key: 'users', label: '帳號管理', path: '/admin/users', icon: 'users' },
+  { key: 'projects', label: '專案管理', path: '/admin/projects', icon: 'folder' },
+  { key: 'compute', label: 'GPU／CPU 伺服器管理', path: '/admin/compute', icon: 'server' },
   { key: 'monitoring', label: '系統監控', path: '/admin/monitoring', icon: 'pulse' },
-  { key: 'fhir', label: '資料交換', path: '/admin/fhir', icon: 'swap' },
+  { key: 'fhir', label: 'HL7 FHIR 醫療資料交換', path: '/admin/fhir', icon: 'swap' },
   { key: 'audit', label: '稽核與審核', path: '/admin/audit', icon: 'doc', match: ['/admin/approvals'] },
 ];
 

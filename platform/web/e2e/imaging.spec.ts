@@ -123,13 +123,13 @@ test.describe('研究列表篩選', () => {
   });
 });
 
-test.describe('Accession 清單與 PACS', () => {
+test.describe('Accession Number 清單與 PACS', () => {
   test('TC-B01-08 Admin 設定清單後，清單外的研究在列表與直接網址都看不到', async ({ page }) => {
     await loginAs(page, 'admin01');
     await page.goto('/data/imaging/allowlist');
     await page.getByLabel(/^Accession Number/).fill('ACC0011\nACC0013');
     await page.getByRole('button', { name: '儲存清單' }).click();
-    await expect(page.getByText('已儲存 Accession 清單，共 2 筆')).toBeVisible();
+    await expect(page.getByText('已儲存 Accession Number 清單，共 2 筆')).toBeVisible();
     await page.reload();
     await expect(page.getByRole('list', { name: '清單內的 Accession Number' }).getByRole('listitem')).toHaveText(['ACC0011', 'ACC0013']);
 
@@ -138,7 +138,7 @@ test.describe('Accession 清單與 PACS', () => {
     let outside = 0;
     for (const no of [12, 14, 15, 16, 12]) {
       await page.goto(`/data/imaging/studies/1.2.826.0.1.3680043.10.9999.88.1.${no}`);
-      await expect(page.getByRole('alert')).toContainText('找不到研究，或不在本專案的 Accession 清單內');
+      await expect(page.getByRole('alert')).toContainText('找不到研究，或不在本專案的 Accession Number 清單內');
       outside += await page.getByRole('region', { name: '研究資訊' }).count();
     }
     expect(outside).toBe(0);

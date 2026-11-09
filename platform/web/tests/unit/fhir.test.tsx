@@ -6,8 +6,8 @@ import { layout } from '../../src/pages/fhir/GraphPage';
 describe('FHIR 資料交換（WP6）', () => {
   it('Admin 從帳號管理的分頁進入，看到各資源筆數', async () => {
     const { user } = await renderApp('/admin/projects');
-    await user.click(within(await screen.findByRole('navigation', { name: '系統管理選單' })).getByRole('link', { name: '資料交換' }));
-    expect(await screen.findByRole('heading', { level: 1, name: '醫療資料交換' })).toBeInTheDocument();
+    await user.click(within(await screen.findByRole('navigation', { name: '管理後台選單' })).getByRole('link', { name: 'HL7 FHIR 醫療資料交換' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'HL7 FHIR 醫療資料交換' })).toBeInTheDocument();
     const stats = await screen.findByRole('list', { name: '資源筆數' });
     expect(await within(stats).findByText('2')).toBeInTheDocument();
     const table = await screen.findByRole('table', { name: 'Patient 列表' });
@@ -42,7 +42,7 @@ describe('FHIR 資料交換（WP6）', () => {
       unmount();
 
       const reloaded = await renderApp('/fhir/gateway');
-      const table = await screen.findByRole('table', { name: 'Gateway 路由' });
+      const table = await screen.findByRole('table', { name: 'API Gateway 路由' });
       const row = await within(table).findByRole('row', { name: /fhir-rest/ });
       expect(within(row).getByText(methods.join(' '))).toBeInTheDocument();
       expect(within(row).getByText(enabled ? '啟用' : '停用')).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe('FHIR 資料交換（WP6）', () => {
 
   it('靜態路由唯讀，只有受管路由有修改表單', async () => {
     await renderApp('/fhir/gateway');
-    const table = await screen.findByRole('table', { name: 'Gateway 路由' });
+    const table = await screen.findByRole('table', { name: 'API Gateway 路由' });
     expect(await within(table).findByText('/dicomweb/projects/*')).toBeInTheDocument();
     expect(screen.getAllByRole('form', { name: /修改路由/ })).toHaveLength(1);
   });

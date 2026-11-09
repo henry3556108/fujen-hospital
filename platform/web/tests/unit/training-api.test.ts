@@ -113,7 +113,7 @@ describe('validation (K-fold) in the training mock', () => {
     const { validation: _v, ...old } = TABULAR;
     expect(normalise(old).validation).toEqual({ method: 'holdout' });
     expect(() => normalise({ ...TABULAR, validation: { method: 'kfold', folds: 11 } })).toThrow('「交叉驗證折數（K）」必須介於 2 與 10 之間');
-    expect(() => normalise({ ...IMAGE, validation: { method: 'kfold', folds: 5 } })).toThrow('影像訓練目前只支援固定比例切分');
+    expect(() => normalise({ ...IMAGE, validation: { method: 'kfold', folds: 5 } })).toThrow('影像訓練目前只支援固定比例分群');
   });
 
   it('catalogue explains every parameter and lists the validation methods for tabular kinds', async () => {

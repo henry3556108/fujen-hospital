@@ -57,10 +57,10 @@ test('TC-SS-04 金鑰不外洩', async ({ browser }) => {
   const tc = 'TC-SS-04';
   test.setTimeout(8 * 60_000);
   const { ctx, page } = await userPage(browser, 'admin01');
-  // A-1：檢視網頁原始碼（Ctrl+U）
+  // A-1：檢視網頁原始程式碼（Ctrl+U）
   const src = await ctx.newPage();
   await src.goto('view-source:http://localhost:38982/').catch(() => undefined);
-  await shot(src, tc, 'A1-檢視網頁原始碼');
+  await shot(src, tc, 'A1-檢視網頁原始程式碼');
   const html = (await page.request.get('/')).text();
   const refs = [...(await html).matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]).filter((r) => /config\.js|\/assets\//.test(r));
   // A-2：config.js 內容
@@ -75,7 +75,7 @@ test('TC-SS-04 金鑰不外洩', async ({ browser }) => {
     const body = await (await page.request.get(r)).text();
     for (const w of words) if (body.includes(w)) hits.push(`${r}:${w}`);
   }
-  note(tc, `原始碼引用：${refs.join('、')}；config.js 鍵：${Object.keys(cfg).join('、')}（client ${cfg.VITE_OIDC_CLIENT_ID}）；關鍵字搜尋命中 ${hits.length} 筆`);
+  note(tc, `原始程式碼引用：${refs.join('、')}；config.js 鍵：${Object.keys(cfg).join('、')}（client ${cfg.VITE_OIDC_CLIENT_ID}）；關鍵字搜尋命中 ${hits.length} 筆`);
   await src.close();
   // B：完整比對（劇本指令）
   const b = sh(
@@ -231,7 +231,7 @@ test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
         ]),
       ),
     ) as Record<string, string>;
-  const web = await tiles('平台總覽');
+  const web = await tiles('Dashboard');
   const status = await tiles('排程工作狀態');
   await shot(page, tc, '03-管理區總覽');
   const db = sh(
@@ -243,7 +243,7 @@ test('TC-A03-10 Admin 標註群組與 Dashboard', async ({ browser }) => {
     `select (select count(*) from users), (select count(*) from users where account_type='admin'), (select count(*) from projects), (select count(*) from memberships), (select count(*) from label_groups), (select count(*) from label_group_members), (select count(*) from tabular_datasets), (select count(*) from imaging_studies), (select count(*) from gpu_groups), (select count(*) from jobs)`,
   ).split('|');
   const byStatus = Object.fromEntries(psql('select status, count(*) from jobs group by status').split('\n').map((l) => l.split('|')));
-  const LABEL: Record<string, string> = { queued: '排隊中', running: '執行中', succeeded: '已完成', failed: '失敗', cancelled: '已取消' };
+  const LABEL: Record<string, string> = { queued: '等待中', running: '執行中', succeeded: '已完成', failed: '失敗', cancelled: '已取消' };
   const pairs: [string, string, string][] = [
     ['帳號', web['帳號'], `${n[0]}（Admin ${n[1]}、User ${Number(n[0]) - Number(n[1])}）`],
     ['專案', web['專案'], n[2]],

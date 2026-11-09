@@ -5,9 +5,9 @@ import { shotUrl } from './r-common';
 
 // 介面改版：依角色走 03-介面定案規格 第一節的流程並截圖（不改驗收判定，只確認新導覽走得通）。
 //   md01（MD）：首頁「繼續標註」→ 工作台「儲存並開啟下一筆」
-//   pi01（PI）：首頁 → 訓練紀錄 → 模型結果 → 預測新資料
+//   pi01（PI）：首頁 → 訓練紀錄 → 訓練結果 → 推論
 //   admin01：管理區總覽 → 專案頁四分頁 → 運算資源 → 功能目錄 8 入口逐一點入
-//   vw01（Viewer）：嘗試刪除表格資料集被拒
+//   vw01（Viewer）：嘗試刪除結構式資料集被拒
 const TC = '介面改版';
 const flat = (s: string) => s.replace(/\s+/g, ' ').trim();
 
@@ -46,7 +46,7 @@ test('MD：首頁繼續標註 → 工作台儲存並開啟下一筆', async ({ b
   note(TC, `md01 儲存並開啟下一筆：${new URL(first).pathname} → ${new URL(page.url()).pathname}`);
   await shotUrl(page, TC, 'md01-03-儲存後開啟下一筆');
 
-  // MD 看不到建立模型、語言模型與系統管理
+  // MD 看不到建模管理、大型語言模型與管理後台
   const side = (await sideNav(page).getByRole('link').allInnerTexts()).map((s) => s.trim());
   note(TC, `md01 側欄：${side.join('、')}`);
   expect(side).not.toContain(SIDE.training);
@@ -69,7 +69,7 @@ curl -s -w 'HTTP %{http_code}\\n' -X DELETE -H "Authorization: Bearer $T" http:/
   note(TC, `還原：刪除 md01 這次存的標註 ${ids.length} 筆（${ids.join('、') || '無'}）`);
 });
 
-test('PI：首頁 → 訓練紀錄 → 模型結果 → 預測新資料', async ({ browser }) => {
+test('PI：首頁 → 訓練紀錄 → 訓練結果 → 推論', async ({ browser }) => {
   test.setTimeout(5 * 60_000);
   // 用 pi01 有「已完成訓練」的專案（優先 P1；開發資料 P1 可能還沒有訓練）
   const proj =
@@ -88,7 +88,7 @@ test('PI：首頁 → 訓練紀錄 → 模型結果 → 預測新資料', async 
   await shotUrl(page, TC, 'pi01-01-首頁');
 
   await clickMenu(page, SIDE.training);
-  await expect(page.getByRole('navigation', { name: '建立模型分頁' }).getByRole('link', { name: '訓練紀錄' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('navigation', { name: '建模管理分頁' }).getByRole('link', { name: '訓練紀錄' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('table', { name: '訓練清單' })).toBeVisible();
   await shotUrl(page, TC, 'pi01-02-訓練紀錄');
 
@@ -98,18 +98,18 @@ test('PI：首頁 → 訓練紀錄 → 模型結果 → 預測新資料', async 
   const runId = /\/runs\/(\d+)/.exec(page.url())![1];
   await shotUrl(page, TC, 'pi01-03-單次訓練');
 
-  // 模型結果
-  await page.getByRole('link', { name: '前往使用模型' }).click();
+  // 訓練結果
+  await page.getByRole('link', { name: '前往模型部署與推論服務' }).click();
   await expect(page).toHaveURL(new RegExp(`/models/${runId}/result`));
   await page.waitForLoadState('networkidle');
   await expect(page.locator('main').getByText('載入中…')).toHaveCount(0, { timeout: 30_000 });
   const main = flat(await page.locator('main').innerText());
   note(TC, `pi01 模型 #${runId} 結果：${main.slice(0, 300)}`);
-  await shotUrl(page, TC, 'pi01-04-模型結果');
+  await shotUrl(page, TC, 'pi01-04-訓練結果');
 
-  await clickTab(page, '預測新資料', page.getByRole('navigation', { name: '模型分頁' }));
+  await clickTab(page, '推論', page.getByRole('navigation', { name: '模型分頁' }));
   await expect(page).toHaveURL(new RegExp(`/models/${runId}/predict`));
-  await shotUrl(page, TC, 'pi01-05-預測新資料');
+  await shotUrl(page, TC, 'pi01-05-推論');
   await ctx.close();
 });
 
@@ -133,7 +133,7 @@ test('Admin：總覽 → 專案頁四分頁 → 運算資源 → 功能目錄 8 
   }
 
   await adminSide(page, ADMIN_SIDE.compute);
-  const tabs = ['GPU 使用對照', '排隊順序', '共享設定', 'GPU 群組', '節點'];
+  const tabs = ['GPU Dashboard', '佇列排程', '共享排程設定', 'GPU 群組', '節點'];
   for (const [i, t] of tabs.entries()) {
     await clickTab(page, t, page.locator('main'));
     await expect(page.getByText(DENIED)).toHaveCount(0);
@@ -163,7 +163,7 @@ test('Admin：總覽 → 專案頁四分頁 → 運算資源 → 功能目錄 8 
   await ctx.close();
 });
 
-test('Viewer：嘗試刪除表格資料集被拒', async ({ browser }) => {
+test('Viewer：嘗試刪除結構式資料集被拒', async ({ browser }) => {
   const ds = psql(`select t.id || '|' || t.name from tabular_datasets t join projects p on p.id=t.project_id where p.name='${P1}' order by t.id limit 1`);
   expect(ds).toMatch(/^\d+\|/);
   const [id, name] = ds.split('|');
@@ -175,7 +175,7 @@ test('Viewer：嘗試刪除表格資料集被拒', async ({ browser }) => {
   await expect(page.getByRole('link', { name, exact: true }).first()).toBeVisible();
   const delBtn = page.getByRole('button', { name: `刪除 ${name}`, exact: true });
   const btnCount = await delBtn.count();
-  note(TC, `vw01 表格資料集清單：「刪除 ${name}」按鈕 ${btnCount} 個`);
+  note(TC, `vw01 結構式資料集清單：「刪除 ${name}」按鈕 ${btnCount} 個`);
   await shotUrl(page, TC, 'vw01-01-資料集清單沒有刪除按鈕');
 
   // 直接呼叫 API 刪除也被拒

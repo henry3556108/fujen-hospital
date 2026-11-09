@@ -24,7 +24,7 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   const { ctx, page } = await openAs(browser, 'pi01', PB);
   await gotoTraining(page);
   let region = await openPackageImport(page);
-  await shot(page, TC, '01-程式與專案包-匯入專案包');
+  await shot(page, TC, '01-原始程式碼與專案包-匯入專案包');
 
   // 2、3 檢查專案包
   step(TC, 2, '「專案包（zip）」選 06\\專案包-附資料.zip，按「檢查專案包」');
@@ -35,10 +35,10 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   await result.scrollIntoViewIfNeeded();
   await shot(page, TC, '02-檢查結果');
   c.check('步驟 3 沒有紅色「不能匯入」', p.errors === '', p.errors);
-  if (!p.warnings.some((w) => w.includes('部署環節沒有匯入'))) {
-    c.diff('黃色「請注意」沒有「部署環節沒有匯入」：這句只在專案包內「部署」環節是匯入檔控制時出現（flow_import.py），05 已改回介面設定，所以 06 的專案包不會有');
+  if (!p.warnings.some((w) => w.includes('部署階段沒有匯入'))) {
+    c.diff('黃色「請注意」沒有「部署階段沒有匯入」：這句只在專案包內「部署」階段是匯入檔控制時出現（flow_import.py），05 已改回介面設定，所以 06 的專案包不會有');
   }
-  c.check(`步驟 3 專案包內容顯示 ${SETTING}、結構式分類`, p.contents.includes(SETTING) && p.contents.includes('結構式分類'), p.contents);
+  c.check(`步驟 3 專案包內容顯示 ${SETTING}、結構式資料分類`, p.contents.includes(SETTING) && p.contents.includes('結構式資料分類'), p.contents);
   c.check('步驟 3 資料對應：用專案包附的資料建立新資料集', p.mapping.includes('專案包內附的資料') && p.mapping.includes('建立一個新的資料集'), p.mapping);
   c.diff(`資料對應的文字是「${p.mapping}」，不是「用專案包附的資料建立新資料集」`);
 
@@ -106,8 +106,8 @@ test('M2 07 專案包匯入（附資料）', async ({ browser }) => {
   note(TC, `頂端訊息：${n2.text}`);
   await shot(page, TC, '07-重名加序號');
   c.check('步驟 8 重名自動加序號', new RegExp(`^${esc(SETTING)}（匯入 \\d+）$`).test(n2.setting), n2.setting);
-  if (n2.setting !== `${SETTING}（匯入 1）`) c.diff(`重名時的名稱是「${n2.setting}」：原始碼從「（匯入 2）」開始編號（flow_import._unique_setting_name），不是「（匯入 1）」`);
-  await gotoSettings(page); // 匯入後的設定列在「已存設定」分頁
+  if (n2.setting !== `${SETTING}（匯入 1）`) c.diff(`重名時的名稱是「${n2.setting}」：原始程式碼從「（匯入 2）」開始編號（flow_import._unique_setting_name），不是「（匯入 1）」`);
+  await gotoSettings(page); // 匯入後的設定列在「訓練設定」分頁
   await expect(page.getByRole('button', { name: `送出訓練「${n2.setting}」`, exact: true })).toBeVisible();
   await ctx.close();
   c.finish();

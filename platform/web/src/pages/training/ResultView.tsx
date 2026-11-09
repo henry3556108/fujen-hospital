@@ -239,7 +239,7 @@ function AllMetrics({ run }: { run: TrainingRun }) {
 const SUBSET_NOTE: Record<Charts['subset'], string> = {
   test: '以下圖表以測試集（訓練時沒看過的資料）計算',
   validation: '沒有測試集，以下圖表以驗證集計算',
-  train: '沒有測試集與驗證集，以下圖表以訓練資料計算，結果可能過度樂觀',
+  train: '沒有測試集與驗證集，以下圖表以訓練集計算，結果可能過度樂觀',
 };
 
 function RunCharts({ run, charts }: { run: TrainingRun; charts: ReturnType<typeof useRunCharts> }) {

@@ -17,8 +17,8 @@ export const KIND_NAMES: Record<ModelKind, string> = {
   image_classification: '影像分類',
   image_segmentation: '影像分割',
   image_detection: '物件偵測',
-  tabular_classification: '結構式分類',
-  tabular_regression: '結構式迴歸',
+  tabular_classification: '結構式資料分類',
+  tabular_regression: '結構式資料迴歸',
 };
 
 export interface Model {
@@ -28,14 +28,14 @@ export interface Model {
   format: 'h5' | 'pkl';
   sha256: string;
   filename: string;
-  /** 產生這個模型的訓練（使用模型頁的網址用訓練編號）；舊版 mock 可能沒有 */
+  /** 產生這個模型的訓練（模型部署與推論服務頁的網址用訓練編號）；舊版 mock 可能沒有 */
   run_id?: number | null;
   created_by: string;
   created_at: string;
-  /** 有人把這個模型分享給目前的使用者（部署的授權帳號包含他）；舊版 API 沒有 */
+  /** 有人把這個模型授權給目前的使用者（部署的授權帳號包含他）；舊版 API 沒有 */
   shared_with_me?: boolean;
   shared_by?: string | null;
-  /** 顯示名稱（分享時取的名稱）；沒有分享過為 null。分享多次時伺服器選一個（見 service.model_titles） */
+  /** 顯示名稱（部署時取的名稱）；沒有部署過為 null。部署多次時伺服器選一個（見 service.model_titles） */
   title?: string | null;
   card: {
     label_names?: string[];
@@ -46,7 +46,7 @@ export interface Model {
     /** 推論時要填的原始欄位（2026-10 起的結構式模型；舊模型沒有，改用 features） */
     inputs?: ModelInput[];
     classes?: string[];
-    /** 缺值處理：impute＝特徵可留白（以訓練資料的中位數或最常見的值補上）；drop 或沒有＝含缺值的列不預測 */
+    /** 缺值處理：impute＝特徵可留白（以訓練集的中位數或最常見的值補上）；drop 或沒有＝含缺值的列不預測 */
     missing?: 'impute' | 'drop';
     /** 平台訓練時實際的套件版本（名稱→版本；舊模型沒有） */
     libraries?: Record<string, string>;
@@ -71,7 +71,7 @@ export interface ImageResult {
 export type InferenceStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'held';
 
 export const STATUS_NAMES: Record<InferenceStatus, string> = {
-  queued: '排隊中',
+  queued: '等待中',
   running: '執行中',
   succeeded: '成功',
   failed: '失敗',
@@ -94,7 +94,7 @@ export interface InferenceRecord {
   result_format: 'csv' | 'json' | '';
   has_result: boolean;
   created_at: string;
-  /** 送出時的資訊；source: 'try' 是網頁的單人試用 */
+  /** 送出時的資訊；source: 'try' 是網頁的即時推論 */
   input?: { source?: string } & Record<string, unknown>;
   /** 批次推論的排程工作與時間；其他方式為 null */
   job_id?: number | null;
@@ -122,7 +122,7 @@ export interface InferenceApi {
   /** 送出批次推論，立即回傳（status: queued）；結果要以 record() 或 waitForRecord() 取得 */
   batch(modelId: number, subset: string): Promise<InferenceRecord>;
   cancel(id: number): Promise<InferenceRecord>;
-  /** source: 'try' 表示網頁的單人試用（預測紀錄顯示「單人試用」） */
+  /** source: 'try' 表示網頁的即時推論（推論服務歷史紀錄顯示「即時推論」） */
   upload(modelId: number, files: File[], source?: 'try'): Promise<InferenceRecord>;
   download(id: number): Promise<{ blob: Blob; filename: string }>;
 }

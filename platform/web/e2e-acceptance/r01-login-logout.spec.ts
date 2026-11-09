@@ -5,9 +5,9 @@ import { freshPage, headerUser, kcSubmit, logout, shotUrl, toKeycloak } from './
 // M1 補拍 01：登入與登出（TC-SS-01）。8 個帳號各開新視窗登入 1 次、登出。
 const TC = 'TC-SS-01';
 const PW: Record<string, string> = { admin01: 'Admin01-dev!' };
-// 頂端「帳號（身分）」：研究區顯示「我的身分（角色）」；Admin 登入後在管理區（或已選專案時為系統管理者）；未加入專案只顯示帳號
+// 頂端「帳號（身分）」：研究區顯示「我的角色（角色）」；Admin 登入後在管理區（或已選專案時為系統管理者）；未加入專案只顯示帳號
 const EXPECT: [string, string | RegExp][] = [
-  ['admin01', /^admin01（(系統管理區|系統管理者)）$/],
+  ['admin01', /^admin01（(管理後台|系統管理者)）$/],
   ['pi01', 'pi01（計畫主持人）'],
   ['md01', 'md01（醫師）'],
   ['ra01', 'ra01（研究助理）'],

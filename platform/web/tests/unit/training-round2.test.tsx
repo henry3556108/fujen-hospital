@@ -1,4 +1,4 @@
-// 使用性測試第二輪（docs/usability/2026-10-03-after.md）：One-Hot 欄位在訓練表單的呈現、缺值、分享、設定差異、
+// 使用性測試第二輪（docs/usability/2026-10-03-after.md）：One Hot Encoding 欄位在訓練表單的呈現、缺值、部署、設定差異、
 // 術語與圖表、次要問題。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -17,7 +17,7 @@ async function saveTargetFeature(target: string, features: string[], steps: unkn
   await api.put('/api/projects/1/tabular/datasets/2/target-feature', { target, features, steps, ...extra });
 }
 
-/** 從資料集進入建立訓練精靈（帶入資料集設定），到第三步「確認並送出」。 */
+/** 從資料集進入建立訓練任務精靈（帶入資料集設定），到第三步「確認並送出」。 */
 async function openWizard() {
   const { user } = await renderApp('/training/new?tabular=2', 'pi01');
   await user.click(await screen.findByRole('button', { name: '下一步：確認並送出' }));
@@ -48,7 +48,7 @@ function seed(name: string, config: TrainingConfig, owner = 'pi01') {
     created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' });
 }
 
-describe('1 One-Hot 欄位在訓練表單', () => {
+describe('1 One Hot Encoding 欄位在訓練表單', () => {
   const original = ['patient_id', 'age', 'sex', 'smoker', 'diagnosis'];
   const processed = ['patient_id', 'age', 'sex_F', 'sex_M', 'smoker_current', 'smoker_former', 'smoker_never', 'diagnosis'];
 
@@ -66,7 +66,7 @@ describe('1 One-Hot 欄位在訓練表單', () => {
   it('shows sex once, ticked, with its generated columns; unticking and ticking moves all of them; the original cannot be chosen', async () => {
     await saveTargetFeature('diagnosis', ['age', 'sex_F', 'sex_M', 'smoker_current', 'smoker_former', 'smoker_never'], ONEHOT);
     const { user, form } = await openWizard();
-    const group = await within(form).findByRole('group', { name: /用來預測的資料（Feature）/ });
+    const group = await within(form).findByRole('group', { name: /Feature 欄位/ });
     const sex = await within(group).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' });
     expect(sex).toBeChecked();
     expect(within(group).getByRole('checkbox', { name: 'smoker（已轉成 smoker_current、smoker_former、smoker_never）' })).toBeChecked();
@@ -81,7 +81,7 @@ describe('1 One-Hot 欄位在訓練表單', () => {
       ['age', 'sex_F', 'sex_M', 'smoker_current', 'smoker_former', 'smoker_never']);
   });
 
-  it('an old setting that lists the original column next to its One-Hot step opens with the generated columns', async () => {
+  it('an old setting that lists the original column next to its One Hot Encoding step opens with the generated columns', async () => {
     seed('舊設定', tabularConfig('tabular_classification', { features: ['age', 'sex'], steps: [{ id: 'onehot', columns: ['sex'], params: { drop_first: false } }] }));
     const { user } = await renderApp('/training/settings', 'pi01');
     await user.click(await screen.findByRole('button', { name: '修改「舊設定」' }));
@@ -117,19 +117,19 @@ async function finish(user: Awaited<ReturnType<typeof renderApp>>['user'], name:
 
 describe('2 缺值', () => {
   it('the Target/Feature overview names the feature with gaps and saves the one-click choice', async () => {
-    // 舊網址 /target 轉到「整理資料」
+    // 舊網址 /target 轉到「資料清洗」
     const { user } = await renderApp('/data/tabular/2/target', 'pi01');
-    const form = await screen.findByRole('form', { name: '整理資料' }, { timeout: 10_000 });
-    const table = within(form).getByRole('table', { name: '欄位整理' });
-    await user.click(within(table).getByRole('radio', { name: '想預測 diagnosis' }));
+    const form = await screen.findByRole('form', { name: '資料清洗' }, { timeout: 10_000 });
+    const table = within(form).getByRole('table', { name: '欄位設定' });
+    await user.click(within(table).getByRole('radio', { name: 'Target diagnosis' }));
     await user.click(within(table).getByRole('checkbox', { name: 'age' }));
     expect(within(form).queryByTestId('prep-missing')).toBeNull();
     await user.click(within(table).getByRole('checkbox', { name: 'glucose' }));
     const choice = within(form).getByTestId('prep-missing');
     expect(choice).toHaveTextContent(/glucose 有 \d+ 位病人沒有資料（缺值）/);
-    expect(within(choice).getByRole('radio', { name: /^補上缺值，所有病人都使用（建議）/ })).toBeChecked();
+    expect(within(choice).getByRole('radio', { name: /^補值，所有病人都使用（建議）/ })).toBeChecked();
     await user.click(within(choice).getByRole('radio', { name: /^不使用這些病人/ }));
-    await user.click(screen.getByRole('button', { name: '儲存整理步驟' }));
+    await user.click(screen.getByRole('button', { name: '儲存前處理步驟' }));
     expect(await screen.findByTestId('saved-missing')).toHaveTextContent('不使用');
   });
 
@@ -138,7 +138,7 @@ describe('2 缺值', () => {
     const { user, form } = await openWizard();
     const choice = await within(form).findByTestId('ts-missing');
     expect(choice).toHaveTextContent(/glucose 有 \d+ 位病人沒有資料/);
-    expect(within(choice).getByRole('radio', { name: /^補上缺值/ })).toBeChecked();
+    expect(within(choice).getByRole('radio', { name: /^補值/ })).toBeChecked();
     await user.click(within(form).getByRole('button', { name: '確認並送出訓練' }));
     await screen.findByText(/訓練 #\d+（/);
     expect(trainingMock().settings[0].config.tabular!.missing).toBe('impute');
@@ -156,19 +156,19 @@ describe('2 缺值', () => {
     seed('補值', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'impute' }));
     const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, '補值');
-    expect(screen.getByTestId('data-usage')).toHaveTextContent('訓練 60 位、驗證 20 位、測試 20 位。有 5 位的缺值（glucose 5 位）已用訓練資料的中位數或最常見的值補上。');
+    expect(screen.getByTestId('data-usage')).toHaveTextContent('訓練 60 位、驗證 20 位、測試 20 位。有 5 位的缺值（glucose 5 位）已用訓練集的中位數或最常見的值補上。');
   });
 
   it('try-out prediction of a filled model accepts a blank value', async () => {
     seed('補值試用', tabularConfig('tabular_classification', { features: ['age', 'glucose'], missing: 'impute' }));
     const { user } = await renderApp('/training/settings', 'pi01');
     await finish(user, '補值試用');
-    await user.click(screen.getByRole('link', { name: '用新資料測試' }));
+    await user.click(screen.getByRole('link', { name: '執行推論' }));
     const tryForm = await screen.findByRole('form', { name: '一位病人' }, { timeout: 10_000 });
     expect(tryForm).toHaveTextContent('沒有的資料可以留白');
     await user.type(within(tryForm).getByLabelText('age'), '61');
     await user.click(within(tryForm).getByRole('button', { name: '預測' }));
-    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/glucose 缺值，已用訓練資料的中位數補上/);
+    expect(await within(tryForm).findByTestId('try-result')).toHaveTextContent(/glucose 缺值，已用訓練集的中位數補上/);
   });
 });
 
@@ -186,7 +186,7 @@ describe('4 與資料集設定的差異', () => {
   it('says in one sentence what really differs', () => {
     expect(settingDifference({ ...tf, features: ['age', 'sex_F', 'sex_M', 'glucose'] }, tf)).toBe('與資料集目前的設定不同：Feature 多了 glucose。');
     expect(settingDifference({ ...tf, target: 'event', missing: 'drop' }, { ...tf, missing: 'impute' })).toBe(
-      '與資料集目前的設定不同：要預測的結果是「event」，資料集是「diagnosis」；缺值處理是「不使用有缺值的病人」，資料集是「補上缺值」。');
+      '與資料集目前的設定不同：Target 欄位是「event」，資料集是「diagnosis」；缺值處理是「不使用有缺值的病人」，資料集是「補值」。');
     expect(settingDifference({ ...tf, steps: [] }, tf)).toBe('與資料集目前的設定不同：前處理步驟不同（這裡 0 個，資料集 1 個）。');
   });
 
@@ -196,7 +196,7 @@ describe('4 與資料集設定的差異', () => {
     await within(form).findByRole('checkbox', { name: 'sex（已轉成 sex_F、sex_M）' });
     await user.click(within(form).getByRole('button', { name: '確認並送出訓練' }));
     await screen.findByText(/訓練 #\d+（/);
-    await user.click(screen.getByRole('link', { name: '已存設定' }));
+    await user.click(screen.getByRole('link', { name: '訓練設定' }));
     await screen.findByRole('button', { name: /^送出訓練/ });
     await new Promise((r) => setTimeout(r, 300));     // 等資料集設定載入後再確認沒有差異提示
     expect(screen.queryByText('與資料集設定不同')).toBeNull();
@@ -221,30 +221,30 @@ describe('5 術語與圖表', () => {
 
   it('the overview and the form use plain names for Target and Feature; statistics terms are explained up front', async () => {
     await renderApp('/data/tabular/2/prepare', 'pi01');
-    const form = await screen.findByRole('form', { name: '整理資料' }, { timeout: 10_000 });
-    expect(within(form).getByRole('columnheader', { name: '想預測' })).toBeInTheDocument();
-    expect(within(form).getByRole('columnheader', { name: '用來預測' })).toBeInTheDocument();
+    const form = await screen.findByRole('form', { name: '資料清洗' }, { timeout: 10_000 });
+    expect(within(form).getByRole('columnheader', { name: 'Target' })).toBeInTheDocument();
+    expect(within(form).getByRole('columnheader', { name: 'Feature' })).toBeInTheDocument();
   });
 
   it('describe headers carry hover help and the explanation is open by default', async () => {
     await renderApp('/data/tabular/2/describe', 'vw01');
-    const table = await screen.findByRole('table', { name: '描述統計' });
+    const table = await screen.findByRole('table', { name: '描述性統計' });
     expect(within(table).getByText('P25')).toHaveAttribute('title', expect.stringContaining('25% 位置'));
     expect(within(table).getByText('標準差')).toHaveAttribute('title', expect.stringContaining('分散'));
     expect((screen.getByText(/^表頭說明/).closest('details') as HTMLDetailsElement).open).toBe(true);
   });
 
-  it('One-Hot hides “drop first category” under advanced with its default, and the summary leaves defaults out', async () => {
+  it('One Hot Encoding hides “drop first category” under advanced with its default, and the summary leaves defaults out', async () => {
     const { user } = await renderApp('/data/tabular/2/prepare', 'pi01');
     const form = await screen.findByRole('form', { name: '加入前處理步驟' }, { timeout: 10_000 });
     await user.selectOptions(within(form).getByLabelText('類別'), within(form).getByRole('option', { name: /^類別編碼/ }));
-    await user.selectOptions(within(form).getByLabelText('方法'), 'One-Hot 編碼');
+    await user.selectOptions(within(form).getByLabelText('方法'), 'One Hot Encoding');
     const advanced = within(form).getByText('進階（一般不需要調整）').closest('details')!;
     expect(advanced.open).toBe(false);
     expect(within(advanced).getByLabelText('移除第一個類別（避免共線）')).toBeInTheDocument();
     await user.click(within(form).getByRole('checkbox', { name: 'sex' }));
     await user.click(within(form).getByRole('button', { name: '加入步驟' }));
-    expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getByText('One-Hot 編碼：sex')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: '已加入的步驟' })).getByText('One Hot Encoding：sex')).toBeInTheDocument();
   });
 
   it('K-fold results explain each metric, including F1', async () => {
@@ -260,12 +260,12 @@ describe('6 次要問題', () => {
   const run = (metrics: Record<string, unknown>) => ({ id: 1, kind: 'tabular_classification', executor: 'template', metrics }) as unknown as TrainingRun;
 
   it('the baseline names the training majority and explains a low score on a test set with fewer of them', () => {
-    // 改善後測試的情形：訓練資料多數是「0」，測試集 18 人只有 7 人是「0」→ 38.9%
+    // 改善後測試的情形：訓練集多數是「0」，測試集 18 人只有 7 人是「0」→ 38.9%
     const r = run({ rows: { train: 76, validation: 0, test: 18 }, labels: { majority: '0', positive: '1', majority_train: { count: 46, rows: 76 } },
       test: { accuracy: 0.667, baseline_accuracy: 7 / 18 } });
     expect(plainSentence(r, 'test', 'baseline_accuracy', 7 / 18)).toBe(
-      '訓練資料中最常見的是「0」（76 人中 46 人）；如果測試集每個人都猜「0」，18 人中會猜對 7 人。測試集裡「0」只占 39%，比訓練資料的 61% 少，所以這個基準偏低');
-    expect(metricLabel('baseline_accuracy')).toBe('比較基準：全部猜訓練資料最常見的類別');
+      '訓練集中最常見的是「0」（76 人中 46 人）；如果測試集每個人都猜「0」，18 人中會猜對 7 人。測試集裡「0」只占 39%，比訓練集的 61% 少，所以這個基準偏低');
+    expect(metricLabel('baseline_accuracy')).toBe('比較基準：全部猜訓練集最常見的類別');
   });
 
   it('explains when the test result differs from the K-fold mean', () => {
@@ -277,8 +277,8 @@ describe('6 次要問題', () => {
     expect(warnings(close).join('\n')).not.toContain('K 折平均（');
   });
 
-  it('the header shows the Chinese role name', async () => {
+  it('the header shows the contract role name', async () => {
     await renderApp('/training/settings', 'pi01');
-    expect(await screen.findByTestId('header-role')).toHaveTextContent('（計畫主持人）');
+    expect(await screen.findByTestId('header-role')).toHaveTextContent('（Principal Investigator）');
   });
 });

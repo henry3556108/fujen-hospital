@@ -5,7 +5,7 @@ import { clickMenu, clickTab, note, shot, useProject } from './helpers';
 import { PROJECT_TABS, adminTab, projectTab, userPage, waitIdle } from './ops';
 
 // 不用診斷 CSV，在工作台一筆一筆手動做分類標註（「儲存並開啟下一筆」一路往下），
-// 再從「標註資料集」→「用這份資料建立模型」→ 建立訓練精靈送出，確認訓練完成（介面改版後的流程）。
+// 再從「標註資料集」→「用這份資料建立訓練任務」→ 建立訓練任務精靈送出，確認訓練完成（介面改版後的流程）。
 // 同時存證標註易用性的修正：分類標在影像左上角、待處理清單顯示類別與進度、標籤不預填、
 // 分類預設整個研究、沒存的草稿離開前提醒、只有 1 種 Label 時先擋下。
 //   EVIDENCE_DIR=<存證資料夾> npx playwright test -c playwright.acceptance.config.ts zz-manual-label-train --headed
@@ -53,9 +53,9 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   await waitIdle(page, 600);
   await useProject(page, PROJECT);
 
-  // 匯入影像：研究資料 → 影像 →「加入資料」→ 從電腦上傳（整個資料夾）
+  // 匯入影像：數據管理 → 影像 →「匯入資料」→ 從電腦上傳（整個資料夾）
   await clickMenu(page, '數據管理');
-  await page.getByRole('link', { name: '加入資料', exact: true }).click();
+  await page.getByRole('link', { name: '匯入資料', exact: true }).click();
   const dicom = page.getByRole('form', { name: '從電腦上傳' });
   await dicom.getByRole('checkbox', { name: '選擇整個資料夾（保留資料夾路徑）' }).check();
   await dicom.locator('input[type=file]').setInputFiles(path.join(DATA, '1-影像'));
@@ -63,7 +63,7 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   const imported = dicom.getByRole('region', { name: 'DICOM 匯入結果' });
   await expect(imported).toContainText(/新增 \d+、重複 \d+、失敗 \d+/, { timeout: 5 * 60_000 });
   note(TC, `步驟 1 影像匯入：${flat(await imported.innerText()).slice(0, 120)}`);
-  // 改版後「加入資料」是滑出面板，遮罩會擋住側欄：照使用者操作按「到影像清單查看」關閉面板
+  // 改版後「匯入資料」是滑出面板，遮罩會擋住側欄：照使用者操作按「到影像清單查看」關閉面板
   await dicom.getByRole('link', { name: '到影像清單查看' }).click();
   await expect(page.getByTestId('slideover-backdrop')).toHaveCount(0);
 
@@ -156,7 +156,7 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   note(TC, `步驟 6 標註後：${flat(await progress.innerText())}；類別欄 ${classes.join(' / ')}`);
   await shot(page, TC, '06-待處理清單-類別與進度');
 
-  // 標註資料集：系統自動建立的分類標註資料集 →「用這份資料建立模型」
+  // 標註資料集：系統自動建立的分類標註資料集 →「用這份資料建立訓練任務」
   await clickTab(page, '標註資料集', page.getByRole('navigation', { name: '影像標註分頁' }));
   const dsTable = page.getByRole('table', { name: '標註資料集' });
   await expect(dsTable).toBeVisible();
@@ -165,13 +165,13 @@ test('手動分類標註 20 個研究，不上傳診斷 CSV，再送出訓練到
   await expect(page.getByTestId('dataset-summary')).toBeVisible();
   note(TC, `步驟 7 資料集摘要：${flat(await page.getByTestId('dataset-summary').innerText())}`);
   await shot(page, TC, '07-標註資料集');
-  await page.getByRole('link', { name: '用這份資料建立模型', exact: true }).click();
+  await page.getByRole('link', { name: '用這份資料建立訓練任務', exact: true }).click();
 
-  // 建立訓練精靈：第 2 步已選好標註資料集 → 第 3 步確認並送出
-  await expect(page.getByRole('heading', { level: 1, name: '建立訓練' })).toBeVisible();
+  // 建立訓練任務精靈：第 2 步已選好標註資料集 → 第 3 步確認並送出
+  await expect(page.getByRole('heading', { level: 1, name: '建立訓練任務' })).toBeVisible();
   await expect(page.getByLabel('標註資料集', { exact: true })).not.toHaveValue('');
   note(TC, `步驟 8 精靈第 2 步：${flat(await page.getByRole('region', { name: /^確認資料/ }).innerText()).slice(0, 300)}`);
-  await shot(page, TC, '08-建立訓練-確認資料');
+  await shot(page, TC, '08-建立訓練任務-確認資料');
   await page.getByRole('button', { name: '下一步：確認並送出', exact: true }).click();
   const train = page.getByRole('form', { name: '確認並送出' });
   await expect(train).toBeVisible();

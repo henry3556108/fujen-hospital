@@ -27,7 +27,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** 程式碼區塊：等寬字、行號、右上「複製」（設計稿 B08 流程程式碼、B11 模型下載 Python 範例）。 */
+/** 程式碼區塊：等寬字、行號、右上「複製」（設計稿 B08 各階段處理程式碼、B11 模型下載 Python 範例）。 */
 export function CodeBlock({
   code,
   title,

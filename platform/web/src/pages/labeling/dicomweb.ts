@@ -139,7 +139,7 @@ export interface DicomwebClient {
 
 const MESSAGES: Record<number, string> = {
   401: '登入已失效，請重新登入',
-  403: '你沒有權限檢視這個研究，或研究不在本專案的 Accession 清單內',
+  403: '你沒有權限檢視這個研究，或研究不在本專案的 Accession Number 清單內',
   404: '找不到影像',
 };
 
